@@ -1,0 +1,63 @@
+/**
+ * Global fonts – import in src/index.css
+ * Add @font-face rules below when you have custom font files (e.g. in assets/fonts/).
+ */
+
+/* Inter – Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+/* ---------------------------------------------------------------------------
+   Font family variables – use in CSS or Tailwind (e.g. font-[var(--font-sans)])
+   --------------------------------------------------------------------------- */
+:root {
+  /* Default: system UI stack (no extra font files needed) */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Inter – use for promo bar and anywhere else */
+  --font-inter: "Inter", var(--font-sans);
+
+  /* Optional: set these when you add custom fonts (see @font-face below) */
+  --font-heading: var(--font-sans);
+  --font-body: var(--font-sans);
+}
+
+/* Apply Inter to promo bar (Get 30% off) – use class "font-inter" anywhere else */
+.font-inter {
+  font-family: var(--font-inter);
+}
+
+/* ---------------------------------------------------------------------------
+   Optional: custom font faces – uncomment and add your .woff2 / .woff paths
+   --------------------------------------------------------------------------- */
+/*
+@font-face {
+  font-family: "YourFont";
+  src: url("../fonts/YourFont-Regular.woff2") format("woff2"),
+       url("../fonts/YourFont-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "YourFont";
+  src: url("../fonts/YourFont-Bold.woff2") format("woff2"),
+       url("../fonts/YourFont-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+Then in :root above, set for example:
+  --font-heading: "YourFont", var(--font-sans);
+  --font-body: "YourFont", var(--font-sans);
+*/
+
+/* ---------------------------------------------------------------------------
+   Apply default font to body
+   --------------------------------------------------------------------------- */
+body {
+  font-family: var(--font-body);
+}

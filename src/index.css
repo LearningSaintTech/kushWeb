@@ -1,0 +1,15 @@
+@import "./assets/styles/variables.css";
+@import "./assets/styles/fonts.css";
+@import "tailwindcss";
+
+/* Prevent horizontal scroll across the whole app */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+#root {
+  overflow-x: hidden;
+  max-width: 100%;
+}
