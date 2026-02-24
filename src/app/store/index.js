@@ -1,11 +1,14 @@
-// Redux store – add configureStore when you install @reduxjs/toolkit
-// import { configureStore } from '@reduxjs/toolkit'
-// import { persistStore, persistReducer } from 'redux-persist'
-// import { persistConfig } from './persist'
-// import rootReducer from './slices'
+import { configureStore } from '@reduxjs/toolkit';
+import { persistStore, persistReducer } from 'redux-persist';
+import { persistConfig } from './persist.js';
+import rootReducer from './slices/index.js';
 
-// const persistedReducer = persistReducer(persistConfig, rootReducer)
-// export const store = configureStore({ reducer: persistedReducer })
-// export const persistor = persistStore(store)
+const persistedReducer = persistReducer(persistConfig, rootReducer);
 
-export {}
+export const store = configureStore({
+  reducer: persistedReducer,
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({ serializableCheck: { ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'] } }),
+});
+
+export const persistor = persistStore(store);

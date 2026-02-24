@@ -1,21 +1,42 @@
-import { useState, useRef, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector, shallowEqual } from 'react-redux'
 import { ROUTES } from '../../utils/constants'
+import { useAuth } from '../../app/context/AuthContext'
+import { useCartWishlist } from '../../app/context/CartWishlistContext'
+import { useNavbarMenu } from '../../app/hooks/useNavbarMenu'
+import { searchKeywordsService } from '../../services/search.service.js'
+import { addRecentKeyword, removeRecentKeyword } from '../../app/store/slices/searchSlice.js'
 import {
   SearchIcon,
   HeartIcon,
   CartIcon,
   ProfileIcon,
-  LocationIcon,
 } from '../ui/icons'
+import LocationPicker from './LocationPicker'
 
 import logoImg from '../../assets/images/navBar/logo.svg'
-import mobileLogoImg from '../../assets/images/navBar/mobileLogo.svg'
 
 function ChevronDownIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
+
+function ChevronUpIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+    </svg>
+  )
+}
+
+function DiamondIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 8 8" fill="currentColor">
+      <path d="M4 0L8 4L4 8L0 4L4 0z" />
     </svg>
   )
 }
@@ -43,12 +64,32 @@ function CloseIcon({ className }) {
   )
 }
 
-function IconBadge({ count, children }) {
+function ClockIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function TrendingIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  )
+}
+
+function IconBadge({ count, children, scrolled }) {
   return (
     <span className="relative inline-block">
       {children}
       {count > 0 && (
-        <span className="font-inter absolute -right-1 -top-1 md:-right-[0.52vw] md:-top-[0.52vw] flex h-3 w-3 md:h-[0.83vw] md:min-w-[0.83vw] items-center justify-center rounded-full bg-black px-0.5 md:px-[0.21vw] text-[10px] md:text-[0.52vw] font-medium text-white">
+        <span
+          className={`font-inter absolute -right-1 -top-1 md:-right-[0.52vw] md:-top-[0.52vw] flex h-3 w-3 md:h-[0.83vw] md:min-w-[0.83vw] items-center justify-center rounded-full px-0.5 md:px-[0.21vw] text-[10px] md:text-[0.52vw] font-medium ${
+            scrolled ? 'bg-black text-white' : 'bg-white text-black'
+          }`}
+        >
           {count > 99 ? '99+' : count}
         </span>
       )}
@@ -56,206 +97,315 @@ function IconBadge({ count, children }) {
   )
 }
 
-const NAV_ITEMS = [
-  { label: 'MEN', hasDropdown: true },
-  { label: 'WOMEN', to: ROUTES.HOME },
-  { label: 'COUPLE', to: ROUTES.HOME },
-  { label: 'UNISEX', to: ROUTES.HOME },
-]
-
-const SUBCATEGORIES_COLUMNS = [
-  [
-    'Jackets & Coats',
-    'Formal Wear',
-    'Tees & Singlets',
-    'Denim',
-    'Boardies',
-    'Socks & Boxers',
-    'Trousers',
-    'Chinos',
-    'Cargo Pants',
-    'Dress Pants',
-  ],
-  [
-    'Bomber Jackets',
-    'Tuxedos',
-    'Muscle Tees',
-    'Ripped Jeans',
-    'Swim Shorts',
-    'Long Socks',
-    'Corduroy',
-    'Wide Leg',
-    'Slim Fit',
-    'Pleated',
-  ],
-  [
-    'Leather Jackets',
-    'Three Piece',
-    'V-Neck Tees',
-    'Bootcut Jeans',
-    'Bermuda Shorts',
-    'Ankle Socks',
-    'Relaxed Fit',
-    'Skinny Fit',
-    'Cuffed',
-    'Drawstring',
-  ],
-  [
-    'Puffer Jackets',
-    'Double Breasted',
-    'Crew Neck Tees',
-    'Distressed Jeans',
-    'Chino Shorts',
-    'Sports Socks',
-  ],
-]
-
-// Mobile menu subcategories
-const MOBILE_SUBCATEGORIES = {
-  MEN: [
-    { label: 'Henleys', subItems: ['Jerseys', 'Button-Downs'] },
-    { label: 'T-Shirts', subItems: [] },
-    { label: 'Long Sleeves', subItems: [] },
-    { label: 'Sweatshirts', subItems: [] },
-    { label: 'Tank Tops', subItems: [] },
-    { label: 'Polos', subItems: [] },
-  ],
+/** Build search URL with optional category or subcategory filter */
+function getSearchUrl({ categoryId, subcategoryId } = {}) {
+  const params = new URLSearchParams()
+  if (categoryId) params.set('category', categoryId)
+  if (subcategoryId) params.set('subcategory', subcategoryId)
+  const q = params.toString()
+  return q ? `${ROUTES.SEARCH}?${q}` : ROUTES.SEARCH
 }
 
-const MEGA_MENU_IMAGE =
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80'
-
 export default function Header() {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [menDropdownOpen, setMenDropdownOpen] = useState(false)
-  const menCloseTimerRef = useRef(null)
-  const [activeMobileCategory, setActiveMobileCategory] = useState('MEN')
-  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set(['Henleys']))
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const recentFromRedux = useSelector((s) => s?.search?.recentKeywords ?? [], shallowEqual)
 
-  const wishlistCount = 4
-  const cartCount = 4
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [searchModalOpen, setSearchModalOpen] = useState(false)
+  const [searchPanelAnimated, setSearchPanelAnimated] = useState(false)
+  const [recentSearches, setRecentSearches] = useState([])
+  const [popularSearches, setPopularSearches] = useState([])
+  const [recentFromApi, setRecentFromApi] = useState(false)
+  const [searchModalLoading, setSearchModalLoading] = useState(false)
+  const [searchInputValue, setSearchInputValue] = useState('')
+  const [activeMobileCategory, setActiveMobileCategory] = useState(null)
+  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set())
+  const [panelAnimated, setPanelAnimated] = useState(false)
+  const { isAuthenticated, openAuthModal } = useAuth()
+  const { wishlistCount, cartCount } = useCartWishlist()
+  const {
+    categories: navbarCategories,
+    subcategoriesByCategoryId,
+    loadSubcategoriesForCategory,
+    loading: menuLoading,
+    subcategoriesLoading,
+  } = useNavbarMenu()
+
+  // Expand first category by default so subcategories are visible when menu opens
+  const firstCategoryId = navbarCategories?.length > 0 ? (navbarCategories[0]._id ?? navbarCategories[0].id) : null
+  const effectiveActiveCategory = activeMobileCategory ?? (firstCategoryId && !menuLoading ? firstCategoryId : null)
 
   const closeMenu = () => setMenuOpen(false)
+  const closeSearchModal = () => setSearchModalOpen(false)
 
-  const toggleSubcategory = (label) => {
+  const openSearchModal = useCallback(() => {
+    setSearchModalOpen(true)
+  }, [])
+
+  // When search modal opens: recent = API if logged in, else Redux; always fetch popular
+  useEffect(() => {
+    if (!searchModalOpen) return
+    setSearchPanelAnimated(false)
+    setSearchModalLoading(true)
+    const limit = 10
+    const recentPromise = searchKeywordsService.getRecent({ limit })
+      .then((res) => {
+        const data = res?.data?.data ?? res?.data
+        const list = Array.isArray(data) ? data : []
+        setRecentSearches(list)
+        setRecentFromApi(true)
+      })
+      .catch(() => {
+        setRecentSearches(recentFromRedux.map((k) => ({ keyword: k })))
+        setRecentFromApi(false)
+      })
+
+    const popularPromise = searchKeywordsService.getPopular({ limit })
+      .then((res) => {
+        const data = res?.data?.data ?? res?.data
+        setPopularSearches(Array.isArray(data) ? data : [])
+      })
+      .catch(() => setPopularSearches([]))
+
+    Promise.all([recentPromise, popularPromise]).finally(() => setSearchModalLoading(false))
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setSearchPanelAnimated(true))
+    })
+  }, [searchModalOpen, recentFromRedux])
+
+  useEffect(() => {
+    if (!searchModalOpen) {
+      setSearchPanelAnimated(false)
+      setSearchInputValue('')
+    }
+  }, [searchModalOpen])
+
+  const goToSearch = useCallback((keyword) => {
+    const term = keyword != null ? String(keyword).trim() : ''
+    if (!term) return
+    closeSearchModal()
+    if (!recentFromApi) dispatch(addRecentKeyword(term))
+    navigate(`${ROUTES.SEARCH}?q=${encodeURIComponent(term)}`)
+  }, [navigate, recentFromApi, dispatch])
+
+  const removeRecentItem = useCallback((keyword) => {
+    const term = typeof keyword === 'string' ? keyword : keyword?.keyword ?? ''
+    if (!term) return
+    if (recentFromApi) {
+      searchKeywordsService.deleteKeyword(term).then(() => {
+        setRecentSearches((prev) => prev.filter((item) => (item?.keyword ?? item) !== term))
+      }).catch(() => {})
+    } else {
+      dispatch(removeRecentKeyword(term))
+      setRecentSearches((prev) => prev.filter((item) => (item?.keyword ?? item) !== term))
+    }
+  }, [recentFromApi, dispatch])
+
+  const handleSearchModalSubmit = (e) => {
+    e.preventDefault()
+    goToSearch(searchInputValue || e.currentTarget?.querySelector?.('input[name="q"]')?.value)
+  }
+
+  const toggleSubcategory = (key) => {
     setExpandedSubcategories((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(label)) {
-        newSet.delete(label)
-      } else {
-        newSet.add(label)
-      }
-      return newSet
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
     })
   }
 
   const headerRef = useRef(null)
-  const [dropdownTop, setDropdownTop] = useState(0)
+  const [scrolled, setScrolled] = useState(false)
+  const [searchDropdownTop, setSearchDropdownTop] = useState(0)
+
+  // Position search dropdown just below header when it opens
+  useEffect(() => {
+    if (searchModalOpen && headerRef.current) {
+      const top = headerRef.current.getBoundingClientRect().bottom
+      setSearchDropdownTop(top)
+    }
+  }, [searchModalOpen])
+
+  // When hamburger opens with first category expanded, fetch its subcategories by category
+  useEffect(() => {
+    if (menuOpen && effectiveActiveCategory) {
+      console.log('[Header] menu open, loading subcategories for effectiveActiveCategory', { effectiveActiveCategory, menuOpen })
+      loadSubcategoriesForCategory(effectiveActiveCategory)
+    }
+  }, [menuOpen, effectiveActiveCategory, loadSubcategoriesForCategory])
 
   useEffect(() => {
-    const el = headerRef.current
-    if (!el) return
-    const onResize = () => setDropdownTop(el.getBoundingClientRect().bottom)
-    onResize()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    const onScroll = () => setScrolled(window.scrollY > 60)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Add style to hide scrollbar for mobile menu
+  // Panel slide-in animation + body scroll lock
   useEffect(() => {
     if (menuOpen) {
-      const style = document.createElement('style')
-      style.textContent = `
-        .mobile-menu-scroll::-webkit-scrollbar {
-          display: none;
-        }
-      `
-      document.head.appendChild(style)
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+      setPanelAnimated(false)
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setPanelAnimated(true))
+      })
       return () => {
-        document.head.removeChild(style)
+        cancelAnimationFrame(id)
+        document.documentElement.style.overflow = ''
+        document.body.style.overflow = ''
       }
+    } else {
+      setPanelAnimated(false)
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
     }
   }, [menuOpen])
 
-  const openMenDropdown = () => {
-    if (menCloseTimerRef.current) clearTimeout(menCloseTimerRef.current)
-    setMenDropdownOpen(true)
-  }
-
-  const scheduleCloseMenDropdown = () => {
-    menCloseTimerRef.current = setTimeout(() => setMenDropdownOpen(false), 150)
-  }
-
   return (
-    <header ref={headerRef} className="fixed top-0 left-0 right-0 w-full z-50 bg-white">
-
+    <header
+      ref={headerRef}
+      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 ${
+        scrolled ? 'bg-white' : 'bg-transparent'
+      }`}
+    >
       {/* Promo Bar */}
-      <div className="font-inter rounded-lg md:rounded-[0.7vw] bg-black py-2 md:pt-[0.42vw] md:pb-[0.42vw] mx-3 md:ml-[0.83vw] md:mr-[0.83vw] text-center font-light text-xs sm:text-sm md:text-[1.04vw] text-white px-2 md:px-0">
+      <div
+        className={`font-inter rounded-lg md:rounded-[0.7vw] py-2 md:pt-[0.42vw] md:pb-[0.42vw] mx-3 md:ml-[0.83vw] md:mr-[0.83vw] text-center font-light text-xs sm:text-sm md:text-[1.04vw] px-2 md:px-0 transition-colors duration-300 ${
+          scrolled ? 'bg-black text-white' : 'bg-transparent text-white'
+        }`}
+      >
         <span className="block truncate">Get 30% off for first transaction using</span>
       </div>
 
-      {/* Main Header */}
-      <div className="bg-white px-4 md:px-[1.56vw] py-2 md:py-[0.52vw]">
+      {/* Main */}
+      <div
+        className={`px-4 md:px-[1.56vw] py-2 md:py-[0.52vw] transition-colors duration-300 ${
+          scrolled ? 'bg-white' : 'bg-transparent'
+        }`}
+      >
 
         {/* Mobile Layout - Two Rows (only for screens < 768px) */}
         <div className="md:hidden flex flex-col gap-3">
-          {/* Row 1: Logo + Location + Hamburger */}
+          {/* Row 1: Hamburger + Location */}
           <div className="flex items-center gap-2">
-            <NavLink to={ROUTES.HOME} className="flex shrink-0 items-center">
-              <img
-                src={mobileLogoImg}
-                alt="KHUSH"
-                className="h-9 w-9"
-              />
-            </NavLink>
-
-            <div className="flex flex-1 min-w-0 items-center gap-2 rounded-full bg-[#F5F5F5] px-2 py-1.5">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
-                <LocationIcon className="h-4 w-4 text-black" />
-              </div>
-              <span className="font-inter text-xs text-[#636363] truncate">
-                B-127, B BLOCK, SECTOR 69, N...
-              </span>
-            </div>
-
             <button
               type="button"
-              onClick={() => setMenuOpen((o) => !o)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-black hover:bg-gray-100"
-              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              onClick={() => setMenuOpen(true)}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                scrolled
+                  ? 'text-black hover:bg-gray-100'
+                  : 'text-white hover:bg-white/10'
+              }`}
+              aria-label="Open menu"
               aria-expanded={menuOpen}
             >
-              <HamburgerIcon className="h-6 w-6" open={menuOpen} />
+              <HamburgerIcon
+                className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`}
+                open={false}
+              />
             </button>
+
+            <LocationPicker scrolled={scrolled} className="flex flex-1 min-w-0" />
           </div>
 
           {/* Row 2: Search + Icons */}
           <div className="flex items-center gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-full bg-[#F5F5F5] px-3 py-1.5">
+            <form
+              action={ROUTES.SEARCH}
+              method="get"
+              onSubmit={() => closeSearchModal()}
+              className={`flex flex-1 items-center gap-2 rounded-full px-3 py-1.5 ${
+                scrolled ? 'bg-[#F5F5F5]' : 'bg-white/10'
+              }`}
+            >
               <input
                 type="search"
+                name="q"
                 placeholder="Find Your Choice"
-                className="font-inter w-full bg-transparent text-sm placeholder:text-[#636363] focus:outline-none"
+                onFocus={openSearchModal}
+                onClick={openSearchModal}
+                className={`font-inter w-full bg-transparent text-sm focus:outline-none ${
+                  scrolled
+                    ? 'text-black placeholder:text-[#636363]'
+                    : 'text-white placeholder:text-white/80'
+                }`}
               />
-              <SearchIcon className="h-4 w-4 text-black shrink-0" />
-            </div>
+              <button type="submit" className="shrink-0" aria-label="Search">
+                <SearchIcon
+                  className={`h-4 w-4 ${scrolled ? 'text-black' : 'text-white'}`}
+                />
+              </button>
+            </form>
 
             <div className="flex items-center gap-3">
-              <button type="button" className="text-black hover:opacity-70" aria-label="Wishlist">
-                <IconBadge count={wishlistCount}>
-                  <HeartIcon className="h-6 w-6" />
-                </IconBadge>
-              </button>
+              {isAuthenticated ? (
+                <NavLink
+                  to={ROUTES.WISHLIST}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Wishlist"
+                >
+                  <IconBadge count={wishlistCount} scrolled={scrolled}>
+                    <HeartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
+                  </IconBadge>
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.WISHLIST)}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Wishlist – sign in"
+                >
+                  <IconBadge count={wishlistCount} scrolled={scrolled}>
+                    <HeartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
+                  </IconBadge>
+                </button>
+              )}
 
-              <NavLink to={ROUTES.CART} className="text-black hover:opacity-70" aria-label="Cart">
-                <IconBadge count={cartCount}>
-                  <CartIcon className="h-6 w-6" />
-                </IconBadge>
-              </NavLink>
+              {isAuthenticated ? (
+                <NavLink
+                  to={ROUTES.CART}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Cart"
+                >
+                  <IconBadge count={cartCount} scrolled={scrolled}>
+                    <CartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
+                  </IconBadge>
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.CART)}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Cart – sign in"
+                >
+                  <IconBadge count={cartCount} scrolled={scrolled}>
+                    <CartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
+                  </IconBadge>
+                </button>
+              )}
 
-              <NavLink to={ROUTES.ACCOUNT} className="text-black hover:opacity-70" aria-label="Account">
-                <ProfileIcon className="h-5 w-5" />
-              </NavLink>
+              {isAuthenticated ? (
+                <NavLink
+                  to={ROUTES.ACCOUNT}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Account"
+                >
+                  <ProfileIcon className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`} />
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.ACCOUNT)}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Account – sign in"
+                >
+                  <ProfileIcon className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`} />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -263,245 +413,454 @@ export default function Header() {
         {/* Desktop/Tablet Layout - Single Row (for screens >= 768px) */}
         <div className="hidden md:flex flex-row items-center gap-0">
 
-          {/* Logo + Location */}
+          {/* Left: Menu (Hamburger) + Location */}
           <div className="flex shrink-0 items-center gap-[1.04vw]">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className={`font-inter flex items-center gap-[0.42vw] text-[0.83vw] ${
+                scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'
+              }`}
+              aria-label="Open menu"
+              aria-expanded={menuOpen}
+            >
+              <HamburgerIcon
+                className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`}
+                open={false}
+              />
+              <span>Menu</span>
+            </button>
 
-            <NavLink to={ROUTES.HOME} className="flex shrink-0 items-center">
+            <LocationPicker scrolled={scrolled} compact />
+          </div>
+
+          {/* Center: Logo + taglines */}
+          <div className="flex flex-1 items-center justify-center">
+            <NavLink
+              to={ROUTES.HOME}
+              className="flex flex-col items-center justify-center gap-[0.26vw]"
+            >
+             
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className="h-[2.81vw] w-[7.29vw]"
+                className={`h-[3.81vw] w-[8.29vw] ${scrolled ? '' : 'brightness-0 invert'}`}
               />
+              
             </NavLink>
-
-            <div className="flex min-w-0 items-center gap-[0.83vw] rounded-full bg-[#F5F5F5] px-[0.83vw] py-[0.63vw] w-[18.1vw]">
-              <div className="flex h-[2.08vw] w-[2.08vw] shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
-                <LocationIcon className="h-5 w-5 text-black" />
-              </div>
-              <span className="font-inter text-[0.83vw] text-[#636363] truncate">
-                B-127, B BLOCK, SECTOR 69, N...
-              </span>
-            </div>
-
           </div>
-
-          {/* Center Nav */}
-          <nav className="flex flex-1 items-center justify-center gap-[2.08vw]">
-            {NAV_ITEMS.map((item) =>
-              item.hasDropdown ? (
-                <div
-                  key={item.label}
-                  className="relative"
-                  onMouseEnter={openMenDropdown}
-                  onMouseLeave={scheduleCloseMenDropdown}
-                >
-                  <button className="font-inter flex items-center gap-[0.21vw] text-[0.83vw] text-black">
-                    {item.label}
-                    <ChevronDownIcon
-                      className={`h-4 w-4 transition ${menDropdownOpen ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                </div>
-              ) : (
-                <NavLink
-                  key={item.label}
-                  to={item.to}
-                  className="font-inter text-[0.83vw] text-black"
-                >
-                  {item.label}
-                </NavLink>
-              )
-            )}
-          </nav>
 
           {/* Right Section */}
           <div className="flex items-center gap-[0.83vw]">
 
-            <div className="flex items-center gap-[4.63vw] rounded-full bg-[#F5F5F5] px-[1.04vw] py-[0.63vw]">
+            <form
+              action={ROUTES.SEARCH}
+              method="get"
+              onSubmit={() => closeSearchModal()}
+              className={`flex items-center gap-[4.63vw] rounded-full px-[1.04vw] py-[0.63vw] ${
+                scrolled ? 'bg-[#F5F5F5]' : 'bg-white/10'
+              }`}
+            >
               <input
                 type="search"
+                name="q"
                 placeholder="Find Your Choice"
-                className="font-inter w-full bg-transparent text-[0.83vw] placeholder:text-[#636363] focus:outline-none"
+                onFocus={openSearchModal}
+                onClick={openSearchModal}
+                className={`font-inter w-full bg-transparent text-[0.83vw] focus:outline-none ${
+                  scrolled
+                    ? 'text-black placeholder:text-[#636363]'
+                    : 'text-white placeholder:text-white/80'
+                }`}
               />
-              <SearchIcon className="h-5 w-5 text-black shrink-0" />
-            </div>
+              <button type="submit" className="shrink-0" aria-label="Search">
+                <SearchIcon
+                  className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`}
+                />
+              </button>
+            </form>
 
             <div className="flex items-center gap-[1.3vw]">
-              <button type="button" className="text-black hover:opacity-70" aria-label="Wishlist">
-                <IconBadge count={wishlistCount}>
-                  <HeartIcon className="h-[1.87vw] w-[1.87vw]" />
-                </IconBadge>
-              </button>
+              {isAuthenticated ? (
+                <NavLink
+                  to={ROUTES.WISHLIST}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Wishlist"
+                >
+                  <IconBadge count={wishlistCount} scrolled={scrolled}>
+                    <HeartIcon
+                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                    />
+                  </IconBadge>
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.WISHLIST)}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Wishlist – sign in"
+                >
+                  <IconBadge count={wishlistCount} scrolled={scrolled}>
+                    <HeartIcon
+                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                    />
+                  </IconBadge>
+                </button>
+              )}
 
-              <NavLink to={ROUTES.CART} className="text-black hover:opacity-70" aria-label="Cart">
-                <IconBadge count={cartCount}>
-                  <CartIcon className="h-[1.87vw] w-[1.87vw]" />
-                </IconBadge>
-              </NavLink>
+              {isAuthenticated ? (
+                <NavLink
+                  to={ROUTES.CART}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Cart"
+                >
+                  <IconBadge count={cartCount} scrolled={scrolled}>
+                    <CartIcon
+                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                    />
+                  </IconBadge>
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.CART)}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Cart – sign in"
+                >
+                  <IconBadge count={cartCount} scrolled={scrolled}>
+                    <CartIcon
+                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                    />
+                  </IconBadge>
+                </button>
+              )}
 
-              <NavLink to={ROUTES.ACCOUNT} className="text-black hover:opacity-70" aria-label="Account">
-                <ProfileIcon className="h-[1.04vw] w-[1.04vw]" />
-              </NavLink>
+              {isAuthenticated ? (
+                <NavLink
+                  to={ROUTES.ACCOUNT}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Account"
+                >
+                  <ProfileIcon
+                    className={`h-[1.04vw] w-[1.04vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                  />
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.ACCOUNT)}
+                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  aria-label="Account – sign in"
+                >
+                  <ProfileIcon
+                    className={`h-[1.04vw] w-[1.04vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                  />
+                </button>
+              )}
             </div>
 
           </div>
 
         </div>
 
-        {/* Mega Menu */}
-        {menDropdownOpen && (
-          <div
-            className="fixed left-0 right-0 z-30 hidden md:block"
-            style={{ top: dropdownTop }}
-            onMouseEnter={openMenDropdown}
-            onMouseLeave={scheduleCloseMenDropdown}
-          >
-            <div className="flex justify-center mt-[0.83vw]">
-              <div className="w-full max-w-[72.92vw] rounded-[2.08vw]  bg-white shadow-lg">
-
-                <div className="flex min-h-[21.35vw]">
-
-                  <div className="w-[18.23vw] h-[20.83vw] p-[1.56vw]">
-                    <img
-                      src={MEGA_MENU_IMAGE}
-                      alt=""
-                      className="h-full w-full object-cover rounded-[1.04vw]"
-                    />
-                  </div>
-
-                  <div className="flex flex-1 gap-[2.08vw] py-[1.56vw] px-[2.08vw]">
-                    {SUBCATEGORIES_COLUMNS.map((column, i) => (
-                      <div key={i} className="flex flex-1 flex-col gap-[0.52vw]">
-                        {column.map((label) => (
-                          <NavLink
-                            key={label}
-                            to={ROUTES.SEARCH}
-                            className="font-inter text-[0.83vw] text-[#636363] hover:text-black"
-                          >
-                            {label}
-                          </NavLink>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-
-                </div>
-
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile Menu Overlay (only for screens < 768px) */}
-        {menuOpen && (
+        {/* Search dropdown: curved panel below header */}
+        {searchModalOpen && (
           <>
             <div
-              className="fixed inset-0 z-40 bg-black/40 md:hidden"
-              onClick={closeMenu}
+              className="fixed inset-0 z-40 bg-black/40 transition-opacity duration-300"
+              onClick={closeSearchModal}
               aria-hidden
             />
-            <div className="fixed inset-0 z-50 bg-white md:hidden overflow-y-auto">
-              <div className="flex flex-col h-full">
-                {/* Close Button - Top Left */}
-                <div className="p-4 pb-0">
-                  <button
-                    type="button"
-                    onClick={closeMenu}
-                    className="flex h-10 w-10 items-center justify-center text-black hover:bg-gray-100 rounded-lg"
-                    aria-label="Close menu"
-                  >
-                    <CloseIcon className="h-6 w-6" />
-                  </button>
-                </div>
+            <div
+              className="fixed left-4 right-4 z-50 rounded-2xl shadow-2xl flex flex-col bg-black/40 backdrop-blur-xl border border-white/10 overflow-hidden transition-all duration-300 ease-out"
+              style={{
+                top: searchDropdownTop + 8,
+                maxHeight: `calc(100vh - ${searchDropdownTop}px - 1.5rem)`,
+              }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Search - recent and popular"
+            >
+              {/* Search row: input + close */}
+              <div className="flex items-center gap-3 shrink-0 p-4 pb-3">
+                <form onSubmit={handleSearchModalSubmit} className="flex-1 min-w-0 flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2.5">
+                  <SearchIcon className="h-5 w-5 text-gray-400 shrink-0" />
+                  <input
+                    type="search"
+                    name="q"
+                    value={searchInputValue}
+                    onChange={(e) => setSearchInputValue(e.target.value)}
+                    placeholder="Search T-Shirts"
+                    className="font-inter flex-1 bg-transparent text-sm text-gray-100 placeholder:text-gray-500 focus:outline-none"
+                    autoFocus
+                  />
+                </form>
+                <button
+                  type="button"
+                  onClick={closeSearchModal}
+                  className="shrink-0 flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                  aria-label="Close"
+                >
+                  <CloseIcon className="h-6 w-6" />
+                </button>
+              </div>
 
-                {/* Horizontally Scrollable Categories */}
-                <div className="px-4 pt-4 pb-2">
-                  <div 
-                    className="flex gap-6 overflow-x-auto pb-2 mobile-menu-scroll"
-                    style={{ 
-                      scrollbarWidth: 'none',
-                      msOverflowStyle: 'none',
-                      WebkitOverflowScrolling: 'touch'
-                    }}
-                  >
-                    {NAV_ITEMS.map((item) => {
-                      const isActive = activeMobileCategory === item.label
-                      return (
-                        <button
-                          key={item.label}
-                          onClick={() => setActiveMobileCategory(item.label)}
-                          className="flex flex-col items-center gap-1 shrink-0 relative"
-                        >
-                          <span
-                            className={`font-inter text-base font-medium whitespace-nowrap ${
-                              isActive ? 'text-black' : 'text-gray-400'
-                            }`}
-                          >
-                            {item.label}
-                          </span>
-                          {isActive && (
-                            <>
-                              {/* Diamond indicator */}
-                              <div className="w-1.5 h-1.5 bg-black rotate-45 mt-0.5"></div>
-                              {/* Underline */}
-                              <div className="absolute -bottom-0.5 left-0 right-0 h-px bg-black"></div>
-                            </>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Subcategories List */}
-                <div className="flex-1 px-4 pb-4">
-                  {activeMobileCategory === 'MEN' && MOBILE_SUBCATEGORIES.MEN && (
-                    <div className="flex flex-col">
-                      {MOBILE_SUBCATEGORIES.MEN.map((category) => {
-                        const isExpanded = expandedSubcategories.has(category.label)
-                        const hasSubItems = category.subItems && category.subItems.length > 0
-                        return (
-                          <div key={category.label} className="border-b border-gray-200">
-                            <button
-                              type="button"
-                              onClick={() => hasSubItems && toggleSubcategory(category.label)}
-                              className="w-full flex items-center justify-between py-4 text-left"
-                            >
-                              <span className="font-inter text-base font-medium text-black">
-                                {category.label}
+              {/* Recent & Popular in scrollable area */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+                {searchModalLoading ? (
+                  <div className="font-inter text-sm text-gray-400 py-6">Loading…</div>
+                ) : (
+                  <>
+                    <div className="mb-5">
+                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
+                        Recent Searches
+                      </h3>
+                      {recentSearches.length === 0 ? (
+                        <p className="font-inter text-sm text-gray-500">No recent searches</p>
+                      ) : (
+                        <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
+                          {recentSearches.map((item) => {
+                            const keyword = item?.keyword ?? item
+                            const text = typeof keyword === 'string' ? keyword : keyword?.keyword ?? ''
+                            if (!text) return null
+                            return (
+                              <span
+                                key={text}
+                                className="font-inter inline-flex items-center gap-1.5 shrink-0 rounded-full bg-white/10 backdrop-blur-sm pl-3 pr-1.5 py-2 text-sm text-gray-200"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => goToSearch(text)}
+                                  className="hover:text-white transition-colors"
+                                >
+                                  {text}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeRecentItem(text) }}
+                                  className="text-gray-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                                  aria-label={`Remove ${text}`}
+                                >
+                                  <span aria-hidden>×</span>
+                                </button>
                               </span>
-                              {hasSubItems && (
-                                <ChevronDownIcon
-                                  className={`h-5 w-5 text-black transition-transform ${
-                                    isExpanded ? 'rotate-180' : ''
-                                  }`}
-                                />
-                              )}
-                            </button>
-                            {hasSubItems && isExpanded && (
-                              <div className="pl-4 pb-2">
-                                {category.subItems.map((subItem) => (
-                                  <NavLink
-                                    key={subItem}
-                                    to={ROUTES.SEARCH}
-                                    onClick={closeMenu}
-                                    className="block py-2 font-inter text-sm text-gray-600 hover:text-black"
-                                  >
-                                    {subItem}
-                                  </NavLink>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                    <div>
+                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
+                        Popular Searches
+                      </h3>
+                      {popularSearches.length === 0 ? (
+                        <p className="font-inter text-sm text-gray-500">No popular searches</p>
+                      ) : (
+                        <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
+                          {popularSearches.map((item) => {
+                            const keyword = item?.keyword ?? item
+                            const text = typeof keyword === 'string' ? keyword : keyword?.keyword ?? ''
+                            if (!text) return null
+                            return (
+                              <button
+                                key={text}
+                                type="button"
+                                onClick={() => goToSearch(text)}
+                                className="font-inter shrink-0 rounded-full bg-white/10 backdrop-blur-sm px-3 py-2 text-sm text-gray-200 hover:bg-white/20 hover:text-white transition-colors"
+                              >
+                                {text}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </>
         )}
+
+        {/* Full-screen hamburger menu modal */}
+        {menuOpen && (
+  <>
+    <div
+      className="fixed inset-0 z-40 bg-black/30 transition-opacity duration-300"
+      onClick={closeMenu}
+      aria-hidden
+    />
+
+    <div
+      className="fixed left-0 top-0 bottom-0 z-50 w-[80vw] min-w-[280px] max-w-[800px] bg-white flex flex-col transition-transform duration-300 ease-out"
+      style={{ transform: panelAnimated ? 'translateX(0)' : 'translateX(-100%)' }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Navigation menu"
+    >
+      {/* Close Button */}
+      <div className="flex justify-end shrink-0 pt-4 pr-4 md:pt-6 md:pr-6">
+        <button
+          type="button"
+          onClick={closeMenu}
+          className="flex h-12 w-12 items-center justify-center text-black hover:bg-gray-100 rounded-lg transition-colors"
+          aria-label="Close menu"
+        >
+          <CloseIcon className="h-7 w-7" />
+        </button>
+      </div>
+
+      {/* ========================= */}
+      {/* ✅ FIXED CATEGORY SCROLL */}
+      {/* ========================= */}
+
+      <div
+        className="shrink-0 w-full overflow-x-auto border-b border-gray-200"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div className="flex w-max gap-6 md:gap-10 px-4 pb-3">
+          {navbarCategories.map((cat) => {
+            const categoryId = cat._id ?? cat.id
+            const categoryName = (cat.name ?? '').toUpperCase()
+            const isActive = effectiveActiveCategory === categoryId
+
+            return (
+              <button
+                key={categoryId}
+                type="button"
+                onClick={() => {
+                  setActiveMobileCategory(categoryId)
+                  loadSubcategoriesForCategory(categoryId)
+                }}
+                className="relative shrink-0 font-inter text-sm md:text-base font-medium tracking-wide pb-2 transition-colors"
+              >
+                <span
+                  className={
+                    isActive
+                      ? 'text-black'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }
+                >
+                  {categoryName || 'Category'}
+                </span>
+
+                {isActive && (
+                  <>
+                    <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-black" />
+                    <span className="absolute left-1/2 -translate-x-1/2 bottom-0 translate-y-1/2 flex justify-center">
+                      <DiamondIcon className="h-1.5 w-1.5 text-black" />
+                    </span>
+                  </>
+                )}
+              </button>
+            )
+          })}
+
+          {!menuLoading && navbarCategories.length === 0 && (
+            <span className="font-inter text-sm text-gray-400 shrink-0">
+              No categories
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ========================= */}
+      {/* Subcategories */}
+      {/* ========================= */}
+
+      <nav className="flex-1 overflow-y-auto">
+        {menuLoading ? (
+          <div className="px-4 py-6 font-inter text-sm text-gray-500">
+            Loading menu…
+          </div>
+        ) : effectiveActiveCategory ? (
+          subcategoriesLoading?.[effectiveActiveCategory] ? (
+            <div className="px-4 py-6 font-inter text-sm text-gray-500">
+              Loading…
+            </div>
+          ) : (
+            <ul className="py-2">
+              {(subcategoriesByCategoryId[effectiveActiveCategory] ?? []).map(
+                (sub, subIdx) => {
+                  const subId = sub._id ?? sub.id ?? `sub-${subIdx}`
+                  const subName =
+                    sub.name ?? sub.label ?? 'Subcategory'
+                  const isExpanded =
+                    expandedSubcategories.has(subId)
+
+                  return (
+                    <li
+                      key={subId}
+                      className="border-b border-gray-200"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <button
+                          type="button"
+                          onClick={() => toggleSubcategory(subId)}
+                          className="font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50/80 transition-colors"
+                        >
+                          {subName}
+                        </button>
+
+                        <span className="pr-4 text-gray-400 pointer-events-none">
+                          {isExpanded ? (
+                            <ChevronUpIcon className="h-5 w-5" />
+                          ) : (
+                            <ChevronDownIcon className="h-5 w-5" />
+                          )}
+                        </span>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="pl-6 pr-4 pb-4">
+                          <NavLink
+                            to={getSearchUrl({
+                              categoryId: effectiveActiveCategory,
+                              subcategoryId: subId,
+                            })}
+                            onClick={closeMenu}
+                            className="font-inter block py-2 text-sm text-gray-700 hover:text-black transition-colors"
+                          >
+                            View all in {subName}
+                          </NavLink>
+                        </div>
+                      )}
+                    </li>
+                  )
+                }
+              )}
+
+              {(subcategoriesByCategoryId[
+                effectiveActiveCategory
+              ] ?? []).length === 0 && (
+                <li className="px-4 py-6">
+                  <NavLink
+                    to={getSearchUrl({
+                      categoryId: effectiveActiveCategory,
+                    })}
+                    onClick={closeMenu}
+                    className="font-inter text-sm text-gray-600 hover:text-black"
+                  >
+                    View all in{' '}
+                    {navbarCategories.find(
+                      (c) =>
+                        (c._id ?? c.id) ===
+                        effectiveActiveCategory
+                    )?.name ?? 'this category'}
+                  </NavLink>
+                </li>
+              )}
+            </ul>
+          )
+        ) : (
+          <div className="px-4 py-6 font-inter text-sm text-gray-500">
+            Select a category above.
+          </div>
+        )}
+      </nav>
+    </div>
+  </>
+)}
 
       </div>
     </header>

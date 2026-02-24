@@ -1,6 +1,12 @@
-// Re-export all slices when created, e.g.:
-// export { default as cartSlice } from './cartSlice'
-// export { default as authSlice } from './authSlice'
-// Then combine in a rootReducer
+import { combineReducers } from '@reduxjs/toolkit';
+import locationReducer from './locationSlice.js';
+import searchReducer from './searchSlice.js';
 
-export {}
+const rootReducer = combineReducers({
+  location: locationReducer,
+  search: searchReducer,
+});
+
+export default rootReducer;
+export { default as locationSlice } from './locationSlice.js';
+export { default as searchSlice } from './searchSlice.js';

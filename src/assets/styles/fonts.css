@@ -3,8 +3,8 @@
  * Add @font-face rules below when you have custom font files (e.g. in assets/fonts/).
  */
 
-/* Inter – Google Fonts */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+/* Inter & Raleway – Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Raleway:wght@400;500;600;700;800&family=Tenor+Sans&family=Baloo+2:wght@400;500;600;700&display=swap");
 
 /* ---------------------------------------------------------------------------
    Font family variables – use in CSS or Tailwind (e.g. font-[var(--font-sans)])
@@ -15,17 +15,25 @@
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* Inter – use for promo bar and anywhere else */
+  /* Inter – body, tabs, links */
   --font-inter: "Inter", var(--font-sans);
+
+  /* Raleway – section headings e.g. OUR PRODUCTS */
+  --font-raleway: "Raleway", var(--font-sans);
 
   /* Optional: set these when you add custom fonts (see @font-face below) */
   --font-heading: var(--font-sans);
   --font-body: var(--font-sans);
 }
 
-/* Apply Inter to promo bar (Get 30% off) – use class "font-inter" anywhere else */
+/* Apply Inter – use class "font-inter" for body text, tabs, links */
 .font-inter {
   font-family: var(--font-inter);
+}
+
+/* Apply Raleway – use class "font-raleway" for section headings */
+.font-raleway {
+  font-family: var(--font-raleway);
 }
 
 /* ---------------------------------------------------------------------------

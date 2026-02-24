@@ -1,6 +1,7 @@
 export const ROUTES = {
   HOME: '/',
   CART: '/cart',
+  WISHLIST: '/wishlist',
   PRODUCT: '/product/:id',
   AUTH: '/auth',
   CHECKOUT: '/checkout',
@@ -12,5 +13,3 @@ export const ROUTES = {
 export function getProductPath(id) {
   return `/product/${id}`
 }
-
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
