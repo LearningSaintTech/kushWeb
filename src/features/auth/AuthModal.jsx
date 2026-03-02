@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 
 const DEFAULT_COUNTRY_CODE = '+91'
@@ -28,7 +27,6 @@ function ClockIcon({ className }) {
 }
 
 export default function AuthModal() {
-  const navigate = useNavigate()
   const {
     login,
     register,
@@ -36,7 +34,6 @@ export default function AuthModal() {
     resendOtp,
     isAuthenticated,
     authModalOpen,
-    authModalRedirectTo,
     closeAuthModal,
   } = useAuth()
 
@@ -57,15 +54,12 @@ export default function AuthModal() {
     ? `${countryCode} ******${phoneNumber.slice(-3)}`
     : `${countryCode} ******`
 
-  // When user becomes authenticated, close modal and optionally navigate
+  // When user becomes authenticated, close modal and keep user on same page (no redirect)
   useEffect(() => {
     if (authModalOpen && isAuthenticated) {
       closeAuthModal()
-      if (authModalRedirectTo) {
-        navigate(authModalRedirectTo, { replace: true })
-      }
     }
-  }, [authModalOpen, isAuthenticated, authModalRedirectTo, closeAuthModal, navigate])
+  }, [authModalOpen, isAuthenticated, closeAuthModal])
 
   // Reset form when modal opens
   useEffect(() => {

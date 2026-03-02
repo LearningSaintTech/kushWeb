@@ -3,7 +3,7 @@ import ProductCard from '../../../shared/components/ProductCard'
 import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
-  
+
 const GAP = 24
 
 const BEST_SELLER_PRODUCTS = Array.from({ length: 20 }, (_, i) => ({
@@ -102,33 +102,29 @@ function BestSellar({ section }) {
   }, [handleMouseMove, handleMouseUp])
 
   return (
-    <section className="">
+    <section className="mt-5">
       <div className="w-full">
-  
+
         {/* ========================= */}
         {/* MOBILE / TABLET DESIGN (< lg) — same format */}
         {/* ========================= */}
-        <div className="block md:hidden px-4">
-  
-          {/* Top Black Strip */}
-          <div className="bg-black h-10 w-100 flex items-center px-3">
-           <div className="flex items-center justify-center">  
-            <span className="text-white text-xs tracking-widest uppercase">
-              FIND WHAT MAKES YOU KHUSH
-            </span>
-            
+        <div className="block md:hidden ">
+
+          {/* 1. Top row: black strip and BEST — same height, vertically aligned */}
+          <div className="flex flex-row items-stretch gap-2 sm:gap-3 w-full h-14 sm:h-16">
+            <div className="bg-black flex items-center  w-70 sm:w-56 shrink-0">
+              <p className="text-white text-[10px] pl-2 sm:text-xs tracking-widest uppercase">
+                FIND WHAT MAKES YOU KHUSH
+              </p>
+            </div>
+            <h2 className="flex items-center text-4xl sm:text-5xl font-impact leading-none text-black shrink-0">BEST</h2>
           </div>
-          <h2 className="text-5xl font-impact leading-none">BEST</h2>
+          {/* 2. Second row: SELLER and black strip — same height, vertically aligned */}
+          <div className="flex flex-row items-stretch pl-30 lg:pl-120 md:pl-100 xl:pl-150 2xl:pl-200 gap-2 sm:gap-3 w-full h-14 sm:h-16 mt-1">
+            <h2 className="flex items-center text-4xl sm:text-5xl font-impact leading-none text-black shrink-0">SELLER</h2>
+            <div className="bg-black flex-1 min-w-[60px]" />
           </div>
-          {/* Heading */}
-          <div className="mt-4">
-           
-            <h2 className="text-5xl font-impact leading-none">SELLER</h2>
-          </div>
-  
-          {/* Bottom Strip */}
-          <div className="bg-black h-10 mt-2"></div>
-  
+
           {/* Slider */}
           <div className="mt-6">
             <div
@@ -157,7 +153,7 @@ function BestSellar({ section }) {
               </div>
             </div>
           </div>
-  
+
           {/* Arrows */}
           <div className="flex justify-end gap-3 mt-4">
             <button
@@ -176,12 +172,12 @@ function BestSellar({ section }) {
             </button>
           </div>
         </div>
-  
+
         {/* ========================= */}
         {/* DESKTOP DESIGN (≥ lg) */}
         {/* ========================= */}
         <div className="hidden md:block">
-  
+
           {/* Your original header layout */}
           <div className="font-raleway">
             <div className="flex items-center mb-2">
@@ -200,8 +196,8 @@ function BestSellar({ section }) {
                 BEST
               </h2>
             </div>
-  
-            <div className="flex pl-200 items-center">
+
+            <div className="flex  lg:pl-120 md:pl-100 xl:pl-150 2xl:pl-200 items-center">
               <h2
                 className="leading-none uppercase text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] xl:text-[7.5rem] 2xl:text-[9.26rem]"
                 style={{
@@ -211,10 +207,10 @@ function BestSellar({ section }) {
               >
                 SELLER
               </h2>
-              <div className="bg-black w-30 sm:w-10 md:w-100 lg:w-120 xl:w-220 2xl:w-270 h-10 sm:h-10 md:h-15 lg:h-15 xl:h-23 2xl:h-29 flex items-end justify-end px-2" />
+              <div className="bg-black w-30 sm:w-10 md:w-190 lg:w-200 xl:w-290 2xl:w-270 h-10 sm:h-10 md:h-15 lg:h-15 xl:h-23 2xl:h-29 flex items-end justify-end px-2" />
             </div>
           </div>
-  
+
           {/* Desktop Slider */}
           <div className="flex items-center gap-6 w-full">
             <div className="flex-1 min-w-0 max-w-[65vw]">
@@ -244,7 +240,7 @@ function BestSellar({ section }) {
                 </div>
               </div>
             </div>
-  
+
             {/* Desktop Arrows */}
             <div className="flex gap-4 shrink-0 mt-24">
               <button
@@ -264,7 +260,7 @@ function BestSellar({ section }) {
             </div>
           </div>
         </div>
-  
+
       </div>
     </section>
   )

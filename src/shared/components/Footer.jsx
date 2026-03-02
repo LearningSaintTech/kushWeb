@@ -187,10 +187,10 @@ function Footer() {
                     CLIENT SERVICES
                   </h3>
                   <ul className="space-y-3 text-sm sm:text-base text-[#808282]">
-                    <li><Link to="#">Refund And Cancel Policy</Link></li>
-                    <li><Link to="#">Payment Policy</Link></li>
-                    <li><Link to="#">Shipping And Delivery Policy</Link></li>
-                    <li><Link to="#">FAQs</Link></li>
+                    <li><Link to={ROUTES.REFUND_CANCEL_POLICY} className="hover:text-white transition-colors">Refund And Cancel Policy</Link></li>
+                    <li><Link to={ROUTES.PAYMENT_POLICY} className="hover:text-white transition-colors">Payment Policy</Link></li>
+                    <li><Link to={ROUTES.SHIPPING_DELIVERY_POLICY} className="hover:text-white transition-colors">Shipping And Delivery Policy</Link></li>
+                    <li><Link to={ROUTES.FAQS} className="hover:text-white transition-colors">FAQs</Link></li>
                     <li><Link to="#">Track Order</Link></li>
                     <li><Link to="#">Exchange & Returns</Link></li>
                     <li><Link to="#">Delete Account</Link></li>
@@ -203,10 +203,10 @@ function Footer() {
                     BRAND
                   </h3>
                   <ul className="space-y-3 text-sm sm:text-base text-[#808282]">
-                    <li><Link to="#">About Us</Link></li>
-                    <li><Link to="#">Contact Us</Link></li>
-                    <li><Link to="#">Terms & Conditions</Link></li>
-                    <li><Link to="#">Privacy Policy</Link></li>
+                    <li><Link to={ROUTES.ABOUT_US} className="hover:text-white transition-colors">About Us</Link></li>
+                    <li><Link to={ROUTES.CONTACT_US} className="hover:text-white transition-colors">Contact Us</Link></li>
+                    <li><Link to={ROUTES.TERMS_CONDITIONS} className="hover:text-white transition-colors">Terms & Conditions</Link></li>
+                    <li><Link to={ROUTES.PRIVACY_POLICY} className="hover:text-white transition-colors">Privacy Policy</Link></li>
                   </ul>
                 </div>
 

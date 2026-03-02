@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector, shallowEqual } from 'react-redux'
 import { ROUTES } from '../../utils/constants'
 import { useAuth } from '../../app/context/AuthContext'
@@ -14,6 +14,7 @@ import {
   ProfileIcon,
 } from '../ui/icons'
 import LocationPicker from './LocationPicker'
+import ProfileModal from './ProfileModal'
 
 import logoImg from '../../assets/images/navBar/logo.svg'
 
@@ -97,21 +98,23 @@ function IconBadge({ count, children, scrolled }) {
   )
 }
 
-/** Build search URL with optional category or subcategory filter */
+/** Build search URL for menu links; SearchPage reads categoryId + subcategoryId (or category/subcategory) */
 function getSearchUrl({ categoryId, subcategoryId } = {}) {
   const params = new URLSearchParams()
-  if (categoryId) params.set('category', categoryId)
-  if (subcategoryId) params.set('subcategory', subcategoryId)
+  if (categoryId) params.set('categoryId', categoryId)
+  if (subcategoryId) params.set('subcategoryId', subcategoryId)
   const q = params.toString()
   return q ? `${ROUTES.SEARCH}?${q}` : ROUTES.SEARCH
 }
 
 export default function Header() {
   const navigate = useNavigate()
+  const location = useLocation()
   const dispatch = useDispatch()
   const recentFromRedux = useSelector((s) => s?.search?.recentKeywords ?? [], shallowEqual)
 
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [searchModalOpen, setSearchModalOpen] = useState(false)
   const [searchPanelAnimated, setSearchPanelAnimated] = useState(false)
   const [recentSearches, setRecentSearches] = useState([])
@@ -178,9 +181,17 @@ export default function Header() {
   useEffect(() => {
     if (!searchModalOpen) {
       setSearchPanelAnimated(false)
-      setSearchInputValue('')
     }
   }, [searchModalOpen])
+
+  // Keep search bar in sync with URL q (e.g. when on /search?q=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const q = params.get('q')
+    if (location.pathname === ROUTES.SEARCH && q != null && q !== '') {
+      setSearchInputValue(decodeURIComponent(q))
+    }
+  }, [location.pathname, location.search])
 
   const goToSearch = useCallback((keyword) => {
     const term = keyword != null ? String(keyword).trim() : ''
@@ -218,8 +229,11 @@ export default function Header() {
   }
 
   const headerRef = useRef(null)
+  const isHome = location.pathname === '/' || location.pathname === ''
   const [scrolled, setScrolled] = useState(false)
   const [searchDropdownTop, setSearchDropdownTop] = useState(0)
+  // On non-home pages always use white header; on home use white only when scrolled
+  const useWhiteStyle = !isHome || scrolled
 
   // Position search dropdown just below header when it opens
   useEffect(() => {
@@ -269,13 +283,13 @@ export default function Header() {
     <header
       ref={headerRef}
       className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 ${
-        scrolled ? 'bg-white' : 'bg-transparent'
+        useWhiteStyle ? 'bg-white' : 'bg-transparent'
       }`}
     >
       {/* Promo Bar */}
       <div
         className={`font-inter rounded-lg md:rounded-[0.7vw] py-2 md:pt-[0.42vw] md:pb-[0.42vw] mx-3 md:ml-[0.83vw] md:mr-[0.83vw] text-center font-light text-xs sm:text-sm md:text-[1.04vw] px-2 md:px-0 transition-colors duration-300 ${
-          scrolled ? 'bg-black text-white' : 'bg-transparent text-white'
+          useWhiteStyle ? 'bg-black text-white' : 'bg-transparent text-white'
         }`}
       >
         <span className="block truncate">Get 30% off for first transaction using</span>
@@ -284,19 +298,32 @@ export default function Header() {
       {/* Main */}
       <div
         className={`px-4 md:px-[1.56vw] py-2 md:py-[0.52vw] transition-colors duration-300 ${
-          scrolled ? 'bg-white' : 'bg-transparent'
+          useWhiteStyle ? 'bg-white' : 'bg-transparent'
         }`}
       >
 
-        {/* Mobile Layout - Two Rows (only for screens < 768px) */}
+        {/* Mobile/Tablet Layout - Line 1: Logo; Line 2: Hamburger + Location + Search + Profile in a row */}
         <div className="md:hidden flex flex-col gap-3">
-          {/* Row 1: Hamburger + Location */}
+          {/* Line 1: Logo first */}
+          <div className="flex justify-center">
+            <NavLink
+              to={ROUTES.HOME}
+              className="cursor-pointer flex items-center justify-center"
+            >
+              <img
+                src={logoImg}
+                alt="KHUSH"
+                className={`h-8 sm:h-9 ${useWhiteStyle ? '' : 'brightness-0 invert'}`}
+              />
+            </NavLink>
+          </div>
+          {/* Line 2: Everything else in a row */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                scrolled
+              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                useWhiteStyle
                   ? 'text-black hover:bg-gray-100'
                   : 'text-white hover:bg-white/10'
               }`}
@@ -304,109 +331,53 @@ export default function Header() {
               aria-expanded={menuOpen}
             >
               <HamburgerIcon
-                className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`}
+                className={`h-6 w-6 ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                 open={false}
               />
             </button>
 
-            <LocationPicker scrolled={scrolled} className="flex flex-1 min-w-0" />
-          </div>
+            <LocationPicker scrolled={useWhiteStyle} className="flex flex-1 min-w-0" />
 
-          {/* Row 2: Search + Icons */}
-          <div className="flex items-center gap-2">
-            <form
-              action={ROUTES.SEARCH}
-              method="get"
-              onSubmit={() => closeSearchModal()}
-              className={`flex flex-1 items-center gap-2 rounded-full px-3 py-1.5 ${
-                scrolled ? 'bg-[#F5F5F5]' : 'bg-white/10'
+            <button
+              type="button"
+              onClick={openSearchModal}
+              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                useWhiteStyle
+                  ? 'text-black hover:bg-gray-100'
+                  : 'text-white hover:bg-white/10'
               }`}
+              aria-label="Search"
             >
-              <input
-                type="search"
-                name="q"
-                placeholder="Find Your Choice"
-                onFocus={openSearchModal}
-                onClick={openSearchModal}
-                className={`font-inter w-full bg-transparent text-sm focus:outline-none ${
-                  scrolled
-                    ? 'text-black placeholder:text-[#636363]'
-                    : 'text-white placeholder:text-white/80'
+              <SearchIcon className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`} />
+            </button>
+
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => setProfileModalOpen(true)}
+                className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                  useWhiteStyle
+                    ? 'text-black hover:opacity-70'
+                    : 'text-white hover:opacity-70'
                 }`}
-              />
-              <button type="submit" className="shrink-0" aria-label="Search">
-                <SearchIcon
-                  className={`h-4 w-4 ${scrolled ? 'text-black' : 'text-white'}`}
-                />
+                aria-label="Account"
+              >
+                <ProfileIcon className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`} />
               </button>
-            </form>
-
-            <div className="flex items-center gap-3">
-              {isAuthenticated ? (
-                <NavLink
-                  to={ROUTES.WISHLIST}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
-                  aria-label="Wishlist"
-                >
-                  <IconBadge count={wishlistCount} scrolled={scrolled}>
-                    <HeartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
-                  </IconBadge>
-                </NavLink>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openAuthModal(ROUTES.WISHLIST)}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
-                  aria-label="Wishlist – sign in"
-                >
-                  <IconBadge count={wishlistCount} scrolled={scrolled}>
-                    <HeartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
-                  </IconBadge>
-                </button>
-              )}
-
-              {isAuthenticated ? (
-                <NavLink
-                  to={ROUTES.CART}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
-                  aria-label="Cart"
-                >
-                  <IconBadge count={cartCount} scrolled={scrolled}>
-                    <CartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
-                  </IconBadge>
-                </NavLink>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openAuthModal(ROUTES.CART)}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
-                  aria-label="Cart – sign in"
-                >
-                  <IconBadge count={cartCount} scrolled={scrolled}>
-                    <CartIcon className={`h-6 w-6 ${scrolled ? 'text-black' : 'text-white'}`} />
-                  </IconBadge>
-                </button>
-              )}
-
-              {isAuthenticated ? (
-                <NavLink
-                  to={ROUTES.ACCOUNT}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
-                  aria-label="Account"
-                >
-                  <ProfileIcon className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`} />
-                </NavLink>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
-                  aria-label="Account – sign in"
-                >
-                  <ProfileIcon className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`} />
-                </button>
-              )}
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal(ROUTES.ACCOUNT)}
+                className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                  useWhiteStyle
+                    ? 'text-black hover:opacity-70'
+                    : 'text-white hover:opacity-70'
+                }`}
+                aria-label="Account – sign in"
+              >
+                <ProfileIcon className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -418,33 +389,33 @@ export default function Header() {
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className={`font-inter flex items-center gap-[0.42vw] text-[0.83vw] ${
-                scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'
+              className={`cursor-pointer font-inter flex items-center gap-[0.42vw] text-[0.83vw] ${
+                useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'
               }`}
               aria-label="Open menu"
               aria-expanded={menuOpen}
             >
               <HamburgerIcon
-                className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`}
+                className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                 open={false}
               />
               <span>Menu</span>
             </button>
 
-            <LocationPicker scrolled={scrolled} compact />
+            <LocationPicker scrolled={useWhiteStyle} compact />
           </div>
 
           {/* Center: Logo + taglines */}
           <div className="flex flex-1 items-center justify-center">
             <NavLink
               to={ROUTES.HOME}
-              className="flex flex-col items-center justify-center gap-[0.26vw]"
+              className="cursor-pointer flex flex-col items-center justify-center gap-[0.26vw]"
             >
              
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className={`h-[3.81vw] w-[8.29vw] ${scrolled ? '' : 'brightness-0 invert'}`}
+                className={`h-[3.81vw] w-[8.29vw] ${useWhiteStyle ? '' : 'brightness-0 invert'}`}
               />
               
             </NavLink>
@@ -458,24 +429,26 @@ export default function Header() {
               method="get"
               onSubmit={() => closeSearchModal()}
               className={`flex items-center gap-[4.63vw] rounded-full px-[1.04vw] py-[0.63vw] ${
-                scrolled ? 'bg-[#F5F5F5]' : 'bg-white/10'
+                useWhiteStyle ? 'bg-[#F5F5F5]' : 'bg-white/10'
               }`}
             >
               <input
                 type="search"
                 name="q"
+                value={searchInputValue}
+                onChange={(e) => setSearchInputValue(e.target.value)}
                 placeholder="Find Your Choice"
                 onFocus={openSearchModal}
                 onClick={openSearchModal}
                 className={`font-inter w-full bg-transparent text-[0.83vw] focus:outline-none ${
-                  scrolled
+                  useWhiteStyle
                     ? 'text-black placeholder:text-[#636363]'
                     : 'text-white placeholder:text-white/80'
                 }`}
               />
-              <button type="submit" className="shrink-0" aria-label="Search">
+              <button type="submit" className="cursor-pointer shrink-0" aria-label="Search">
                 <SearchIcon
-                  className={`h-5 w-5 ${scrolled ? 'text-black' : 'text-white'}`}
+                  className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                 />
               </button>
             </form>
@@ -484,12 +457,12 @@ export default function Header() {
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.WISHLIST}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
                   aria-label="Wishlist"
                 >
-                  <IconBadge count={wishlistCount} scrolled={scrolled}>
+                  <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
                     <HeartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                     />
                   </IconBadge>
                 </NavLink>
@@ -497,12 +470,12 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.WISHLIST)}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
                   aria-label="Wishlist – sign in"
                 >
-                  <IconBadge count={wishlistCount} scrolled={scrolled}>
+                  <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
                     <HeartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                     />
                   </IconBadge>
                 </button>
@@ -511,12 +484,12 @@ export default function Header() {
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.CART}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
                   aria-label="Cart"
                 >
-                  <IconBadge count={cartCount} scrolled={scrolled}>
+                  <IconBadge count={cartCount} scrolled={useWhiteStyle}>
                     <CartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                     />
                   </IconBadge>
                 </NavLink>
@@ -524,36 +497,37 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.CART)}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
                   aria-label="Cart – sign in"
                 >
-                  <IconBadge count={cartCount} scrolled={scrolled}>
+                  <IconBadge count={cartCount} scrolled={useWhiteStyle}>
                     <CartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                     />
                   </IconBadge>
                 </button>
               )}
 
               {isAuthenticated ? (
-                <NavLink
-                  to={ROUTES.ACCOUNT}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                <button
+                  type="button"
+                  onClick={() => setProfileModalOpen(true)}
+                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
                   aria-label="Account"
                 >
                   <ProfileIcon
-                    className={`h-[1.04vw] w-[1.04vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                    className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                   />
-                </NavLink>
+                </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                  className={scrolled ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}
+                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
                   aria-label="Account – sign in"
                 >
                   <ProfileIcon
-                    className={`h-[1.04vw] w-[1.04vw] ${scrolled ? 'text-black' : 'text-white'}`}
+                    className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
                   />
                 </button>
               )}
@@ -567,7 +541,7 @@ export default function Header() {
         {searchModalOpen && (
           <>
             <div
-              className="fixed inset-0 z-40 bg-black/40 transition-opacity duration-300"
+              className="fixed inset-0 z-40 cursor-pointer bg-black/40 transition-opacity duration-300"
               onClick={closeSearchModal}
               aria-hidden
             />
@@ -598,7 +572,7 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={closeSearchModal}
-                  className="shrink-0 flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                  className="cursor-pointer shrink-0 flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
                   aria-label="Close"
                 >
                   <CloseIcon className="h-6 w-6" />
@@ -631,14 +605,14 @@ export default function Header() {
                                 <button
                                   type="button"
                                   onClick={() => goToSearch(text)}
-                                  className="hover:text-white transition-colors"
+                                  className="cursor-pointer hover:text-white transition-colors"
                                 >
                                   {text}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); removeRecentItem(text) }}
-                                  className="text-gray-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                                  className="cursor-pointer text-gray-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
                                   aria-label={`Remove ${text}`}
                                 >
                                   <span aria-hidden>×</span>
@@ -666,7 +640,7 @@ export default function Header() {
                                 key={text}
                                 type="button"
                                 onClick={() => goToSearch(text)}
-                                className="font-inter shrink-0 rounded-full bg-white/10 backdrop-blur-sm px-3 py-2 text-sm text-gray-200 hover:bg-white/20 hover:text-white transition-colors"
+                                className="cursor-pointer font-inter shrink-0 rounded-full bg-white/10 backdrop-blur-sm px-3 py-2 text-sm text-gray-200 hover:bg-white/20 hover:text-white transition-colors"
                               >
                                 {text}
                               </button>
@@ -686,7 +660,7 @@ export default function Header() {
         {menuOpen && (
   <>
     <div
-      className="fixed inset-0 z-40 bg-black/30 transition-opacity duration-300"
+      className="fixed inset-0 z-40 cursor-pointer bg-black/30 transition-opacity duration-300"
       onClick={closeMenu}
       aria-hidden
     />
@@ -703,7 +677,7 @@ export default function Header() {
         <button
           type="button"
           onClick={closeMenu}
-          className="flex h-12 w-12 items-center justify-center text-black hover:bg-gray-100 rounded-lg transition-colors"
+          className="cursor-pointer flex h-12 w-12 items-center justify-center text-black hover:bg-gray-100 rounded-lg transition-colors"
           aria-label="Close menu"
         >
           <CloseIcon className="h-7 w-7" />
@@ -715,7 +689,7 @@ export default function Header() {
       {/* ========================= */}
 
       <div
-        className="shrink-0 w-full overflow-x-auto border-b border-gray-200"
+        className="shrink-0 w-full overflow-x-auto scrollbar-hide border-b border-gray-200"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <div className="flex w-max gap-6 md:gap-10 px-4 pb-3">
@@ -732,7 +706,7 @@ export default function Header() {
                   setActiveMobileCategory(categoryId)
                   loadSubcategoriesForCategory(categoryId)
                 }}
-                className="relative shrink-0 font-inter text-sm md:text-base font-medium tracking-wide pb-2 transition-colors"
+                className="cursor-pointer relative shrink-0 font-inter text-sm md:text-base font-medium tracking-wide pb-2 transition-colors"
               >
                 <span
                   className={
@@ -797,7 +771,7 @@ export default function Header() {
                         <button
                           type="button"
                           onClick={() => toggleSubcategory(subId)}
-                          className="font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50/80 transition-colors"
+                          className="cursor-pointer font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50/80 transition-colors"
                         >
                           {subName}
                         </button>
@@ -819,7 +793,7 @@ export default function Header() {
                               subcategoryId: subId,
                             })}
                             onClick={closeMenu}
-                            className="font-inter block py-2 text-sm text-gray-700 hover:text-black transition-colors"
+                            className="cursor-pointer font-inter block py-2 text-sm text-gray-700 hover:text-black transition-colors"
                           >
                             View all in {subName}
                           </NavLink>
@@ -839,7 +813,7 @@ export default function Header() {
                       categoryId: effectiveActiveCategory,
                     })}
                     onClick={closeMenu}
-                    className="font-inter text-sm text-gray-600 hover:text-black"
+                    className="cursor-pointer font-inter text-sm text-gray-600 hover:text-black"
                   >
                     View all in{' '}
                     {navbarCategories.find(
@@ -862,6 +836,11 @@ export default function Header() {
   </>
 )}
 
+        {/* Profile slide-over modal */}
+        <ProfileModal
+          open={profileModalOpen}
+          onClose={() => setProfileModalOpen(false)}
+        />
       </div>
     </header>
   )

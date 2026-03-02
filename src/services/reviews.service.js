@@ -10,7 +10,8 @@ const BASE = '/reviews';
 export const reviewsService = {
   create: (body) => client.post(`${BASE}/create`, body),
 
-  getByItem: (itemId) => client.get(`${BASE}/getAll/${itemId}`),
+  getByItem: (itemId, params = {}) =>
+    client.get(`${BASE}/getAll/${itemId}`, { params: { page: params.page, limit: params.limit } }),
 
   getSingle: (reviewId) => client.get(`${BASE}/getSingle/${reviewId}`),
 

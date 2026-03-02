@@ -1,84 +1,767 @@
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import { useAuth } from '../../app/context/AuthContext'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
-import { ROUTES } from '../../utils/constants'
+import { cartService } from '../../services/cart.service.js'
+import { addressService } from '../../services/address.service.js'
+import { deliveryService } from '../../services/delivery.service.js'
+import { couponsService } from '../../services/coupons.service.js'
+import { ROUTES, getProductPath } from '../../utils/constants'
+
+function formatRs(num) {
+  if (num == null || Number.isNaN(num)) return 'Rs 0'
+  return `Rs ${Number(num).toLocaleString('en-IN', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`
+}
+
+function formatAddress(addr) {
+  if (!addr) return null
+  const parts = [addr.addressLine, addr.city, addr.state, addr.pinCode].filter(Boolean)
+  return parts.join(', ')
+}
+
+function formatCouponDate(dateVal) {
+  if (!dateVal) return null
+  const d = new Date(dateVal)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 function CartPage() {
-  const { cart, removeFromCart, cartCount } = useCartWishlist()
+  const { isAuthenticated } = useAuth()
+  const { removeFromCart, refetchCart } = useCartWishlist()
+  const pincodeRedux = useSelector((s) => s?.location?.pincode) ?? null
+  const [cartData, setCartData] = useState(null)
+  const [addresses, setAddresses] = useState([])
+  const [selectedAddress, setSelectedAddress] = useState(null)
+  const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState([])
+  const [priceSummary, setPriceSummary] = useState(null)
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCouponCode, setAppliedCouponCode] = useState(null)
+  const [couponModalOpen, setCouponModalOpen] = useState(false)
+  const [availableCoupons, setAvailableCoupons] = useState([])
+  const [loadingCoupons, setLoadingCoupons] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [cartError, setCartError] = useState(null)
+  const [couponError, setCouponError] = useState(null)
+  const [addressFormOpen, setAddressFormOpen] = useState(false)
+  const [addressFormLoading, setAddressFormLoading] = useState(false)
+  const [addressFormError, setAddressFormError] = useState(null)
+  const [addressForm, setAddressForm] = useState({
+    name: '',
+    phoneNumber: '',
+    countryCode: '+91',
+    addressLine: '',
+    city: '',
+    state: '',
+    pinCode: '',
+    addressType: 'HOME',
+    isDefault: true,
+  })
 
-  const total = cart.reduce((sum, item) => {
-    const price = parseFloat(String(item.price).replace(/[^0-9.]/g, '')) || 0
-    return sum + price * (item.quantity || 1)
-  }, 0)
+  const addressId = selectedAddress?._id
+  const pincode = selectedAddress?.pinCode ?? pincodeRedux
 
-  if (cartCount === 0) {
+  const refetchAddresses = useCallback(async () => {
+    const res = await addressService.getAll({ page: 1, limit: 50 })
+    const list = res?.data?.data ?? res?.data
+    const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
+    const addressList = Array.isArray(arr) ? arr : []
+    setAddresses(addressList)
+    return addressList
+  }, [])
+
+  const fetchCart = useCallback(async (addrId = null) => {
+    const params = { limit: 100 }
+    const id = addrId ?? addressId
+    if (id) params.addressId = id
+    const res = await cartService.my(params)
+    const data = res?.data?.data ?? res?.data
+    setCartData(data)
+    return data
+  }, [addressId])
+
+  const fetchPriceSummary = useCallback(async (couponCode = null) => {
+    try {
+      const params = couponCode ? { couponCode } : {}
+      const res = await cartService.getPriceSummary(params)
+      const data = res?.data?.data ?? res?.data
+      setPriceSummary(data?.cartSummary ?? data)
+      setCouponError(null)
+      return data
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to get price summary'
+      setCouponError(msg)
+      setPriceSummary(null)
+      return null
+    }
+  }, [])
+
+  // On mount / auth: load addresses, then cart with addressId, then price summary
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false)
+      setCartData(null)
+      setPriceSummary(null)
+      return
+    }
+    setLoading(true)
+    setCartError(null)
+    let defaultAddr = null
+    let addressList = []
+    addressService
+      .getDefaultAddress()
+      .then((res) => {
+        const data = res?.data?.data ?? res?.data
+        defaultAddr = data
+        if (data) setSelectedAddress(data)
+        return data
+      })
+      .catch(() => null)
+      .then(() => addressService.getAll({ page: 1, limit: 50 }).then((res) => {
+        const list = res?.data?.data ?? res?.data
+        const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
+        addressList = Array.isArray(arr) ? arr : []
+        setAddresses(addressList)
+        if (!defaultAddr && addressList.length) setSelectedAddress(addressList[0])
+        return addressList
+      }).catch(() => []))
+      .then((list) => {
+        const id = defaultAddr?._id ?? list?.[0]?._id
+        refetchCart(id ? { addressId: id } : {})
+        const cartParams = { limit: 100 }
+        if (id) cartParams.addressId = id
+        return cartService.my(cartParams)
+      })
+      .then((res) => {
+        const data = res?.data?.data ?? res?.data
+        setCartData(data)
+        if (data?.items?.length) return fetchPriceSummary(appliedCouponCode || null)
+      })
+      .catch(() => setCartError('Failed to load cart'))
+      .finally(() => setLoading(false))
+  }, [isAuthenticated])
+
+  // When selected address changes, refetch cart with new addressId (for delivery options)
+  useEffect(() => {
+    if (!isAuthenticated || !addressId) return
+    refetchCart({ addressId })
+    const params = { limit: 100, addressId }
+    cartService.my(params).then((res) => {
+      const data = res?.data?.data ?? res?.data
+      setCartData(data)
+      if (data?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+    }).catch(() => {})
+  }, [addressId, isAuthenticated])
+
+  // Fetch delivery options from pincode check API (selected address pinCode or Redux pincode)
+  useEffect(() => {
+    if (!pincode || !String(pincode).trim()) {
+      setDeliveryOptionsFromPincode([])
+      return
+    }
+    deliveryService
+      .checkByPincode(String(pincode).trim())
+      .then((res) => {
+        const data = res?.data?.data ?? res?.data
+        const options = data?.deliveryOptions ?? []
+        setDeliveryOptionsFromPincode(Array.isArray(options) ? options : [])
+      })
+      .catch(() => setDeliveryOptionsFromPincode([]))
+  }, [pincode])
+
+  // When cart items or coupon change, refresh price summary
+  useEffect(() => {
+    if (!cartData?.items?.length || !isAuthenticated) return
+    fetchPriceSummary(appliedCouponCode || null)
+  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated])
+
+  const handleIncreaseQty = async (sku) => {
+    try {
+      await cartService.increaseQty(sku)
+      refetchCart({ addressId })
+      const next = await fetchCart()
+      if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+    } catch (_) {}
+  }
+
+  const handleDecreaseQty = async (sku) => {
+    try {
+      await cartService.decreaseQty(sku)
+      refetchCart({ addressId })
+      const next = await fetchCart()
+      if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+    } catch (_) {}
+  }
+
+  const handleRemove = async (sku) => {
+    try {
+      await removeFromCart(sku)
+      refetchCart({ addressId })
+      const next = await fetchCart()
+      setCartData(next)
+      if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+    } catch (_) {}
+  }
+
+  const handleSelectDelivery = async (sku, deliveryId) => {
+    try {
+      await cartService.selectDelivery({ sku, deliveryId })
+      refetchCart({ addressId })
+      await fetchCart()
+      fetchPriceSummary(appliedCouponCode || null)
+    } catch (_) {}
+  }
+
+  const handleApplyCoupon = () => {
+    const code = couponInput?.trim()
+    if (!code) return
+    setAppliedCouponCode(code)
+    setCouponError(null)
+    fetchPriceSummary(code)
+  }
+
+  const openCouponModal = () => {
+    setCouponModalOpen(true)
+    setLoadingCoupons(true)
+    setAvailableCoupons([])
+    couponsService
+      .getAvailable({ page: 1, limit: 50 })
+      .then((res) => {
+        const data = res?.data?.data ?? res?.data
+        const list = Array.isArray(data) ? data : (data?.data ?? [])
+        setAvailableCoupons(list)
+      })
+      .catch(() => setAvailableCoupons([]))
+      .finally(() => setLoadingCoupons(false))
+  }
+
+  const handleSelectCoupon = (code) => {
+    if (code) {
+      setCouponInput(code)
+      setAppliedCouponCode(code)
+      setCouponError(null)
+      fetchPriceSummary(code)
+    }
+    setCouponModalOpen(false)
+  }
+
+  const openAddressForm = () => {
+    setAddressFormError(null)
+    setAddressForm({
+      name: '',
+      phoneNumber: '',
+      countryCode: '+91',
+      addressLine: '',
+      city: '',
+      state: '',
+      pinCode: '',
+      addressType: 'HOME',
+      isDefault: addresses.length === 0,
+    })
+    setAddressFormOpen(true)
+  }
+
+  const handleAddressFormChange = (field, value) => {
+    setAddressForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleAddressFormSubmit = async (e) => {
+    e.preventDefault()
+    setAddressFormError(null)
+    const pin = String(addressForm.pinCode || '').trim().replace(/\D/g, '')
+    if (!addressForm.name?.trim() || !addressForm.addressLine?.trim() || !addressForm.city?.trim() || !addressForm.state?.trim() || !pin) {
+      setAddressFormError('Please fill name, address, city, state and pincode.')
+      return
+    }
+    setAddressFormLoading(true)
+    try {
+      const payload = {
+        name: addressForm.name.trim(),
+        phoneNumber: (addressForm.phoneNumber || '').trim() || undefined,
+        countryCode: (addressForm.countryCode || '+91').trim(),
+        addressLine: addressForm.addressLine.trim(),
+        city: addressForm.city.trim(),
+        state: addressForm.state.trim(),
+        pinCode: parseInt(pin, 10) || 0,
+        addressType: addressForm.addressType || 'HOME',
+        isDefault: !!addressForm.isDefault,
+      }
+      if (payload.pinCode <= 0) {
+        setAddressFormError('Please enter a valid pincode.')
+        setAddressFormLoading(false)
+        return
+      }
+      const res = await addressService.create(payload)
+      const newAddr = res?.data?.data ?? res?.data
+      const list = await refetchAddresses()
+      if (newAddr?._id) setSelectedAddress(newAddr)
+      else if (list?.length) setSelectedAddress(list[list.length - 1])
+      setAddressFormOpen(false)
+      refetchCart(newAddr?._id ? { addressId: newAddr._id } : {})
+      if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to add address.'
+      setAddressFormError(msg)
+    } finally {
+      setAddressFormLoading(false)
+    }
+  }
+
+  const summary = priceSummary?.summary ?? {}
+  const subTotal = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
+  const finalPayable = summary.finalPayable ?? subTotal
+  const coupon = summary.coupon
+  const deliverySummary = summary.delivery
+  const otherChargesTotal = summary.otherChargesTotal ?? 0
+  const chargesList = Array.isArray(summary.charges) ? summary.charges : []
+  const taxableAmount = summary.taxableAmount ?? 0
+  const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0
+  const subTotalAfterDiscount = summary.subTotalAfterDiscount ?? summary.subTotal ?? 0
+
+  if (!isAuthenticated) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Your cart is empty</h1>
-        <p className="mt-2 text-gray-600">Add items from the shop to get started.</p>
-        <Link
-          to={ROUTES.SEARCH}
-          className="mt-6 inline-block px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          Continue shopping
-        </Link>
+      <div className="min-h-screen bg-gray-50 pt-24 pb-12">
+        <div className="container mx-auto px-4 py-16 text-center">
+          <h1 className="text-2xl font-bold text-black uppercase">Your cart</h1>
+          <p className="mt-2 text-gray-600">Please sign in to view your cart.</p>
+          <Link to={ROUTES.AUTH} className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading && !cartData) {
+    return (
+      <div className="min-h-screen bg-gray-50 pt-24 pb-12">
+        <div className="container mx-auto px-4 py-16 text-center">
+          <p className="text-gray-600">Loading cart…</p>
+        </div>
+      </div>
+    )
+  }
+
+  const items = cartData?.items ?? []
+  const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : (cartData?.deliveryOptions ?? [])
+
+  if (items.length === 0 && !cartError) {
+    return (
+      <div className="min-h-screen bg-gray-50 pt-24 pb-12">
+        <div className="container mx-auto px-4 py-16 text-center">
+          <h1 className="text-2xl font-bold text-black uppercase">Your cart is empty</h1>
+          <p className="mt-2 text-gray-600">Add items from the shop to get started.</p>
+          <Link to={ROUTES.SEARCH} className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors">
+            Continue shopping
+          </Link>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Cart ({cartCount} items)</h1>
+    <div className="min-h-screen bg-white text-black pt-24 pb-12">
+      <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
+          {/* Left column: Cart items */}
+          <div className="lg:col-span-2">
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ borderCollapse: 'separate', borderSpacing: '0 1.5rem' }}>
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    <th className="pb-3">Product</th>
+                    <th className="pb-3 text-center">Quantity</th>
+                    <th className="pb-3 text-right">Total</th>
+                    <th className="pb-3">Delivery time</th>
+                    <th className="pb-3 w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((row) => {
+                    const item = row.itemId
+                    const name = item?.name ?? 'Product'
+                    const shortDesc = item?.shortDescription ?? ''
+                    const color = row.variant?.color ?? ''
+                    const imageUrl = row.variant?.imageUrl ?? ''
+                    const sku = row.variant?.sku
+                    const qty = row.quantity ?? 1
+                    const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
+                    const itemTotal = row.itemTotal ?? unitPrice * qty
+                    const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
+                    const selectedOption = deliveryOptions.find((d) => (d._id?.toString?.() ?? d._id) === selectedDeliveryId)
 
-      <div className="space-y-6">
-        {cart.map((item) => {
-          const price = parseFloat(String(item.price).replace(/[^0-9.]/g, '')) || 0
-          const subtotal = price * (item.quantity || 1)
-          return (
-            <div
-              key={item.id}
-              className="flex gap-4 p-4 border border-gray-200 rounded-lg bg-white"
-            >
-              <div className="w-24 h-24 shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                {item.image && (
-                  <img
-                    src={typeof item.image === 'string' ? item.image : item.image?.src}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                  />
-                )}
+                    const productId = item?._id
+                    const productPath = productId ? getProductPath(productId) : null
+
+                    return (
+                      <tr key={row._id ?? sku} className="align-top">
+                        <td className="pr-4">
+                          <div className="flex gap-4">
+                            <div className="w-24 h-24 shrink-0 overflow-hidden bg-gray-100">
+                              {productPath ? (
+                                <Link to={productPath} className="block w-full h-full">
+                                  {imageUrl ? (
+                                    <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                                  )}
+                                </Link>
+                              ) : imageUrl ? (
+                                <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                              )}
+                            </div>
+                            <div>
+                              {productPath ? (
+                                <Link to={productPath} className="block hover:underline">
+                                  <p className="font-semibold text-black uppercase tracking-wide">{name}</p>
+                                  {shortDesc && <p className="text-sm text-gray-600 mt-0.5">{shortDesc}</p>}
+                                  {color && <p className="text-sm text-gray-600 mt-0.5">{color}</p>}
+                                </Link>
+                              ) : (
+                                <>
+                                  <p className="font-semibold text-black uppercase tracking-wide">{name}</p>
+                                  {shortDesc && <p className="text-sm text-gray-600 mt-0.5">{shortDesc}</p>}
+                                  {color && <p className="text-sm text-gray-600 mt-0.5">{color}</p>}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-2 text-center align-middle">
+                          <div className="inline-flex items-center border border-gray-300 rounded-none">
+                            <button
+                              type="button"
+                              onClick={() => handleDecreaseQty(sku)}
+                              className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-100"
+                              aria-label="Decrease quantity"
+                            >
+                              −
+                            </button>
+                            <span className="w-10 h-9 flex items-center justify-center border-x border-gray-300 text-sm">{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleIncreaseQty(sku)}
+                              className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-100"
+                              aria-label="Increase quantity"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                        <td className="pl-4 text-right align-middle font-medium whitespace-nowrap">
+                          {formatRs(itemTotal)}
+                        </td>
+                        <td className="pl-4 align-middle">
+                          <select
+                            value={selectedDeliveryId ?? ''}
+                            onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
+                            className="w-full max-w-[180px] border border-gray-300 py-2 px-3 text-sm uppercase bg-white appearance-none cursor-pointer"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23333'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1.25rem', paddingRight: '2rem' }}
+                          >
+                            <option value="">Select delivery</option>
+                            {deliveryOptions.map((opt) => {
+                              const id = opt._id?.toString?.() ?? opt._id
+                              const label = opt.deliveryType === '90_MIN' ? '90 MIN DELIVERY' : opt.deliveryType === 'ONE_DAY' ? '1 DAY DELIVERY' : opt.deliveryType || 'Standard'
+                              return (
+                                <option key={id} value={id}>
+                                  {label}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        </td>
+                        <td className="pl-2 align-middle">
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(sku)}
+                            className="p-2 text-gray-500 hover:text-black"
+                            aria-label="Remove from cart"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Right column: Delivery, Coupon, Bill Summary */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Delivery To */}
+            <section>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-2">Delivery to:</h2>
+              {addresses.length > 0 ? (
+                <>
+                  <select
+                    value={selectedAddress?._id ?? ''}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      const addr = addresses.find((a) => (a._id?.toString?.() ?? a._id) === id)
+                      if (addr) setSelectedAddress(addr)
+                    }}
+                    className="w-full border border-gray-300 py-2 px-3 text-sm mb-2 bg-white"
+                  >
+                    {addresses.map((addr) => (
+                      <option key={addr._id} value={addr._id}>
+                        {addr.name} – {addr.addressLine}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedAddress && (
+                    <>
+                      <p className="font-medium uppercase text-black">{selectedAddress.name}</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{formatAddress(selectedAddress)}</p>
+                      {(selectedAddress.phoneNumber || selectedAddress.countryCode) && (
+                        <p className="text-xs uppercase text-gray-600 mt-1">
+                          Contact: {[selectedAddress.countryCode, selectedAddress.phoneNumber].filter(Boolean).join(' ')}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 mb-2">No address added. Add one to deliver.</p>
+              )}
+              <button
+                type="button"
+                onClick={openAddressForm}
+                className="mt-3 w-full border border-black py-2 px-4 text-sm font-medium uppercase bg-white text-black hover:bg-gray-50 transition-colors"
+              >
+                {addresses.length === 0 ? 'Add your first address' : 'Add new address'}
+              </button>
+            </section>
+
+            {/* Add / Edit Address modal */}
+            {addressFormOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !addressFormLoading && setAddressFormOpen(false)}>
+                <div className="bg-white w-full max-w-md max-h-[90vh] flex flex-col shadow-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">Add new address</h3>
+                    <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="p-2 text-gray-500 hover:text-black" aria-label="Close">×</button>
+                  </div>
+                  <form onSubmit={handleAddressFormSubmit} className="overflow-y-auto p-4 flex-1 space-y-3">
+                    {addressFormError && <p className="text-xs text-red-600">{addressFormError}</p>}
+                    <div>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Name</label>
+                      <input type="text" value={addressForm.name} onChange={(e) => handleAddressFormChange('name', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Full name" required />
+                    </div>
+                    <div className="grid grid-cols-[auto_1fr] gap-2">
+                      <div>
+                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Code</label>
+                        <input type="text" value={addressForm.countryCode} onChange={(e) => handleAddressFormChange('countryCode', e.target.value)} className="w-full border border-gray-300 py-2 px-2 text-sm" placeholder="+91" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
+                        <input type="text" value={addressForm.phoneNumber} onChange={(e) => handleAddressFormChange('phoneNumber', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Phone number" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
+                      <input type="text" value={addressForm.addressLine} onChange={(e) => handleAddressFormChange('addressLine', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Street, area, building" required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">City</label>
+                        <input type="text" value={addressForm.city} onChange={(e) => handleAddressFormChange('city', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="City" required />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">State</label>
+                        <input type="text" value={addressForm.state} onChange={(e) => handleAddressFormChange('state', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="State" required />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Pincode</label>
+                      <input type="text" inputMode="numeric" value={addressForm.pinCode} onChange={(e) => handleAddressFormChange('pinCode', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Pincode" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Type</label>
+                      <select value={addressForm.addressType} onChange={(e) => handleAddressFormChange('addressType', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm bg-white">
+                        <option value="HOME">Home</option>
+                        <option value="WORK">Work</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="addr-default" checked={!!addressForm.isDefault} onChange={(e) => handleAddressFormChange('isDefault', e.target.checked)} className="rounded border-gray-300" />
+                      <label htmlFor="addr-default" className="text-sm text-gray-700">Set as default address</label>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="flex-1 border border-gray-300 py-2 px-4 text-sm font-medium uppercase">Cancel</button>
+                      <button type="submit" disabled={addressFormLoading} className="flex-1 bg-black text-white py-2 px-4 text-sm font-semibold uppercase hover:bg-gray-800 disabled:opacity-60">
+                        {addressFormLoading ? 'Saving…' : 'Save address'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="font-semibold text-gray-900 truncate">{item.title}</h2>
-                <p className="text-gray-600 text-sm mt-0.5">{item.price}</p>
-                <p className="text-gray-500 text-sm">Qty: {item.quantity || 1}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="font-medium text-gray-900">
-                  ₹{subtotal.toFixed(2)}
-                </p>
+            )}
+
+            {/* Apply Coupon - title + See all in one row; input + Apply below */}
+            <section>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-black">Apply coupon</h2>
                 <button
                   type="button"
-                  onClick={() => removeFromCart(item.id)}
-                  className="mt-2 text-sm text-red-600 hover:text-red-700"
+                  onClick={openCouponModal}
+                  className="text-xs font-medium uppercase text-black hover:underline whitespace-nowrap"
                 >
-                  Remove
+                  See all
                 </button>
               </div>
-            </div>
-          )
-        })}
-      </div>
+              <div className="flex flex-wrap gap-2 items-stretch">
+                <input
+                  type="text"
+                  placeholder="Enter coupon code"
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value)}
+                  className="flex-1 min-w-[120px] border border-gray-300 py-2 px-3 text-sm placeholder-gray-400 uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyCoupon}
+                  className="bg-black text-white py-2 px-4 text-sm font-semibold uppercase hover:bg-gray-800 transition-colors whitespace-nowrap"
+                >
+                  Apply
+                </button>
+              </div>
+              {couponError && <p className="mt-1 text-xs text-red-600">{couponError}</p>}
+            </section>
 
-      <div className="mt-8 p-4 border-t border-gray-200">
-        <p className="text-lg font-bold text-gray-900">
-          Total: ₹{total.toFixed(2)}
-        </p>
-        <Link
-          to={ROUTES.CHECKOUT}
-          className="mt-4 inline-block px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          Proceed to checkout
-        </Link>
+            {/* Coupons modal */}
+            {couponModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setCouponModalOpen(false)}>
+                <div className="bg-white w-full max-w-md max-h-[80vh] flex flex-col shadow-lg" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">All coupons</h3>
+                    <button type="button" onClick={() => setCouponModalOpen(false)} className="p-2 text-gray-500 hover:text-black" aria-label="Close">×</button>
+                  </div>
+                  <div className="overflow-y-auto p-4 flex-1">
+                    {loadingCoupons ? (
+                      <p className="text-sm text-gray-500 text-center py-6">Loading coupons…</p>
+                    ) : availableCoupons.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-6">No coupons available.</p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {availableCoupons.map((c) => {
+                          const code = c.code ?? ''
+                          const desc = c.description ?? ''
+                          const type = (c.discountType || '').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FLAT'
+                          const value = c.discountValue ?? 0
+                          const maxDiscount = c.maxDiscountAmount
+                          const minCart = c.minCartValue ?? 0
+                          const maxCart = c.maxCartValue
+                          const perUserLimit = c.perUserUsageLimit ?? 0
+                          const expiryDate = formatCouponDate(c.expiryDate)
+                          const discountLabel = type === 'PERCENT'
+                            ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString('en-IN')})` : ''}`
+                            : `Rs ${Number(value).toLocaleString('en-IN')} off`
+                          return (
+                            <li key={c._id ?? code}>
+                              <button
+                                type="button"
+                                onClick={() => handleSelectCoupon(code)}
+                                className="w-full text-left border border-gray-300 p-4 hover:border-black hover:bg-gray-50 transition-colors"
+                              >
+                                <span className="block font-semibold uppercase text-black">{code}</span>
+                                {desc && <span className="block text-sm text-gray-700 mt-1">{desc}</span>}
+                                <span className="block text-sm font-medium text-gray-800 mt-1">{discountLabel}</span>
+                                <div className="mt-2 space-y-0.5 text-xs text-gray-500">
+                                  {minCart > 0 && <p>Min order: Rs {Number(minCart).toLocaleString('en-IN')}</p>}
+                                  {maxCart != null && maxCart > 0 && <p>Valid on orders up to Rs {Number(maxCart).toLocaleString('en-IN')}</p>}
+                                  {expiryDate && <p>Valid till: {expiryDate}</p>}
+                                  {perUserLimit > 0 && <p>{perUserLimit === 1 ? 'One use per user' : `Use up to ${perUserLimit} times per user`}</p>}
+                                </div>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bill Summary – order matches pricing.service.js: subTotal → coupon → charges → delivery → taxable → GST → amount to pay */}
+            <section>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">Bill summary</h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Item total</span>
+                  <span className="font-medium">{formatRs(summary.subTotal)}</span>
+                </div>
+                {coupon?.discountAmount > 0 && (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">Coupon discount ({coupon.code})</span>
+                      <span className="font-medium">−{formatRs(coupon.discountAmount)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">Subtotal after discount</span>
+                      <span className="font-medium">{formatRs(subTotalAfterDiscount)}</span>
+                    </div>
+                  </>
+                )}
+                {chargesList.map((c) => (
+                  <div key={c.key || c.description} className="flex justify-between items-center">
+                    <span className="text-gray-700">{c.description || c.key || 'Charge'}</span>
+                    <span className="font-medium">{formatRs(c.amount)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Delivery</span>
+                  <span className="font-medium">{deliverySummary?.totalCharge != null && deliverySummary.totalCharge > 0 ? formatRs(deliverySummary.totalCharge) : 'Free'}</span>
+                </div>
+                {taxableAmount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Taxable amount</span>
+                    <span className="font-medium">{formatRs(taxableAmount)}</span>
+                  </div>
+                )}
+                {totalGst > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Total GST</span>
+                    <span className="font-medium">{formatRs(totalGst)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                  <span className="font-semibold uppercase">Amount to pay</span>
+                  <span className="font-bold text-lg">{formatRs(finalPayable)}</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="pt-4 border-t border-gray-200">
+              <Link
+                to={ROUTES.CHECKOUT}
+                state={{ couponCode: appliedCouponCode || null }}
+                className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"
+              >
+                Checkout
+              </Link>
+              <Link
+                to={ROUTES.SEARCH}
+                className="mt-3 block w-full text-center text-sm font-medium uppercase text-black hover:underline"
+              >
+                Continue shopping
+              </Link>
+              <Link
+                to={ROUTES.WISHLIST}
+                className="mt-2 block w-full text-center text-sm text-gray-600 hover:underline"
+              >
+                View wishlist
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

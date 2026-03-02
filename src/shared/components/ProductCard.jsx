@@ -1,6 +1,8 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
+import { getProductPath } from '../../utils/constants'
 
 const ROUNDED_CLASSES = {
   none: '',
@@ -97,8 +99,11 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
 
   const imageRoundedClass = `${imageIsNumeric ? '' : roundedTopClass} ${imageIsNumeric ? '' : roundedBottomClass}`.trim()
 
+  const CardWrapper = id != null ? Link : 'div'
+  const wrapperProps = id != null ? { to: getProductPath(id) } : {}
+
   return (
-    <div className={cardClassName} style={cardStyle}>
+    <CardWrapper {...wrapperProps} className={`${id != null ? 'block ' : ''}${cardClassName}`} style={cardStyle}>
 
       {/* IMAGE */}
       <div
@@ -122,7 +127,12 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
 
         {/* ACTION ICONS */}
         {id != null && (
-          <div className="absolute top-6 right-6 flex flex-col gap-4 z-10">
+          <div
+            className="absolute top-6 right-6 flex flex-col gap-4 z-10"
+            onClick={(e) => e.stopPropagation()}
+            role="group"
+            aria-label="Product actions"
+          >
             {/* Wishlist */}
             <button
               type="button"
@@ -153,7 +163,11 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
             {/* Cart */}
             <button
               type="button"
-              onClick={requireAuth(() => addToCart({ id, image, hoverImage, title, price, delivery, rating }))}
+              onClick={requireAuth(() => {
+                console.log('[ProductCard] Add to cart clicked, product:', { id, image, hoverImage, title, price, delivery, rating })
+                addToCart({ id, image, hoverImage, title, price, delivery, rating })
+                console.log('[ProductCard] addToCart invoked')
+              })}
               className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 ease-in-out delay-200 hover:scale-105"
               aria-label="Add to cart"
             >
@@ -214,7 +228,7 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
 
       </div>
 
-    </div>
+    </CardWrapper>
   )
 })
 

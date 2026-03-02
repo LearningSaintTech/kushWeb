@@ -33,9 +33,11 @@ export function search(params = {}) {
 
 /**
  * Get a single item by ID.
+ * @param {string} itemId - Item _id
+ * @param {Object} [params] - Optional query params (e.g. pincode for delivery/availability)
  */
-export function getById(itemId) {
-  return client.get(`${ITEMS}/single/${itemId}`);
+export function getById(itemId, params = {}) {
+  return client.get(`${ITEMS}/single/${itemId}`, { params });
 }
 
 export const itemsService = {

@@ -1,0 +1,8 @@
+export { default as RefundCancelPolicyPage } from './RefundCancelPolicyPage'
+export { default as PaymentPolicyPage } from './PaymentPolicyPage'
+export { default as ShippingDeliveryPolicyPage } from './ShippingDeliveryPolicyPage'
+export { default as FAQsPage } from './FAQsPage'
+export { default as AboutUsPage } from './AboutUsPage'
+export { default as ContactUsPage } from './ContactUsPage'
+export { default as TermsConditionsPage } from './TermsConditionsPage'
+export { default as PrivacyPolicyPage } from './PrivacyPolicyPage'

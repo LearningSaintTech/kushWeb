@@ -160,56 +160,102 @@ export function CartWishlistProvider({ children }) {
 
   /** Build backend cart add payload: { itemId, variant: { color, size, sku, imageUrl }, quantity, pincode? } */
   const buildCartPayload = useCallback(async (product, pincode = null) => {
+    console.log('[CartWishlistContext] buildCartPayload called with product:', product, 'pincode:', pincode)
     const itemId = product?.id ?? product?._id
-    if (!itemId) return null
+    if (!itemId) {
+      console.log('[CartWishlistContext] buildCartPayload: no itemId, returning null')
+      return null
+    }
     if (product?.variant && product?.sku) {
-      return {
+      const rawImg = product.variant.imageUrl ?? product.image ?? ''
+      const imageUrl = (rawImg || 'https://placehold.co/400').replace(/ /g, '%20')
+      const payload = {
         itemId,
         variant: {
           color: product.variant.color ?? product.color ?? 'Default',
           size: product.variant.size ?? product.size ?? 'One Size',
           sku: product.sku,
-          imageUrl: product.variant.imageUrl ?? product.image ?? '',
+          imageUrl,
         },
         quantity: Number(product.quantity) || 1,
         ...(pincode ? { pincode } : {}),
       }
+      console.log('[CartWishlistContext] buildCartPayload: built from product.variant/sku:', payload)
+      return payload
     }
     try {
+      console.log('[CartWishlistContext] buildCartPayload: fetching item by id', itemId)
       const res = await itemsService.getById(itemId)
-      const item = res?.data?.data ?? res?.data
-      const v = item?.variants?.[0]
-      const s = v?.sizes?.[0]
-      const imageUrl = v?.images?.[0]?.url ?? item?.thumbnail ?? ''
-      if (!s?.sku) return null
-      return {
+      // Single-item API returns { item, deliveries, ... } inside data
+      const data = res?.data?.data ?? res?.data
+      const item = data?.item ?? data
+      if (!item?.variants?.length) {
+        console.log('[CartWishlistContext] buildCartPayload: no variants, returning null')
+        return null
+      }
+      // Find first variant that has a size with sku (in case structure varies)
+      let v = null
+      let s = null
+      for (const variant of item.variants) {
+        const sizeWithSku = variant?.sizes?.find((sz) => sz?.sku)
+        if (sizeWithSku) {
+          v = variant
+          s = sizeWithSku
+          break
+        }
+      }
+      if (!s?.sku) {
+        console.log('[CartWishlistContext] buildCartPayload: no sku on any size, returning null')
+        return null
+      }
+      const rawImageUrl = v?.images?.[0]?.url ?? (Array.isArray(v?.images) && v.images[0]?.url) ?? item?.thumbnail ?? ''
+      // Encode spaces so URL passes backend isURL() validation (e.g. "Couple Collection" -> "Couple%20Collection")
+      const imageUrl = (rawImageUrl || product?.image || 'https://placehold.co/400').replace(/ /g, '%20')
+      const payload = {
         itemId: item._id ?? itemId,
         variant: {
           color: v?.color?.name ?? 'Default',
-          size: s.size,
+          size: s.size ?? 'One Size',
           sku: s.sku,
           imageUrl,
         },
         quantity: 1,
         ...(pincode ? { pincode } : {}),
       }
-    } catch {
+      console.log('[CartWishlistContext] buildCartPayload: built from API item:', payload)
+      return payload
+    } catch (err) {
+      console.log('[CartWishlistContext] buildCartPayload: getById failed', err)
       return null
     }
   }, [])
 
   const addToCart = useCallback(
-    async (product, pincode = null) => {
+    async (product, pincodeParam = null) => {
+      const pin = pincodeParam ?? pincode
+      console.log('[CartWishlistContext] addToCart called', { product, pincode: pin, isAuthenticated })
       const { id, title, price, image, delivery, rating } = product ?? {}
       if (isAuthenticated) {
-        const payload = await buildCartPayload(product, pincode)
-        if (!payload) return
+        console.log('[CartWishlistContext] addToCart: authenticated path, building payload')
+        const payload = await buildCartPayload(product, pin)
+        console.log('[CartWishlistContext] addToCart: payload from buildCartPayload:', payload)
+        if (!payload) {
+          console.log('[CartWishlistContext] addToCart: no payload, aborting')
+          return
+        }
         try {
+          console.log('[CartWishlistContext] addToCart: calling cartService.add(payload)')
           await cartService.add(payload)
+          console.log('[CartWishlistContext] addToCart: cartService.add succeeded, refetching cart')
           refetchCart()
-        } catch (_) {}
+        } catch (err) {
+          console.log('[CartWishlistContext] addToCart: cartService.add failed', err)
+          console.log('[CartWishlistContext] addToCart: response:', err?.response?.data)
+          console.log('[CartWishlistContext] addToCart: status:', err?.response?.status)
+        }
         return
       }
+      console.log('[CartWishlistContext] addToCart: guest path, updating local cart')
       setCart((prev) => {
         const existing = prev.find((item) => item.id === id)
         if (existing) {
@@ -220,7 +266,7 @@ export function CartWishlistProvider({ children }) {
         return [...prev, { id, title, price, image, delivery, rating, quantity: 1 }]
       })
     },
-    [isAuthenticated, buildCartPayload, refetchCart]
+    [isAuthenticated, pincode, buildCartPayload, refetchCart]
   )
 
   const removeFromCart = useCallback(

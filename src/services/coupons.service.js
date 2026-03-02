@@ -9,7 +9,7 @@ import client from './axiosClient.js';
 const BASE = '/coupons';
 
 export const couponsService = {
-  getAvailable: () => client.get(`${BASE}/availableCoupons`),
+  getAvailable: (params) => client.get(`${BASE}/availableCoupons`, { params: params || {} }),
 
   validate: (code) => client.get(`${BASE}/validate/${encodeURIComponent(code)}`),
 

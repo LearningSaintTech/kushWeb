@@ -23,4 +23,7 @@ export const sectionsService = {
   getAll: (params) => client.get('/sections/getAll', { params }),
 
   getSingle: (sectionId) => client.get(`/sections/getSingle/${sectionId}`),
+
+  /** Public: get one section by id (no auth). Use for search page section-scoped filters. */
+  getOne: (sectionId) => client.get(`/sections/getOne/${sectionId}`),
 };

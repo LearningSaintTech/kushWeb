@@ -4,6 +4,8 @@ import { useSelector } from 'react-redux'
 import ProductCard from '../../shared/components/ProductCard'
 import { sectionsService } from '../../services/content.service.js'
 import { itemsService } from '../../services/items.service.js'
+import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
+import { ROUTES } from '../../utils/constants'
 
 const DEFAULT_LIMIT = 12
 
@@ -34,20 +36,50 @@ function itemToCardProps(item) {
   }
 }
 
+/** MANUAL/FLASH with products only (no category/subcategory) → show items by sectionId */
+function isItemsOnlySection(section) {
+  if (!section) return false
+  const type = section.type
+  const hasCategories = Array.isArray(section.categoryId) && section.categoryId.length > 0
+  const hasSubcategories = Array.isArray(section.subcategoryId) && section.subcategoryId.length > 0
+  return (type === 'MANUAL' || type === 'FLASH') && !hasCategories && !hasSubcategories
+}
+
+/** CATEGORY with only categoryId (no subcategoryId) → "Our Product": category dropdown, filter by category */
+function isOurProductSection(section) {
+  if (!section || section.type !== 'CATEGORY') return false
+  const hasCategories = Array.isArray(section.categoryId) && section.categoryId.length > 0
+  const hasSubcategories = Array.isArray(section.subcategoryId) && section.subcategoryId.length > 0
+  return hasCategories && !hasSubcategories
+}
+
+/** CATEGORY with categoryId + subcategoryId → "Our Category": category + subcategory dropdown */
+function isOurCategorySection(section) {
+  if (!section || section.type !== 'CATEGORY') return false
+  const hasCategories = Array.isArray(section.categoryId) && section.categoryId.length > 0
+  const hasSubcategories = Array.isArray(section.subcategoryId) && section.subcategoryId.length > 0
+  return hasCategories && hasSubcategories
+}
+
 export function SectionExplorePage() {
   const { sectionId } = useParams()
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
   const [section, setSection] = useState(null)
+  const [categories, setCategories] = useState([])
+  const [subcategories, setSubcategories] = useState([])
   const [products, setProducts] = useState([])
   const [pagination, setPagination] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
+  /** For Our Product: selected category id. For Our Category: { type: 'category'|'subcategory', id } */
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
+  const [selectedFilter, setSelectedFilter] = useState(null) // { type: 'category'|'subcategory', id }
 
   const loadSection = useCallback(async () => {
     if (!sectionId) return
     try {
-      const res = await sectionsService.getSingle(sectionId)
+      const res = await sectionsService.getOne(sectionId)
       const data = res?.data?.data ?? res?.data
       setSection(data || null)
     } catch (e) {
@@ -56,13 +88,75 @@ export function SectionExplorePage() {
     }
   }, [sectionId])
 
+  /** Fetch category/subcategory details when section is CATEGORY type */
+  const loadCategoriesAndSubcategories = useCallback(async (sec) => {
+    if (!sec || sec.type !== 'CATEGORY') {
+      setCategories([])
+      setSubcategories([])
+      return
+    }
+    const catIds = Array.isArray(sec.categoryId) ? sec.categoryId : []
+    const subIds = Array.isArray(sec.subcategoryId) ? sec.subcategoryId : []
+    const catPromises = catIds.map((id) =>
+      categoriesService.getById(id).then((r) => r?.data?.data ?? r?.data).catch(() => null)
+    )
+    const subPromises = subIds.map((id) =>
+      subcategoriesService.getById(id).then((r) => r?.data?.data ?? r?.data).catch(() => null)
+    )
+    const [catResults, subResults] = await Promise.all([
+      Promise.all(catPromises),
+      Promise.all(subPromises),
+    ])
+    setCategories(catResults.filter(Boolean))
+    setSubcategories(subResults.filter(Boolean))
+  }, [])
+
   const loadProducts = useCallback(async () => {
     if (!sectionId) return
     setLoading(true)
     setError(null)
     try {
-      const params = { sectionId, page, limit: DEFAULT_LIMIT }
+      const params = { page, limit: DEFAULT_LIMIT }
       if (pincode) params.pinCode = String(pincode)
+
+      if (isItemsOnlySection(section)) {
+        params.sectionId = sectionId
+      } else if (isOurProductSection(section)) {
+        const catId = selectedCategoryId ?? section.categoryId?.[0]
+        if (!catId) {
+          setProducts([])
+          setPagination(null)
+          setLoading(false)
+          return
+        }
+        params.categoryId = catId
+      } else if (isOurCategorySection(section)) {
+        const filter = selectedFilter
+        if (!filter?.id) {
+          const firstCat = section.categoryId?.[0]
+          const firstSub = section.subcategoryId?.[0]
+          if (firstSub) {
+            params.subcategoryId = firstSub
+          } else if (firstCat) {
+            params.categoryId = firstCat
+          } else {
+            setProducts([])
+            setPagination(null)
+            setLoading(false)
+            return
+          }
+        } else if (filter.type === 'subcategory') {
+          params.subcategoryId = filter.id
+        } else {
+          params.categoryId = filter.id
+        }
+      } else {
+        setProducts([])
+        setPagination(null)
+        setLoading(false)
+        return
+      }
+
       const res = await itemsService.search(params)
       const data = res?.data?.data ?? res?.data
       const items = (data?.items ?? []).map(itemToCardProps)
@@ -75,22 +169,66 @@ export function SectionExplorePage() {
     } finally {
       setLoading(false)
     }
-  }, [sectionId, page, pincode])
+  }, [
+    sectionId,
+    section,
+    page,
+    pincode,
+    selectedCategoryId,
+    selectedFilter,
+  ])
 
   useEffect(() => {
     loadSection()
   }, [loadSection])
 
   useEffect(() => {
-    if (sectionId) loadProducts()
-    else setProducts([])
-  }, [sectionId, loadProducts])
+    if (!section) return
+    if (section.type === 'CATEGORY') {
+      loadCategoriesAndSubcategories(section)
+    } else {
+      setCategories([])
+      setSubcategories([])
+    }
+  }, [section, loadCategoriesAndSubcategories])
+
+  useEffect(() => {
+    if (!sectionId || !section) return
+    if (isOurProductSection(section) && categories.length && selectedCategoryId === null) {
+      setSelectedCategoryId(section.categoryId[0])
+    }
+    if (isOurCategorySection(section) && (categories.length || subcategories.length) && selectedFilter === null) {
+      const firstSub = section.subcategoryId?.[0]
+      const firstCat = section.categoryId?.[0]
+      if (firstSub) setSelectedFilter({ type: 'subcategory', id: firstSub })
+      else if (firstCat) setSelectedFilter({ type: 'category', id: firstCat })
+    }
+  }, [sectionId, section, categories.length, subcategories.length, selectedCategoryId, selectedFilter])
+
+  useEffect(() => {
+    if (!sectionId) {
+      setProducts([])
+      setPagination(null)
+      setLoading(false)
+      return
+    }
+    if (!section) return
+    loadProducts()
+  }, [sectionId, section, page, selectedCategoryId, selectedFilter, loadProducts])
 
   if (!sectionId) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <p className="text-gray-600">Missing section.</p>
-        <Link to="/" className="text-black underline mt-4 inline-block">Back to home</Link>
+        <Link to={ROUTES.HOME} className="text-black underline mt-4 inline-block">Back to home</Link>
+      </div>
+    )
+  }
+
+  if (sectionId && !section && !error) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center text-gray-500">
+        Loading section…
       </div>
     )
   }
@@ -99,22 +237,120 @@ export function SectionExplorePage() {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <p className="text-red-600">{error}</p>
-        <Link to="/" className="text-black underline mt-4 inline-block">Back to home</Link>
+        <Link to={ROUTES.HOME} className="text-black underline mt-4 inline-block">Back to home</Link>
       </div>
     )
   }
 
   const totalPages = pagination?.totalPages ?? 0
   const hasMore = page < totalPages
+  const sectionTitle = section?.title ?? 'Section'
+  const isCategorySection = section?.type === 'CATEGORY'
+  const exploreSearchUrl = isCategorySection && section?.categoryId?.[0]
+    ? `${ROUTES.SEARCH}?categoryId=${section.categoryId[0]}`
+    : ROUTES.SEARCH
+
+  const showOurProductDropdown = isOurProductSection(section) && categories.length > 0
+  const showOurCategoryDropdown = isOurCategorySection(section) && (categories.length > 0 || subcategories.length > 0)
+
+  const handleOurProductChange = (e) => {
+    const id = e.target.value || null
+    setSelectedCategoryId(id)
+    setPage(1)
+  }
+
+  const handleOurCategoryChange = (e) => {
+    const val = e.target.value
+    if (!val) {
+      setSelectedFilter(null)
+      setPage(1)
+      return
+    }
+    const [type, id] = val.split('::')
+    setSelectedFilter(type && id ? { type, id } : null)
+    setPage(1)
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <Link to="/" className="text-black underline text-sm">← Back to home</Link>
+        <Link to={ROUTES.HOME} className="text-black underline text-sm">← Back to home</Link>
         <h1 className="font-raleway text-2xl sm:text-4xl font-extrabold tracking-wide text-black mt-4">
-          {section?.title ?? 'Section'}
+          {sectionTitle}
         </h1>
+        {isCategorySection && (
+          <Link
+            to={exploreSearchUrl}
+            className="inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 mt-2 hover:opacity-70 transition-opacity"
+          >
+            <span>Explore more in search</span>
+          </Link>
+        )}
       </div>
+
+      {/* Our Product: only section's categories in dropdown */}
+      {showOurProductDropdown && (
+        <div className="mb-6">
+          <label htmlFor="section-category-select" className="font-inter text-sm font-medium text-gray-700 mr-2">
+            Category
+          </label>
+          <select
+            id="section-category-select"
+            value={selectedCategoryId ?? section.categoryId?.[0] ?? ''}
+            onChange={handleOurProductChange}
+            className="font-inter border border-black px-4 py-2 min-w-[200px] focus:outline-none focus:ring-2 focus:ring-black/20"
+          >
+            {categories.map((cat) => (
+              <option key={cat._id} value={cat._id}>
+                {cat.name ?? cat._id}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Our Category: categories + subcategories in one dropdown (only section's) */}
+      {showOurCategoryDropdown && (
+        <div className="mb-6">
+          <label htmlFor="section-filter-select" className="font-inter text-sm font-medium text-gray-700 mr-2">
+            Category / Subcategory
+          </label>
+          <select
+            id="section-filter-select"
+            value={
+              selectedFilter
+                ? `${selectedFilter.type}::${selectedFilter.id}`
+                : section?.subcategoryId?.[0]
+                  ? `subcategory::${section.subcategoryId[0]}`
+                  : section?.categoryId?.[0]
+                    ? `category::${section.categoryId[0]}`
+                    : ''
+            }
+            onChange={handleOurCategoryChange}
+            className="font-inter border border-black px-4 py-2 min-w-[220px] focus:outline-none focus:ring-2 focus:ring-black/20"
+          >
+            <option value="">Select…</option>
+            {categories.length > 0 && (
+              <optgroup label="Categories">
+                {categories.map((cat) => (
+                  <option key={`cat-${cat._id}`} value={`category::${cat._id}`}>
+                    {cat.name ?? cat._id}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {subcategories.length > 0 && (
+              <optgroup label="Subcategories">
+                {subcategories.map((sub) => (
+                  <option key={`sub-${sub._id}`} value={`subcategory::${sub._id}`}>
+                    {sub.name ?? sub._id}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+      )}
 
       {loading && products.length === 0 && (
         <div className="text-center py-12 text-gray-500">Loading...</div>

@@ -6,6 +6,7 @@ import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronForward } from "react-icons/io5"
 import { itemsService } from '../../../services/items.service.js'
+import { categoriesService } from '../../../services/categories.service.js'
 
 const CATEGORIES = ['MEN', 'WOMEN', 'UNISEX', 'COUPLES']
 const CATEGORY_PRODUCT_LIMIT = 8
@@ -49,20 +50,46 @@ function itemToCardProps(item, index) {
 
 function OurProduct({ section }) {
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
+  const [sectionCategoriesResolved, setSectionCategoriesResolved] = useState([])
 
-  const categoriesWithId = section?.categories?.length
+  const hasPopulatedCategories = section?.categories?.length > 0
+  const hasCategoryIds = Array.isArray(section?.categoryId) && section.categoryId.length > 0
+
+  useEffect(() => {
+    if (!section || (section.categories?.length ?? 0) > 0) {
+      setSectionCategoriesResolved([])
+      return
+    }
+    const catIds = Array.isArray(section.categoryId) ? section.categoryId : []
+    if (catIds.length === 0) return
+    const ids = catIds.map((id) => (id && typeof id === 'object' && id.toString) ? id.toString() : String(id))
+    let cancelled = false
+    Promise.all(ids.map((id) => categoriesService.getById(id).then((r) => r?.data?.data ?? r?.data).catch(() => null)))
+      .then((list) => {
+        if (!cancelled) setSectionCategoriesResolved(list.filter(Boolean))
+      })
+      .catch(() => { if (!cancelled) setSectionCategoriesResolved([]) })
+    return () => { cancelled = true }
+  }, [section])
+
+  const categoriesWithId = hasPopulatedCategories
     ? section.categories.map((c) => ({
         id: c._id ?? c.id,
         label: (c.name ?? '').toUpperCase() || String(c._id ?? c.id),
       }))
-    : CATEGORIES.map((label) => ({ id: null, label }))
+    : sectionCategoriesResolved.length > 0
+      ? sectionCategoriesResolved.map((c) => ({
+          id: c._id ?? c.id,
+          label: (c.name ?? '').toUpperCase() || String(c._id ?? c.id),
+        }))
+      : CATEGORIES.map((label) => ({ id: null, label }))
 
   const [activeCategoryId, setActiveCategoryId] = useState(categoriesWithId[0]?.id ?? null)
   const [categoryProducts, setCategoryProducts] = useState([])
   const [loadingCategory, setLoadingCategory] = useState(false)
 
   const sectionTitle = section?.title || 'OUR PRODUCTS'
-  const exploreTo = section?.categories?.[0]?._id ? `/search?categoryId=${section.categories[0]._id}` : '/search'
+  const exploreTo = section?._id ? `/search?sectionId=${section._id}` : '/search'
 
   const listFromSection = section?.products
     ?.filter((p) => p?.item)

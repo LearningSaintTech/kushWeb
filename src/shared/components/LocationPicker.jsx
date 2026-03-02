@@ -1,16 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { FaChevronDown, FaChevronUp } from 'react-icons/fa'
 import { setLocation, setPincodeOnly, setLoading, setError } from '../../app/store/slices/locationSlice'
 import { getCurrentLocationPincode } from '../../services/geo.service'
 import { LocationIcon } from '../ui/icons'
-
-function ChevronDownIcon({ className }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  )
-}
 
 const PINCODE_REGEX = /^\d{4,6}$/
 
@@ -24,6 +17,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
   const error = useSelector((s) => s.location?.error)
 
   const [open, setOpen] = useState(false)
+  const [panelAnimateOpen, setPanelAnimateOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [usingCurrent, setUsingCurrent] = useState(false)
   const inputRef = useRef(null)
@@ -68,6 +62,15 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
     const trimmed = query.trim().replace(/\s/g, '')
     return trimmed && PINCODE_REGEX.test(trimmed) ? trimmed : null
   }, [query])
+
+  useEffect(() => {
+    if (!open) {
+      setPanelAnimateOpen(false)
+      return
+    }
+    const id = requestAnimationFrame(() => setPanelAnimateOpen(true))
+    return () => cancelAnimationFrame(id)
+  }, [open])
 
   const handleUseCurrentLocation = async () => {
     setUsingCurrent(true)
@@ -134,7 +137,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
   return (
     <div className={`relative ${className}`} ref={panelRef}>
       <div
-        className={`flex min-w-0 flex-1 cursor-text items-center gap-2 rounded-full px-2 py-1.5 md:gap-[0.83vw] md:px-[0.83vw] md:py-[0.63vw] ${bgClass} ${
+        className={`flex min-w-0 flex-1 cursor-text items-center gap-2 rounded-full px-2 py-1 md:gap-[0.83vw] md:px-[0.83vw] md:py-[0.3vw] ${bgClass} ${
           compact ? 'w-full md:w-[18.1vw]' : ''
         } ${error ? 'ring-1 ring-amber-400/80' : ''}`}
         onClick={() => inputRef.current?.focus()}
@@ -143,7 +146,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
         aria-haspopup="listbox"
         aria-label="Delivery location"
       >
-        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full md:h-[2.08vw] md:w-[2.08vw] ${iconBgClass}`}>
+        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full md:h-[1.8vw] md:w-[1.8vw] ${iconBgClass}`}>
           <LocationIcon className={`h-4 w-4 md:h-5 md:w-5 ${iconClass}`} />
         </div>
         <input
@@ -158,15 +161,17 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           aria-controls="location-listbox"
           aria-activedescendant={undefined}
         />
-        <ChevronDownIcon
-          className={`h-4 w-4 shrink-0 md:h-5 md:w-5 ${textClass} transition-transform ${open ? 'rotate-180' : ''}`}
-        />
+        <span className={`inline-flex shrink-0 ${textClass} transition-transform duration-200 ease-out`}>
+          {open ? <FaChevronUp className="h-4 w-4 md:h-5 md:w-5" /> : <FaChevronDown className="h-4 w-4 md:h-5 md:w-5" />}
+        </span>
       </div>
 
       {open && (
         <div
           id="location-listbox"
-          className="absolute left-0 top-full z-[60] mt-1 min-w-[240px] max-w-[min(320px,90vw)] rounded-xl border border-gray-200 bg-white py-2 shadow-lg"
+          className={`absolute left-0 top-full z-[60] mt-1 min-w-[240px] max-w-[min(320px,90vw)] rounded-xl border border-gray-200 bg-white py-2 shadow-lg transition-all duration-200 ease-out origin-top-left ${
+            panelAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
+          }`}
           role="listbox"
         >
           <div className="border-b border-gray-100 px-3 pb-2">

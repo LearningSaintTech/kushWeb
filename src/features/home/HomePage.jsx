@@ -31,15 +31,20 @@ function HomePage() {
       .getActive({ isWeb: true, limit: 20, productLimit: 12 })
       .then((res) => {
         if (cancelled) return
+        console.log('[HomePage] sections response (full):', res)
+        console.log('[HomePage] sections response data:', res?.data)
         const raw = res?.data?.data?.items ?? res?.data?.items ?? []
+        console.log('[HomePage] sections raw items:', raw)
         const sorted = [...raw].sort(
           (a, b) => (a.webinfo?.webOrder ?? 999) - (b.webinfo?.webOrder ?? 999)
         )
+        console.log('[HomePage] sections sorted:', sorted)
         const byOrder = {}
         sorted.forEach((s) => {
           const order = s.webinfo?.webOrder ?? 999
           if (order >= 1 && order <= 6) byOrder[order] = s
         })
+        console.log('[HomePage] sections byOrder (mapped for render):', byOrder)
         setSectionsByOrder(byOrder)
       })
       .catch((err) => {

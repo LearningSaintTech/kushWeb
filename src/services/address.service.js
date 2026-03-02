@@ -11,7 +11,7 @@ const BASE = '/address';
 export const addressService = {
   create: (body) => client.post(`${BASE}/create`, body),
 
-  getAll: () => client.get(`${BASE}/getAll`),
+  getAll: (params) => client.get(`${BASE}/getAll`, { params: params || {} }),
 
   update: (id, body) => client.patch(`${BASE}/update/${id}`, body),
 

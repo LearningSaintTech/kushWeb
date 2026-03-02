@@ -8,7 +8,16 @@ import { AuthPage } from '../../features/auth'
 import { CheckoutPage } from '../../features/checkout'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
-import { AccountPage } from '../../features/account'
+ import {
+  RefundCancelPolicyPage,
+  PaymentPolicyPage,
+  ShippingDeliveryPolicyPage,
+  FAQsPage,
+  AboutUsPage,
+  ContactUsPage,
+  TermsConditionsPage,
+  PrivacyPolicyPage,
+} from '../../features/policy'
 import { ROUTES } from '../../utils/constants'
 
 const router = createBrowserRouter([
@@ -23,7 +32,14 @@ const router = createBrowserRouter([
       { path: 'checkout', element: <CheckoutPage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'section/:sectionId', element: <SectionExplorePage /> },
-      { path: 'account', element: <AccountPage /> },
+       { path: 'refund-cancel-policy', element: <RefundCancelPolicyPage /> },
+      { path: 'payment-policy', element: <PaymentPolicyPage /> },
+      { path: 'shipping-delivery-policy', element: <ShippingDeliveryPolicyPage /> },
+      { path: 'faqs', element: <FAQsPage /> },
+      { path: 'about-us', element: <AboutUsPage /> },
+      { path: 'contact-us', element: <ContactUsPage /> },
+      { path: 'terms-conditions', element: <TermsConditionsPage /> },
+      { path: 'privacy-policy', element: <PrivacyPolicyPage /> },
     ],
   },
   { path: 'auth', element: <AuthPage /> },
