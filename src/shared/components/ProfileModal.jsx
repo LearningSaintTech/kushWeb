@@ -65,7 +65,7 @@ function ChevronRightIcon({ className }) {
 const NAV_ITEMS = [
   { label: 'Address', to: ROUTES.ACCOUNT, icon: LocationPinIcon },
   { label: 'Orders', to: ROUTES.ACCOUNT, icon: PackageIcon },
-  { label: 'Coupons', to: ROUTES.ACCOUNT, icon: TagIcon },
+  { label: 'Coupons', to: ROUTES.COUPONS, icon: TagIcon },
   { label: 'Contact Us', to: ROUTES.CONTACT_US, icon: PhoneIcon },
   { label: 'Terms & Conditions', to: ROUTES.TERMS_CONDITIONS, icon: DocumentIcon },
 ]
