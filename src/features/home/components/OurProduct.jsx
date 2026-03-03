@@ -45,6 +45,7 @@ function itemToCardProps(item, index) {
     price,
     delivery,
     rating: item.avgRating ?? 4.5,
+    outOfStock: item.inStock === false,
   }
 }
 
@@ -89,11 +90,13 @@ function OurProduct({ section }) {
   const [loadingCategory, setLoadingCategory] = useState(false)
 
   const sectionTitle = section?.title || 'OUR PRODUCTS'
-  const exploreTo = section?._id ? `/search?sectionId=${section._id}` : '/search'
+  const exploreTo = section?._id
+    ? (activeCategoryId ? `/search?sectionId=${section._id}&categoryId=${activeCategoryId}` : `/search?sectionId=${section._id}`)
+    : '/search'
 
   const listFromSection = section?.products
     ?.filter((p) => p?.item)
-    ?.map((p, i) => itemToCardProps(p.item, i)) ?? []
+    ?.map((p, i) => ({ ...itemToCardProps(p.item, i), outOfStock: p.inStock === false })) ?? []
 
   const fetchByCategory = useCallback(
     async (categoryId) => {
@@ -168,7 +171,7 @@ function OurProduct({ section }) {
                   key={cat.id ?? cat.label}
                   type="button"
                   onClick={() => handleTabClick(cat)}
-                  className={`uppercase text-xs sm:text-sm tracking-widest pb-2 border-b-2 transition-all whitespace-nowrap ${
+                  className={`uppercase text-xs sm:text-sm tracking-widest pb-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                     activeCategoryId === cat.id
                       ? 'text-black border-black'
                       : 'text-gray-400 border-transparent hover:text-black'
@@ -184,7 +187,7 @@ function OurProduct({ section }) {
           <div className="flex justify-center lg:justify-end lg:shrink-0 mr-[10vw]">
             <Link
               to={exploreTo}
-              className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity whitespace-nowrap"
+              className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity whitespace-nowrap cursor-pointer"
             >
               <span>Explore More</span>
               <IoChevronForward className="shrink-0" />
@@ -211,7 +214,7 @@ function OurProduct({ section }) {
         <div className="flex justify-center mt-10 sm:mt-12">
           <Link
             to={exploreTo}
-            className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity"
+            className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity cursor-pointer"
           >
             <span>Explore More</span>
             <IoChevronForward />

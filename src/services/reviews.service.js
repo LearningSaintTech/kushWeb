@@ -13,6 +13,8 @@ export const reviewsService = {
   getByItem: (itemId, params = {}) =>
     client.get(`${BASE}/getAll/${itemId}`, { params: { page: params.page, limit: params.limit } }),
 
+  getImagesByItem: (itemId) => client.get(`${BASE}/images/${itemId}`),
+
   getSingle: (reviewId) => client.get(`${BASE}/getSingle/${reviewId}`),
 
   delete: (reviewId) => client.delete(`${BASE}/delete/${reviewId}`),

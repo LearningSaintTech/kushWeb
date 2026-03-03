@@ -40,7 +40,7 @@ function mapCategoryToCard(cat, useSubcategoryLink = false, sectionId = null, pa
   }
 }
 
-function OurCategory({ section }) {
+function  OurCategory({ section }) {
   const [sectionCategoriesResolved, setSectionCategoriesResolved] = useState([])
   const [sectionSubcategoriesResolved, setSectionSubcategoriesResolved] = useState([])
 
@@ -142,7 +142,7 @@ function OurCategory({ section }) {
                   key={cat}
                   type="button"
                   onClick={() => setActiveTab(cat)}
-                  className={`shrink-0 whitespace-nowrap uppercase pb-2 text-xs sm:text-base font-medium tracking-widest transition-all border-b-2 ${
+                  className={`shrink-0 whitespace-nowrap uppercase pb-2 text-xs sm:text-base font-medium tracking-widest transition-all border-b-2 cursor-pointer ${
                     activeTab === cat
                       ? 'text-black font-bold border-black'
                       : 'text-gray-400 border-transparent hover:text-black'
@@ -209,7 +209,7 @@ function OurCategory({ section }) {
           <div className="flex justify-center mt-10 sm:mt-12">
             <Link
               to={exploreTo}
-              className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity"
+              className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity cursor-pointer"
             >
               <span>Explore More</span>
               <IoChevronForward className="w-4 h-4" />

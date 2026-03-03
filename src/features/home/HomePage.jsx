@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import Banner from './components/Banner'
 import OurProduct from './components/OurProduct'
 import BestSellar from './components/BestSellar'
@@ -19,6 +20,7 @@ const WEB_ORDER_TO_COMPONENT = {
 }
 
 function HomePage() {
+  const pincode = useSelector((s) => s?.location?.pincode) ?? null
   const [sectionsByOrder, setSectionsByOrder] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -27,8 +29,10 @@ function HomePage() {
     let cancelled = false
     setLoading(true)
     setError(null)
+    const params = { isWeb: true, limit: 20, productLimit: 10 }
+    if (pincode) params.pinCode = String(pincode)
     sectionsService
-      .getActive({ isWeb: true, limit: 20, productLimit: 12 })
+      .getActive(params)
       .then((res) => {
         if (cancelled) return
         console.log('[HomePage] sections response (full):', res)
@@ -54,7 +58,7 @@ function HomePage() {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [pincode])
 
   return (
     <div>

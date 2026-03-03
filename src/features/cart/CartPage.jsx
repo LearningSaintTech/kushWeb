@@ -75,6 +75,7 @@ function CartPage() {
     const params = { limit: 100 }
     const id = addrId ?? addressId
     if (id) params.addressId = id
+    if (pincode) params.pincode = String(pincode)
     const res = await cartService.my(params)
     const data = res?.data?.data ?? res?.data
     setCartData(data)
@@ -361,20 +362,20 @@ function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black pt-24 pb-12">
-      <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
+    <div className="min-h-screen bg-white text-black pt-40 pb-12 font-sans">
+      <div className="px-4 md:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           {/* Left column: Cart items */}
           <div className="lg:col-span-2">
             <div className="overflow-x-auto">
-              <table className="w-full" style={{ borderCollapse: 'separate', borderSpacing: '0 1.5rem' }}>
+              <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
                 <thead>
-                  <tr className="text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    <th className="pb-3">Product</th>
-                    <th className="pb-3 text-center">Quantity</th>
-                    <th className="pb-3 text-right">Total</th>
-                    <th className="pb-3">Delivery time</th>
-                    <th className="pb-3 w-10" />
+                  <tr className="bg-gray-100">
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Product</th>
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Quantity</th>
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Total</th>
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Delivery time</th>
+                    <th className="py-3 px-4 w-10 border border-gray-300 bg-gray-100" />
                   </tr>
                 </thead>
                 <tbody>
@@ -389,16 +390,15 @@ function CartPage() {
                     const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
                     const itemTotal = row.itemTotal ?? unitPrice * qty
                     const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
-                    const selectedOption = deliveryOptions.find((d) => (d._id?.toString?.() ?? d._id) === selectedDeliveryId)
 
                     const productId = item?._id
                     const productPath = productId ? getProductPath(productId) : null
 
                     return (
-                      <tr key={row._id ?? sku} className="align-top">
-                        <td className="pr-4">
-                          <div className="flex gap-4">
-                            <div className="w-24 h-24 shrink-0 overflow-hidden bg-gray-100">
+                      <tr key={row._id ?? sku} className="align-middle border-b border-gray-200">
+                        <td className="pr-4 py-4">
+                          <div className="flex gap-3">
+                            <div className="w-[70px] h-[95px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
                               {productPath ? (
                                 <Link to={productPath} className="block w-full h-full">
                                   {imageUrl ? (
@@ -413,53 +413,51 @@ function CartPage() {
                                 <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
                               )}
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               {productPath ? (
                                 <Link to={productPath} className="block hover:underline">
-                                  <p className="font-semibold text-black uppercase tracking-wide">{name}</p>
-                                  {shortDesc && <p className="text-sm text-gray-600 mt-0.5">{shortDesc}</p>}
-                                  {color && <p className="text-sm text-gray-600 mt-0.5">{color}</p>}
+                                  <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                                  <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc || color || ''}</p>
                                 </Link>
                               ) : (
                                 <>
-                                  <p className="font-semibold text-black uppercase tracking-wide">{name}</p>
-                                  {shortDesc && <p className="text-sm text-gray-600 mt-0.5">{shortDesc}</p>}
-                                  {color && <p className="text-sm text-gray-600 mt-0.5">{color}</p>}
+                                  <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                                  <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc || color || ''}</p>
                                 </>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-2 text-center align-middle">
-                          <div className="inline-flex items-center border border-gray-300 rounded-none">
+                        <td className="px-2 py-4 text-center align-middle">
+                          <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-md overflow-hidden">
                             <button
                               type="button"
                               onClick={() => handleDecreaseQty(sku)}
-                              className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-100"
+                              className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
                               aria-label="Decrease quantity"
                             >
                               −
                             </button>
-                            <span className="w-10 h-9 flex items-center justify-center border-x border-gray-300 text-sm">{qty}</span>
+                            <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">{qty}</span>
                             <button
                               type="button"
                               onClick={() => handleIncreaseQty(sku)}
-                              className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-100"
+                              className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
                               aria-label="Increase quantity"
                             >
                               +
                             </button>
                           </div>
                         </td>
-                        <td className="pl-4 text-right align-middle font-medium whitespace-nowrap">
-                          {formatRs(itemTotal)}
+                        <td className="pl-4 py-4 text-right align-middle text-sm whitespace-nowrap">
+                          Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td className="pl-4 align-middle">
+                        <td className="pl-4 py-4 align-middle">
                           <select
                             value={selectedDeliveryId ?? ''}
                             onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
-                            className="w-full max-w-[180px] border border-gray-300 py-2 px-3 text-sm uppercase bg-white appearance-none cursor-pointer"
-                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23333'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1.25rem', paddingRight: '2rem' }}
+                            className="w-full max-w-[180px] border border-gray-200 bg-gray-100 py-2 pl-3 pr-8 text-sm uppercase text-gray-800 rounded-md appearance-none cursor-pointer"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a5568'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }}
                           >
                             <option value="">Select delivery</option>
                             {deliveryOptions.map((opt) => {
@@ -473,11 +471,11 @@ function CartPage() {
                             })}
                           </select>
                         </td>
-                        <td className="pl-2 align-middle">
+                        <td className="pl-2 py-4 align-middle">
                           <button
                             type="button"
                             onClick={() => handleRemove(sku)}
-                            className="p-2 text-gray-500 hover:text-black"
+                            className="p-2 text-gray-500 hover:text-black transition-colors"
                             aria-label="Remove from cart"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -494,10 +492,10 @@ function CartPage() {
           </div>
 
           {/* Right column: Delivery, Coupon, Bill Summary */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1 space-y-6 border border-gray-300  p-5 bg-white">
             {/* Delivery To */}
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-2">Delivery to:</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">Delivery to:</h2>
               {addresses.length > 0 ? (
                 <>
                   <select
@@ -507,7 +505,7 @@ function CartPage() {
                       const addr = addresses.find((a) => (a._id?.toString?.() ?? a._id) === id)
                       if (addr) setSelectedAddress(addr)
                     }}
-                    className="w-full border border-gray-300 py-2 px-3 text-sm mb-2 bg-white"
+                    className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
                   >
                     {addresses.map((addr) => (
                       <option key={addr._id} value={addr._id}>
@@ -516,26 +514,26 @@ function CartPage() {
                     ))}
                   </select>
                   {selectedAddress && (
-                    <>
-                      <p className="font-medium uppercase text-black">{selectedAddress.name}</p>
-                      <p className="text-sm text-gray-700 mt-0.5">{formatAddress(selectedAddress)}</p>
+                    <div className="text-sm text-gray-800 mb-3">
+                      <p className="font-semibold uppercase text-black">{selectedAddress.name}</p>
+                      <p className="text-gray-700 mt-1">{formatAddress(selectedAddress)}</p>
                       {(selectedAddress.phoneNumber || selectedAddress.countryCode) && (
                         <p className="text-xs uppercase text-gray-600 mt-1">
                           Contact: {[selectedAddress.countryCode, selectedAddress.phoneNumber].filter(Boolean).join(' ')}
                         </p>
                       )}
-                    </>
+                    </div>
                   )}
                 </>
               ) : (
-                <p className="text-sm text-gray-500 mb-2">No address added. Add one to deliver.</p>
+                <p className="text-sm text-gray-500 mb-3">No address added. Add one to deliver.</p>
               )}
               <button
                 type="button"
                 onClick={openAddressForm}
-                className="mt-3 w-full border border-black py-2 px-4 text-sm font-medium uppercase bg-white text-black hover:bg-gray-50 transition-colors"
+                className="w-full border border-black py-2.5 px-4 text-sm font-medium uppercase bg-white text-black hover:bg-gray-50 transition-colors rounded-none"
               >
-                {addresses.length === 0 ? 'Add your first address' : 'Add new address'}
+                Add new address
               </button>
             </section>
 
@@ -604,10 +602,10 @@ function CartPage() {
               </div>
             )}
 
-            {/* Apply Coupon - title + See all in one row; input + Apply below */}
+            {/* Apply Coupon */}
             <section>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-black">Apply coupon</h2>
+                <h2 className="text-sm font-semibold text-black">Apply Coupon</h2>
                 <button
                   type="button"
                   onClick={openCouponModal}
@@ -617,17 +615,24 @@ function CartPage() {
                 </button>
               </div>
               <div className="flex flex-wrap gap-2 items-stretch">
-                <input
-                  type="text"
-                  placeholder="Enter coupon code"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value)}
-                  className="flex-1 min-w-[120px] border border-gray-300 py-2 px-3 text-sm placeholder-gray-400 uppercase"
-                />
+                <div className="flex-1 min-w-[140px] relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="ENTER COUPON CODE HERE"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    className="w-full border border-gray-300 py-2 pl-9 pr-3 text-sm placeholder-gray-400 uppercase rounded-none"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={handleApplyCoupon}
-                  className="bg-black text-white py-2 px-4 text-sm font-semibold uppercase hover:bg-gray-800 transition-colors whitespace-nowrap"
+                  className="bg-black text-white py-2 px-5 text-sm font-semibold uppercase hover:bg-gray-800 transition-colors whitespace-nowrap rounded-none"
                 >
                   Apply
                 </button>
@@ -690,35 +695,44 @@ function CartPage() {
               </div>
             )}
 
-            {/* Bill Summary – order matches pricing.service.js: subTotal → coupon → charges → delivery → taxable → GST → amount to pay */}
+            {/* Bill Summary */}
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">Bill summary</h2>
-              <div className="space-y-2 text-sm">
+              <h2 className="text-sm font-semibold text-black mb-3">Bill Summary</h2>
+              <div className="space-y-2.5 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Item total</span>
-                  <span className="font-medium">{formatRs(summary.subTotal)}</span>
+                  <span className="text-gray-700">Item Total</span>
+                  <span className="font-medium">
+                    {coupon?.discountAmount > 0 && summary.subTotal != null && (
+                      <span className="text-gray-400 line-through mr-1">Rs {Number(summary.subTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                    )}
+                    Rs {Number(subTotalAfterDiscount ?? summary.subTotal ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </span>
                 </div>
-                {coupon?.discountAmount > 0 && (
-                  <>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">Coupon discount ({coupon.code})</span>
-                      <span className="font-medium">−{formatRs(coupon.discountAmount)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">Subtotal after discount</span>
-                      <span className="font-medium">{formatRs(subTotalAfterDiscount)}</span>
-                    </div>
-                  </>
-                )}
                 {chargesList.map((c) => (
                   <div key={c.key || c.description} className="flex justify-between items-center">
-                    <span className="text-gray-700">{c.description || c.key || 'Charge'}</span>
-                    <span className="font-medium">{formatRs(c.amount)}</span>
+                    <span className="text-gray-700">{c.description || c.key || 'Platform Fee'}</span>
+                    <span className="font-medium">
+                      {c.amount != null && c.amount > 0 ? (
+                        <>Rs {Number(c.amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</>
+                      ) : (
+                        <span className="text-green-700 font-medium">Free</span>
+                      )}
+                    </span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Discount</span>
+                  <span className="font-medium">
+                    {coupon?.discountAmount > 0 ? (
+                      <>−{formatRs(coupon.discountAmount)}</>
+                    ) : (
+                      <span className="text-green-700 font-medium">Free</span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
                   <span className="text-gray-700">Delivery</span>
-                  <span className="font-medium">{deliverySummary?.totalCharge != null && deliverySummary.totalCharge > 0 ? formatRs(deliverySummary.totalCharge) : 'Free'}</span>
+                  <span className="font-medium">{deliverySummary?.totalCharge != null && deliverySummary.totalCharge > 0 ? formatRs(deliverySummary.totalCharge) : <span className="text-green-700 font-medium">Free</span>}</span>
                 </div>
                 {taxableAmount > 0 && (
                   <div className="flex justify-between items-center">
@@ -732,9 +746,14 @@ function CartPage() {
                     <span className="font-medium">{formatRs(totalGst)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                  <span className="font-semibold uppercase">Amount to pay</span>
-                  <span className="font-bold text-lg">{formatRs(finalPayable)}</span>
+                <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-300">
+                  <span className="font-bold text-black">Total</span>
+                  <span className="font-bold text-base">
+                    {coupon?.discountAmount > 0 && finalPayable < (summary.subTotal ?? 0) && (
+                      <span className="text-gray-400 line-through mr-1 text-sm">Rs {Number(summary.subTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                    )}
+                    Rs {Number(finalPayable).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </span>
                 </div>
               </div>
             </section>

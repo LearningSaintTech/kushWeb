@@ -1,10 +1,13 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import ProductCard from '../../../shared/components/ProductCard'
 import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
+import { itemsService } from '../../../services/items.service.js'
 
 const GAP = 24
+const SECTION_PAGE_SIZE = 10
 
 const BEST_SELLER_PRODUCTS = Array.from({ length: 20 }, (_, i) => ({
   id: i + 1,
@@ -16,7 +19,38 @@ const BEST_SELLER_PRODUCTS = Array.from({ length: 20 }, (_, i) => ({
   rating: 4.5,
 }))
 
+function mapItemToCard(item, deliveryTypeFallback) {
+  const id = item._id ?? item.id
+  const variants = item.variants ?? []
+  const firstVariant = variants[0]
+  const images = firstVariant?.images ?? []
+  const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  const imageUrl = item.thumbnail ?? sorted[0]?.url ?? ''
+  const hoverUrl = sorted[1]?.url ?? imageUrl
+  const delivery = item.deliveryType === '90_MIN'
+    ? '90 min delivery'
+    : item.deliveryType === 'ONE_DAY'
+      ? '1 day delivery'
+      : item.deliveryType
+        ? String(item.deliveryType)
+        : deliveryTypeFallback
+          ? `GET IN ${deliveryTypeFallback}`
+          : '—'
+  return {
+    id,
+    image: imageUrl || productImage,
+    hoverImage: hoverUrl || hoverProductImage,
+    title: item.name ?? '',
+    price: item.discountedPrice != null ? `₹${item.discountedPrice}` : '₹0',
+    delivery,
+    rating: item.avgRating ?? 4.5,
+    outOfStock: item.inStock === false,
+  }
+}
+
 function BestSellar({ section }) {
+  const pincode = useSelector((s) => s?.location?.pincode) ?? null
+
   const listFromSection = section?.products
     ?.filter((p) => p?.item)
     ?.map((p, i) => ({
@@ -27,8 +61,18 @@ function BestSellar({ section }) {
       price: p.item.discountedPrice != null ? `₹${p.item.discountedPrice}` : '₹0',
       delivery: section.deliveryType ? `GET IN ${section.deliveryType}` : '',
       rating: p.item.avgRating ?? 4.5,
+      outOfStock: p.inStock === false,
     })) || []
-  const products = listFromSection.length > 0 ? listFromSection : BEST_SELLER_PRODUCTS
+
+  const [sectionList, setSectionList] = useState([])
+  const [sectionPage, setSectionPage] = useState(1)
+  const [sectionHasMore, setSectionHasMore] = useState(false)
+  const [sectionLoading, setSectionLoading] = useState(false)
+  const [sectionLoadingMore, setSectionLoadingMore] = useState(false)
+
+  const products = section?._id
+    ? (sectionList.length > 0 ? sectionList : listFromSection)
+    : (listFromSection.length > 0 ? listFromSection : BEST_SELLER_PRODUCTS)
 
   const [slideIndex, setSlideIndex] = useState(0)
   const [dragOffset, setDragOffset] = useState(0)
@@ -38,7 +82,62 @@ function BestSellar({ section }) {
   const mobileCardRef = useRef(null)
   const desktopCardRef = useRef(null)
 
-  const maxIndex = Math.max(0, products.length - 1)
+  const n = products.length
+  const maxIndex = Math.max(0, n - 1)
+
+  const fetchSectionPage = useCallback(async (page) => {
+    if (!section?._id) return
+    const isFirst = page === 1
+    if (isFirst) setSectionLoading(true)
+    else setSectionLoadingMore(true)
+    try {
+      const params = { sectionId: section._id, page, limit: SECTION_PAGE_SIZE }
+      if (pincode) params.pinCode = String(pincode)
+      const res = await itemsService.search(params)
+      const data = res?.data?.data ?? res?.data
+      const items = data?.items ?? []
+      const pag = data?.pagination ?? {}
+      const mapped = items.map((it) => mapItemToCard(it, section.deliveryType))
+      setSectionList((prev) => (page === 1 ? mapped : [...prev, ...mapped]))
+      setSectionPage(page)
+      const totalPages = Math.max(1, pag.totalPages ?? 1)
+      setSectionHasMore(page < totalPages)
+    } catch {
+      setSectionHasMore(false)
+    } finally {
+      setSectionLoading(false)
+      setSectionLoadingMore(false)
+    }
+  }, [section?._id, section?.deliveryType, pincode])
+
+  useEffect(() => {
+    if (section?._id) {
+      setSectionList([])
+      setSectionPage(1)
+      fetchSectionPage(1)
+    } else {
+      setSectionList([])
+      setSectionHasMore(false)
+    }
+  }, [section?._id, pincode, fetchSectionPage])
+
+  const loadMore = () => {
+    if (!sectionHasMore || sectionLoadingMore) return
+    fetchSectionPage(sectionPage + 1)
+  }
+
+  // Prefetch next 10 when user is on 8th card (3 from end) so next batch is ready before they hit the end
+  const prefetchThreshold = 3
+  useEffect(() => {
+    if (!section?._id || !sectionHasMore || sectionLoadingMore) return
+    if (n > 0 && slideIndex >= n - prefetchThreshold) {
+      loadMore()
+    }
+  }, [section?._id, sectionHasMore, sectionLoadingMore, n, slideIndex])
+
+  React.useEffect(() => {
+    if (n > 0 && slideIndex >= n) setSlideIndex(n - 1)
+  }, [n, slideIndex])
 
   const getStep = useCallback(() => {
     const ref =
@@ -49,8 +148,8 @@ function BestSellar({ section }) {
     return ref.current.offsetWidth + GAP
   }, [])
 
-  const goPrev = () => setSlideIndex((i) => Math.max(0, i - 1))
-  const goNext = () => setSlideIndex((i) => Math.min(maxIndex, i + 1))
+  const goPrev = () => setSlideIndex((i) => (n === 0 ? 0 : (i - 1 + n) % n))
+  const goNext = () => setSlideIndex((i) => (n === 0 ? 0 : (i + 1) % n))
 
   const getTranslateX = useCallback(() => {
     const step = getStep()
@@ -83,10 +182,11 @@ function BestSellar({ section }) {
     if (!isDraggingRef.current) return
     isDraggingRef.current = false
     const step = getStep()
-    const newIndex = Math.round(dragOffset / step) + startIndexRef.current
-    setSlideIndex(Math.max(0, Math.min(maxIndex, newIndex)))
+    const rawIndex = Math.round(dragOffset / step) + startIndexRef.current
+    const newIndex = n > 0 ? ((rawIndex % n) + n) % n : 0
+    setSlideIndex(newIndex)
     setDragOffset(0)
-  }, [dragOffset, getStep, maxIndex])
+  }, [dragOffset, getStep, n])
 
   const handleMouseLeave = useCallback(() => {
     if (isDraggingRef.current) handleMouseUp()
@@ -127,6 +227,9 @@ function BestSellar({ section }) {
 
           {/* Slider */}
           <div className="mt-6">
+            {section?._id && sectionLoading && sectionList.length === 0 ? (
+              <div className="flex justify-center items-center py-12 text-gray-500 text-sm">Loading…</div>
+            ) : (
             <div
               className="overflow-hidden select-none cursor-grab active:cursor-grabbing"
               onMouseDown={handleMouseDown}
@@ -152,24 +255,32 @@ function BestSellar({ section }) {
                 ))}
               </div>
             </div>
+            )}
           </div>
 
-          {/* Arrows */}
-          <div className="flex justify-end gap-3 mt-4">
-            <button
-              onClick={goPrev}
-              disabled={slideIndex === 0}
-              className="w-10 h-10 border border-black flex items-center justify-center disabled:opacity-40"
-            >
-              ‹
-            </button>
-            <button
-              onClick={goNext}
-              disabled={slideIndex >= maxIndex}
-              className="w-10 h-10 border border-black flex items-center justify-center disabled:opacity-40"
-            >
-              ›
-            </button>
+          {/* Arrows + Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 mt-4">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={goPrev}
+                aria-label="Previous"
+                className="w-10 h-10 border border-black flex items-center justify-center hover:opacity-80 disabled:opacity-40 cursor-pointer"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                aria-label="Next"
+                className="w-10 h-10 border border-black flex items-center justify-center hover:opacity-80 disabled:opacity-40 cursor-pointer"
+              >
+                ›
+              </button>
+            </div>
+            <span className="text-xs text-gray-400 mt-2" aria-live="polite">
+              Cards: {n} {sectionLoadingMore ? '(loading more…)' : ''}
+            </span>
           </div>
         </div>
 
@@ -214,6 +325,9 @@ function BestSellar({ section }) {
           {/* Desktop Slider */}
           <div className="flex items-center gap-6 w-full">
             <div className="flex-1 min-w-0 max-w-[65vw]">
+              {section?._id && sectionLoading && sectionList.length === 0 ? (
+                <div className="flex justify-center items-center py-12 text-gray-500 text-sm">Loading…</div>
+              ) : (
               <div
                 className="overflow-hidden select-none cursor-grab active:cursor-grabbing"
                 onMouseDown={handleMouseDown}
@@ -239,25 +353,33 @@ function BestSellar({ section }) {
                   ))}
                 </div>
               </div>
+              )}
             </div>
 
-            {/* Desktop Arrows */}
-            <div className="flex gap-4 shrink-0 mt-24">
-              <button
-                onClick={goPrev}
-                disabled={slideIndex === 0}
-                className="w-12 h-12 border border-black flex items-center justify-center disabled:opacity-40"
-              >
-                <IoChevronBack />
-              </button>
-              <button
-                onClick={goNext}
-                disabled={slideIndex >= maxIndex}
-                className="w-12 h-12 border border-black flex items-center justify-center disabled:opacity-40"
-              >
-                <IoChevronForward />
-              </button>
+            {/* Desktop Arrows + Pagination */}
+            <div className="flex flex-col items-center gap-4 shrink-0 mt-24">
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  aria-label="Previous"
+                  className="w-12 h-12 border border-black flex items-center justify-center hover:opacity-80 disabled:opacity-40 cursor-pointer"
+                >
+                  <IoChevronBack />
+                </button>
+                <button
+                  type="button"
+                  onClick={goNext}
+                  aria-label="Next"
+                  className="w-12 h-12 border border-black flex items-center justify-center hover:opacity-80 disabled:opacity-40 cursor-pointer"
+                >
+                  <IoChevronForward />
+                </button>
+              </div>
             </div>
+            <span className="text-xs text-gray-400 mt-2" aria-live="polite">
+              Cards: {n} {sectionLoadingMore ? '(loading more…)' : ''}
+            </span>
           </div>
         </div>
 
