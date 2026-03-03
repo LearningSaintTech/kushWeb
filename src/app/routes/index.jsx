@@ -8,7 +8,8 @@ import { AuthPage } from '../../features/auth'
 import { CheckoutPage } from '../../features/checkout'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
- import {
+import { CouponsPage } from '../../features/coupons'
+import {
   RefundCancelPolicyPage,
   PaymentPolicyPage,
   ShippingDeliveryPolicyPage,
@@ -18,6 +19,7 @@ import { SectionExplorePage } from '../../features/sectionExplore'
   TermsConditionsPage,
   PrivacyPolicyPage,
 } from '../../features/policy'
+import Address from '../../shared/address/Address'
 import { ROUTES } from '../../utils/constants'
 
 const router = createBrowserRouter([
@@ -32,7 +34,7 @@ const router = createBrowserRouter([
       { path: 'checkout', element: <CheckoutPage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'section/:sectionId', element: <SectionExplorePage /> },
-       { path: 'refund-cancel-policy', element: <RefundCancelPolicyPage /> },
+      { path: 'refund-cancel-policy', element: <RefundCancelPolicyPage /> },
       { path: 'payment-policy', element: <PaymentPolicyPage /> },
       { path: 'shipping-delivery-policy', element: <ShippingDeliveryPolicyPage /> },
       { path: 'faqs', element: <FAQsPage /> },
@@ -40,6 +42,8 @@ const router = createBrowserRouter([
       { path: 'contact-us', element: <ContactUsPage /> },
       { path: 'terms-conditions', element: <TermsConditionsPage /> },
       { path: 'privacy-policy', element: <PrivacyPolicyPage /> },
+      { path: 'account', element: <Address /> },
+      { path: 'coupons', element: <CouponsPage /> },
     ],
   },
   { path: 'auth', element: <AuthPage /> },

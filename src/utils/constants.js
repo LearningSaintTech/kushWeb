@@ -9,6 +9,7 @@ export const ROUTES = {
   /** Section explore (Explore More from home sections): /section/:sectionId */
   SECTION_EXPLORE: '/section/:sectionId',
   ACCOUNT: '/account',
+  COUPONS: '/coupons',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',
   PAYMENT_POLICY: '/payment-policy',
   SHIPPING_DELIVERY_POLICY: '/shipping-delivery-policy',
