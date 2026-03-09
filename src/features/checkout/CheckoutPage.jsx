@@ -6,6 +6,7 @@ import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { orderService } from '../../services/order.service.js'
+import { getPublicImageUrl } from '../../services/config.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
 
 /** Load Razorpay checkout script once. */
@@ -81,6 +82,11 @@ function CheckoutPage() {
   const navigate = useNavigate()
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? null
+
+  useEffect(() => {
+    console.log('[Checkout] mount', { isAuthenticated, addressId, pincode, paymentMode, cartItemsCount: cartData?.items?.length ?? 0 })
+    return () => console.log('[Checkout] unmount')
+  }, [])
 
   const refetchAddresses = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -324,6 +330,7 @@ function CheckoutPage() {
   }
 
   const handlePlaceOrder = async () => {
+    console.log('[Checkout] handlePlaceOrder called', { paymentMode, selectedAddressId: selectedAddress?._id, appliedCouponCode })
     if (!selectedAddress?._id) {
       setError('Please select a delivery address.')
       return
@@ -342,6 +349,7 @@ function CheckoutPage() {
         const data = res?.data?.data ?? res?.data
         const order = data?.order ?? data
         const orderId = order?.orderId
+        console.log('[Checkout] COD success, navigating to orders', { orderId })
         navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
         return
       }
@@ -359,13 +367,15 @@ function CheckoutPage() {
         const razorpayPayload = data?.razorpay
         console.log('[Checkout] razorpayPayload (amount in rupees for frontend):', razorpayPayload)
         if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) {
+          console.log('[Checkout] Razorpay payload missing orderId or keyId', razorpayPayload)
           setError('Payment setup failed. Please try again.')
           setPlaceOrderLoading(false)
           return
         }
+        console.log('[Checkout] Loading Razorpay script…')
         await loadRazorpayScript()
         const amountInPaise = Math.round((razorpayPayload.amount || 0) * 100)
-        console.log('[Checkout] Razorpay open options: amount (paise)=', amountInPaise, 'amount (rupees)=', razorpayPayload.amount)
+        console.log('[Checkout] Razorpay open options: amount (paise)=', amountInPaise, 'amount (rupees)=', razorpayPayload.amount, 'orderId=', razorpayPayload.orderId)
 
         const handlePaymentSuccess = async function (response) {
           console.log('[Checkout] Razorpay payment.success callback fired', { razorpay_order_id: response?.razorpay_order_id, razorpay_payment_id: response?.razorpay_payment_id })
@@ -379,15 +389,17 @@ function CheckoutPage() {
             const verifyRes = await orderService.verifyPayment(verifyReq)
             console.log('[Checkout] RES orderService.verifyPayment:', verifyRes?.data)
             const orderId = order?.orderId
+            console.log('[Checkout] Verify success, navigating to orders', { orderId })
             navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
           } catch (verifyErr) {
-            console.log('[Checkout] ERR orderService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message)
+            console.log('[Checkout] ERR orderService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message, verifyErr)
             setError(verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'Payment verification failed.')
           } finally {
             setPlaceOrderLoading(false)
           }
         }
 
+        // Only pass these options (do not spread razorpayPayload – avoids passing localhost image URLs to Razorpay)
         const options = {
           order_id: razorpayPayload.orderId,
           amount: amountInPaise,
@@ -409,11 +421,12 @@ function CheckoutPage() {
           console.log('[Checkout] Razorpay modal closed without completing payment')
           setPlaceOrderLoading(false)
         })
+        console.log('[Checkout] Opening Razorpay checkout', { order_id: options.order_id, amount: options.amount, currency: options.currency })
         rzp.open(options)
         return
       }
     } catch (err) {
-      console.log('[Checkout] ERR orderService.create:', err?.response?.data ?? err?.message)
+      console.log('[Checkout] ERR orderService.create:', err?.response?.data ?? err?.message, err)
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to place order.'
       setError(msg)
     } finally {
@@ -499,7 +512,7 @@ function CheckoutPage() {
                     const name = item?.name ?? 'Product'
                     const shortDesc = item?.shortDescription ?? ''
                     const color = row.variant?.color ?? ''
-                    const imageUrl = row.variant?.imageUrl ?? ''
+                    const imageUrl = getPublicImageUrl(row.variant?.imageUrl ?? '')
                     const sku = row.variant?.sku
                     const qty = row.quantity ?? 1
                     const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
