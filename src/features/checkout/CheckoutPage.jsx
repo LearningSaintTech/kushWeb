@@ -1,25 +1,43 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
+import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import { cartService } from '../../services/cart.service.js'
 import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { orderService } from '../../services/order.service.js'
-import { getPublicImageUrl } from '../../services/config.js'
+import { paymentService } from '../../services/payment.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
+
+const POLL_INTERVAL_MS = 2500
+const POLL_MAX_ATTEMPTS = 40
 
 /** Load Razorpay checkout script once. */
 function loadRazorpayScript() {
-  if (typeof window === 'undefined') return Promise.reject(new Error('No window'))
-  if (window.Razorpay) return Promise.resolve()
+  console.log('[Checkout] loadRazorpayScript called')
+  if (typeof window === 'undefined') {
+    console.log('[Checkout] loadRazorpayScript: no window')
+    return Promise.reject(new Error('No window'))
+  }
+  if (window.Razorpay) {
+    console.log('[Checkout] loadRazorpayScript: already loaded')
+    return Promise.resolve()
+  }
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = 'https://checkout.razorpay.com/v1/checkout.js'
     script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load Razorpay'))
+    script.onload = () => {
+      console.log('[Checkout] loadRazorpayScript: script onload')
+      resolve()
+    }
+    script.onerror = () => {
+      console.log('[Checkout] loadRazorpayScript: script onerror')
+      reject(new Error('Failed to load Razorpay'))
+    }
     document.body.appendChild(script)
+    console.log('[Checkout] loadRazorpayScript: script appended')
   })
 }
 
@@ -42,8 +60,9 @@ function formatCouponDate(dateVal) {
 }
 
 function CheckoutPage() {
-  const location = useLocation()
+  const location = useLocation();
   const { isAuthenticated } = useAuth()
+  const { refetchCart } = useCartWishlist()
   const cartState = location.state ?? {}
   const couponCodeFromCart = cartState.couponCode ?? null
   const selectedAddressFromCart = cartState.selectedAddress ?? null
@@ -78,15 +97,17 @@ function CheckoutPage() {
   })
   const [paymentMode, setPaymentMode] = useState('COD')
   const [placeOrderLoading, setPlaceOrderLoading] = useState(false)
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false)
+  const [statusMessage, setStatusMessage] = useState(null)
+  const [lastVerifyError, setLastVerifyError] = useState(null)
+  const [lastVerifyPayload, setLastVerifyPayload] = useState(null)
+
+  const paymentSuccessHandledRef = useRef(false)
+  const pollingIntervalRef = useRef(null)
 
   const navigate = useNavigate()
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? null
-
-  useEffect(() => {
-    console.log('[Checkout] mount', { isAuthenticated, addressId, pincode, paymentMode, cartItemsCount: cartData?.items?.length ?? 0 })
-    return () => console.log('[Checkout] unmount')
-  }, [])
 
   const refetchAddresses = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -133,6 +154,7 @@ function CheckoutPage() {
   }, [])
 
   useEffect(() => {
+    console.log('[Checkout] init effect', { isAuthenticated })
     if (!isAuthenticated) {
       setLoading(false)
       return
@@ -191,6 +213,7 @@ function CheckoutPage() {
   useEffect(() => {
     if (addresses.length === 0 || selectedAddress != null) return
     const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0]
+    console.log('[Checkout] address sync: set default/first', defaultOrFirst?._id)
     if (defaultOrFirst) setSelectedAddress(defaultOrFirst)
   }, [addresses, selectedAddress])
 
@@ -207,6 +230,7 @@ function CheckoutPage() {
   }, [addressId, isAuthenticated])
 
   useEffect(() => {
+    console.log('[Checkout] pincode effect', { pincode })
     if (!pincode || !String(pincode).trim()) {
       setDeliveryOptionsFromPincode([])
       return
@@ -229,8 +253,28 @@ function CheckoutPage() {
     fetchPriceSummary(appliedCouponCode || null)
   }, [cartData?.items?.length, appliedCouponCode, isAuthenticated])
 
+  // Preload Razorpay script when user selects Online payment
+  useEffect(() => {
+    if (paymentMode === 'RAZORPAY') {
+      console.log('[Checkout] preload Razorpay script (paymentMode=RAZORPAY)')
+      loadRazorpayScript().catch(() => {})
+    }
+  }, [paymentMode])
+
+  // Clear polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        console.log('[Checkout] unmount: clear polling interval')
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, [])
+
   const handleApplyCoupon = () => {
     const code = couponInput?.trim()
+    console.log('[Checkout] handleApplyCoupon:', { code })
     if (!code) return
     setAppliedCouponCode(code)
     setCouponError(null)
@@ -256,6 +300,7 @@ function CheckoutPage() {
   }
 
   const handleSelectCoupon = (code) => {
+    console.log('[Checkout] handleSelectCoupon:', { code })
     if (code) {
       setCouponInput(code)
       setAppliedCouponCode(code)
@@ -266,6 +311,7 @@ function CheckoutPage() {
   }
 
   const openAddressForm = () => {
+    console.log('[Checkout] openAddressForm')
     setAddressFormError(null)
     setAddressForm({
       name: '',
@@ -287,9 +333,11 @@ function CheckoutPage() {
 
   const handleAddressFormSubmit = async (e) => {
     e.preventDefault()
+    console.log('[Checkout] handleAddressFormSubmit')
     setAddressFormError(null)
     const pin = String(addressForm.pinCode || '').trim().replace(/\D/g, '')
     if (!addressForm.name?.trim() || !addressForm.addressLine?.trim() || !addressForm.city?.trim() || !addressForm.state?.trim() || !pin) {
+      console.log('[Checkout] handleAddressFormSubmit: validation failed')
       setAddressFormError('Please fill name, address, city, state and pincode.')
       return
     }
@@ -307,6 +355,7 @@ function CheckoutPage() {
         isDefault: !!addressForm.isDefault,
       }
       if (payload.pinCode <= 0) {
+        console.log('[Checkout] handleAddressFormSubmit: invalid pincode')
         setAddressFormError('Please enter a valid pincode.')
         setAddressFormLoading(false)
         return
@@ -330,8 +379,9 @@ function CheckoutPage() {
   }
 
   const handlePlaceOrder = async () => {
-    console.log('[Checkout] handlePlaceOrder called', { paymentMode, selectedAddressId: selectedAddress?._id, appliedCouponCode })
+    console.log('[Checkout] handlePlaceOrder', { paymentMode, addressId: selectedAddress?._id })
     if (!selectedAddress?._id) {
+      console.log('[Checkout] handlePlaceOrder: no address selected')
       setError('Please select a delivery address.')
       return
     }
@@ -349,84 +399,158 @@ function CheckoutPage() {
         const data = res?.data?.data ?? res?.data
         const order = data?.order ?? data
         const orderId = order?.orderId
-        console.log('[Checkout] COD success, navigating to orders', { orderId })
+        console.log('[Checkout] COD success, navigate to orders:', orderId)
         navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
         return
       }
 
-      // RAZORPAY: Order is CREATED first. After user pays in the popup, payment.success
-      // fires and we call verifyPayment → order becomes CONFIRMED. If the callback never
-      // runs (popup closed, CORS/HTTPS issues with localhost, or Razorpay errors), order stays CREATED.
+      // RAZORPAY: create-order via payment API → open Razorpay → verify-payment on success;
+      // on modal_close without success, poll order-status until SUCCESS/CONFIRMED or timeout.
       if (paymentMode === 'RAZORPAY') {
         const createReq = { addressId, paymentMode: 'RAZORPAY', couponCode }
-        console.log('[Checkout] REQ orderService.create (RAZORPAY):', createReq)
-        const res = await orderService.create(createReq)
-        console.log('[Checkout] RES orderService.create (RAZORPAY):', res?.data)
+        console.log('[Checkout] REQ paymentService.createOrder (RAZORPAY):', createReq)
+        const res = await paymentService.createOrder(createReq)
+        console.log('[Checkout] RES paymentService.createOrder (RAZORPAY):', res?.data)
         const data = res?.data?.data ?? res?.data
         const order = data?.order ?? data
         const razorpayPayload = data?.razorpay
+        const businessOrderId = order?.orderId
         console.log('[Checkout] razorpayPayload (amount in rupees for frontend):', razorpayPayload)
         if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) {
-          console.log('[Checkout] Razorpay payload missing orderId or keyId', razorpayPayload)
+          console.log('[Checkout] RAZORPAY: missing orderId or keyId in payload')
           setError('Payment setup failed. Please try again.')
           setPlaceOrderLoading(false)
           return
         }
-        console.log('[Checkout] Loading Razorpay script…')
-        await loadRazorpayScript()
-        const amountInPaise = Math.round((razorpayPayload.amount || 0) * 100)
-        console.log('[Checkout] Razorpay open options: amount (paise)=', amountInPaise, 'amount (rupees)=', razorpayPayload.amount, 'orderId=', razorpayPayload.orderId)
+        try {
+          await loadRazorpayScript()
+        } catch (scriptErr) {
+          console.log('[Checkout] loadRazorpayScript failed:', scriptErr)
+          setError('Unable to open payment. Check pop-up blocker or try again.')
+          setPlaceOrderLoading(false)
+          return
+        }
+        let amountInPaise = razorpayPayload.amountInPaise != null && !Number.isNaN(razorpayPayload.amountInPaise)
+          ? razorpayPayload.amountInPaise
+          : Math.round((razorpayPayload.amount || 0) * 100)
+        console.log('[Checkout] Razorpay open options: amount (paise)=', amountInPaise, 'amount (rupees)=', razorpayPayload.amount)
 
         const handlePaymentSuccess = async function (response) {
+          if (paymentSuccessHandledRef.current) return
+          paymentSuccessHandledRef.current = true
           console.log('[Checkout] Razorpay payment.success callback fired', { razorpay_order_id: response?.razorpay_order_id, razorpay_payment_id: response?.razorpay_payment_id })
           const verifyReq = {
             razorpay_order_id: response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
             razorpay_signature: response.razorpay_signature,
           }
-          console.log('[Checkout] REQ orderService.verifyPayment:', { ...verifyReq, razorpay_signature: '(redacted)' })
+          setLastVerifyError(null)
+          setLastVerifyPayload(verifyReq)
+          console.log('[Checkout] REQ paymentService.verifyPayment:', { ...verifyReq, razorpay_signature: '(redacted)' })
           try {
-            const verifyRes = await orderService.verifyPayment(verifyReq)
-            console.log('[Checkout] RES orderService.verifyPayment:', verifyRes?.data)
-            const orderId = order?.orderId
-            console.log('[Checkout] Verify success, navigating to orders', { orderId })
-            navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
+            const verifyRes = await paymentService.verifyPayment(verifyReq)
+            console.log('[Checkout] RES paymentService.verifyPayment:', verifyRes?.data)
+            refetchCart()
+            console.log('[Checkout] verifyPayment success, navigate to orders:', businessOrderId)
+            navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
           } catch (verifyErr) {
-            console.log('[Checkout] ERR orderService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message, verifyErr)
-            setError(verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'Payment verification failed.')
+            console.log('[Checkout] ERR paymentService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message)
+            const msg = verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'Payment verification failed.'
+            setLastVerifyError(msg)
+            setLastVerifyPayload(verifyReq)
           } finally {
             setPlaceOrderLoading(false)
           }
         }
 
-        // Only pass these options (do not spread razorpayPayload – avoids passing localhost image URLs to Razorpay)
         const options = {
-          order_id: razorpayPayload.orderId,
+          key: razorpayPayload.keyId,
           amount: amountInPaise,
           currency: razorpayPayload.currency || 'INR',
-          key: razorpayPayload.keyId,
+          order_id: razorpayPayload.orderId,
           name: 'Khush',
           handler: handlePaymentSuccess,
+          modal: {
+            ondismiss: () => {
+              console.log('[Checkout] Razorpay modal closed')
+            },
+          },
         }
-        const rzp = new window.Razorpay({
-          key: razorpayPayload.keyId,
-        })
-        rzp.on('payment.success', handlePaymentSuccess)
-        rzp.on('payment.failed', () => {
-          console.log('[Checkout] Razorpay payment.failed or user closed popup')
+        const rzp = new window.Razorpay(options)
+        rzp.on('payment.failed', (response) => {
+          console.log('[Checkout] Razorpay payment.failed', response)
           setError('Payment failed or was cancelled.')
           setPlaceOrderLoading(false)
         })
         rzp.on('modal_close', () => {
-          console.log('[Checkout] Razorpay modal closed without completing payment')
+          console.log('[Checkout] Razorpay modal closed', { paymentSuccessHandled: paymentSuccessHandledRef.current, businessOrderId })
           setPlaceOrderLoading(false)
+          if (paymentSuccessHandledRef.current || !businessOrderId) {
+            console.log('[Checkout] modal_close: skip polling (already success or no orderId)')
+            return
+          }
+          setError(null)
+          setLastVerifyError(null)
+          setStatusMessage('Checking payment status…')
+          setCheckingPaymentStatus(true)
+          console.log('[Checkout] modal_close: start polling order-status for', businessOrderId)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          let attempts = 0
+          pollingIntervalRef.current = setInterval(async () => {
+            attempts += 1
+            console.log('[Checkout] polling getOrderStatus attempt', attempts, businessOrderId)
+            try {
+              const statusRes = await paymentService.getOrderStatus(businessOrderId)
+              const statusData = statusRes?.data?.data ?? statusRes?.data
+              const pStatus = statusData?.payment?.status
+              const ordStatus = statusData?.status
+              console.log('[Checkout] getOrderStatus response:', { attempts, pStatus, ordStatus, statusData })
+              if (pStatus === 'SUCCESS' || ordStatus === 'CONFIRMED') {
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current)
+                  pollingIntervalRef.current = null
+                }
+                setCheckingPaymentStatus(false)
+                setStatusMessage(null)
+                paymentSuccessHandledRef.current = true
+                refetchCart()
+                console.log('[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:', businessOrderId)
+                navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
+                return
+              }
+            } catch (err) {
+              console.log('[Checkout] getOrderStatus error:', err?.response?.status, err?.response?.data ?? err?.message)
+              if (err?.response?.status === 404) {
+                if (pollingIntervalRef.current) {
+                  clearInterval(pollingIntervalRef.current)
+                  pollingIntervalRef.current = null
+                }
+                setCheckingPaymentStatus(false)
+                setStatusMessage('Order not found. Check My Orders or contact support.')
+                console.log('[Checkout] polling: 404, stop')
+                return
+              }
+            }
+            if (attempts >= POLL_MAX_ATTEMPTS) {
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
+              setCheckingPaymentStatus(false)
+              setStatusMessage('If you were charged, the order will appear in My Orders shortly.')
+              console.log('[Checkout] polling: max attempts reached, stop')
+            }
+          }, POLL_INTERVAL_MS)
         })
-        console.log('[Checkout] Opening Razorpay checkout', { order_id: options.order_id, amount: options.amount, currency: options.currency })
-        rzp.open(options)
+        console.log('[Checkout] Razorpay rzp.open()')
+        rzp.open()
         return
       }
     } catch (err) {
-      console.log('[Checkout] ERR orderService.create:', err?.response?.data ?? err?.message, err)
+      console.log('[Checkout] ERR place order:', err?.response?.data ?? err?.message)
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to place order.'
       setError(msg)
     } finally {
@@ -448,6 +572,7 @@ function CheckoutPage() {
   const hasSummaryFromApi = Boolean(priceSummary?.cartSummary ?? priceSummary?.summary)
 
   if (!isAuthenticated) {
+    console.log('[Checkout] render: not authenticated, show sign-in')
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
@@ -462,6 +587,7 @@ function CheckoutPage() {
   }
 
   if (loading && !cartData) {
+    console.log('[Checkout] render: loading checkout')
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
@@ -475,6 +601,7 @@ function CheckoutPage() {
   const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : (cartData?.deliveryOptions ?? [])
 
   if (items.length === 0 && !error) {
+    console.log('[Checkout] render: cart empty')
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
@@ -488,10 +615,12 @@ function CheckoutPage() {
     )
   }
 
+  console.log('[Checkout] render: main checkout', { itemsCount: items.length, paymentMode, placeOrderLoading, checkingPaymentStatus, error: !!error, statusMessage: !!statusMessage })
   return (
     <div className="min-h-screen bg-white text-black pt-40 pb-12 font-sans">
       <div className="px-4 md:px-6 lg:px-8">
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+        {statusMessage && !error && <p className="mb-4 text-sm text-gray-700">{statusMessage}</p>}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           {/* Left column: Order items (read-only, same table as cart) */}
           <div className="lg:col-span-2">
@@ -512,7 +641,7 @@ function CheckoutPage() {
                     const name = item?.name ?? 'Product'
                     const shortDesc = item?.shortDescription ?? ''
                     const color = row.variant?.color ?? ''
-                    const imageUrl = getPublicImageUrl(row.variant?.imageUrl ?? '')
+                    const imageUrl = row.variant?.imageUrl ?? ''
                     const sku = row.variant?.sku
                     const qty = row.quantity ?? 1
                     const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
@@ -587,6 +716,7 @@ function CheckoutPage() {
                     onChange={(e) => {
                       const id = e.target.value
                       const addr = addresses.find((a) => String(a._id ?? '') === id)
+                      console.log('[Checkout] address select changed', { id, addr: addr?._id })
                       if (addr) setSelectedAddress(addr)
                     }}
                     className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
@@ -864,18 +994,24 @@ function CheckoutPage() {
                     name="paymentMode"
                     value="COD"
                     checked={paymentMode === 'COD'}
-                    onChange={() => setPaymentMode('COD')}
+                    onChange={() => {
+                      console.log('[Checkout] paymentMode changed to COD')
+                      setPaymentMode('COD')
+                    }}
                     className="border-gray-300"
                   />
                   <span className="text-sm uppercase">Cash on delivery (COD)</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
                     name="paymentMode"
                     value="RAZORPAY"
                     checked={paymentMode === 'RAZORPAY'}
-                    onChange={() => setPaymentMode('RAZORPAY')}
+                    onChange={() => {
+                      console.log('[Checkout] paymentMode changed to RAZORPAY')
+                      setPaymentMode('RAZORPAY')
+                    }}
                     className="border-gray-300"
                   />
                   <span className="text-sm uppercase">Online payment</span>
@@ -884,13 +1020,49 @@ function CheckoutPage() {
             </section>
 
             <div className="pt-4 border-t border-gray-200">
+              {lastVerifyError && (
+                <div className="mb-4 p-3 border border-amber-200 bg-amber-50 rounded">
+                  <p className="text-sm text-amber-800">{lastVerifyError}</p>
+                  {lastVerifyPayload && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        console.log('[Checkout] Retry verification clicked', { lastVerifyPayload: lastVerifyPayload ? { razorpay_order_id: lastVerifyPayload.razorpay_order_id } : null })
+                        setLastVerifyError(null)
+                        setPlaceOrderLoading(true)
+                        try {
+                          const verifyRes = await paymentService.verifyPayment(lastVerifyPayload)
+                          const data = verifyRes?.data?.data ?? verifyRes?.data
+                          const orderId = data?.orderId ?? data?.order?.orderId
+                          paymentSuccessHandledRef.current = true
+                          console.log('[Checkout] Retry verification success, navigate:', orderId)
+                          navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
+                        } catch (err) {
+                          console.log('[Checkout] Retry verification error:', err?.response?.data ?? err?.message)
+                          setLastVerifyError(err?.response?.data?.message ?? err?.message ?? 'Payment verification failed.')
+                        } finally {
+                          setPlaceOrderLoading(false)
+                        }
+                      }}
+                      disabled={placeOrderLoading}
+                      className="mt-2 text-sm font-semibold uppercase text-black border border-black py-2 px-4 hover:bg-gray-100 disabled:opacity-60"
+                    >
+                      Retry verification
+                    </button>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handlePlaceOrder}
-                disabled={placeOrderLoading || !selectedAddress?._id}
+                disabled={placeOrderLoading || checkingPaymentStatus || !selectedAddress?._id}
                 className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {placeOrderLoading ? 'Placing order…' : 'Place order'}
+                {placeOrderLoading
+                  ? (paymentMode === 'RAZORPAY' ? 'Opening payment…' : 'Placing order…')
+                  : checkingPaymentStatus
+                    ? 'Checking payment…'
+                    : 'Place order'}
               </button>
               <Link
                 to={ROUTES.CART}

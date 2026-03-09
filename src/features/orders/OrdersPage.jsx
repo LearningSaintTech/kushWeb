@@ -179,10 +179,13 @@ function OrdersPage() {
               const price = item?.finalPayable ?? item?.itemSubtotal ?? (item?.unitPrice ?? 0) * quantity
               const trackingId = oi.latestStatusHistory?.trackingId ?? null
               const statusDisplay = getStatusDisplay(oi)
+              const orderId = oi.orderId ?? ''
+              const itemId = oi.itemId?.toString?.() ?? oi.productItemId?.toString?.() ?? ''
+              const rowKey = orderId && itemId ? `${orderId}-${itemId}-${idx}` : `row-${idx}`
 
               return (
                 <div
-                  key={oi.itemId ?? oi.orderId ?? idx}
+                  key={rowKey}
                   className="flex flex-col md:grid md:grid-cols-12 gap-3 md:gap-4 border-b border-gray-200 py-4 md:py-5 px-4 last:border-b-0"
                 >
                   {/* Product */}
