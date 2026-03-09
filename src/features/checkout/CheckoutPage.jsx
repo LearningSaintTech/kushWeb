@@ -1,11 +1,26 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { cartService } from '../../services/cart.service.js'
 import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
+import { orderService } from '../../services/order.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
+
+/** Load Razorpay checkout script once. */
+function loadRazorpayScript() {
+  if (typeof window === 'undefined') return Promise.reject(new Error('No window'))
+  if (window.Razorpay) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load Razorpay'))
+    document.body.appendChild(script)
+  })
+}
 
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return 'Rs 0'
@@ -28,12 +43,15 @@ function formatCouponDate(dateVal) {
 function CheckoutPage() {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
-  const couponCodeFromCart = location.state?.couponCode ?? null
+  const cartState = location.state ?? {}
+  const couponCodeFromCart = cartState.couponCode ?? null
+  const selectedAddressFromCart = cartState.selectedAddress ?? null
+  const addressesFromCart = Array.isArray(cartState.addresses) ? cartState.addresses : []
 
   const [cartData, setCartData] = useState(null)
   const [priceSummary, setPriceSummary] = useState(null)
-  const [addresses, setAddresses] = useState([])
-  const [selectedAddress, setSelectedAddress] = useState(null)
+  const [addresses, setAddresses] = useState(addressesFromCart)
+  const [selectedAddress, setSelectedAddress] = useState(selectedAddressFromCart)
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState([])
   const [couponInput, setCouponInput] = useState(couponCodeFromCart || '')
   const [appliedCouponCode, setAppliedCouponCode] = useState(couponCodeFromCart)
@@ -57,12 +75,18 @@ function CheckoutPage() {
     addressType: 'HOME',
     isDefault: true,
   })
+  const [paymentMode, setPaymentMode] = useState('COD')
+  const [placeOrderLoading, setPlaceOrderLoading] = useState(false)
 
+  const navigate = useNavigate()
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? null
 
   const refetchAddresses = useCallback(async () => {
-    const res = await addressService.getAll({ page: 1, limit: 50 })
+    const req = { page: 1, limit: 50 }
+    console.log('[Checkout] REQ addressService.getAll:', req)
+    const res = await addressService.getAll(req)
+    console.log('[Checkout] RES addressService.getAll:', res?.data)
     const list = res?.data?.data ?? res?.data
     const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
     const addressList = Array.isArray(arr) ? arr : []
@@ -75,7 +99,9 @@ function CheckoutPage() {
     const id = addrId ?? addressId
     if (id) params.addressId = id
     if (pincode) params.pincode = String(pincode)
+    console.log('[Checkout] REQ cartService.my:', params)
     const res = await cartService.my(params)
+    console.log('[Checkout] RES cartService.my:', res?.data)
     const data = res?.data?.data ?? res?.data
     setCartData(data)
     return data
@@ -84,12 +110,15 @@ function CheckoutPage() {
   const fetchPriceSummary = useCallback(async (couponCode = null) => {
     try {
       const params = couponCode ? { couponCode } : {}
+      console.log('[Checkout] REQ cartService.getPriceSummary:', params)
       const res = await cartService.getPriceSummary(params)
+      console.log('[Checkout] RES cartService.getPriceSummary:', res?.data)
       const data = res?.data?.data ?? res?.data
       setPriceSummary(data?.cartSummary ?? data)
       setCouponError(null)
       return data
     } catch (err) {
+      console.log('[Checkout] ERR cartService.getPriceSummary:', err?.response?.data ?? err?.message)
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to get price summary'
       setCouponError(msg)
       setPriceSummary(null)
@@ -104,32 +133,47 @@ function CheckoutPage() {
     }
     setLoading(true)
     setError(null)
+    const fromCart = selectedAddressFromCart != null
     let defaultAddr = null
     let addressList = []
+    console.log('[Checkout] REQ addressService.getDefaultAddress')
     addressService
       .getDefaultAddress()
       .then((res) => {
+        console.log('[Checkout] RES addressService.getDefaultAddress:', res?.data)
         const data = res?.data?.data ?? res?.data
         defaultAddr = data
-        if (data) setSelectedAddress(data)
+        if (!fromCart && data) setSelectedAddress(data)
         return data
       })
       .catch(() => null)
-      .then(() => addressService.getAll({ page: 1, limit: 50 }).then((res) => {
-        const list = res?.data?.data ?? res?.data
-        const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
-        addressList = Array.isArray(arr) ? arr : []
-        setAddresses(addressList)
-        if (!defaultAddr && addressList.length) setSelectedAddress(addressList[0])
-        return addressList
-      }).catch(() => []))
+      .then(() => {
+        const req = { page: 1, limit: 50 }
+        console.log('[Checkout] REQ addressService.getAll (init):', req)
+        return addressService.getAll(req).then((res) => {
+          console.log('[Checkout] RES addressService.getAll (init):', res?.data)
+          const list = res?.data?.data ?? res?.data
+          const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
+          addressList = Array.isArray(arr) ? arr : []
+          setAddresses(addressList)
+          if (fromCart && selectedAddressFromCart?._id != null) {
+            const found = addressList.find((a) => String(a._id ?? '') === String(selectedAddressFromCart._id))
+            if (found) setSelectedAddress(found)
+            else setSelectedAddress(selectedAddressFromCart)
+          } else if (!fromCart && !defaultAddr && addressList.length) setSelectedAddress(addressList[0])
+          return addressList
+        })
+      }).catch(() => [])
       .then((list) => {
-        const id = defaultAddr?._id ?? list?.[0]?._id
+        const fromCartId = fromCart && selectedAddressFromCart?._id != null ? selectedAddressFromCart._id : null
+        const id = fromCartId ?? defaultAddr?._id ?? list?.[0]?._id
         const cartParams = { limit: 100 }
         if (id) cartParams.addressId = id
+        console.log('[Checkout] REQ cartService.my (init):', cartParams)
         return cartService.my(cartParams)
       })
       .then((res) => {
+        console.log('[Checkout] RES cartService.my (init):', res?.data)
         const data = res?.data?.data ?? res?.data
         setCartData(data)
         if (data?.items?.length) return fetchPriceSummary(appliedCouponCode || couponCodeFromCart || null)
@@ -139,9 +183,17 @@ function CheckoutPage() {
   }, [isAuthenticated])
 
   useEffect(() => {
+    if (addresses.length === 0 || selectedAddress != null) return
+    const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0]
+    if (defaultOrFirst) setSelectedAddress(defaultOrFirst)
+  }, [addresses, selectedAddress])
+
+  useEffect(() => {
     if (!isAuthenticated || !addressId) return
     const params = { limit: 100, addressId }
+    console.log('[Checkout] REQ cartService.my (addressId changed):', params)
     cartService.my(params).then((res) => {
+      console.log('[Checkout] RES cartService.my (addressId changed):', res?.data)
       const data = res?.data?.data ?? res?.data
       setCartData(data)
       if (data?.items?.length) fetchPriceSummary(appliedCouponCode || null)
@@ -153,9 +205,12 @@ function CheckoutPage() {
       setDeliveryOptionsFromPincode([])
       return
     }
+    const pincodeStr = String(pincode).trim()
+    console.log('[Checkout] REQ deliveryService.checkByPincode:', { pincode: pincodeStr })
     deliveryService
-      .checkByPincode(String(pincode).trim())
+      .checkByPincode(pincodeStr)
       .then((res) => {
+        console.log('[Checkout] RES deliveryService.checkByPincode:', res?.data)
         const data = res?.data?.data ?? res?.data
         const options = data?.deliveryOptions ?? []
         setDeliveryOptionsFromPincode(Array.isArray(options) ? options : [])
@@ -180,9 +235,12 @@ function CheckoutPage() {
     setCouponModalOpen(true)
     setLoadingCoupons(true)
     setAvailableCoupons([])
+    const req = { page: 1, limit: 50 }
+    console.log('[Checkout] REQ couponsService.getAvailable:', req)
     couponsService
-      .getAvailable({ page: 1, limit: 50 })
+      .getAvailable(req)
       .then((res) => {
+        console.log('[Checkout] RES couponsService.getAvailable:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = Array.isArray(data) ? data : (data?.data ?? [])
         setAvailableCoupons(list)
@@ -247,7 +305,9 @@ function CheckoutPage() {
         setAddressFormLoading(false)
         return
       }
+      console.log('[Checkout] REQ addressService.create:', payload)
       const res = await addressService.create(payload)
+      console.log('[Checkout] RES addressService.create:', res?.data)
       const newAddr = res?.data?.data ?? res?.data
       const list = await refetchAddresses()
       if (newAddr?._id) setSelectedAddress(newAddr)
@@ -255,10 +315,109 @@ function CheckoutPage() {
       setAddressFormOpen(false)
       if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null)
     } catch (err) {
+      console.log('[Checkout] ERR addressService.create:', err?.response?.data ?? err?.message)
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to add address.'
       setAddressFormError(msg)
     } finally {
       setAddressFormLoading(false)
+    }
+  }
+
+  const handlePlaceOrder = async () => {
+    if (!selectedAddress?._id) {
+      setError('Please select a delivery address.')
+      return
+    }
+    setPlaceOrderLoading(true)
+    setError(null)
+    const addressId = selectedAddress._id
+    const couponCode = appliedCouponCode?.trim() || undefined
+
+    try {
+      if (paymentMode === 'COD') {
+        const createReq = { addressId, paymentMode: 'COD', couponCode }
+        console.log('[Checkout] REQ orderService.create (COD):', createReq)
+        const res = await orderService.create(createReq)
+        console.log('[Checkout] RES orderService.create (COD):', res?.data)
+        const data = res?.data?.data ?? res?.data
+        const order = data?.order ?? data
+        const orderId = order?.orderId
+        navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
+        return
+      }
+
+      // RAZORPAY: Order is CREATED first. After user pays in the popup, payment.success
+      // fires and we call verifyPayment → order becomes CONFIRMED. If the callback never
+      // runs (popup closed, CORS/HTTPS issues with localhost, or Razorpay errors), order stays CREATED.
+      if (paymentMode === 'RAZORPAY') {
+        const createReq = { addressId, paymentMode: 'RAZORPAY', couponCode }
+        console.log('[Checkout] REQ orderService.create (RAZORPAY):', createReq)
+        const res = await orderService.create(createReq)
+        console.log('[Checkout] RES orderService.create (RAZORPAY):', res?.data)
+        const data = res?.data?.data ?? res?.data
+        const order = data?.order ?? data
+        const razorpayPayload = data?.razorpay
+        console.log('[Checkout] razorpayPayload (amount in rupees for frontend):', razorpayPayload)
+        if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) {
+          setError('Payment setup failed. Please try again.')
+          setPlaceOrderLoading(false)
+          return
+        }
+        await loadRazorpayScript()
+        const amountInPaise = Math.round((razorpayPayload.amount || 0) * 100)
+        console.log('[Checkout] Razorpay open options: amount (paise)=', amountInPaise, 'amount (rupees)=', razorpayPayload.amount)
+
+        const handlePaymentSuccess = async function (response) {
+          console.log('[Checkout] Razorpay payment.success callback fired', { razorpay_order_id: response?.razorpay_order_id, razorpay_payment_id: response?.razorpay_payment_id })
+          const verifyReq = {
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          }
+          console.log('[Checkout] REQ orderService.verifyPayment:', { ...verifyReq, razorpay_signature: '(redacted)' })
+          try {
+            const verifyRes = await orderService.verifyPayment(verifyReq)
+            console.log('[Checkout] RES orderService.verifyPayment:', verifyRes?.data)
+            const orderId = order?.orderId
+            navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
+          } catch (verifyErr) {
+            console.log('[Checkout] ERR orderService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message)
+            setError(verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'Payment verification failed.')
+          } finally {
+            setPlaceOrderLoading(false)
+          }
+        }
+
+        const options = {
+          order_id: razorpayPayload.orderId,
+          amount: amountInPaise,
+          currency: razorpayPayload.currency || 'INR',
+          key: razorpayPayload.keyId,
+          name: 'Khush',
+          handler: handlePaymentSuccess,
+        }
+        const rzp = new window.Razorpay({
+          key: razorpayPayload.keyId,
+        })
+        rzp.on('payment.success', handlePaymentSuccess)
+        rzp.on('payment.failed', () => {
+          console.log('[Checkout] Razorpay payment.failed or user closed popup')
+          setError('Payment failed or was cancelled.')
+          setPlaceOrderLoading(false)
+        })
+        rzp.on('modal_close', () => {
+          console.log('[Checkout] Razorpay modal closed without completing payment')
+          setPlaceOrderLoading(false)
+        })
+        rzp.open(options)
+        return
+      }
+    } catch (err) {
+      console.log('[Checkout] ERR orderService.create:', err?.response?.data ?? err?.message)
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to place order.'
+      setError(msg)
+    } finally {
+      if (paymentMode === 'COD') setPlaceOrderLoading(false)
     }
   }
 
@@ -411,31 +570,39 @@ function CheckoutPage() {
               {addresses.length > 0 ? (
                 <>
                   <select
-                    value={selectedAddress?._id ?? ''}
+                    value={selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : '')}
                     onChange={(e) => {
                       const id = e.target.value
-                      const addr = addresses.find((a) => (a._id?.toString?.() ?? a._id) === id)
+                      const addr = addresses.find((a) => String(a._id ?? '') === id)
                       if (addr) setSelectedAddress(addr)
                     }}
                     className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
                   >
                     {addresses.map((addr) => (
-                      <option key={addr._id} value={addr._id}>
+                      <option key={addr._id} value={String(addr._id ?? '')}>
                         {addr.name} – {addr.addressLine}
                       </option>
                     ))}
                   </select>
-                  {selectedAddress && (
-                    <div className="text-sm text-gray-800 mb-3">
-                      <p className="font-semibold uppercase text-black">{selectedAddress.name}</p>
-                      <p className="text-gray-700 mt-1">{formatAddress(selectedAddress)}</p>
-                      {(selectedAddress.phoneNumber || selectedAddress.countryCode) && (
-                        <p className="text-xs uppercase text-gray-600 mt-1">
-                          Contact: {[selectedAddress.countryCode, selectedAddress.phoneNumber].filter(Boolean).join(' ')}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  {/* Selected address details below dropdown — always visible when we have addresses */}
+                  {(() => {
+                    const selectedId = selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : null)
+                    const toShow = selectedId
+                      ? (addresses.find((a) => String(a._id ?? '') === selectedId) ?? addresses.find((a) => a.isDefault) ?? addresses[0])
+                      : (addresses.find((a) => a.isDefault) ?? addresses[0])
+                    if (!toShow) return null
+                    return (
+                      <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
+                        <p className="font-semibold uppercase text-black">{toShow.name}</p>
+                        <p className="text-gray-700 mt-1">{formatAddress(toShow)}</p>
+                        {(toShow.phoneNumber || toShow.countryCode) && (
+                          <p className="text-xs uppercase text-gray-600 mt-1">
+                            Contact: {[toShow.countryCode, toShow.phoneNumber].filter(Boolean).join(' ')}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </>
               ) : (
                 <p className="text-sm text-gray-500 mb-3">No address added. Add one to deliver.</p>
@@ -674,9 +841,43 @@ function CheckoutPage() {
               )}
             </section>
 
+            {/* Payment method */}
+            <section>
+              <h2 className="text-sm font-semibold text-black mb-2">Payment method</h2>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="paymentMode"
+                    value="COD"
+                    checked={paymentMode === 'COD'}
+                    onChange={() => setPaymentMode('COD')}
+                    className="border-gray-300"
+                  />
+                  <span className="text-sm uppercase">Cash on delivery (COD)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="paymentMode"
+                    value="RAZORPAY"
+                    checked={paymentMode === 'RAZORPAY'}
+                    onChange={() => setPaymentMode('RAZORPAY')}
+                    className="border-gray-300"
+                  />
+                  <span className="text-sm uppercase">Online payment</span>
+                </label>
+              </div>
+            </section>
+
             <div className="pt-4 border-t border-gray-200">
-              <button type="button" className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors" disabled>
-                Place order (coming soon)
+              <button
+                type="button"
+                onClick={handlePlaceOrder}
+                disabled={placeOrderLoading || !selectedAddress?._id}
+                className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {placeOrderLoading ? 'Placing order…' : 'Place order'}
               </button>
               <Link
                 to={ROUTES.CART}

@@ -143,6 +143,13 @@ function CartPage() {
       .finally(() => setLoading(false))
   }, [isAuthenticated])
 
+  // When addresses load, ensure we have a selected address so details show on first visit
+  useEffect(() => {
+    if (addresses.length === 0 || selectedAddress != null) return
+    const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0]
+    if (defaultOrFirst) setSelectedAddress(defaultOrFirst)
+  }, [addresses, selectedAddress])
+
   // When selected address changes, refetch cart with new addressId (for delivery options)
   useEffect(() => {
     if (!isAuthenticated || !addressId) return
@@ -499,31 +506,39 @@ function CartPage() {
               {addresses.length > 0 ? (
                 <>
                   <select
-                    value={selectedAddress?._id ?? ''}
+                    value={selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : '')}
                     onChange={(e) => {
                       const id = e.target.value
-                      const addr = addresses.find((a) => (a._id?.toString?.() ?? a._id) === id)
+                      const addr = addresses.find((a) => String(a._id ?? '') === id)
                       if (addr) setSelectedAddress(addr)
                     }}
                     className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
                   >
                     {addresses.map((addr) => (
-                      <option key={addr._id} value={addr._id}>
+                      <option key={addr._id} value={String(addr._id ?? '')}>
                         {addr.name} – {addr.addressLine}
                       </option>
                     ))}
                   </select>
-                  {selectedAddress && (
-                    <div className="text-sm text-gray-800 mb-3">
-                      <p className="font-semibold uppercase text-black">{selectedAddress.name}</p>
-                      <p className="text-gray-700 mt-1">{formatAddress(selectedAddress)}</p>
-                      {(selectedAddress.phoneNumber || selectedAddress.countryCode) && (
-                        <p className="text-xs uppercase text-gray-600 mt-1">
-                          Contact: {[selectedAddress.countryCode, selectedAddress.phoneNumber].filter(Boolean).join(' ')}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  {/* Selected address details below dropdown — always show when we have addresses */}
+                  {(() => {
+                    const selectedId = selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : null)
+                    const toShow = selectedId
+                      ? (addresses.find((a) => String(a._id ?? '') === selectedId) ?? addresses.find((a) => a.isDefault) ?? addresses[0])
+                      : (addresses.find((a) => a.isDefault) ?? addresses[0])
+                    if (!toShow) return null
+                    return (
+                      <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
+                        <p className="font-semibold uppercase text-black">{toShow.name}</p>
+                        <p className="text-gray-700 mt-1">{formatAddress(toShow)}</p>
+                        {(toShow.phoneNumber || toShow.countryCode) && (
+                          <p className="text-xs uppercase text-gray-600 mt-1">
+                            Contact: {[toShow.countryCode, toShow.phoneNumber].filter(Boolean).join(' ')}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </>
               ) : (
                 <p className="text-sm text-gray-500 mb-3">No address added. Add one to deliver.</p>
@@ -761,7 +776,11 @@ function CartPage() {
             <div className="pt-4 border-t border-gray-200">
               <Link
                 to={ROUTES.CHECKOUT}
-                state={{ couponCode: appliedCouponCode || null }}
+                state={{
+                  couponCode: appliedCouponCode || null,
+                  selectedAddress: selectedAddress || null,
+                  addresses: addresses?.length ? addresses : null,
+                }}
                 className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"
               >
                 Checkout

@@ -63,6 +63,15 @@ async function reverseGeocodeViaBackend(lat, lon) {
     if (!res.ok) {
       const text = await res.text();
       console.log('[Location] reverseGeocode: backend error body', text);
+      if (res.status === 400) {
+        try {
+          const errJson = JSON.parse(text);
+          throw new Error(errJson?.message || 'Location not in service area.');
+        } catch (parseErr) {
+          if (parseErr?.message?.startsWith('Location') || parseErr?.message?.includes('India')) throw parseErr;
+          throw new Error('We deliver only in India. This location is outside our service area.');
+        }
+      }
       return null;
     }
     const json = await res.json();
@@ -99,16 +108,25 @@ async function reverseGeocodeDirect(lat, lon) {
   console.log('[Location] reverseGeocode: Nominatim raw', data);
   const addr = data?.address ?? {};
   const pincode = addr.postcode ?? addr.pin_code ?? addr.pincode ?? null;
+  // Build a proper address: street first, then area, city, state, pincode, country
+  const streetPart = [addr.house_number, addr.road].filter(Boolean).join(' ');
+  const areaPart = addr.suburb ?? addr.neighbourhood ?? addr.village ?? addr.town ?? addr.locality;
   const parts = [
-    addr.suburb ?? addr.neighbourhood ?? addr.village ?? addr.town,
+    streetPart || areaPart,
+    streetPart && areaPart ? areaPart : null,
     addr.city ?? addr.city_district ?? addr.state_district,
     addr.state,
+    pincode ? String(pincode).trim() : null,
     addr.country,
   ].filter(Boolean);
   const addressLabel = parts.length ? parts.join(', ') : (data?.display_name ?? (pincode ? `Pin ${pincode}` : null));
+  const city = addr.city ?? addr.town ?? addr.village ?? addr.state_district ?? addr.county ?? null;
+  const state = addr.state ?? null;
   return {
     pincode: pincode ? String(pincode).replace(/\s+/g, '').slice(0, 10) : null,
     addressLabel: addressLabel || (pincode ? `Pin ${pincode}` : null),
+    city: city || null,
+    state: state || null,
   };
 }
 
@@ -140,7 +158,33 @@ export async function getCurrentLocationPincode() {
   const out = {
     pincode: result?.pincode ?? null,
     addressLabel: result?.addressLabel ?? result?.address_label ?? null,
+    city: result?.city ?? null,
+    state: result?.state ?? null,
   };
   console.log('[Location] getCurrentLocationPincode result', out);
   return out;
+}
+
+/**
+ * Search places by query (forward geocode) via backend.
+ * GET /api/geo/search?q=<query>
+ * @param {string} query - Search string (e.g. address or place name)
+ * @returns {Promise<Array<{ label: string, pincode: string | null, latitude: number | null, longitude: number | null, addressLine: string | null, city: string | null, state: string | null }>>}
+ */
+export async function searchPlaces(query) {
+  const base = (typeof API_BASE_URL === 'string' && API_BASE_URL) ? API_BASE_URL.replace(/\/$/, '') : '';
+  if (!base) return [];
+  const q = typeof query === 'string' ? query.trim() : '';
+  if (!q) return [];
+  const url = `${base}/geo/search?q=${encodeURIComponent(q)}`;
+  try {
+    const res = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (json?.success && Array.isArray(json?.data)) return json.data;
+    return [];
+  } catch (e) {
+    console.log('[Location] searchPlaces failed', e);
+    return [];
+  }
 }

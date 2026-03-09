@@ -1,8 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { useDispatch } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
 import { addressService } from '../../services/address.service.js'
+import { reverseGeocode, searchPlaces, getCurrentPosition } from '../../services/geo.service'
 import { ROUTES } from '../../utils/constants'
+import { setLocation } from '../../app/store/slices/locationSlice'
+import GoogleMapPicker from '../components/GoogleMapPicker'
+import { LocationIcon } from '../ui/icons'
 
 function formatAddress(addr) {
   if (!addr) return ''
@@ -47,6 +52,7 @@ function EditIcon({ className }) {
 }
 
 export default function Address() {
+  const dispatch = useDispatch()
   const { isAuthenticated } = useAuth()
 
   const [addresses, setAddresses] = useState([])
@@ -66,9 +72,17 @@ export default function Address() {
     state: '',
     pinCode: '',
     addressType: 'HOME',
+    latitude: null,
+    longitude: null,
   })
   const [formError, setFormError] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
+  const [mapGeocoding, setMapGeocoding] = useState(false)
+  const [addressSearchQuery, setAddressSearchQuery] = useState('')
+  const [addressSearchResults, setAddressSearchResults] = useState([])
+  const [addressSearchOpen, setAddressSearchOpen] = useState(false)
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false)
+  const addressSearchRef = useRef(null)
 
   const loadAddresses = useCallback(async () => {
     if (!isAuthenticated) {
@@ -112,6 +126,9 @@ export default function Address() {
     setModalMode('create')
     setEditingAddressId(null)
     setFormError(null)
+    setAddressSearchQuery('')
+    setAddressSearchResults([])
+    setAddressSearchOpen(false)
     setForm({
       name: '',
       phoneNumber: '',
@@ -121,6 +138,8 @@ export default function Address() {
       state: '',
       pinCode: '',
       addressType: 'HOME',
+      latitude: null,
+      longitude: null,
     })
     setModalOpen(true)
   }
@@ -138,6 +157,8 @@ export default function Address() {
       state: addr?.state ?? '',
       pinCode: addr?.pinCode != null ? String(addr.pinCode) : '',
       addressType: addr?.addressType ?? 'HOME',
+      latitude: addr?.latitude ?? null,
+      longitude: addr?.longitude ?? null,
     })
     setModalOpen(true)
   }
@@ -150,6 +171,82 @@ export default function Address() {
   const handleFormChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
+
+  const handleMapSelect = useCallback((lat, lng) => {
+    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }))
+  }, [])
+
+  // Address search: debounced suggestions (Zomato/Swiggy style)
+  useEffect(() => {
+    if (!modalOpen || modalMode !== 'create') return
+    const q = addressSearchQuery.trim()
+    if (q.length < 2) {
+      setAddressSearchResults([])
+      setAddressSearchOpen(false)
+      return
+    }
+    setAddressSearchLoading(true)
+    const t = setTimeout(async () => {
+      try {
+        const results = await searchPlaces(q)
+        setAddressSearchResults(Array.isArray(results) ? results : [])
+        setAddressSearchOpen(true)
+      } catch {
+        setAddressSearchResults([])
+      } finally {
+        setAddressSearchLoading(false)
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [modalOpen, modalMode, addressSearchQuery])
+
+  const handleSelectAddressSuggestion = useCallback((item) => {
+    setForm((prev) => ({
+      ...prev,
+      addressLine: item.label || item.addressLine || prev.addressLine,
+      city: item.city || prev.city,
+      state: item.state || prev.state,
+      pinCode: item.pincode ? String(item.pincode) : prev.pinCode,
+      latitude: item.latitude ?? prev.latitude,
+      longitude: item.longitude ?? prev.longitude,
+    }))
+    setAddressSearchQuery(item.label || '')
+    setAddressSearchOpen(false)
+    setAddressSearchResults([])
+  }, [])
+
+  const handleUseCurrentLocation = useCallback(async () => {
+    setMapGeocoding(true)
+    setFormError(null)
+    try {
+      const { latitude, longitude } = await getCurrentPosition()
+      const res = await reverseGeocode(latitude, longitude)
+      setForm((prev) => ({
+        ...prev,
+        addressLine: res?.addressLabel || prev.addressLine,
+        city: res?.city || prev.city,
+        state: res?.state || prev.state,
+        pinCode: res?.pincode ? String(res.pincode) : prev.pinCode,
+        latitude,
+        longitude,
+      }))
+      setAddressSearchQuery(res?.addressLabel || '')
+      setAddressSearchOpen(false)
+    } catch (err) {
+      setFormError(err?.message ?? 'Could not get location. Try search instead.')
+    } finally {
+      setMapGeocoding(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!addressSearchOpen) return
+    const onOutside = (e) => {
+      if (addressSearchRef.current && !addressSearchRef.current.contains(e.target)) setAddressSearchOpen(false)
+    }
+    document.addEventListener('click', onOutside)
+    return () => document.removeEventListener('click', onOutside)
+  }, [addressSearchOpen])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -166,6 +263,10 @@ export default function Address() {
       setFormError('Please fill name, address, city, state and pincode.')
       return
     }
+    if (modalMode === 'create' && (form.latitude == null || form.longitude == null)) {
+      setFormError('Please search for your area or use current location so we can confirm your delivery point.')
+      return
+    }
 
     const payload = {
       name: form.name.trim(),
@@ -177,6 +278,10 @@ export default function Address() {
       pinCode: parseInt(pin, 10) || 0,
       addressType: form.addressType || 'HOME',
       isDefault: false,
+    }
+    if (form.latitude != null && form.longitude != null) {
+      payload.latitude = Number(form.latitude)
+      payload.longitude = Number(form.longitude)
     }
 
     if (payload.pinCode <= 0) {
@@ -201,10 +306,14 @@ export default function Address() {
     }
   }
 
-  const handleSetDefault = async (id) => {
+  const handleSetDefault = async (addr) => {
+    const id = addr?._id
+    if (!id) return
     try {
       await addressService.setDefault(id)
       await loadAddresses()
+      const label = formatAddress(addr)
+      dispatch(setLocation({ pincode: addr.pinCode ? String(addr.pinCode) : null, addressLabel: label || null }))
     } catch {
       // ignore
     }
@@ -224,12 +333,12 @@ export default function Address() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold text-black uppercase">Address Book</h1>
-          <p className="mt-2 text-gray-600">Please sign in to manage your addresses.</p>
+        <div className=" px-4 sm:px-6 md:px-8 py-12 sm:py-16 text-center ">
+          <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">Address Book</h1>
+          <p className="mt-2 text-sm sm:text-base text-gray-600">Please sign in to manage your addresses.</p>
           <Link
             to={ROUTES.AUTH}
-            className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors"
+            className="mt-6 inline-block px-6 py-3 bg-black text-white text-sm font-medium uppercase hover:bg-gray-800 transition-colors"
           >
             Sign in
           </Link>
@@ -239,13 +348,16 @@ export default function Address() {
   }
 
   return (
-    <div className="min-h-screen bg-white pt-24 pb-12">
-      <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
-        <div className="flex items-center justify-end mb-6">
+    <div className="min-h-screen mt-[10vw] bg-white pt-24 pb-12">
+      <div className=" px-4 sm:px-6 md:px-8 lg:px-10 ">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <h1 className="text-lg sm:text-xl font-bold text-black uppercase">
+            Address book
+          </h1>
           <button
             type="button"
             onClick={openCreateModal}
-            className="px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] bg-black text-white hover:bg-gray-800 transition-colors"
+            className="w-full sm:w-auto px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] bg-black text-white hover:bg-gray-800 transition-colors"
           >
             Add Address +
           </button>
@@ -258,13 +370,13 @@ export default function Address() {
         ) : addresses.length === 0 ? (
           <p className="text-sm text-gray-500">No addresses added yet. Add your first address.</p>
         ) : (
-          <div className="border border-[#E6E6E6] bg-white">
-            {/* Header row */}
-            <div className="flex border-b border-[#E6E6E6]">
-              <div className="flex-1 px-8 py-4 text-[11px] tracking-[0.28em] font-semibold uppercase text-gray-900">
+          <div className="border border-[#E6E6E6] bg-white rounded-lg overflow-hidden">
+            {/* Header row — visible from md up */}
+            <div className="hidden md:flex border-b border-[#E6E6E6]">
+              <div className="flex-1 px-4 lg:px-8 py-4 text-[11px] tracking-[0.28em] font-semibold uppercase text-gray-900">
                 Address
               </div>
-              <div className="w-[220px] px-8 py-4 text-right text-[11px] tracking-[0.28em] uppercase text-gray-900 border-l border-[#E6E6E6] font-semibold">
+              <div className="w-[220px] lg:w-[260px] xl:w-[280px] shrink-0 px-4 lg:px-8 py-4 text-right text-[11px] tracking-[0.28em] uppercase text-gray-900 border-l border-[#E6E6E6] font-semibold">
                 Edit/Delete
               </div>
             </div>
@@ -273,20 +385,20 @@ export default function Address() {
               return (
                 <div
                   key={addr._id}
-                  className="flex border-b border-[#E6E6E6] last:border-b-0"
+                  className="flex flex-col md:flex-row border-b border-[#E6E6E6] last:border-b-0"
                 >
-                  {/* Left column */}
-                  <div className="relative flex-1 px-8 py-10 min-h-[160px]">
-                    <div className="max-w-[320px]">
+                  {/* Address content */}
+                  <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 md:py-10 md:min-h-[120px]">
+                    <div className="max-w-[320px] pr-2">
                       {isCurrent && (
-                        <p className="text-[11px] font-semibold tracking-[0.28em] uppercase text-gray-900 mb-4">
+                        <p className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-white bg-green-600 px-2.5 py-1 rounded mb-3 md:mb-4">
                           Current Address
                         </p>
                       )}
-                      <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-gray-800">
+                      <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-gray-800 break-words">
                         {addr.name || 'Name'}
                       </p>
-                      <p className="mt-2 text-[11px] leading-5 uppercase tracking-[0.04em] text-gray-500 whitespace-pre-line">
+                      <p className="mt-2 text-[11px] leading-5 uppercase tracking-[0.04em] text-gray-500 whitespace-pre-line break-words">
                         {addr.addressLine}
                         {addr.addressLine && <br />}
                         {addr.city && <>
@@ -300,35 +412,36 @@ export default function Address() {
                         {addr.pinCode && `${addr.pinCode}`}
                       </p>
                     </div>
-
+                  </div>
+                  {/* Edit/Delete + Set as current (below icons) */}
+                  <div className="w-full md:w-[220px] lg:w-[260px] xl:w-[280px] shrink-0 border-t md:border-t-0 md:border-l border-[#E6E6E6] flex flex-col items-stretch md:items-center gap-3 md:gap-4 px-4 py-4 md:py-6 text-gray-500">
+                    <div className="flex items-center justify-end md:justify-center gap-6">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(addr._id)}
+                        className="p-2 hover:text-black transition-colors"
+                        aria-label="Delete address"
+                      >
+                        <TrashIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(addr)}
+                        className="p-2 hover:text-black transition-colors"
+                        aria-label="Edit address"
+                      >
+                        <EditIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                      </button>
+                    </div>
                     {!isCurrent && (
                       <button
                         type="button"
-                        onClick={() => handleSetDefault(addr._id)}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-10 py-3 bg-black text-white text-[11px] font-semibold uppercase tracking-[0.18em] hover:bg-gray-800 transition-colors"
+                        onClick={() => handleSetDefault(addr)}
+                        className="w-full md:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.12em] sm:tracking-[0.18em] hover:bg-gray-800 transition-colors"
                       >
                         Set as current address
                       </button>
                     )}
-                  </div>
-                  {/* Right column */}
-                  <div className="w-[220px] border-l border-[#E6E6E6] flex items-center justify-center gap-6 text-gray-500">
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(addr._id)}
-                      className="p-1 hover:text-black transition-colors"
-                      aria-label="Delete address"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(addr)}
-                      className="p-1 hover:text-black transition-colors"
-                      aria-label="Edit address"
-                    >
-                      <EditIcon className="h-4 w-4" />
-                    </button>
                   </div>
                 </div>
               )
@@ -340,36 +453,108 @@ export default function Address() {
       {/* Add / Edit address modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 overflow-y-auto"
           onClick={closeModal}
           aria-hidden
         >
           <div
-            className="w-full max-w-sm bg-white shadow-xl"
+            className="w-full max-w-sm my-auto bg-white shadow-xl rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-800">
+            <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-xs sm:text-sm font-semibold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-gray-800 truncate pr-2">
                 {modalMode === 'edit' ? 'Edit Address' : 'New Address'}
               </h2>
               <button
                 type="button"
                 onClick={closeModal}
-                className="p-1 text-gray-500 hover:text-black"
+                className="p-2 -m-2 text-gray-500 hover:text-black text-xl leading-none"
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
+            <form onSubmit={handleSubmit} className="px-4 sm:px-5 py-4 space-y-3 max-h-[min(85vh,560px)] overflow-y-auto">
               {formError && <p className="text-xs text-red-600">{formError}</p>}
+              {modalMode === 'create' && (
+                <>
+                  <div className="relative" ref={addressSearchRef}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                      Search area, street, or pincode
+                    </p>
+                    <input
+                      type="text"
+                      value={addressSearchQuery}
+                      onChange={(e) => setAddressSearchQuery(e.target.value)}
+                      onFocus={() => addressSearchQuery.trim().length >= 2 && setAddressSearchOpen(true)}
+                      placeholder="e.g. Sector 16B Bhangel, Greater Noida or 201318"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder:text-gray-400"
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={mapGeocoding}
+                      className="mt-2 w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-60"
+                    >
+                      <LocationIcon className="h-4 w-4 text-gray-500" />
+                      {mapGeocoding ? 'Getting location…' : 'Use current location'}
+                    </button>
+                    {addressSearchOpen && addressSearchResults.length > 0 && (
+                      <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto border border-gray-200 bg-white rounded-lg shadow-lg py-1">
+                        {addressSearchResults.map((item, idx) => (
+                          <li key={`${item.label}-${item.pincode}-${idx}`}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAddressSuggestion(item)}
+                              className="w-full px-3 py-2.5 text-left text-sm text-gray-800 hover:bg-gray-50 flex flex-col gap-0.5"
+                            >
+                              <span className="font-medium truncate">{item.label}</span>
+                              {(item.city || item.pincode) && (
+                                <span className="text-xs text-gray-500">
+                                  {[item.city, item.state, item.pincode].filter(Boolean).join(', ')}
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {addressSearchLoading && (
+                      <p className="text-xs text-gray-500 mt-1">Searching…</p>
+                    )}
+                  </div>
+                  {form.latitude != null && form.longitude != null && (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                        Confirm location on map
+                      </p>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Tap the map to adjust the pin. Delivery only in India.
+                      </p>
+                      <GoogleMapPicker
+                        initialCenter={{ lat: form.latitude, lng: form.longitude }}
+                        center={{ lat: form.latitude, lng: form.longitude }}
+                        onSelect={handleMapSelect}
+                        height={200}
+                      />
+                      {mapGeocoding && <p className="text-xs text-gray-500 mt-1">Getting address…</p>}
+                    </div>
+                  )}
+                </>
+              )}
+              {modalMode === 'create' && (
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 pt-1">
+                  Add more details
+                </p>
+              )}
               <div>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => handleFormChange('name', e.target.value)}
-                  placeholder="First name"
-                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
+                  placeholder="Name"
+                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
                 />
               </div>
@@ -378,8 +563,8 @@ export default function Address() {
                   type="text"
                   value={form.addressLine}
                   onChange={(e) => handleFormChange('addressLine', e.target.value)}
-                  placeholder="Address"
-                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
+                  placeholder="Address (area, street, flat, building)"
+                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
                 />
               </div>
@@ -387,7 +572,7 @@ export default function Address() {
                 <select
                   value={form.addressType}
                   onChange={(e) => handleFormChange('addressType', e.target.value)}
-                  className="w-full border-b border-gray-300 py-2 text-sm outline-none bg-transparent text-gray-700"
+                  className="w-full border-b border-gray-300 py-2 text-sm outline-none bg-transparent text-gray-700 min-w-0"
                   aria-label="Address type"
                 >
                   <option value="HOME">Address type: Home</option>
@@ -401,17 +586,17 @@ export default function Address() {
                   value={form.city}
                   onChange={(e) => handleFormChange('city', e.target.value)}
                   placeholder="City"
-                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
+                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
                 />
               </div>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-3 sm:gap-4">
                 <input
                   type="text"
                   value={form.state}
                   onChange={(e) => handleFormChange('state', e.target.value)}
                   placeholder="State"
-                  className="flex-1 border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
+                  className="flex-1 min-w-[100px] border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
                   required
                 />
                 <input
@@ -424,7 +609,7 @@ export default function Address() {
                     )
                   }
                   placeholder="PIN code"
-                  className="w-32 border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
+                  className="w-24 sm:w-32 border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
                   required
                 />
               </div>
@@ -439,7 +624,7 @@ export default function Address() {
                     )
                   }
                   placeholder="Phone number"
-                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
+                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                 />
               </div>
               <button

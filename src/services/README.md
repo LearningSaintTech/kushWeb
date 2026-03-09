@@ -5,7 +5,7 @@ Central API layer for khushWeb. All requests go through an axios instance with a
 ## Setup
 
 1. Copy `.env.example` to `.env` in the project root.
-2. Set `VITE_API_URL` to your backend base URL (e.g. `http://localhost:5000/api`).
+2. Set `VITE_API_URL` to your backend base URL (e.g. `http://192.168.1.13:5000/api`).
 3. Optional: set `VITE_DEBUG=true` to log every request/response in the console (or rely on dev mode).
 4. Run `npm install` (adds `axios`).
 
