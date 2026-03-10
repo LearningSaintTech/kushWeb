@@ -13,6 +13,7 @@ import {
   CartIcon,
   ProfileIcon,
 } from '../ui/icons'
+// Location picker in header: no map – shows delivery location as text (current location / search / pincode).
 import LocationPicker from './LocationPicker'
 import ProfileModal from './ProfileModal'
 

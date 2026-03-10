@@ -1,10 +1,42 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import { getProductPath, ROUTES } from '../../../utils/constants'
 import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
-import { IoChevronForward, IoStarSharp } from 'react-icons/io5'
+import { IoChevronForward, IoChevronBack, IoStarSharp } from 'react-icons/io5'
 import { LuClock4 } from 'react-icons/lu'
+import { itemsService } from '../../../services/items.service.js'
+
+const SECTION_PAGE_SIZE = 10
+
+/** Map search API item to carousel card shape */
+function mapItemToCard(item, deliveryTypeFallback) {
+  const id = item._id ?? item.id
+  const variants = item.variants ?? []
+  const firstVariant = variants[0]
+  const images = firstVariant?.images ?? []
+  const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  const imageUrl = item.thumbnail ?? sorted[0]?.url ?? ''
+  const delivery = item.deliveryType === '90_MIN'
+    ? '90 min delivery'
+    : item.deliveryType === 'ONE_DAY'
+      ? '1 day delivery'
+      : item.deliveryType
+        ? String(item.deliveryType)
+        : deliveryTypeFallback
+          ? `GET IN ${deliveryTypeFallback}`
+          : '—'
+  return {
+    id,
+    image: imageUrl || productImage,
+    title: item.name ?? '',
+    price: item.discountedPrice != null ? `₹${item.discountedPrice}` : '₹0',
+    delivery,
+    rating: item.avgRating ?? 0,
+    outOfStock: item.inStock === false,
+  }
+}
 
 const NEW_ARRIVALS_DATA = [
   { id: 1, image: productImage, title: 'DENIM JACKET', price: '₹1500.00', delivery: 'GET IN 6-7 days', rating: 4.5 },
@@ -21,6 +53,7 @@ const NEW_ARRIVALS_DATA = [
 
 function NewArrivals({ section }) {
   const navigate = useNavigate()
+  const pincode = useSelector((s) => s?.location?.pincode) ?? null
 
   const listFromSection = section?.products
     ?.filter((p) => p?.item)
@@ -31,27 +64,89 @@ function NewArrivals({ section }) {
       price: p.item.discountedPrice != null ? `₹${p.item.discountedPrice}` : '₹0',
       delivery: section.deliveryType ? `GET IN ${section.deliveryType}` : '',
       rating: p.item.avgRating ?? 0,
+      outOfStock: p.inStock === false,
     })) || []
 
-  const list = listFromSection.length > 0 ? listFromSection : NEW_ARRIVALS_DATA
+  const [sectionList, setSectionList] = useState([])
+  const [sectionPage, setSectionPage] = useState(1)
+  const [sectionHasMore, setSectionHasMore] = useState(false)
+  const [sectionLoading, setSectionLoading] = useState(false)
+  const [sectionLoadingMore, setSectionLoadingMore] = useState(false)
+
+  const list = section?._id
+    ? (sectionList.length > 0 ? sectionList : listFromSection)
+    : (listFromSection.length > 0 ? listFromSection : NEW_ARRIVALS_DATA)
   const sectionTitle = section?.title || 'NEW ARRIVALS'
   const exploreTo = section?._id ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}` : `${ROUTES.SEARCH}?itemsOnly=1`
 
-  const [activeSlide, setActiveSlide] = useState(
-    list.length ? Math.min(2, list.length - 1) : 0
-  )
-
+  const [activeSlide, setActiveSlide] = useState(0)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
   const startX = useRef(0)
   const isDragging = useRef(false)
   const moved = useRef(false)
 
+  const fetchSectionPage = useCallback(async (page) => {
+    if (!section?._id) return
+    const isFirst = page === 1
+    if (isFirst) setSectionLoading(true)
+    else setSectionLoadingMore(true)
+    try {
+      const params = { sectionId: section._id, page, limit: SECTION_PAGE_SIZE }
+      if (pincode) params.pinCode = String(pincode)
+      const res = await itemsService.search(params)
+      const data = res?.data?.data ?? res?.data
+      const items = data?.items ?? []
+      const pag = data?.pagination ?? {}
+      const mapped = items.map((it) => mapItemToCard(it, section.deliveryType))
+      setSectionList((prev) => (page === 1 ? mapped : [...prev, ...mapped]))
+      setSectionPage(page)
+      const totalPages = Math.max(1, pag.totalPages ?? 1)
+      setSectionHasMore(page < totalPages)
+    } catch {
+      setSectionHasMore(false)
+    } finally {
+      setSectionLoading(false)
+      setSectionLoadingMore(false)
+    }
+  }, [section?._id, section?.deliveryType, pincode])
+
+  useEffect(() => {
+    if (section?._id) {
+      setSectionList([])
+      setSectionPage(1)
+      fetchSectionPage(1)
+    } else {
+      setSectionList([])
+      setSectionHasMore(false)
+    }
+  }, [section?._id, pincode, fetchSectionPage])
+
+  const loadMore = () => {
+    if (!sectionHasMore || sectionLoadingMore) return
+    fetchSectionPage(sectionPage + 1)
+  }
+
+  // Prefetch next 10 when user is on 8th card (3 from end) so next batch is ready before they hit the end
+  const prefetchThreshold = 3
+  useEffect(() => {
+    if (!section?._id || !sectionHasMore || sectionLoadingMore) return
+    if (list.length > 0 && activeSlide >= list.length - prefetchThreshold) {
+      loadMore()
+    }
+  }, [section?._id, sectionHasMore, sectionLoadingMore, list.length, activeSlide])
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  useEffect(() => {
+    if (list.length > 0 && activeSlide >= list.length) {
+      setActiveSlide(list.length - 1)
+    }
+  }, [list.length, activeSlide])
 
   const CARD_WIDTH = isMobile ? 260 : 320
   const CARD_HEIGHT = isMobile ? 380 : 500
@@ -75,10 +170,10 @@ function NewArrivals({ section }) {
   const handleMouseUp = (e) => {
     if (!isDragging.current) return
     const diff = e.clientX - startX.current
-
-    if (diff > 80 && activeSlide > 0) setActiveSlide((prev) => prev - 1)
-    if (diff < -80 && activeSlide < list.length - 1) setActiveSlide((prev) => prev + 1)
-
+    const n = list.length
+    if (n === 0) { isDragging.current = false; return }
+    if (diff > 80) setActiveSlide((prev) => (prev - 1 + n) % n)
+    if (diff < -80) setActiveSlide((prev) => (prev + 1) % n)
     isDragging.current = false
   }
 
@@ -99,23 +194,38 @@ function NewArrivals({ section }) {
     if (!isDragging.current) return
     const endX = e.changedTouches[0].clientX
     const diff = endX - startX.current
-
-    if (diff > 80 && activeSlide > 0) setActiveSlide((prev) => prev - 1)
-    if (diff < -80 && activeSlide < list.length - 1) setActiveSlide((prev) => prev + 1)
-
+    const n = list.length
+    if (n === 0) { isDragging.current = false; return }
+    if (diff > 80) setActiveSlide((prev) => (prev - 1 + n) % n)
+    if (diff < -80) setActiveSlide((prev) => (prev + 1) % n)
     isDragging.current = false
+  }
+
+  const n = list.length
+  const goPrev = (e) => {
+    e?.preventDefault?.()
+    e?.stopPropagation?.()
+    if (n === 0) return
+    setActiveSlide((prev) => (prev - 1 + n) % n)
+  }
+
+  const goNext = (e) => {
+    e?.preventDefault?.()
+    e?.stopPropagation?.()
+    if (n === 0) return
+    setActiveSlide((prev) => (prev + 1) % n)
   }
 
   const handleCardClick = (index) => {
     if (moved.current) return
     const item = list[index]
-    const productId = item?.id
-
-    if (productId != null) {
-      navigate(getProductPath(String(productId)))
-    } else if (index !== activeSlide) {
+    if (item?.outOfStock) return
+    if (index !== activeSlide) {
       setActiveSlide(index)
+      return
     }
+    const productId = item?.id
+    if (productId != null) navigate(getProductPath(String(productId)))
   }
 
   const getStyles = (index) => {
@@ -150,6 +260,8 @@ function NewArrivals({ section }) {
     return { opacity: 0 }
   }
 
+  const showPaginatedLoading = section?._id && sectionLoading && sectionList.length === 0
+
   return (
     <section className="bg-white pt-10 md:pt-16 pb-6 md:pb-8 overflow-hidden">
       <div className="container mx-auto px-4">
@@ -158,6 +270,12 @@ function NewArrivals({ section }) {
           {sectionTitle}
         </h2>
 
+        {showPaginatedLoading ? (
+          <div className="flex justify-center items-center py-16 text-gray-500">
+            Loading…
+          </div>
+        ) : (
+        <>
         <div
           className="relative mx-auto cursor-grab active:cursor-grabbing select-none touch-pan-y"
           style={{
@@ -174,6 +292,26 @@ function NewArrivals({ section }) {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
+          {list.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={goPrev}
+                aria-label="Previous card"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/90 hover:bg-white shadow-md border border-gray-200 flex items-center justify-center hover:scale-105 transition-all"
+              >
+                <IoChevronBack className="w-5 h-5 md:w-6 md:h-6 text-black" />
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                aria-label="Next card"
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/90 hover:bg-white shadow-md border border-gray-200 flex items-center justify-center hover:scale-105 transition-all"
+              >
+                <IoChevronForward className="w-5 h-5 md:w-6 md:h-6 text-black" />
+              </button>
+            </>
+          )}
           <div
             className="relative mx-auto"
             style={{
@@ -186,7 +324,7 @@ function NewArrivals({ section }) {
               <div
                 key={item.id ?? i}
                 onClick={() => handleCardClick(i)}
-                className="absolute top-0 left-0 rounded-2xl overflow-hidden bg-gray-100 shadow-xl cursor-pointer"
+                className={`absolute top-0 left-0 rounded-2xl overflow-hidden bg-gray-100 shadow-xl cursor-pointer ${item.outOfStock ? 'pointer-events-none' : ''}`}
                 style={{
                   width: CARD_WIDTH,
                   height: CARD_HEIGHT,
@@ -217,12 +355,22 @@ function NewArrivals({ section }) {
                     </span>
                   </div>
                 </div>
+                {item.outOfStock && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none" aria-hidden>
+                    <span className="rounded-md bg-black/80 px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white">
+                      Out of stock
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
-        <div className="text-center mt-2 md:mt-4">
+        <div className="text-center mt-2 md:mt-4 flex flex-col items-center gap-2">
+          <span className="text-xs text-gray-400" aria-live="polite">
+            Cards: {list.length} {sectionLoadingMore ? '(loading more…)' : ''}
+          </span>
           <Link
             to={exploreTo}
             className="inline-flex items-center gap-1 uppercase text-xs md:text-sm tracking-widest text-black border-b pb-1 hover:opacity-70 transition-opacity"
@@ -231,6 +379,8 @@ function NewArrivals({ section }) {
             <IoChevronForward />
           </Link>
         </div>
+        </>
+        )}
 
       </div>
     </section>

@@ -120,6 +120,7 @@ function SearchPage() {
   const priceSliderRef = useRef(null)
   const [expandedFilterKeys, setExpandedFilterKeys] = useState(() => new Set())
   const [dropdownAnimateOpen, setDropdownAnimateOpen] = useState(false)
+  const [jumpToPageInput, setJumpToPageInput] = useState('')
 
   const toggleFilterExpanded = (filterKey) => {
     setExpandedFilterKeys((prev) => {
@@ -173,6 +174,21 @@ function SearchPage() {
   useEffect(() => {
     setSubcategory(subcategoryFromUrl)
   }, [subcategoryFromUrl])
+
+  // Our Product / Our Category: when section has categories and URL has no category, set first category so items show
+  useEffect(() => {
+    if (!sectionIdFromUrl || !section || itemsOnlyFromUrl) return
+    if (sectionCategories.length === 0) return
+    if (categoryFromUrl || subcategoryFromUrl) return
+    const firstCat = sectionCategories[0]
+    const firstCatId = firstCat?._id ?? firstCat?.id
+    if (!firstCatId) return
+    const next = new URLSearchParams(searchParams)
+    next.set('sectionId', sectionIdFromUrl)
+    next.set('categoryId', String(firstCatId))
+    next.set('page', '1')
+    setSearchParams(next)
+  }, [sectionIdFromUrl, section?.type, section?.categoryId, section?.subcategoryId, sectionCategories.length, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl])
 
   useEffect(() => {
     setQuery(qFromUrl)
@@ -341,10 +357,29 @@ function SearchPage() {
       const filtersObj = Object.keys(parsed).length ? parsed : undefined
       if (filtersObj) params.filters = filtersObj
 
+      // Section navigation: restrict results to section's products only
+      if (sectionIdFromUrl) {
+        params.sectionId = sectionIdFromUrl
+        console.log('[SearchPage] section-scoped search: only section items will be fetched', {
+          sectionId: sectionIdFromUrl,
+          params: { ...params },
+        })
+      }
+
+      console.log('[SearchPage] runSearch params', params)
+
       const res = await itemsService.search(params)
       const data = res?.data?.data ?? res?.data
       const items = (data?.items ?? []).map(itemToCardProps)
       const pag = data?.pagination ?? null
+
+      if (sectionIdFromUrl) {
+        console.log('[SearchPage] section-scoped search response', {
+          sectionId: sectionIdFromUrl,
+          itemsCount: items.length,
+          totalFromPagination: pag?.total,
+        })
+      }
 
       if (isPageOne || isNewSearch) {
         loadedPagesRef.current = new Set([1])
@@ -364,11 +399,27 @@ function SearchPage() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [qFromUrl, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl, pageFromUrl, filtersParam, pincode, buildSearchKey])
+  }, [sectionIdFromUrl, qFromUrl, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl, pageFromUrl, filtersParam, pincode, buildSearchKey])
 
   useEffect(() => {
     runSearch()
   }, [runSearch])
+
+  // Keep jump-to input in sync with current page when pagination changes
+  useEffect(() => {
+    if (pagination?.page != null) setJumpToPageInput('')
+  }, [pagination?.page])
+
+  const handleJumpToPage = () => {
+    const num = parseInt(jumpToPageInput.trim(), 10)
+    if (Number.isNaN(num) || !pagination) return
+    const totalPages = Math.max(1, pagination.totalPages ?? 1)
+    const page = Math.max(1, Math.min(totalPages, num))
+    const next = new URLSearchParams(searchParams)
+    next.set('page', String(page))
+    setSearchParams(next)
+    setJumpToPageInput('')
+  }
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -550,12 +601,14 @@ function SearchPage() {
   })()
 
   const bannerImage = collectionBanner
+  const matchCategoryId = (c) => String(c._id ?? c.id) === String(categoryFromUrl)
+  const matchSubcategoryId = (s) => String(s._id ?? s.id) === String(subcategoryFromUrl)
   const categoryLabel =
     showOurProductDropdown || showOurCategoryDropdown
-      ? sectionCategories.find((c) => (c._id ?? c.id) === categoryFromUrl)?.name ??
-        sectionSubcategories.find((s) => (s._id ?? s.id) === subcategoryFromUrl)?.name ??
-        (categoryFromUrl || subcategoryFromUrl ? 'Collection' : '')
-      : categories.find((c) => (c._id ?? c.id) === categoryFromUrl)?.name ??
+      ? sectionCategories.find(matchCategoryId)?.name ??
+        sectionSubcategories.find(matchSubcategoryId)?.name ??
+        (categoryFromUrl || subcategoryFromUrl ? 'Collection' : 'Category')
+      : categories.find(matchCategoryId)?.name ??
         (subcategoryFromUrl && subcategories.length
           ? subcategories.find((s) => (s._id ?? s.id) === subcategoryFromUrl)?.name
           : null) ??
@@ -566,11 +619,11 @@ function SearchPage() {
 
   // Breadcrumb segments for all flows: Home > [Search / Section / Collections] > [Category?] > [Subcategory?]
   const categoryName = showOurProductDropdown || showOurCategoryDropdown
-    ? sectionCategories.find((c) => (c._id ?? c.id) === categoryFromUrl)?.name
-    : categories.find((c) => (c._id ?? c.id) === categoryFromUrl)?.name
+    ? sectionCategories.find(matchCategoryId)?.name
+    : categories.find(matchCategoryId)?.name
   const subcategoryName = showOurCategoryDropdown
-    ? sectionSubcategories.find((s) => (s._id ?? s.id) === subcategoryFromUrl)?.name
-    : subcategories.find((s) => (s._id ?? s.id) === subcategoryFromUrl)?.name
+    ? sectionSubcategories.find(matchSubcategoryId)?.name
+    : subcategories.find(matchSubcategoryId)?.name
 
   const buildSearchPath = (opts = {}) => {
     const p = new URLSearchParams()
@@ -777,9 +830,10 @@ function SearchPage() {
       >
         {showOurProductDropdown && sectionCategories.map((c) => {
           const cid = c._id ?? c.id
+          const idStr = String(cid)
           return (
-            <button key={cid} type="button" onClick={() => handleCategorySelect(cid)} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${categoryFromUrl === cid ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>
-              {c.name ?? cid}
+            <button key={idStr} type="button" onClick={() => handleCategorySelect(idStr)} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${String(categoryFromUrl) === idStr ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>
+              {c.name ?? idStr}
             </button>
           )
         })}
@@ -788,9 +842,10 @@ function SearchPage() {
             <button type="button" onClick={() => handleCategorySelect('')} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${!categoryFromUrl ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>All categories</button>
             {sectionCategories.map((c) => {
               const cid = c._id ?? c.id
+              const idStr = String(cid)
               return (
-                <button key={`cat-${cid}`} type="button" onClick={() => handleCategorySelect(cid)} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${categoryFromUrl === cid ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>
-                  {c.name ?? cid}
+                <button key={`cat-${idStr}`} type="button" onClick={() => handleCategorySelect(idStr)} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${String(categoryFromUrl) === idStr ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>
+                  {c.name ?? idStr}
                 </button>
               )
             })}
@@ -801,9 +856,10 @@ function SearchPage() {
             <button type="button" onClick={() => handleCategorySelect('')} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${!categoryFromUrl ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>All categories</button>
             {categoriesLoading ? <div className="font-inter px-4 py-2 text-sm text-gray-500">Loading…</div> : categories.map((c) => {
               const cid = c._id ?? c.id
+              const idStr = String(cid)
               return (
-                <button key={cid} type="button" onClick={() => handleCategorySelect(cid)} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${categoryFromUrl === cid ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>
-                  {c.name ?? cid}
+                <button key={idStr} type="button" onClick={() => handleCategorySelect(idStr)} className={`font-inter w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${String(categoryFromUrl) === idStr ? 'bg-gray-100 font-medium text-black' : 'text-gray-700'}`}>
+                  {c.name ?? idStr}
                 </button>
               )
             })}
@@ -1097,51 +1153,96 @@ function SearchPage() {
                 No products found. Try a different search or category.
               </p>
             )}
-            {pagination && pagination.totalPages > 1 && (() => {
-              let start = Math.max(1, pagination.page - 2)
-              const total = pagination.totalPages
-              let end = Math.min(total, start + 4)
+            {pagination && pagination.totalPages >= 1 && (() => {
+              const totalPages = Math.max(1, pagination.totalPages)
+              const currentPage = Math.min(totalPages, Math.max(1, pagination.page ?? 1))
+              const totalItems = pagination.total ?? (totalPages * (pagination.limit ?? DEFAULT_LIMIT))
+              let start = Math.max(1, currentPage - 2)
+              let end = Math.min(totalPages, start + 4)
               if (end - start + 1 < 5) start = Math.max(1, end - 4)
               const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i)
               return (
-              <div className="font-inter flex items-center justify-center gap-1.5 mt-8">
-                {pageNumbers.map((pageNum) => {
-                  const isActive = pagination.page === pageNum
-                  return (
+                <div className="font-inter mt-8 space-y-4">
+                  <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
+                    <span>{totalItems.toLocaleString()} item{totalItems !== 1 ? 's' : ''}</span>
+                    <span>Page {currentPage} of {totalPages}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
                     <button
-                      key={pageNum}
                       type="button"
+                      disabled={currentPage <= 1}
                       onClick={() => {
                         const next = new URLSearchParams(searchParams)
-                        next.set('page', String(pageNum))
+                        next.set('page', String(currentPage - 1))
                         setSearchParams(next)
                       }}
-                      className={`min-w-9 px-2.5 py-1.5 rounded text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-gray-800 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                      className="min-w-9 px-2.5 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Previous page"
                     >
-                      {pageNum}
+                      <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                      </svg>
                     </button>
-                  )
-                })}
-                <button
-                  type="button"
-                  disabled={pagination.page >= pagination.totalPages}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams)
-                    next.set('page', String(pagination.page + 1))
-                    setSearchParams(next)
-                  }}
-                  className="min-w-9 p-1.5 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Next page"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
+                    {pageNumbers.map((pageNum) => {
+                      const isActive = currentPage === pageNum
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => {
+                            const next = new URLSearchParams(searchParams)
+                            next.set('page', String(pageNum))
+                            setSearchParams(next)
+                          }}
+                          className={`min-w-9 px-2.5 py-1.5 rounded text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-gray-800 text-white border border-gray-800'
+                              : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      )
+                    })}
+                    <button
+                      type="button"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams)
+                        next.set('page', String(currentPage + 1))
+                        setSearchParams(next)
+                      }}
+                      className="min-w-9 px-2.5 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Next page"
+                    >
+                      <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    <span className="inline-flex items-center gap-1.5 ml-2 sm:ml-4">
+                      <label htmlFor="search-jump-page" className="text-sm text-gray-600 whitespace-nowrap">Go to</label>
+                      <input
+                        id="search-jump-page"
+                        type="number"
+                        min={1}
+                        max={totalPages}
+                        value={jumpToPageInput}
+                        onChange={(e) => setJumpToPageInput(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleJumpToPage()}
+                        placeholder={String(currentPage)}
+                        className="w-14 px-2 py-1.5 rounded border border-gray-300 text-sm text-center focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+                        aria-label="Page number"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleJumpToPage}
+                        className="px-3 py-1.5 rounded border border-gray-300 bg-gray-100 text-gray-800 text-sm font-medium hover:bg-gray-200 transition-colors"
+                      >
+                        Go
+                      </button>
+                    </span>
+                  </div>
+                </div>
               )
             })()}
           </>

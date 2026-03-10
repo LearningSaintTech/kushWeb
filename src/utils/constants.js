@@ -9,7 +9,11 @@ export const ROUTES = {
   /** Section explore (Explore More from home sections): /section/:sectionId */
   SECTION_EXPLORE: '/section/:sectionId',
   ACCOUNT: '/account',
+  ORDERS: '/orders',
+  /** Track single order item: /orders/track/:orderId/:itemId */
+  ORDER_TRACK: '/orders/track/:orderId/:itemId',
   COUPONS: '/coupons',
+  ADDRESS: '/address',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',
   PAYMENT_POLICY: '/payment-policy',
   SHIPPING_DELIVERY_POLICY: '/shipping-delivery-policy',
@@ -28,4 +32,9 @@ export function getProductPath(id) {
 /** Build section explore URL: getSectionExplorePath('sectionId') => '/section/sectionId' */
 export function getSectionExplorePath(sectionId) {
   return sectionId ? `/section/${sectionId}` : '/search'
+}
+
+/** Build order track URL: getOrderTrackPath('ORD-123', 'itemId') => '/orders/track/ORD-123/itemId' */
+export function getOrderTrackPath(orderId, itemId) {
+  return orderId && itemId ? `/orders/track/${orderId}/${itemId}` : ROUTES.ORDERS
 }

@@ -18,6 +18,8 @@ export { cartService } from './cart.service.js';
 export { wishlistService } from './wishlist.service.js';
 export { addressService } from './address.service.js';
 export { orderService } from './order.service.js';
+export { cancellationService } from './cancellation.service.js';
+export { exchangeService } from './exchange.service.js';
 export {
   bannerService,
   featuredImagesService,

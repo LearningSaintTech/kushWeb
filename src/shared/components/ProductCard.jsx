@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
@@ -37,10 +37,18 @@ const ROUNDED_BOTTOM_CLASSES = {
   '3xl': 'rounded-b-3xl',
 }
 
-const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, title, price, delivery, rating, rounded = 'lg', roundedTop, roundedBottom }) {
+const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, title, price, delivery, rating, rounded = 'lg', roundedTop, roundedBottom, outOfStock = false }) {
   const { isAuthenticated, openAuthModal } = useAuth()
   const { addToCart, toggleWishlist, isInWishlist } = useCartWishlist()
   const inWishlist = id != null && isInWishlist(id)
+  const [cartError, setCartError] = useState(null)
+  const cartErrorTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (cartErrorTimeoutRef.current) clearTimeout(cartErrorTimeoutRef.current)
+    }
+  }, [])
 
   const requireAuth = (fn) => (e) => {
     e.preventDefault()
@@ -103,7 +111,12 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
   const wrapperProps = id != null ? { to: getProductPath(id) } : {}
 
   return (
-    <CardWrapper {...wrapperProps} className={`${id != null ? 'block ' : ''}${cardClassName}`} style={cardStyle}>
+    <CardWrapper
+      {...wrapperProps}
+      className={`${id != null ? 'block ' : ''}${cardClassName} relative ${outOfStock ? 'pointer-events-none' : ''}`}
+      style={cardStyle}
+    >
+      <div className={outOfStock ? 'select-none' : ''}>
 
       {/* IMAGE */}
       <div
@@ -137,7 +150,7 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
             <button
               type="button"
               onClick={requireAuth(() => toggleWishlist({ id, image, hoverImage, title, price, delivery, rating }))}
-              className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 ${
+              className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${
                 inWishlist ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'
               }`}
               aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
@@ -163,18 +176,30 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
             {/* Cart */}
             <button
               type="button"
-              onClick={requireAuth(() => {
-                console.log('[ProductCard] Add to cart clicked, product:', { id, image, hoverImage, title, price, delivery, rating })
-                addToCart({ id, image, hoverImage, title, price, delivery, rating })
-                console.log('[ProductCard] addToCart invoked')
+              onClick={requireAuth(async () => {
+                setCartError(null)
+                if (cartErrorTimeoutRef.current) {
+                  clearTimeout(cartErrorTimeoutRef.current)
+                  cartErrorTimeoutRef.current = null
+                }
+                const result = await addToCart({ id, image, hoverImage, title, price, delivery, rating })
+                if (result?.success === false && result?.message) {
+                  setCartError(result.message)
+                  cartErrorTimeoutRef.current = setTimeout(() => setCartError(null), 4000)
+                }
               })}
-              className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 ease-in-out delay-200 hover:scale-105"
+              className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 ease-in-out delay-200 hover:scale-105 cursor-pointer"
               aria-label="Add to cart"
             >
               <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </button>
+            {cartError && (
+              <div className="absolute left-0 right-0 top-full mt-2 z-20 rounded-lg bg-red-600 px-3 py-2 text-xs text-white shadow-lg" role="alert">
+                {cartError}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -227,7 +252,14 @@ const ProductCard = React.memo(function ProductCard({ id, image, hoverImage, tit
         </div>
 
       </div>
-
+      </div>
+      {outOfStock && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none" aria-hidden>
+          <span className="rounded-md bg-black/80 px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white">
+            Out of stock
+          </span>
+        </div>
+      )}
     </CardWrapper>
   )
 })

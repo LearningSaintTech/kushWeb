@@ -6,6 +6,7 @@ import { WishlistPage } from '../../features/wishlist'
 import { ProductPage } from '../../features/product'
 import { AuthPage } from '../../features/auth'
 import { CheckoutPage } from '../../features/checkout'
+import { OrdersPage, TrackOrderPage } from '../../features/orders'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
 import { CouponsPage } from '../../features/coupons'
@@ -32,6 +33,8 @@ const router = createBrowserRouter([
       { path: 'wishlist', element: <WishlistPage /> },
       { path: 'product/:id', element: <ProductPage /> },
       { path: 'checkout', element: <CheckoutPage /> },
+      { path: 'orders', element: <OrdersPage /> },
+      { path: 'orders/track/:orderId/:itemId', element: <TrackOrderPage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'section/:sectionId', element: <SectionExplorePage /> },
       { path: 'refund-cancel-policy', element: <RefundCancelPolicyPage /> },
@@ -42,7 +45,7 @@ const router = createBrowserRouter([
       { path: 'contact-us', element: <ContactUsPage /> },
       { path: 'terms-conditions', element: <TermsConditionsPage /> },
       { path: 'privacy-policy', element: <PrivacyPolicyPage /> },
-      { path: 'account', element: <Address /> },
+      { path: 'address', element: <Address /> },
       { path: 'coupons', element: <CouponsPage /> },
     ],
   },

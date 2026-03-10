@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { couponsService } from '../../services/coupons.service.js'
 import { ROUTES } from '../../utils/constants'
+import couponIcon from '../../assets/images/coupon/coupon.png'
 
 function formatExpiry(dateVal) {
   if (!dateVal) return null
@@ -30,65 +31,61 @@ function CouponCard({
   onCopy,
 }) {
   const code = (coupon?.code ?? '').toString()
-  const title = (coupon?.title ?? coupon?.name ?? 'EXTRA OFFER').toString()
+  const title = (coupon?.description ?? coupon?.title ?? coupon?.name ?? 'EXTRA OFFER').toString()
   const minCart = coupon?.minCartValue ?? coupon?.minOrderValue ?? coupon?.minOrder ?? 0
   const expiry = formatExpiry(coupon?.expiryDate ?? coupon?.expiresAt ?? coupon?.expiry)
   const isActive = coupon?.isActive ?? coupon?.active ?? true
 
   return (
-    <div className="bg-white border border-gray-200 shadow-sm rounded-md overflow-hidden">
-      <div className="flex">
-        {/* Left content */}
-        <div className="flex-1 px-6 py-5 flex items-center gap-4">
-          <div className="h-7 w-7 rounded bg-gray-100 flex items-center justify-center shrink-0">
-            <span className="text-[10px] font-bold text-black">%</span>
+    <div className="bg-white border border-gray-100 shadow-sm rounded-xl overflow-hidden">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center min-h-0">
+        {/* Left: icon + details */}
+        <div className="flex-1 px-4 sm:px-5 py-4 flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded flex items-center justify-center shrink-0 p-1.5 sm:p-2 bg-gray-100 overflow-hidden">
+            <img src={couponIcon} alt="" className="h-full w-full object-contain" />
           </div>
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase text-black truncate">{title}</p>
-            <p className="mt-1 text-[11px] uppercase text-gray-500">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs sm:text-sm font-bold uppercase tracking-wide text-gray-900 truncate">{title}</p>
+            <p className="mt-0.5 text-[11px] sm:text-xs uppercase text-gray-700 break-words">
               MIN. ORDER OF ₹{Number(minCart || 0).toLocaleString('en-IN')} TO REDEEM,
             </p>
             {expiry && (
-              <p className="mt-1 text-[11px] text-gray-500">
+              <p className="mt-0.5 text-[11px] sm:text-xs text-gray-700">
                 Expires {expiry}
               </p>
             )}
           </div>
         </div>
 
-        {/* Status pill (middle-ish like screenshot) */}
-        <div className="px-4 py-5 flex items-start">
+        {/* Right: status + action (dashed divider) */}
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 px-4 sm:pl-4 sm:pr-5 py-4 border-t sm:border-t-0 sm:border-l border-dashed border-gray-300 bg-gray-50/50 sm:bg-transparent">
           <span
-            className={`px-5 py-1 rounded-full text-[10px] font-semibold uppercase ${
-              isActive ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-700'
+            className={`shrink-0 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${
+              isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
             }`}
           >
-            {isActive ? 'Active' : 'Inactive'}
+            {isActive ? 'ACTIVE' : 'INACTIVE'}
           </span>
-        </div>
-
-        {/* Right action */}
-        <div className="w-[220px] px-6 py-5 flex items-center justify-center border-l border-dashed border-gray-300">
           {!reveal ? (
             <button
               type="button"
               onClick={onToggleReveal}
-              className="px-8 py-2 rounded-full bg-black text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-gray-800 transition-colors"
+              className="w-full sm:w-auto shrink-0 px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg bg-black text-white text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-gray-800 transition-colors"
             >
-              Show code
+              SHOW CODE
             </button>
           ) : (
-            <div className="flex items-center gap-3 rounded-full border border-black px-6 py-2">
-              <span className="text-lg font-semibold tracking-wider text-black">
+            <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 sm:px-4 py-2 sm:py-2.5 min-w-0 flex-1 sm:flex-initial max-w-full">
+              <span className="text-xs sm:text-sm font-semibold tracking-wider text-black truncate min-w-0">
                 {code || '—'}
               </span>
               <button
                 type="button"
                 onClick={onCopy}
-                className="p-1 text-gray-700 hover:text-black"
+                className="p-1 text-gray-600 hover:text-black rounded shrink-0"
                 aria-label="Copy coupon code"
               >
-                <CopyIcon className="h-5 w-5" />
+                <CopyIcon className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -127,6 +124,11 @@ export default function CouponsPage() {
         ? data
         : (data?.items ?? data?.data ?? data?.coupons ?? [])
       const pag = data?.pagination ?? data?.meta ?? null
+
+      const couponList = Array.isArray(list) ? list : []
+      console.log('Coupons response:', JSON.stringify(res?.data, null, 2))
+      console.log('Coupon details:', JSON.stringify(couponList, null, 2))
+      if (couponList.length > 0) console.table(couponList)
 
       setCoupons(Array.isArray(list) ? list : [])
       setPagination(pag && typeof pag === 'object' ? pag : null)
@@ -178,12 +180,12 @@ export default function CouponsPage() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold text-black uppercase">Coupons</h1>
-          <p className="mt-2 text-gray-600">Please sign in to view your coupons.</p>
+        <div className=" px-4 sm:px-6 py-12 sm:py-16 text-center ">
+          <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">Coupons</h1>
+          <p className="mt-2 text-sm sm:text-base text-gray-600">Please sign in to view your coupons.</p>
           <Link
             to={ROUTES.AUTH}
-            className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors"
+            className="mt-6 inline-block px-6 py-3 bg-black text-white text-sm font-medium uppercase hover:bg-gray-800 transition-colors"
           >
             Sign in
           </Link>
@@ -194,7 +196,8 @@ export default function CouponsPage() {
 
   return (
     <div className="min-h-screen bg-white pt-24 pb-12">
-      <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
+      <div className=" px-4 sm:px-6 md:px-8 ">
+        <h1 className="text-lg sm:text-xl font-bold text-black uppercase mb-6">Coupons</h1>
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
         {loading ? (
@@ -202,7 +205,7 @@ export default function CouponsPage() {
         ) : coupons.length === 0 ? (
           <p className="text-sm text-gray-500">No coupons available.</p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {coupons.map((c) => {
               const id = c?._id ?? c?.id ?? c?.code
               const code = (c?.code ?? '').toString()
@@ -225,8 +228,8 @@ export default function CouponsPage() {
 
         {/* Copied toast */}
         {copiedCode && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-            <div className="px-4 py-2 rounded-full bg-black text-white text-xs font-medium">
+          <div className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex justify-center">
+            <div className="px-4 py-2 rounded-full bg-black text-white text-xs font-medium max-w-[90vw] truncate">
               Copied {copiedCode}
             </div>
           </div>
@@ -234,12 +237,12 @@ export default function CouponsPage() {
 
         {/* Pagination */}
         {!loading && (totalPages ? totalPages > 1 : coupons.length === limit) && (
-          <div className="flex items-center justify-center gap-2 mt-10">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-8 sm:mt-10">
             <button
               type="button"
               disabled={!canPrev}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="min-w-24 px-4 py-2 rounded-full border border-gray-300 text-sm disabled:opacity-50"
+              className="min-w-20 sm:min-w-24 px-3 sm:px-4 py-2 rounded-full border border-gray-300 text-xs sm:text-sm disabled:opacity-50"
             >
               Prev
             </button>
@@ -250,7 +253,7 @@ export default function CouponsPage() {
                   key={n}
                   type="button"
                   onClick={() => setPage(n)}
-                  className={`h-10 w-10 rounded-full text-sm font-medium ${
+                  className={`h-9 w-9 sm:h-10 sm:w-10 rounded-full text-xs sm:text-sm font-medium ${
                     n === currentPage ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -258,14 +261,14 @@ export default function CouponsPage() {
                 </button>
               ))
             ) : (
-              <span className="text-sm text-gray-500 px-2">Page {currentPage}</span>
+              <span className="text-xs sm:text-sm text-gray-500 px-2">Page {currentPage}</span>
             )}
 
             <button
               type="button"
               disabled={!canNext || (totalPages != null && currentPage >= totalPages)}
               onClick={() => setPage((p) => p + 1)}
-              className="min-w-24 px-4 py-2 rounded-full border border-gray-300 text-sm disabled:opacity-50"
+              className="min-w-20 sm:min-w-24 px-3 sm:px-4 py-2 rounded-full border border-gray-300 text-xs sm:text-sm disabled:opacity-50"
             >
               Next
             </button>

@@ -9,11 +9,15 @@ import client from './axiosClient.js';
 const BASE = '/order';
 
 export const orderService = {
+  /** Create order (place order). Body: { addressId, paymentMode: 'COD'|'RAZORPAY', couponCode?, razorpayPaymentData? } */
   create: (body) => client.post(`${BASE}/create`, body),
 
+  /** Verify Razorpay payment after checkout. Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature } */
   verifyPayment: (body) => client.post(`${BASE}/verify-payment`, body),
 
+  /** Get current user's order items (paginated). Params: page, limit, search, year, days, months, status */
   getOrderItems: (params = {}) => client.get(`${BASE}/items`, { params }),
 
-  getOrderItemById: (itemId) => client.get(`${BASE}/items/${itemId}`),
+  /** Get single order item. Backend: GET /order/items/:orderId/:itemId */
+  getOrderItemById: (orderId, itemId) => client.get(`${BASE}/items/${orderId}/${itemId}`),
 };
