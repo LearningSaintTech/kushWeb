@@ -1,158 +1,195 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useSelector } from 'react-redux'
-import { FaChevronDown, FaChevronUp } from 'react-icons/fa'
-import { FaTag } from 'react-icons/fa6'
-import { RiFileList2Line, RiRefreshLine, RiTruckLine } from 'react-icons/ri'
-import { HeartIcon } from '../../shared/ui/icons'
-import { itemsService } from '../../services/items.service.js'
-import { deliveryService } from '../../services/delivery.service.js'
-import { useAuth } from '../../app/context/AuthContext'
-import { useCartWishlist } from '../../app/context/CartWishlistContext'
-import { ROUTES } from '../../utils/constants'
-import productImage from '../../assets/temporary/productimage.png'
-import ReviewRating from './components/ReviewRating'
+import { useState, useEffect, useMemo } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { FaChevronDown, FaChevronUp } from "react-icons/fa";
+import { FaTag } from "react-icons/fa6";
+import { RiFileList2Line, RiRefreshLine, RiTruckLine } from "react-icons/ri";
+import { HeartIcon } from "../../shared/ui/icons";
+import { itemsService } from "../../services/items.service.js";
+import { deliveryService } from "../../services/delivery.service.js";
+import { useAuth } from "../../app/context/AuthContext";
+import { useCartWishlist } from "../../app/context/CartWishlistContext";
+import { ROUTES } from "../../utils/constants";
+import productImage from "../../assets/temporary/productimage.png";
+import ReviewRating from "./components/ReviewRating";
 
 function ProductPage() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const pincode = useSelector((s) => s?.location?.pincode) ?? null
-  const { isAuthenticated, openAuthModal } = useAuth()
-  const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist()
-  const [addedToCart, setAddedToCart] = useState(false)
-  const [cartError, setCartError] = useState(null)
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const pincode = useSelector((s) => s?.location?.pincode) ?? null;
+  const { isAuthenticated, openAuthModal } = useAuth();
+  const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
+  const [addedToCart, setAddedToCart] = useState(false);
+  const [cartError, setCartError] = useState(null);
 
-  const [itemData, setItemData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [selectedColor, setSelectedColor] = useState(null)
-  const [selectedSize, setSelectedSize] = useState(null)
-  const [expandedSection, setExpandedSection] = useState('care')
-  const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState([])
+  const [itemData, setItemData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedColor, setSelectedColor] = useState(null);
+  const [selectedSize, setSelectedSize] = useState(null);
+  const [expandedSection, setExpandedSection] = useState("care");
+  const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
+    [],
+  );
 
   // Fetch delivery options by pincode for dropdown
   useEffect(() => {
     if (!pincode || !String(pincode).trim()) {
-      setDeliveryOptionsFromPincode([])
-      return
+      setDeliveryOptionsFromPincode([]);
+      return;
     }
     deliveryService
       .checkByPincode(String(pincode).trim())
       .then((res) => {
-        const data = res?.data?.data ?? res?.data
-        const options = data?.deliveryOptions ?? []
-        setDeliveryOptionsFromPincode(Array.isArray(options) ? options : [])
+        const data = res?.data?.data ?? res?.data;
+        const options = data?.deliveryOptions ?? [];
+        setDeliveryOptionsFromPincode(Array.isArray(options) ? options : []);
       })
-      .catch(() => setDeliveryOptionsFromPincode([]))
-  }, [pincode])
+      .catch(() => setDeliveryOptionsFromPincode([]));
+  }, [pincode]);
 
   useEffect(() => {
     if (!id) {
-      setLoading(false)
-      setError('Invalid product')
-      return
+      setLoading(false);
+      setError("Invalid product");
+      return;
     }
-    setLoading(true)
-    setError(null)
-    const params = pincode ? { pincode: String(pincode) } : {}
+    setLoading(true);
+    setError(null);
+    const params = pincode ? { pincode: String(pincode) } : {};
     itemsService
       .getById(id, params)
       .then((res) => {
-        const data = res?.data?.data ?? res?.data
-        const item = data?.item ?? data
-        console.log('[ProductPage] product details API response:', { dataKeys: data ? Object.keys(data) : [], hasItem: !!item, itemId: item?._id, variantsCount: item?.variants?.length })
+        const data = res?.data?.data ?? res?.data;
+        const item = data?.item ?? data;
+        console.log("[ProductPage] product details API response:", {
+          dataKeys: data ? Object.keys(data) : [],
+          hasItem: !!item,
+          itemId: item?._id,
+          variantsCount: item?.variants?.length,
+        });
         if (item?.variants?.length) {
           item.variants.forEach((v, i) => {
-            console.log('[ProductPage] API variant[' + i + ']:', { color: v.color?.name, sizesCount: v.sizes?.length, sizes: v.sizes?.map(s => ({ size: s.size, sku: s.sku, stock: s.stock, inStock: s.inStock, availableQuantity: s.availableQuantity })) })
-          })
+            console.log("[ProductPage] API variant[" + i + "]:", {
+              color: v.color?.name,
+              sizesCount: v.sizes?.length,
+              sizes: v.sizes?.map((s) => ({
+                size: s.size,
+                sku: s.sku,
+                stock: s.stock,
+                inStock: s.inStock,
+                availableQuantity: s.availableQuantity,
+              })),
+            });
+          });
         }
         if (!item) {
-          setError('Product not found')
-          setItemData(null)
-          return
+          setError("Product not found");
+          setItemData(null);
+          return;
         }
-        setItemData({ item, deliveries: data?.deliveries ?? [] })
-        const defaultColorName = item.defaultColor || item.variants?.[0]?.color?.name
-        const firstSize = item.variants?.[0]?.sizes?.[0]?.size
-        console.log('[ProductPage] set initial selectedColor:', defaultColorName, 'selectedSize:', firstSize)
-        setSelectedColor(defaultColorName ?? null)
-        setSelectedSize(firstSize ?? null)
-        setSelectedImageIndex(0)
+        setItemData({ item, deliveries: data?.deliveries ?? [] });
+        // const defaultColorName = item.defaultColor || item.variants?.[0]?.color?.name
+        // const firstSize = item.variants?.[0]?.sizes?.[0]?.size
+        // console.log('[ProductPage] set initial selectedColor:', defaultColorName, 'selectedSize:', firstSize)
+        setSelectedColor(null);
+        setSelectedSize(null);
+        setSelectedImageIndex(0);
       })
       .catch((err) => {
-        setError(err?.response?.data?.message || err?.message || 'Failed to load product')
-        setItemData(null)
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Failed to load product",
+        );
+        setItemData(null);
       })
-      .finally(() => setLoading(false))
-  }, [id, pincode])
+      .finally(() => setLoading(false));
+  }, [id, pincode]);
 
-  const item = itemData?.item
-  const deliveries = itemData?.deliveries ?? []
+  const item = itemData?.item;
+  const deliveries = itemData?.deliveries ?? [];
 
   const colors = useMemo(() => {
-    if (!item?.variants?.length) return []
+    if (!item?.variants?.length) return [];
     return item.variants.map((v) => ({
       id: v.color?.name,
       name: v.color?.name,
-      value: v.color?.hex || '#666',
-    }))
-  }, [item])
+      value: v.color?.hex || "#666",
+    }));
+  }, [item]);
 
   const selectedVariant = useMemo(() => {
-    if (!item?.variants || !selectedColor) return null
-    return item.variants.find((v) => v.color?.name === selectedColor) ?? item.variants[0]
-  }, [item, selectedColor])
+    if (!item?.variants?.length) return null;
+
+    if (!selectedColor) return item.variants[0];
+
+    return item.variants.find((v) => v.color?.name === selectedColor);
+  }, [item, selectedColor]);
 
   const images = useMemo(() => {
     if (!selectedVariant?.images?.length) {
-      return item?.thumbnail ? [item.thumbnail] : [productImage]
+      return item?.thumbnail ? [item.thumbnail] : [productImage];
     }
-    const sorted = [...selectedVariant.images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    return sorted.map((img) => img.url).filter(Boolean)
-  }, [selectedVariant, item?.thumbnail])
+    const sorted = [...selectedVariant.images].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0),
+    );
+    return sorted.map((img) => img.url).filter(Boolean);
+  }, [selectedVariant, item?.thumbnail]);
 
   const sizes = useMemo(() => {
-    if (!selectedVariant?.sizes?.length) return []
+    if (!selectedVariant?.sizes?.length) return [];
     return selectedVariant.sizes.map((s) => {
-      const qty = Number(s.availableQuantity ?? s.stock ?? 0)
-      const inStock = s.inStock === true || (s.inStock !== false && qty > 0)
+      const qty = Number(s.availableQuantity ?? s.stock ?? 0);
+      const inStock = s.inStock === true || (s.inStock !== false && qty > 0);
       return {
         size: s.size,
         sku: s.sku,
         inStock,
-      }
-    })
-  }, [selectedVariant])
+      };
+    });
+  }, [selectedVariant]);
 
-  useEffect(() => {
-    if (sizes.length && !sizes.some((s) => String(s.size).trim() === String(selectedSize).trim())) {
-      setSelectedSize(sizes[0].size)
-    }
-  }, [sizes, selectedSize])
+  // useEffect(() => {
+  //   if (sizes.length && !sizes.some((s) => String(s.size).trim() === String(selectedSize).trim())) {
+  //     setSelectedSize(sizes[0].size)
+  //   }
+  // }, [sizes, selectedSize])
 
-  const mainImage = images[selectedImageIndex] ?? images[0] ?? productImage
+  const mainImage = images[selectedImageIndex] ?? images[0] ?? productImage;
 
-  const selectedSizeObj = sizes.find((s) => String(s.size).trim() === String(selectedSize).trim())
+  const selectedSizeObj = sizes.find(
+    (s) => String(s.size).trim() === String(selectedSize).trim(),
+  );
 
   const priceDisplay =
     item?.discountedPrice != null
-      ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      ? `₹${Number(item.discountedPrice).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
       : item?.price != null
-        ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-        : null
+        ? `₹${Number(item.price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+        : null;
 
   // Prefer pincode-check delivery options; fallback to item API deliveries
-  const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : deliveries
+  const deliveryOptions =
+    deliveryOptionsFromPincode.length > 0
+      ? deliveryOptionsFromPincode
+      : deliveries;
   const deliveryText = useMemo(() => {
-    if (deliveryOptions.some((d) => d.deliveryType === '90_MIN')) return '⊙ GET IN 90 min.'
-    if (deliveryOptions.some((d) => d.deliveryType === 'ONE_DAY')) return '⊙ GET IN 1 day'
-    return item?.shipping?.estimatedDelivery || item?.shipping?.title || '⊙ Check delivery'
-  }, [deliveryOptions, item?.shipping])
+    if (deliveryOptions.some((d) => d.deliveryType === "90_MIN"))
+      return "⊙ GET IN 90 min.";
+    if (deliveryOptions.some((d) => d.deliveryType === "ONE_DAY"))
+      return "⊙ GET IN 1 day";
+    return (
+      item?.shipping?.estimatedDelivery ||
+      item?.shipping?.title ||
+      "⊙ Check delivery"
+    );
+  }, [deliveryOptions, item?.shipping]);
 
   const productForCart = useMemo(() => {
-    if (!item || !selectedVariant || !selectedSizeObj) return null
-    const imageUrl = selectedVariant.images?.[0]?.url ?? item.thumbnail ?? ''
+    if (!item || !selectedVariant || !selectedSizeObj) return null;
+    const imageUrl = selectedVariant.images?.[0]?.url ?? item.thumbnail ?? "";
     return {
       id: item._id,
       _id: item._id,
@@ -169,10 +206,17 @@ function ProductPage() {
         imageUrl,
       },
       sku: selectedSizeObj.sku,
-    }
-  }, [item, selectedVariant, selectedSizeObj, selectedColor, priceDisplay, deliveryText])
+    };
+  }, [
+    item,
+    selectedVariant,
+    selectedSizeObj,
+    selectedColor,
+    priceDisplay,
+    deliveryText,
+  ]);
 
-  console.log('[ProductPage] product details state:', {
+  console.log("[ProductPage] product details state:", {
     hasItem: !!item,
     itemId: item?._id,
     selectedColor,
@@ -180,45 +224,64 @@ function ProductPage() {
     selectedVariant: !!selectedVariant,
     sizesCount: sizes.length,
     sizes,
-    selectedSizeObj: selectedSizeObj ? { size: selectedSizeObj.size, sku: selectedSizeObj.sku, inStock: selectedSizeObj.inStock } : null,
-    productForCart: productForCart ? { id: productForCart.id, sku: productForCart.sku } : null,
+    selectedSizeObj: selectedSizeObj
+      ? {
+          size: selectedSizeObj.size,
+          sku: selectedSizeObj.sku,
+          inStock: selectedSizeObj.inStock,
+        }
+      : null,
+    productForCart: productForCart
+      ? { id: productForCart.id, sku: productForCart.sku }
+      : null,
     buttonsDisabled: !productForCart || !selectedSizeObj?.inStock,
-    whyDisabled: !item ? 'no item' : !selectedVariant ? 'no selectedVariant' : !selectedSizeObj ? 'no selectedSizeObj (selectedSize=' + selectedSize + ')' : !selectedSizeObj?.inStock ? 'selectedSizeObj.inStock is false' : 'ok',
-  })
+    whyDisabled: !item
+      ? "no item"
+      : !selectedVariant
+        ? "no selectedVariant"
+        : !selectedSizeObj
+          ? "no selectedSizeObj (selectedSize=" + selectedSize + ")"
+          : !selectedSizeObj?.inStock
+            ? "selectedSizeObj.inStock is false"
+            : "ok",
+  });
 
-  const itemIdStr = item?._id != null ? String(item._id) : null
-  const inWishlist = itemIdStr != null && isInWishlist(itemIdStr)
+  const itemIdStr = item?._id != null ? String(item._id) : null;
+  const inWishlist = itemIdStr != null && isInWishlist(itemIdStr);
   const inCart = useMemo(() => {
-    if (!productForCart) return false
-    if (isAuthenticated) return (cart || []).some((c) => String(c?.sku) === String(productForCart.sku))
-    return (cart || []).some((c) => String(c?.id) === itemIdStr)
-  }, [cart, productForCart, isAuthenticated, itemIdStr])
+    if (!productForCart) return false;
+    if (isAuthenticated)
+      return (cart || []).some(
+        (c) => String(c?.sku) === String(productForCart.sku),
+      );
+    return (cart || []).some((c) => String(c?.id) === itemIdStr);
+  }, [cart, productForCart, isAuthenticated, itemIdStr]);
 
   const handleAddToCart = async () => {
     if (!isAuthenticated) {
-      openAuthModal()
-      return
+      openAuthModal();
+      return;
     }
-    if (!productForCart || !selectedSizeObj?.inStock) return
-    setCartError(null)
-    const result = await addToCart(productForCart, pincode)
+    if (!productForCart || !selectedSizeObj?.inStock) return;
+    setCartError(null);
+    const result = await addToCart(productForCart, pincode);
     if (result?.success === false && result?.message) {
-      setCartError(result.message)
-      setTimeout(() => setCartError(null), 4000)
-      return
+      setCartError(result.message);
+      setTimeout(() => setCartError(null), 4000);
+      return;
     }
-    setAddedToCart(true)
-    setTimeout(() => setAddedToCart(false), 4000)
-  }
+    setAddedToCart(true);
+    setTimeout(() => setAddedToCart(false), 4000);
+  };
 
   const handleWishlist = () => {
     if (!isAuthenticated) {
-      openAuthModal()
-      return
+      openAuthModal();
+      return;
     }
-    if (!item) return
-    const imageUrl = selectedVariant?.images?.[0]?.url ?? item.thumbnail ?? ''
-    const hoverUrl = selectedVariant?.images?.[1]?.url ?? imageUrl
+    if (!item) return;
+    const imageUrl = selectedVariant?.images?.[0]?.url ?? item.thumbnail ?? "";
+    const hoverUrl = selectedVariant?.images?.[1]?.url ?? imageUrl;
     toggleWishlist({
       id: itemIdStr ?? item._id,
       title: item.name,
@@ -227,28 +290,28 @@ function ProductPage() {
       hoverImage: hoverUrl,
       delivery: deliveryText,
       rating: item.avgRating ?? 4,
-    })
-  }
+    });
+  };
 
   const handleBuyNow = async () => {
     if (!isAuthenticated) {
-      openAuthModal()
-      return
+      openAuthModal();
+      return;
     }
-    if (!productForCart || !selectedSizeObj?.inStock) return
-    setCartError(null)
-    const result = await addToCart(productForCart, pincode)
+    if (!productForCart || !selectedSizeObj?.inStock) return;
+    setCartError(null);
+    const result = await addToCart(productForCart, pincode);
     if (result?.success === false && result?.message) {
-      setCartError(result.message)
-      setTimeout(() => setCartError(null), 4000)
-      return
+      setCartError(result.message);
+      setTimeout(() => setCartError(null), 4000);
+      return;
     }
-    navigate(ROUTES.CART)
-  }
+    navigate(ROUTES.CART);
+  };
 
   const toggleSection = (key) => {
-    setExpandedSection((prev) => (prev === key ? null : key))
-  }
+    setExpandedSection((prev) => (prev === key ? null : key));
+  };
 
   if (loading) {
     return (
@@ -257,24 +320,25 @@ function ProductPage() {
           <p className="text-sm sm:text-base text-gray-500">Loading product…</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (error || !item) {
     return (
       <div className="min-h-screen bg-gray-100 pt-20 pb-10 font-inter sm:pt-24 sm:pb-12 md:pt-28 md:pb-14 lg:pt-32 lg:pb-16">
         <div className="px-4 sm:px-6 md:px-8 lg:px-[6vw] max-w-[1600px] mx-auto flex flex-col items-center justify-center py-16 sm:py-20">
-          <p className="text-sm sm:text-base text-gray-600 text-center px-4">{error || 'Product not found'}</p>
+          <p className="text-sm sm:text-base text-gray-600 text-center px-4">
+            {error || "Product not found"}
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen mt-5 bg-gray-100 pt-20 pb-10 font-inter sm:pt-24 sm:pb-12 md:pt-28 md:pb-14 lg:pt-32 lg:pb-16">
       <div className="px-4 sm:px-6 md:px-8 lg:px-[6vw] ">
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8  lg:gap-6  xl:gap-8">
-
           {/* LEFT SIDE - Gallery */}
           <div className="w-full min-w-0 max-w-full overflow-hidden">
             <div className="w-full max-w-full bg-white overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
@@ -293,9 +357,13 @@ function ProductPage() {
                   key={idx}
                   type="button"
                   onClick={() => setSelectedImageIndex(idx)}
-                  className={`h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-white sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${selectedImageIndex === idx ? 'border-black' : 'border-transparent'}`}
+                  className={`h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-white sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${selectedImageIndex === idx ? "border-black" : "border-transparent"}`}
                 >
-                  <img src={url} alt="" className="h-full w-full max-w-full max-h-full object-cover object-center" />
+                  <img
+                    src={url}
+                    alt=""
+                    className="h-full w-full max-w-full max-h-full object-cover object-center"
+                  />
                 </button>
               ))}
             </div>
@@ -309,20 +377,42 @@ function ProductPage() {
                   {item.name}
                 </h1>
                 <p className="font-inter mt-1 sm:mt-1.5 font-normal capitalize text-[#646464] wrap-break-word text-xs sm:text-sm md:text-sm lg:text-lg xl:text-xl">
-                  {item.shortDescription || ''}
+                  {item.shortDescription || ""}
                 </p>
-                <p className="mt-1.5 sm:mt-2 text-sm sm:text-base text-[#e07a5f] md:text-lg lg:text-xl xl:text-[22px]">
-                  {priceDisplay}
-                </p>
+                <div className="mt-1.5 sm:mt-2 flex items-center justify-between flex-wrap gap-2">
+
+  {/* LEFT : PRICE */}
+  <div className="flex items-center gap-2 flex-wrap">
+    {item?.discountedPrice && (
+      <span className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-[22px] font-semibold text-[#e07a5f]">
+        ₹{Number(item.discountedPrice).toLocaleString("en-IN")}
+      </span>
+    )}
+
+    {item?.price && item?.discountedPrice && (
+      <span className="text-xs sm:text-sm md:text-base text-gray-500 line-through">
+        ₹{Number(item.price).toLocaleString("en-IN")}
+      </span>
+    )}
+  </div>
+
+  {/* RIGHT : RATING */}
+  <div className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px]">
+    ★ {item.avgRating != null ? Number(item.avgRating).toFixed(1) : "4.0"}
+  </div>
+
+</div>
               </div>
               <button
                 type="button"
                 onClick={handleWishlist}
                 className="shrink-0 rounded p-1.5 sm:p-2 hover:bg-black/5 cursor-pointer touch-manipulation"
-                aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+                aria-label={
+                  inWishlist ? "Remove from wishlist" : "Add to wishlist"
+                }
               >
                 <HeartIcon
-                  className={`h-5 w-5 sm:h-6 sm:w-6 md:h-6 md:w-6 lg:h-7 lg:w-7 ${inWishlist ? 'fill-black text-black' : 'text-black'}`}
+                  className={`h-5 w-5 sm:h-6 sm:w-6 md:h-6 md:w-6 lg:h-7 lg:w-7 ${inWishlist ? "fill-black text-black" : "text-black"}`}
                 />
               </button>
             </div>
@@ -331,14 +421,16 @@ function ProductPage() {
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 md:gap-3 lg:gap-5">
                 {colors.length > 0 && (
                   <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2 lg:gap-3">
-                    <span className="text-[11px] sm:text-xs md:text-xs lg:text-[15px] text-gray-700">Color</span>
+                    <span className="text-[11px] sm:text-xs md:text-xs lg:text-[15px] text-gray-700">
+                      Color
+                    </span>
                     <div className="flex gap-1.5 sm:gap-2 md:gap-2 lg:gap-[12px]">
                       {colors.map((c) => (
                         <button
                           key={c.id}
                           type="button"
                           onClick={() => setSelectedColor(c.id)}
-                          className={`box-border flex h-5 min-h-5 max-h-5 w-5 min-w-5 max-w-5 shrink-0 items-center justify-center rounded-full border-2 p-0 sm:h-6 sm:min-h-6 sm:max-h-6 sm:w-6 sm:min-w-6 sm:max-w-6 md:h-5 md:min-h-5 md:max-h-5 md:w-5 md:min-w-5 md:max-w-5 lg:h-[26px] lg:min-h-[26px] lg:max-h-[26px] lg:w-[26px] lg:min-w-[26px] lg:max-w-[26px] cursor-pointer ${selectedColor === c.id ? 'border-[#e53935]' : 'border-gray-300'}`}
+                          className={`box-border flex h-5 min-h-5 max-h-5 w-5 min-w-5 max-w-5 shrink-0 items-center justify-center rounded-full border-2 p-0 sm:h-6 sm:min-h-6 sm:max-h-6 sm:w-6 sm:min-w-6 sm:max-w-6 md:h-5 md:min-h-5 md:max-h-5 md:w-5 md:min-w-5 md:max-w-5 lg:h-[26px] lg:min-h-[26px] lg:max-h-[26px] lg:w-[26px] lg:min-w-[26px] lg:max-w-[26px] cursor-pointer ${selectedColor === c.id ? "border-[#e53935]" : "border-gray-300"}`}
                           style={{ backgroundColor: c.value }}
                           aria-label={c.name}
                         />
@@ -348,7 +440,9 @@ function ProductPage() {
                 )}
                 {sizes.length > 0 && (
                   <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2 lg:gap-3">
-                    <span className="text-[11px] sm:text-xs md:text-xs lg:text-[15px] text-gray-700">Size</span>
+                    <span className="text-[11px] sm:text-xs md:text-xs lg:text-[15px] text-gray-700">
+                      Size
+                    </span>
                     <div className="flex flex-wrap gap-1.5 sm:gap-2 md:gap-2 lg:gap-[10px]">
                       {sizes.map((s) => (
                         <button
@@ -356,12 +450,13 @@ function ProductPage() {
                           type="button"
                           onClick={() => setSelectedSize(s.size)}
                           disabled={!s.inStock}
-                          className={`flex h-7 w-7 min-w-7 items-center justify-center rounded-full border text-[11px] sm:h-8 sm:w-8 sm:min-w-8 sm:text-xs md:h-8 md:w-8 md:min-w-8 md:text-xs lg:h-9 lg:w-9 lg:min-w-9 lg:text-sm xl:h-[36px] xl:w-[36px] xl:min-w-[36px] xl:text-[14px] touch-manipulation ${selectedSize === s.size
-                            ? 'border-black bg-black text-white cursor-pointer'
-                            : s.inStock
-                              ? 'border-gray-300 text-gray-600 cursor-pointer'
-                              : 'cursor-not-allowed border-gray-200 text-gray-400'
-                            }`}
+                          className={`flex h-7 w-7 min-w-7 items-center justify-center rounded-full border text-[11px] sm:h-8 sm:w-8 sm:min-w-8 sm:text-xs md:h-8 md:w-8 md:min-w-8 md:text-xs lg:h-9 lg:w-9 lg:min-w-9 lg:text-sm xl:h-[36px] xl:w-[36px] xl:min-w-[36px] xl:text-[14px] touch-manipulation ${
+                            selectedSize === s.size
+                              ? "border-black bg-black text-white cursor-pointer"
+                              : s.inStock
+                                ? "border-gray-300 text-gray-600 cursor-pointer"
+                                : "cursor-not-allowed border-gray-200 text-gray-400"
+                          }`}
                         >
                           {s.size}
                         </button>
@@ -371,9 +466,12 @@ function ProductPage() {
                 )}
               </div>
               <div className="shrink-0 text-left md:text-right w-full md:w-auto">
-                <div className="inline-block rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:px-2.5 md:py-1 md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px]">
-                  ★ {item.avgRating != null ? Number(item.avgRating).toFixed(1) : '4.0'}
-                </div>
+                {/* <div className="inline-block rounded-full bg-red-900 px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:px-2.5 md:py-1 md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px]">
+                  ★{" "}
+                  {item.avgRating != null
+                    ? Number(item.avgRating).toFixed(1)
+                    : "4.0"}
+                </div> */}
                 <div className="mt-1 sm:mt-1.5 md:mt-1.5 lg:mt-2 text-[10px] text-gray-700 sm:text-[11px] md:text-xs lg:text-[14px]">
                   {deliveryOptions.length > 0 ? (
                     <select
@@ -381,20 +479,27 @@ function ProductPage() {
                       defaultValue=""
                       aria-label="Delivery option"
                     >
-                      <option value="" disabled>Select delivery</option>
+                      <option value="" disabled>
+                        Select delivery
+                      </option>
                       {deliveryOptions.map((opt) => {
-                        const id = opt._id?.toString?.() ?? opt._id
-                        const label = opt.deliveryType === '90_MIN'
-                          ? '90 MIN'
-                          : opt.deliveryType === 'ONE_DAY'
-                            ? '1 DAY'
-                            : opt.deliveryType || 'Standard'
-                        const charge = opt.deliveryCharge != null ? ` — Rs ${Number(opt.deliveryCharge)}` : ''
+                        const id = opt._id?.toString?.() ?? opt._id;
+                        const label =
+                          opt.deliveryType === "90_MIN"
+                            ? "90 MIN"
+                            : opt.deliveryType === "ONE_DAY"
+                              ? "1 DAY"
+                              : opt.deliveryType || "Standard";
+                        const charge =
+                          opt.deliveryCharge != null
+                            ? ` — Rs ${Number(opt.deliveryCharge)}`
+                            : "";
                         return (
                           <option key={id} value={id}>
-                            {label}{charge}
+                            {label}
+                            {charge}
                           </option>
-                        )
+                        );
                       })}
                     </select>
                   ) : (
@@ -411,23 +516,34 @@ function ProductPage() {
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
-                onClick={() => toggleSection('details')}
+                onClick={() => toggleSection("details")}
               >
                 <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
                   <RiFileList2Line className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Details</span>
                 </span>
                 <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
-                  {expandedSection === 'details' ? <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" /> : <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />}
+                  {expandedSection === "details" ? (
+                    <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  ) : (
+                    <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  )}
                 </span>
               </button>
               <div
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
-                style={{ gridTemplateRows: expandedSection === 'details' && item.longDescription ? '1fr' : '0fr' }}
+                style={{
+                  gridTemplateRows:
+                    expandedSection === "details" && item.longDescription
+                      ? "1fr"
+                      : "0fr",
+                }}
               >
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 sm:pb-4 md:pb-3 pt-0 lg:pb-4">
-                    <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-700 wrap-break-word">{item.longDescription || ''}</p>
+                    <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-700 wrap-break-word">
+                      {item.longDescription || ""}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -438,39 +554,51 @@ function ProductPage() {
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
-                onClick={() => toggleSection('care')}
+                onClick={() => toggleSection("care")}
               >
                 <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
                   <RiTruckLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Care</span>
                 </span>
                 <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
-                  {expandedSection === 'care' ? <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" /> : <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />}
+                  {expandedSection === "care" ? (
+                    <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  ) : (
+                    <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  )}
                 </span>
               </button>
               <div
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
-                style={{ gridTemplateRows: expandedSection === 'care' ? '1fr' : '0fr' }}
+                style={{
+                  gridTemplateRows: expandedSection === "care" ? "1fr" : "0fr",
+                }}
               >
                 <div className="overflow-hidden">
                   <div className="mt-3 sm:mt-4 flex gap-2 sm:gap-3 md:mt-3 md:gap-2 lg:mt-5 lg:gap-[12px]">
-                  <div className="shrink-0 text-gray-500">
-                    <RiTruckLine className="h-4 w-4 sm:h-5 sm:w-5 md:h-4 md:w-4 lg:h-6 lg:w-6" aria-hidden />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm md:text-sm lg:text-base xl:text-[16px] text-gray-800">
-                      {item.shipping?.title || 'Free Flat Rate Shipping'}
-                    </p>
-                    <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs md:text-xs lg:text-sm xl:text-[15px] text-gray-500">
-                      {item.shipping?.estimatedDelivery || 'Estimated delivery based on your pincode.'}
-                    </p>
-                    {item.care?.description && (
-                      <p className="mt-2 text-sm text-gray-600">{item.care.description}</p>
-                    )}
+                    <div className="shrink-0 text-gray-500">
+                      <RiTruckLine
+                        className="h-4 w-4 sm:h-5 sm:w-5 md:h-4 md:w-4 lg:h-6 lg:w-6"
+                        aria-hidden
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm md:text-sm lg:text-base xl:text-[16px] text-gray-800">
+                        {item.shipping?.title || "Free Flat Rate Shipping"}
+                      </p>
+                      <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs md:text-xs lg:text-sm xl:text-[15px] text-gray-500">
+                        {item.shipping?.estimatedDelivery ||
+                          "Estimated delivery based on your pincode."}
+                      </p>
+                      {item.care?.description && (
+                        <p className="mt-2 text-sm text-gray-600">
+                          {item.care.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
             </div>
 
             {/* COD POLICY */}
@@ -478,23 +606,34 @@ function ProductPage() {
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
-                onClick={() => toggleSection('cod')}
+                onClick={() => toggleSection("cod")}
               >
                 <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
                   <FaTag className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
-                  <span className="truncate">COD Policy</span>
+                  <span className="truncate">COD Policy </span>
                 </span>
                 <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
-                  {expandedSection === 'cod' ? <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" /> : <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />}
+                  {expandedSection === "cod" ? (
+                    <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  ) : (
+                    <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  )}
                 </span>
               </button>
               <div
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
-                style={{ gridTemplateRows: expandedSection === 'cod' && item.codPolicy?.text ? '1fr' : '0fr' }}
+                style={{
+                  gridTemplateRows:
+                    expandedSection === "cod" && item.codPolicy?.text
+                      ? "1fr"
+                      : "0fr",
+                }}
               >
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 sm:pb-4 md:pb-3 pt-0 lg:pb-4">
-                    <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-600 wrap-break-word">{item.codPolicy?.text || ''}</p>
+                    <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-600 wrap-break-word">
+                      {item.codPolicy?.text || ""}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -505,23 +644,34 @@ function ProductPage() {
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
-                onClick={() => toggleSection('return')}
+                onClick={() => toggleSection("return")}
               >
                 <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
                   <RiRefreshLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Return Policy</span>
                 </span>
                 <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
-                  {expandedSection === 'return' ? <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" /> : <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />}
+                  {expandedSection === "return" ? (
+                    <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  ) : (
+                    <FaChevronDown className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
+                  )}
                 </span>
               </button>
               <div
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
-                style={{ gridTemplateRows: expandedSection === 'return' && item.returnPolicy?.text ? '1fr' : '0fr' }}
+                style={{
+                  gridTemplateRows:
+                    expandedSection === "return" && item.returnPolicy?.text
+                      ? "1fr"
+                      : "0fr",
+                }}
               >
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 sm:pb-4 md:pb-3 pt-0 lg:pb-4">
-                      <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-600 wrap-break-word">{item.returnPolicy?.text || ''}</p>
+                    <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-600 wrap-break-word">
+                      {item.returnPolicy?.text || ""}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -571,7 +721,10 @@ function ProductPage() {
                 </>
               )}
               {cartError && (
-                <p className="mt-2 text-xs sm:text-sm text-red-600 wrap-break-word" role="alert">
+                <p
+                  className="mt-2 text-xs sm:text-sm text-red-600 wrap-break-word"
+                  role="alert"
+                >
                   {cartError}
                 </p>
               )}
@@ -582,7 +735,7 @@ function ProductPage() {
         <ReviewRating itemId={item._id} />
       </div>
     </div>
-  )
+  );
 }
 
-export default ProductPage
+export default ProductPage;

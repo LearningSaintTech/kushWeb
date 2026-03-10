@@ -40,7 +40,7 @@ const Couples = ({ section }) => {
           <div className="flex items-center justify-start gap-4 w-full mt-2">
             <div className="flex-1 max-w-16 h-px bg-black" />
             <span className="text-sm tracking-[0.25em] uppercase font-semibold text-black">
-              COLLECTION
+              COLLECTION 
             </span>
           </div>
         </div>
@@ -102,7 +102,7 @@ const Couples = ({ section }) => {
             <div className="flex items-center gap-4 mt-2">
               <div className="w-39 h-px bg-black" />
               <span className="text-sm tracking-[0.25em] uppercase font-semibold text-black">
-                COLLECTION
+                COLLECTION 
               </span>
             </div>
           </div>

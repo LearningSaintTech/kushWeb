@@ -278,9 +278,9 @@ function BestSellar({ section }) {
                 ›
               </button>
             </div>
-            <span className="text-xs text-gray-400 mt-2" aria-live="polite">
+            {/* <span className="text-xs text-red-400 mt-2" aria-live="polite">
               Cards: {n} {sectionLoadingMore ? '(loading more…)' : ''}
-            </span>
+            </span> */}
           </div>
         </div>
 
@@ -377,9 +377,9 @@ function BestSellar({ section }) {
                 </button>
               </div>
             </div>
-            <span className="text-xs text-gray-400 mt-2" aria-live="polite">
+            {/* <span className="text-xs text-red-400 mt-2" aria-live="polite">
               Cards: {n} {sectionLoadingMore ? '(loading more…)' : ''}
-            </span>
+            </span> */}
           </div>
         </div>
 

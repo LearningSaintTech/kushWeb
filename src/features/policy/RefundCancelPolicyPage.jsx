@@ -3,7 +3,7 @@ import PolicyPageLayout from './PolicyPageLayout'
 export default function RefundCancelPolicyPage() {
   return (
     <PolicyPageLayout title="Refund and cancel policy">
-      <p><strong>Last updated:</strong> [Date]</p>
+      {/* <p><strong>Last updated:</strong> [Date]</p> */}
       <p>At KHUSH, we want you to be satisfied with your purchase. If you are not completely satisfied, you may request a refund or cancel your order subject to the following conditions.</p>
       <h2 className="text-lg font-semibold text-black mt-6">Eligibility</h2>
       <p>Refunds and cancellations are available for items returned in original condition within the specified return window.</p>

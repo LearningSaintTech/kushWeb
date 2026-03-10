@@ -368,9 +368,9 @@ function NewArrivals({ section }) {
         </div>
 
         <div className="text-center mt-2 md:mt-4 flex flex-col items-center gap-2">
-          <span className="text-xs text-gray-400" aria-live="polite">
+          {/* <span className="text-xs text-red-400" aria-live="polite">
             Cards: {list.length} {sectionLoadingMore ? '(loading more…)' : ''}
-          </span>
+          </span> */}
           <Link
             to={exploreTo}
             className="inline-flex items-center gap-1 uppercase text-xs md:text-sm tracking-widest text-black border-b pb-1 hover:opacity-70 transition-opacity"

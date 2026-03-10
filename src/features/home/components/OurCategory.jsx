@@ -135,24 +135,40 @@ function  OurCategory({ section }) {
           </h2>
 
           {/* Single row, horizontally scrollable category tabs */}
-          <div className="mt-6 w-full overflow-x-auto overflow-y-hidden flex justify-start sm:justify-center [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex flex-nowrap gap-6 justify-center items-center min-w-max pl-4 pr-4 sm:pl-6 sm:pr-6">
-              {categoryTabs.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setActiveTab(cat)}
-                  className={`shrink-0 whitespace-nowrap uppercase pb-2 text-xs sm:text-base font-medium tracking-widest transition-all border-b-2 cursor-pointer ${
-                    activeTab === cat
-                      ? 'text-black font-bold border-black'
-                      : 'text-gray-400 border-transparent hover:text-black'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
+         <div className="mt-8 w-full flex justify-center">
+  <div className="overflow-x-auto w-full max-w-4xl [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+    
+    <div className="flex gap-4 sm:gap-6 md:gap-8 justify-start sm:justify-center items-center px-4 min-w-max">
+
+      {categoryTabs.map((cat) => (
+        <button
+          key={cat}
+          onClick={() => setActiveTab(cat)}
+          className={`relative whitespace-nowrap uppercase text-xs sm:text-sm md:text-base tracking-wider pb-2 transition-all duration-300
+          
+          ${
+            activeTab === cat
+              ? "text-black font-semibold"
+              : "text-gray-400 hover:text-black"
+          }`}
+        >
+          {cat}
+
+          {/* Animated underline */}
+          <span
+            className={`absolute left-0 bottom-0 h-[2px] w-full transition-all duration-300
+            ${
+              activeTab === cat
+                ? "bg-black scale-x-100"
+                : "bg-black scale-x-0"
+            }`}
+          />
+        </button>
+      ))}
+
+    </div>
+  </div>
+</div>
         </div>
 
         {/* ================= GRID ================= */}

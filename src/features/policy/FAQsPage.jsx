@@ -1,39 +1,100 @@
-import PolicyPageLayout from './PolicyPageLayout'
+import PolicyPageLayout from './PolicyPageLayout';
 
 export default function FAQsPage() {
   return (
-    <PolicyPageLayout title="FAQs">
-      <div className="space-y-8">
-        <section>
-          <h2 className="text-lg font-semibold text-black">Orders and checkout</h2>
-          <ul className="mt-2 space-y-2 list-disc pl-5">
-            <li><strong>How do I place an order?</strong> Add items to cart, proceed to checkout, enter delivery and payment details, and confirm your order.</li>
-            <li><strong>Can I modify or cancel my order?</strong> You can cancel before the order is shipped. Modifications may be possible in some cases—contact support.</li>
-            <li><strong>How do I track my order?</strong> Use the tracking link sent to your email or log in to your account and view order history.</li>
-          </ul>
-        </section>
-        <section>
-          <h2 className="text-lg font-semibold text-black">Returns and refunds</h2>
-          <ul className="mt-2 space-y-2 list-disc pl-5">
-            <li><strong>What is your return window?</strong> Returns are accepted within the period mentioned in our Refund and Cancel Policy, typically from the delivery date.</li>
-            <li><strong>How will I receive my refund?</strong> Refunds are processed to the original payment method and may take 5–10 business days to reflect.</li>
-          </ul>
-        </section>
-        <section>
-          <h2 className="text-lg font-semibold text-black">Delivery</h2>
-          <ul className="mt-2 space-y-2 list-disc pl-5">
-            <li><strong>Do you deliver to my area?</strong> Enter your pincode on the product or checkout page to check serviceability and delivery options.</li>
-            <li><strong>What if I am not available for delivery?</strong> The courier may attempt again or leave the package at a safe location as per their policy; you can also reschedule where supported.</li>
-          </ul>
-        </section>
-        <section>
-          <h2 className="text-lg font-semibold text-black">Account and security</h2>
-          <ul className="mt-2 space-y-2 list-disc pl-5">
-            <li><strong>How do I reset my password?</strong> Use the &quot;Forgot password&quot; link on the login page and follow the instructions sent to your email.</li>
-            <li><strong>Who do I contact for help?</strong> Reach out via the Contact Us page or the email/phone provided on our website.</li>
-          </ul>
-        </section>
+    <PolicyPageLayout> {/* ← Remove title prop if it duplicates the h1 */}
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
+        <h1 className="mb-10 text-center text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          Frequently Asked Questions
+        </h1>
+
+        <div className="space-y-10">
+          {/* Orders and Checkout */}
+          <section>
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
+              Orders & Checkout
+            </h2>
+            <div className="space-y-6">
+              <FaqItem
+                question="How do I place an order?"
+                answer="Add items to your cart, proceed to checkout, enter your delivery and payment details, and confirm your order."
+              />
+              <FaqItem
+                question="Can I modify or cancel my order?"
+                answer="You can cancel your order before it is shipped. Modifications are possible in some cases — please contact support as soon as possible."
+              />
+              <FaqItem
+                question="How do I track my order?"
+                answer="Use the tracking link sent to your email or log in to your account → Orders section to view real-time status."
+              />
+            </div>
+          </section>
+
+          {/* Returns and Refunds */}
+          <section>
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
+              Returns & Refunds
+            </h2>
+            <div className="space-y-6">
+              <FaqItem
+                question="What is your return window?"
+                answer="Returns are accepted within the timeframe specified in our Refund & Cancellation Policy, usually starting from the date of delivery."
+              />
+              <FaqItem
+                question="How will I receive my refund?"
+                answer="Refunds are processed back to the original payment method. It typically takes 5–10 business days to reflect in your account, depending on your bank/payment provider."
+              />
+            </div>
+          </section>
+
+          {/* Delivery */}
+          <section>
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
+              Delivery
+            </h2>
+            <div className="space-y-6">
+              <FaqItem
+                question="Do you deliver to my area?"
+                answer="Enter your pincode on the product page or during checkout to check serviceability and available delivery options."
+              />
+              <FaqItem
+                question="What if I am not available for delivery?"
+                answer="The courier may attempt redelivery the next day or leave the package at a safe location (as per their policy). You can also reschedule delivery in many cases via the tracking link."
+              />
+            </div>
+          </section>
+
+          {/* Account */}
+          <section>
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
+              Account & Security
+            </h2>
+            <div className="space-y-6">
+              <FaqItem
+                question="How do I reset my password?"
+                answer='Click "Forgot password?" on the login page and follow the instructions sent to your registered email.'
+              />
+              <FaqItem
+                question="Who do I contact for help?"
+                answer="Use the Contact Us form on our website, or reach out via email / phone number listed in the footer or Contact section."
+              />
+            </div>
+          </section>
+        </div>
       </div>
     </PolicyPageLayout>
-  )
+  );
+}
+
+function FaqItem({ question, answer }) {
+  return (
+    <div className="group py-4 transition-colors hover:bg-gray-50/60">
+      <dt className="text-lg font-medium leading-7 text-gray-900 group-hover:text-indigo-600">
+        {question}
+      </dt>
+      <dd className="mt-1.5 text-base leading-6 text-gray-600">
+        {answer}
+      </dd>
+    </div>
+  );
 }
