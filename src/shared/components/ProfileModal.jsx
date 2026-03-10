@@ -80,7 +80,7 @@ export default function ProfileModal({ open, onClose }) {
 
   const handleUpdateProfile = () => {
     onClose()
-    navigate(ROUTES.ACCOUNT)
+    navigate(ROUTES.PROFILE_UPDATE)
   }
 
   const handleLogout = () => {
@@ -198,7 +198,7 @@ export default function ProfileModal({ open, onClose }) {
             <button
               type="button"
               onClick={handleLogout}
-              className="font-inter w-full py-3 px-4  bg-white border-1 border-black text-black text-sm font-semibold uppercase tracking-wide hover:bg-gray-50 transition-colors"
+              className="font-inter w-full py-3 px-4 bg-white border border-black text-black text-sm font-semibold uppercase tracking-wide hover:bg-gray-50 transition-colors"
             >
               Log Out
             </button>

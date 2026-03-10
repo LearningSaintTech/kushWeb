@@ -142,6 +142,18 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [setToken])
 
+  const refreshUser = useCallback(async () => {
+    if (!token) return null
+    try {
+      const res = await authService.getProfile()
+      const data = res?.data?.data ?? res?.data
+      setUser(data ?? null)
+      return data
+    } catch {
+      return null
+    }
+  }, [token])
+
   const value = useMemo(
     () => ({
       token,
@@ -158,6 +170,7 @@ export function AuthProvider({ children }) {
       resendOtp,
       logout,
       setToken,
+      refreshUser,
       getDeviceId: getOrCreateDeviceId,
     }),
     [
@@ -175,6 +188,7 @@ export function AuthProvider({ children }) {
       resendOtp,
       logout,
       setToken,
+      refreshUser,
     ]
   )
 

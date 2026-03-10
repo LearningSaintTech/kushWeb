@@ -7,13 +7,14 @@ import { cancellationService } from '../../services/cancellation.service.js'
 import { exchangeService } from '../../services/exchange.service.js'
 import { ROUTES } from '../../utils/constants'
 
-const EXCHANGE_QUANTITY_OPTIONS = [
-  { value: 1, label: 'ONE' },
-  { value: 2, label: 'TWO' },
-  { value: 3, label: 'THREE' },
-  { value: 4, label: 'FOUR' },
-  { value: 5, label: 'FIVE' },
-]
+const QUANTITY_LABELS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten' }
+function getExchangeQuantityOptions(maxQuantity) {
+  const max = Math.max(1, Math.min(Number(maxQuantity) || 1, 10))
+  return Array.from({ length: max }, (_, i) => {
+    const value = i + 1
+    return { value, label: QUANTITY_LABELS[value] || String(value) }
+  })
+}
 
 const CANCEL_REASONS = [
   'Changed my mind',
@@ -21,6 +22,15 @@ const CANCEL_REASONS = [
   'Ordered by mistake',
   'Found a better price elsewhere',
   'Delivery too late',
+  'Other',
+]
+
+const EXCHANGE_REASONS = [
+  'Wrong size',
+  'Wrong color',
+  'Defective or damaged',
+  'Not as described',
+  'Changed my mind',
   'Other',
 ]
 
@@ -45,10 +55,10 @@ const STEPPER = [
 const EXCHANGE_STATUSES = [
   'EXCHANGE_REQUESTED', 'EXCHANGE_APPROVED', 'EXCHANGE_REJECTED', 'EXCHANGE_PICKUP_SCHEDULED',
   'EXCHANGE_PICKED', 'EXCHANGE_RECEIVED', 'EXCHANGE_PROCESSING', 'EXCHANGE_SHIPPED',
-  'EXCHANGE_DELIVERED', 'EXCHANGE_COMPLETED'
+  'EXCHANGE_DELIVERED', 'EXCHANGE_COMPLETED' // EXCHANGE_COMPLETED shown as final step "Exchange Delivered"
 ]
 
-// One step per exchange status (matches order.model.js ORDER_STATUS_ENUM); EXCHANGE_REJECTED shown separately
+// Exchange stepper (EXCHANGE_COMPLETED removed; EXCHANGE_DELIVERED is the final step)
 const EXCHANGE_STEPPER = [
   { key: 'EXCHANGE_REQUESTED', label: 'Exchange Requested', statuses: ['EXCHANGE_REQUESTED'] },
   { key: 'EXCHANGE_APPROVED', label: 'Exchange Approved', statuses: ['EXCHANGE_APPROVED'] },
@@ -57,8 +67,7 @@ const EXCHANGE_STEPPER = [
   { key: 'EXCHANGE_RECEIVED', label: 'Exchange Received', statuses: ['EXCHANGE_RECEIVED'] },
   { key: 'EXCHANGE_PROCESSING', label: 'Exchange Processing', statuses: ['EXCHANGE_PROCESSING'] },
   { key: 'EXCHANGE_SHIPPED', label: 'Exchange Shipped', statuses: ['EXCHANGE_SHIPPED'] },
-  { key: 'EXCHANGE_DELIVERED', label: 'Exchange Delivered', statuses: ['EXCHANGE_DELIVERED'] },
-  { key: 'EXCHANGE_COMPLETED', label: 'Exchange Completed', statuses: ['EXCHANGE_COMPLETED'] },
+  { key: 'EXCHANGE_DELIVERED', label: 'Exchange Delivered', statuses: ['EXCHANGE_DELIVERED', 'EXCHANGE_COMPLETED'] },
 ]
 
 const IN_PROGRESS_EXCHANGE_STATUSES = [
@@ -74,6 +83,27 @@ function formatStepperDate(dateVal) {
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const year = d.getFullYear()
   return `On ${day}/${month}/${year}`
+}
+
+function formatOrderDateTime(dateVal) {
+  if (!dateVal) return ''
+  const d = new Date(dateVal)
+  if (Number.isNaN(d.getTime())) return ''
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const date = d.getDate()
+  const month = months[d.getMonth()]
+  const year = d.getFullYear()
+  const h = d.getHours() % 12 || 12
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const ampm = d.getHours() >= 12 ? 'PM' : 'AM'
+  return `${date} ${month} ${year}, ${h}:${min} ${ampm}`
+}
+
+function getPaymentModeLabel(data) {
+  const mode = data?.payment?.mode ?? data?.item?.paymentMode ?? ''
+  if (mode === 'COD') return 'Cash on Delivery'
+  if (mode === 'RAZORPAY' || mode === 'PREPAID') return 'Prepaid'
+  return mode || '—'
 }
 
 function getStepStatus(statusHistory, currentStatus, step) {
@@ -148,6 +178,7 @@ export default function TrackOrderPage() {
   const [exchangeStep, setExchangeStep] = useState(0)
   const [exchangeQuantity, setExchangeQuantity] = useState(1)
   const [selectedExchangeItemId, setSelectedExchangeItemId] = useState(null)
+  const [exchangeReason, setExchangeReason] = useState(EXCHANGE_REASONS[0])
   const [exchangeDesiredSize, setExchangeDesiredSize] = useState('')
   const [exchangeDesiredColor, setExchangeDesiredColor] = useState('')
   const [exchangeItemDetails, setExchangeItemDetails] = useState(null)
@@ -178,6 +209,13 @@ export default function TrackOrderPage() {
       })
       .finally(() => setLoading(false))
   }, [isAuthenticated, orderId, itemId])
+
+  useEffect(() => {
+    if (exchangeStep === 1 && data?.item?.quantity != null) {
+      const maxQty = Math.max(1, Number(data.item.quantity) || 1)
+      setExchangeQuantity((prev) => (prev > maxQty ? maxQty : prev))
+    }
+  }, [exchangeStep, data?.item?.quantity])
 
   useEffect(() => {
     if (exchangeStep !== 3 || !selectedExchangeItemId) {
@@ -251,10 +289,11 @@ export default function TrackOrderPage() {
   }
 
   const openExchangeModal = () => {
+    setExchangeQuantity(1)
     setExchangeError(null)
     setExchangeStep(1)
-    setExchangeQuantity(1)
     setSelectedExchangeItemId(data?.itemId ?? null)
+    setExchangeReason(EXCHANGE_REASONS[0])
     setExchangeDesiredSize('')
     setExchangeDesiredColor('')
     setExchangeImages([])
@@ -302,16 +341,15 @@ export default function TrackOrderPage() {
       setExchangeError(null)
       setExchangeSubmitting(true)
       const selectedEntry = bookedItems.find((e) => e.itemId?.toString() === selectedExchangeItemId?.toString())
-      const reasonText = selectedEntry
-        ? [selectedEntry.item?.name, selectedEntry.item?.shortDescription].filter(Boolean).join(' ') || 'Exchange requested'
-        : 'Exchange requested'
+      const selectedItemQuantity = Math.max(1, Number(selectedEntry?.item?.quantity) || 1)
+      const quantityToSend = Math.min(exchangeQuantity, selectedItemQuantity)
       exchangeService
         .createExchangeRequest(
           {
             orderId,
             itemId: selectedExchangeItemId,
-            quantityToExchange: exchangeQuantity,
-            reason: reasonText,
+            quantityToExchange: quantityToSend,
+            reason: exchangeReason?.trim() || 'Exchange requested',
             desiredSize: exchangeDesiredSize.trim() || undefined,
             desiredColor: exchangeDesiredColor.trim() || undefined,
           },
@@ -363,7 +401,7 @@ export default function TrackOrderPage() {
   const brand = item.brandName || item.brand || '—'
   const name = item.name || item.shortDescription || '—'
   const imageUrl = item.variant?.imageUrl ?? ''
-  const trackingId = data.shipment?.trackingId || data.trackingId || '—'
+  const trackingId = data.shipment?.trackingId || data.trackingId || null
   const orderNo = data.orderId || '—'
   const currentStatus = (data.status || '').toUpperCase()
   const statusHistory = data.statusHistory || []
@@ -384,10 +422,11 @@ export default function TrackOrderPage() {
     EXCHANGE_STATUSES.includes(currentStatus) &&
     currentStatus !== 'EXCHANGE_REJECTED'
 
-  // Delivery boy from API (returned for SHIPPED / OUT_FOR_DELIVERY) or fallback to shipment
+  // Delivery boy from API (returned for SHIPPED / OUT_FOR_DELIVERY or exchange pickup/delivery when driver assigned)
   const deliveryBoyName = data.deliveryBoy?.name ?? data.shipment?.deliveryAgentName ?? null
   const deliveryBoyPhone = data.deliveryBoy?.phoneNumber ?? data.shipment?.deliveryAgentPhone ?? null
-  const showDeliveryBoyContact = (deliveryBoyName || deliveryBoyPhone) && ['SHIPPED', 'OUT_FOR_DELIVERY'].includes(currentStatus)
+  const deliveryStatusesShowDriver = ['SHIPPED', 'OUT_FOR_DELIVERY', 'EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_PICKED', 'EXCHANGE_SHIPPED', 'EXCHANGE_DELIVERED']
+  const showDeliveryBoyContact = (deliveryBoyName || deliveryBoyPhone) && deliveryStatusesShowDriver.includes(currentStatus)
 
   return (
     <div className="min-h-screen mt-20 bg-gray-100 pt-24 pb-12">
@@ -409,14 +448,32 @@ export default function TrackOrderPage() {
               )}
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-black uppercase">{brand}</p>
+              {/* <p className="font-bold text-black uppercase">{brand}</p> */}
               <p className="text-gray-800 mt-1 normal-case">{name}</p>
-              <p className="text-gray-600 text-sm mt-2">
-                Tracking ID : <strong>#{trackingId}</strong>
-              </p>
+              {trackingId && (
+                <p className="text-gray-600 text-sm mt-2">
+                  Tracking ID : <strong>#{trackingId}</strong>
+                </p>
+              )}
               <p className="text-gray-600 text-sm mt-0.5">
                 Order No : <strong>{orderNo}</strong>
               </p>
+              {data?.orderCreatedAt && (
+                <p className="text-gray-600 text-sm mt-0.5">
+                  Order placed : <strong>{formatOrderDateTime(data.orderCreatedAt)}</strong>
+                </p>
+              )}
+              <p className="text-gray-600 text-sm mt-0.5">
+                Payment mode : <strong>{getPaymentModeLabel(data)}</strong>
+              </p>
+              {data?.item?.paymentStatus && (
+                <p className="text-gray-600 text-sm mt-1">
+                  Payment status : <strong className="capitalize">{data.item.paymentStatus.toLowerCase()}</strong>
+                  {data.item.paymentStatus === 'COLLECTED' && data.item.paymentCollectedMethod && (
+                    <span className="text-gray-500"> ({data.item.paymentCollectedMethod})</span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -434,11 +491,17 @@ export default function TrackOrderPage() {
             </div>
           )}
 
-          {/* Status: Exchange rejected */}
+          {/* Status: Exchange rejected – show admin rejection note when provided */}
           {currentStatus === 'EXCHANGE_REJECTED' && (
-            <div className="py-4 mb-6 rounded border border-amber-200 bg-amber-50">
-              <p className="text-amber-800 font-semibold uppercase text-sm">Exchange</p>
+            <div className="py-4 mb-6 rounded border border-amber-200 bg-amber-50 px-4">
+              <p className="text-amber-800 font-semibold uppercase text-sm">Exchange request rejected</p>
               <p className="text-gray-700 text-sm mt-1">Your exchange request was rejected.</p>
+              {data?.exchange?.latestExchange?.adminRemark?.trim() && (
+                <div className="mt-3 pt-3 border-t border-amber-200">
+                  <p className="text-xs font-semibold uppercase text-amber-900 mb-1">Reason from store</p>
+                  <p className="text-sm text-gray-800">{data.exchange.latestExchange.adminRemark.trim()}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -522,11 +585,17 @@ export default function TrackOrderPage() {
             )
           })()}
 
-          {/* Contact delivery boy (only for SHIPPED / OUT_FOR_DELIVERY when API returns deliveryBoy) + Cancel + Exchange */}
+          {/* Contact delivery partner (delivery or exchange pickup/delivery when driver assigned) + Cancel + Exchange */}
           <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-gray-200">
             {showDeliveryBoyContact ? (
               <div>
-                <p className="text-sm font-medium text-gray-800 mb-2">Contact Delivery Boy</p>
+                <p className="text-sm font-medium text-gray-800 mb-2">
+                  {['EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_PICKED'].includes(currentStatus)
+                    ? 'Assigned driver (pickup)'
+                    : ['EXCHANGE_SHIPPED', 'EXCHANGE_DELIVERED'].includes(currentStatus)
+                      ? 'Assigned driver (exchange delivery)'
+                      : 'Contact delivery partner'}
+                </p>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 text-sm font-medium">
                     {(deliveryBoyName || 'D').charAt(0).toUpperCase()}
@@ -582,7 +651,7 @@ export default function TrackOrderPage() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-bold text-gray-900 uppercase text-sm">{b}</p>
+                    {/* <p className="font-bold text-gray-900 uppercase text-sm">{b}</p> */}
                     <p className="text-gray-700 text-sm normal-case">{n}</p>
                   </div>
                 </li>
@@ -734,20 +803,25 @@ export default function TrackOrderPage() {
         {exchangeStep > 0 && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => e.target === e.currentTarget && closeExchangeModal()}>
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              {exchangeStep === 1 && (
+              {exchangeStep === 1 && (() => {
+                const currentItemQuantity = Math.max(1, Number(data?.item?.quantity) || 1)
+                const quantityOptions = getExchangeQuantityOptions(currentItemQuantity)
+                const clampedQuantity = Math.min(exchangeQuantity, currentItemQuantity)
+                return (
                 <>
                   <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <h3 className="font-bold text-black uppercase text-sm">Select the quantity to be exchanged</h3>
                     <button type="button" className="p-1 text-gray-500 hover:text-black text-lg" aria-label="Close" onClick={closeExchangeModal}>✕</button>
                   </div>
                   <div className="p-4">
+                    <p className="text-xs text-gray-600 mb-2">Current order quantity: {currentItemQuantity}</p>
                     <div className="relative">
                       <select
-                        value={exchangeQuantity}
+                        value={clampedQuantity}
                         onChange={(e) => setExchangeQuantity(Number(e.target.value))}
                         className="w-full appearance-none bg-gray-100 border-0 rounded-lg px-4 py-3 pr-10 text-sm font-semibold uppercase text-gray-800"
                       >
-                        {EXCHANGE_QUANTITY_OPTIONS.map((opt) => (
+                        {quantityOptions.map((opt) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
@@ -760,34 +834,32 @@ export default function TrackOrderPage() {
                     </button>
                   </div>
                 </>
-              )}
+                )
+              })()}
               {exchangeStep === 2 && (
                 <>
                   <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <div>
-                      <h3 className="font-bold text-black uppercase">Reason</h3>
-                      <p className="font-semibold text-black uppercase text-xs mt-0.5">Reason for exchange</p>
+                      <h3 className="font-bold text-black uppercase">Reason for exchange</h3>
+                      <p className="font-semibold text-black uppercase text-xs mt-0.5">Why do you want to exchange this item?</p>
                     </div>
                     <button type="button" className="p-1 text-gray-500 hover:text-black text-lg" aria-label="Close" onClick={closeExchangeModal}>✕</button>
                   </div>
                   <div className="p-4">
                     <ul className="space-y-2">
-                      {bookedItems.map((entry, idx) => {
-                        const it = entry.item || {}
-                        const label = [it.brandName || it.brand, it.name || it.shortDescription].filter(Boolean).join(' ') || 'Item'
-                        const idVal = entry.itemId?.toString?.() ?? idx
-                        const isSelected = selectedExchangeItemId?.toString?.() === idVal
+                      {EXCHANGE_REASONS.map((reason) => {
+                        const isSelected = exchangeReason === reason
                         return (
-                          <li key={idVal}>
+                          <li key={reason}>
                             <label className="flex items-center gap-3 cursor-pointer">
                               <input
                                 type="radio"
-                                name="exchangeItem"
+                                name="exchangeReason"
                                 checked={isSelected}
-                                onChange={() => setSelectedExchangeItemId(entry.itemId)}
+                                onChange={() => setExchangeReason(reason)}
                                 className="w-4 h-4 border-gray-300 text-black"
                               />
-                              <span className="text-sm uppercase text-gray-800">{label}</span>
+                              <span className="text-sm text-gray-800">{reason}</span>
                             </label>
                           </li>
                         )

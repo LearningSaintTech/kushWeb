@@ -22,6 +22,27 @@ function formatStatusDate(dateVal) {
   return `${day.toUpperCase()}, ${date} ${month.toUpperCase()} ${year}`
 }
 
+function formatOrderDateTime(dateVal) {
+  if (!dateVal) return ''
+  const d = new Date(dateVal)
+  if (Number.isNaN(d.getTime())) return ''
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const date = d.getDate()
+  const month = months[d.getMonth()]
+  const year = d.getFullYear()
+  const h = d.getHours() % 12 || 12
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const ampm = d.getHours() >= 12 ? 'PM' : 'AM'
+  return `${date} ${month} ${year}, ${h}:${min} ${ampm}`
+}
+
+function getPaymentModeLabel(oi) {
+  const mode = oi?.payment?.mode ?? oi?.item?.paymentMode ?? ''
+  if (mode === 'COD') return 'Cash on Delivery'
+  if (mode === 'RAZORPAY' || mode === 'PREPAID') return 'Prepaid'
+  return mode || '—'
+}
+
 function OrdersPage() {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
@@ -42,6 +63,7 @@ function OrdersPage() {
     orderService
       .getOrderItems(params)
       .then((res) => {
+        console.log("res",res)
         const data = res?.data?.data ?? res?.data
         const items = data?.items ?? data ?? []
         const pag = data?.pagination ?? null
@@ -64,7 +86,7 @@ function OrdersPage() {
       SHIPPED: 'Shipped',
       OUT_FOR_DELIVERY: 'Out for delivery',
       DELIVERED: 'Delivered',
-      EXCHANGE_DELIVERED: 'Delivered',
+      EXCHANGE_DELIVERED: 'Exchange Delivered',
       EXCHANGE_REQUESTED: 'Exchange requested',
       EXCHANGE_APPROVED: 'Exchange approved',
       EXCHANGE_REJECTED: 'Exchange rejected',
@@ -95,8 +117,11 @@ function OrdersPage() {
         statusLabel,
       }
     }
-    if (status === 'DELIVERED' || status === 'EXCHANGE_DELIVERED') {
+    if (status === 'DELIVERED') {
       return { type: 'delivered', label: 'DELIVERED ON', statusLabel, dateStr, name, fullAddress }
+    }
+    if (status === 'EXCHANGE_DELIVERED') {
+      return { type: 'exchange_process', label: 'EXCHANGE DELIVERED', statusLabel, dateStr, name, fullAddress }
     }
     if (['EXCHANGE_REQUESTED', 'EXCHANGE_APPROVED', 'EXCHANGE_REJECTED', 'EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_PICKED', 'EXCHANGE_RECEIVED', 'EXCHANGE_PROCESSING', 'EXCHANGE_SHIPPED'].includes(status)) {
       return { type: 'exchange_process', label: 'EXCHANGE IN PROCESS', statusLabel, dateStr, name, fullAddress }
@@ -233,13 +258,21 @@ function OrdersPage() {
                           <p className="text-gray-700 text-[11px] sm:text-xs font-medium">Order #{oi.orderId ?? '—'}</p>
                           {oi.orderCreatedAt && (
                             <p className="text-gray-500 text-[10px] sm:text-[11px] mt-0.5">
-                              Placed {formatStatusDate(oi.orderCreatedAt)}
+                              Placed {formatOrderDateTime(oi.orderCreatedAt)}
                             </p>
                           )}
+                          <p className="text-gray-500 text-[10px] sm:text-[11px] mt-0.5">
+                            Payment: {getPaymentModeLabel(oi)}
+                          </p>
                         </div>
                       </div>
                     ) : (
                       <div className="text-left space-y-1.5">
+                        <p className="text-gray-700 text-[11px] sm:text-xs font-medium">Order #{oi.orderId ?? '—'}</p>
+                        {oi.orderCreatedAt && (
+                          <p className="text-gray-500 text-[10px] sm:text-[11px]">Placed {formatOrderDateTime(oi.orderCreatedAt)}</p>
+                        )}
+                        <p className="text-gray-500 text-[10px] sm:text-[11px]">Payment: {getPaymentModeLabel(oi)}</p>
                         <p
                           className={`font-bold uppercase text-[11px] sm:text-xs px-2 py-1 rounded inline-block border ${
                             statusDisplay.type === 'cancelled'

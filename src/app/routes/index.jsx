@@ -21,6 +21,7 @@ import {
   PrivacyPolicyPage,
 } from '../../features/policy'
 import Address from '../../shared/address/Address'
+import ProfileUpdatePage from '../../features/account/ProfileUpdatePage'
 import { ROUTES } from '../../utils/constants'
 
 const router = createBrowserRouter([
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
       { path: 'privacy-policy', element: <PrivacyPolicyPage /> },
       { path: 'address', element: <Address /> },
       { path: 'coupons', element: <CouponsPage /> },
+      { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],
   },
   { path: 'auth', element: <AuthPage /> },
