@@ -17,7 +17,7 @@ import {
 import LocationPicker from './LocationPicker'
 import ProfileModal from './ProfileModal'
 
-import logoImg from '../../assets/images/navBar/logo.svg'
+import logoImg from '../../assets/images/navBar/logos.svg'
 
 function ChevronDownIcon({ className }) {
   return (
@@ -314,7 +314,7 @@ export default function Header() {
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className={`h-8 sm:h-9 ${useWhiteStyle ? '' : 'brightness-0 invert'}`}
+                className={`h-16 sm:h-9 ${useWhiteStyle ? '' : 'brightness-0 invert'}`}
               />
             </NavLink>
           </div>
