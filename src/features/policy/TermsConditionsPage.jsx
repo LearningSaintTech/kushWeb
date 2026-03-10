@@ -3,7 +3,7 @@ import PolicyPageLayout from './PolicyPageLayout'
 export default function TermsConditionsPage() {
   return (
     <PolicyPageLayout title="Terms & conditions">
-      <p><strong>Last updated:</strong> [Date]</p>
+      {/* <p><strong>Last updated:</strong> [Date]</p> */}
       <p>By using the KHUSH website and services, you agree to these Terms and Conditions. Please read them carefully.</p>
       <h2 className="text-lg font-semibold text-black mt-6">Use of the website</h2>
       <p>You may use our website for lawful purposes only. You must not misuse the site, attempt unauthorised access, or use it in any way that could harm the platform or other users.</p>

@@ -287,13 +287,13 @@ export default function Header() {
       }`}
     >
       {/* Promo Bar */}
-      <div
+      {/* <div
         className={`font-inter rounded-lg md:rounded-[0.7vw] py-2 md:pt-[0.42vw] md:pb-[0.42vw] mx-3 md:ml-[0.83vw] md:mr-[0.83vw] text-center font-light text-xs sm:text-sm md:text-[1.04vw] px-2 md:px-0 transition-colors duration-300 ${
           useWhiteStyle ? 'bg-black text-white' : 'bg-transparent text-white'
         }`}
       >
-        <span className="block truncate">Get 30% off for first transaction using</span>
-      </div>
+        <span className="block truncate">get</span>
+      </div> */}
 
       {/* Main */}
       <div
