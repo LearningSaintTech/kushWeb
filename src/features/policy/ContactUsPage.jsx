@@ -5,7 +5,7 @@ export default function ContactUsPage() {
     <PolicyPageLayout title="Contact us">
       <p>We are here to help. Reach out for orders, returns, or general enquiries.</p>
       <h2 className="text-lg font-semibold text-black mt-6">Email</h2>
-      <p><a href="mailto:contact@yoraa.in" className="text-black underline hover:no-underline">contact@yoraa.in</a></p>
+      <p><a href="mailto:contact@yoraa.in" className="text-black underline hover:no-underline">support@khushpehno.com</a></p>
       <h2 className="text-lg font-semibold text-black mt-6">Customer support</h2>
       <p>For order-related queries, please include your order number. We aim to respond within 24–48 business hours.</p>
       <h2 className="text-lg font-semibold text-black mt-6">Business enquiries</h2>

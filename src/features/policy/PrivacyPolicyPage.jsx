@@ -3,7 +3,7 @@ import PolicyPageLayout from './PolicyPageLayout'
 export default function PrivacyPolicyPage() {
   return (
     <PolicyPageLayout title="Privacy policy">
-      <p><strong>Last updated:</strong> [Date]</p>
+      {/* <p><strong>Last updated:</strong> [Date]</p> */}
       <p>KHUSH respects your privacy. This policy describes how we collect, use, and protect your personal information when you use our website and services.</p>
       <h2 className="text-lg font-semibold text-black mt-6">Information we collect</h2>
       <p>We may collect your name, email, phone number, delivery address, payment details, and browsing data when you register, place orders, or interact with our site.</p>

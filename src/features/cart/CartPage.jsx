@@ -358,8 +358,8 @@ function CartPage() {
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold text-black uppercase">Your cart is empty</h1>
-          <p className="mt-2 text-gray-600">Add items from the shop to get started.</p>
+          <h1 className="text-2xl font-bold text-black uppercase">   🛒 Your cart is on a diet 😅</h1>
+          <p className="mt-2 text-gray-600">Start exploring and add your favorite picks.😊</p>
           <Link to={ROUTES.SEARCH} className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors">
             Continue shopping
           </Link>

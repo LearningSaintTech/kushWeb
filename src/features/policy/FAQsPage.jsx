@@ -2,19 +2,19 @@ import PolicyPageLayout from './PolicyPageLayout';
 
 export default function FAQsPage() {
   return (
-    <PolicyPageLayout title="">
-      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-        <h1 className="mb-12 text-center text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+    <PolicyPageLayout> {/* ← Remove title prop if it duplicates the h1 */}
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
+        <h1 className="mb-10 text-center text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
           Frequently Asked Questions
         </h1>
 
-        <div className="space-y-12">
+        <div className="space-y-10">
           {/* Orders and Checkout */}
           <section>
-            <h2 className="mb-6 text-2xl font-semibold text-gray-900">
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
               Orders & Checkout
             </h2>
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-6">
               <FaqItem
                 question="How do I place an order?"
                 answer="Add items to your cart, proceed to checkout, enter your delivery and payment details, and confirm your order."
@@ -32,10 +32,10 @@ export default function FAQsPage() {
 
           {/* Returns and Refunds */}
           <section>
-            <h2 className="mb-6 text-2xl font-semibold text-gray-900">
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
               Returns & Refunds
             </h2>
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-6">
               <FaqItem
                 question="What is your return window?"
                 answer="Returns are accepted within the timeframe specified in our Refund & Cancellation Policy, usually starting from the date of delivery."
@@ -49,10 +49,10 @@ export default function FAQsPage() {
 
           {/* Delivery */}
           <section>
-            <h2 className="mb-6 text-2xl font-semibold text-gray-900">
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
               Delivery
             </h2>
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-6">
               <FaqItem
                 question="Do you deliver to my area?"
                 answer="Enter your pincode on the product page or during checkout to check serviceability and available delivery options."
@@ -66,10 +66,10 @@ export default function FAQsPage() {
 
           {/* Account */}
           <section>
-            <h2 className="mb-6 text-2xl font-semibold text-gray-900">
+            <h2 className="mb-4 text-2xl font-semibold text-gray-900">
               Account & Security
             </h2>
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-6">
               <FaqItem
                 question="How do I reset my password?"
                 answer='Click "Forgot password?" on the login page and follow the instructions sent to your registered email.'
@@ -86,14 +86,13 @@ export default function FAQsPage() {
   );
 }
 
-// Cleaner, more modern FAQ item (no group hover effects)
 function FaqItem({ question, answer }) {
   return (
-    <div className="py-6 first:pt-0 last:pb-0">
-      <dt className="text-lg font-medium leading-7 text-gray-900">
+    <div className="group py-4 transition-colors hover:bg-gray-50/60">
+      <dt className="text-lg font-medium leading-7 text-gray-900 group-hover:text-indigo-600">
         {question}
       </dt>
-      <dd className="mt-3 text-base leading-7 text-gray-600">
+      <dd className="mt-1.5 text-base leading-6 text-gray-600">
         {answer}
       </dd>
     </div>

@@ -1,38 +1,48 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { useDispatch, useSelector, shallowEqual } from 'react-redux'
-import { ROUTES } from '../../utils/constants'
-import { useAuth } from '../../app/context/AuthContext'
-import { useCartWishlist } from '../../app/context/CartWishlistContext'
-import { useNavbarMenu } from '../../app/hooks/useNavbarMenu'
-import { searchKeywordsService } from '../../services/search.service.js'
-import { addRecentKeyword, removeRecentKeyword } from '../../app/store/slices/searchSlice.js'
+import { useState, useRef, useEffect, useCallback } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useDispatch, useSelector, shallowEqual } from "react-redux";
+import { ROUTES } from "../../utils/constants";
+import { useAuth } from "../../app/context/AuthContext";
+import { useCartWishlist } from "../../app/context/CartWishlistContext";
+import { useNavbarMenu } from "../../app/hooks/useNavbarMenu";
+import { searchKeywordsService } from "../../services/search.service.js";
 import {
-  SearchIcon,
-  HeartIcon,
-  CartIcon,
-  ProfileIcon,
-} from '../ui/icons'
+  addRecentKeyword,
+  removeRecentKeyword,
+} from "../../app/store/slices/searchSlice.js";
+import { SearchIcon, HeartIcon, CartIcon, ProfileIcon } from "../ui/icons";
 // Location picker in header: no map – shows delivery location as text (current location / search / pincode).
-import LocationPicker from './LocationPicker'
-import ProfileModal from './ProfileModal'
+import LocationPicker from "./LocationPicker";
+import ProfileModal from "./ProfileModal";
 
-import logoImg from '../../assets/images/navBar/logos.svg'
+import logoImg from "../../assets/images/navBar/logos.svg";
 
 function ChevronDownIcon({ className }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
     </svg>
-  )
+  );
 }
 
 function ChevronUpIcon({ className }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
     </svg>
-  )
+  );
 }
 
 function DiamondIcon({ className }) {
@@ -40,46 +50,96 @@ function DiamondIcon({ className }) {
     <svg className={className} viewBox="0 0 8 8" fill="currentColor">
       <path d="M4 0L8 4L4 8L0 4L4 0z" />
     </svg>
-  )
+  );
 }
 
 function HamburgerIcon({ className, open }) {
   if (open) {
     return (
-      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+      <svg
+        className={className}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M6 18L18 6M6 6l12 12"
+        />
       </svg>
-    )
+    );
   }
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 6h16M4 12h16M4 18h16"
+      />
     </svg>
-  )
+  );
 }
 
 function CloseIcon({ className }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 18L18 6M6 6l12 12"
+      />
     </svg>
-  )
+  );
 }
 
 function ClockIcon({ className }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
     </svg>
-  )
+  );
 }
 
 function TrendingIcon({ className }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+      />
     </svg>
-  )
+  );
 }
 
 function IconBadge({ count, children, scrolled }) {
@@ -89,202 +149,234 @@ function IconBadge({ count, children, scrolled }) {
       {count > 0 && (
         <span
           className={`font-inter absolute -right-1 -top-1 md:-right-[0.52vw] md:-top-[0.52vw] flex h-3 w-3 md:h-[0.83vw] md:min-w-[0.83vw] items-center justify-center rounded-full px-0.5 md:px-[0.21vw] text-[10px] md:text-[0.52vw] font-medium ${
-            scrolled ? 'bg-black text-white' : 'bg-white text-black'
+            scrolled ? "bg-black text-white" : "bg-white text-black"
           }`}
         >
-          {count > 99 ? '99+' : count}
+          {count > 99 ? "99+" : count}
         </span>
       )}
     </span>
-  )
+  );
 }
 
 /** Build search URL for menu links; SearchPage reads categoryId + subcategoryId (or category/subcategory) */
 function getSearchUrl({ categoryId, subcategoryId } = {}) {
-  const params = new URLSearchParams()
-  if (categoryId) params.set('categoryId', categoryId)
-  if (subcategoryId) params.set('subcategoryId', subcategoryId)
-  const q = params.toString()
-  return q ? `${ROUTES.SEARCH}?${q}` : ROUTES.SEARCH
+  const params = new URLSearchParams();
+  if (categoryId) params.set("categoryId", categoryId);
+  if (subcategoryId) params.set("subcategoryId", subcategoryId);
+  const q = params.toString();
+  return q ? `${ROUTES.SEARCH}?${q}` : ROUTES.SEARCH;
 }
 
 export default function Header() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const dispatch = useDispatch()
-  const recentFromRedux = useSelector((s) => s?.search?.recentKeywords ?? [], shallowEqual)
+  const navigate = useNavigate();
+  const location = useLocation();
+  const dispatch = useDispatch();
+  const recentFromRedux = useSelector(
+    (s) => s?.search?.recentKeywords ?? [],
+    shallowEqual,
+  );
 
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [profileModalOpen, setProfileModalOpen] = useState(false)
-  const [searchModalOpen, setSearchModalOpen] = useState(false)
-  const [searchPanelAnimated, setSearchPanelAnimated] = useState(false)
-  const [recentSearches, setRecentSearches] = useState([])
-  const [popularSearches, setPopularSearches] = useState([])
-  const [recentFromApi, setRecentFromApi] = useState(false)
-  const [searchModalLoading, setSearchModalLoading] = useState(false)
-  const [searchInputValue, setSearchInputValue] = useState('')
-  const [activeMobileCategory, setActiveMobileCategory] = useState(null)
-  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set())
-  const [panelAnimated, setPanelAnimated] = useState(false)
-  const { isAuthenticated, openAuthModal } = useAuth()
-  const { wishlistCount, cartCount } = useCartWishlist()
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [searchPanelAnimated, setSearchPanelAnimated] = useState(false);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [popularSearches, setPopularSearches] = useState([]);
+  const [recentFromApi, setRecentFromApi] = useState(false);
+  const [searchModalLoading, setSearchModalLoading] = useState(false);
+  const [searchInputValue, setSearchInputValue] = useState("");
+  const [activeMobileCategory, setActiveMobileCategory] = useState(null);
+  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
+  const [panelAnimated, setPanelAnimated] = useState(false);
+  const { isAuthenticated, openAuthModal } = useAuth();
+  const { wishlistCount, cartCount } = useCartWishlist();
   const {
     categories: navbarCategories,
     subcategoriesByCategoryId,
     loadSubcategoriesForCategory,
     loading: menuLoading,
     subcategoriesLoading,
-  } = useNavbarMenu()
+  } = useNavbarMenu();
 
   // Expand first category by default so subcategories are visible when menu opens
-  const firstCategoryId = navbarCategories?.length > 0 ? (navbarCategories[0]._id ?? navbarCategories[0].id) : null
-  const effectiveActiveCategory = activeMobileCategory ?? (firstCategoryId && !menuLoading ? firstCategoryId : null)
+  const firstCategoryId =
+    navbarCategories?.length > 0
+      ? (navbarCategories[0]._id ?? navbarCategories[0].id)
+      : null;
+  const effectiveActiveCategory =
+    activeMobileCategory ??
+    (firstCategoryId && !menuLoading ? firstCategoryId : null);
 
-  const closeMenu = () => setMenuOpen(false)
-  const closeSearchModal = () => setSearchModalOpen(false)
+  const closeMenu = () => setMenuOpen(false);
+  const closeSearchModal = () => setSearchModalOpen(false);
 
   const openSearchModal = useCallback(() => {
-    setSearchModalOpen(true)
-  }, [])
+    setSearchModalOpen(true);
+  }, []);
 
   // When search modal opens: recent = API if logged in, else Redux; always fetch popular
   useEffect(() => {
-    if (!searchModalOpen) return
-    setSearchPanelAnimated(false)
-    setSearchModalLoading(true)
-    const limit = 10
-    const recentPromise = searchKeywordsService.getRecent({ limit })
+    if (!searchModalOpen) return;
+    setSearchPanelAnimated(false);
+    setSearchModalLoading(true);
+    const limit = 10;
+    const recentPromise = searchKeywordsService
+      .getRecent({ limit })
       .then((res) => {
-        const data = res?.data?.data ?? res?.data
-        const list = Array.isArray(data) ? data : []
-        setRecentSearches(list)
-        setRecentFromApi(true)
+        const data = res?.data?.data ?? res?.data;
+        const list = Array.isArray(data) ? data : [];
+        setRecentSearches(list);
+        setRecentFromApi(true);
       })
       .catch(() => {
-        setRecentSearches(recentFromRedux.map((k) => ({ keyword: k })))
-        setRecentFromApi(false)
-      })
+        setRecentSearches(recentFromRedux.map((k) => ({ keyword: k })));
+        setRecentFromApi(false);
+      });
 
-    const popularPromise = searchKeywordsService.getPopular({ limit })
+    const popularPromise = searchKeywordsService
+      .getPopular({ limit })
       .then((res) => {
-        const data = res?.data?.data ?? res?.data
-        setPopularSearches(Array.isArray(data) ? data : [])
+        const data = res?.data?.data ?? res?.data;
+        setPopularSearches(Array.isArray(data) ? data : []);
       })
-      .catch(() => setPopularSearches([]))
+      .catch(() => setPopularSearches([]));
 
-    Promise.all([recentPromise, popularPromise]).finally(() => setSearchModalLoading(false))
+    Promise.all([recentPromise, popularPromise]).finally(() =>
+      setSearchModalLoading(false),
+    );
 
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => setSearchPanelAnimated(true))
-    })
-  }, [searchModalOpen, recentFromRedux])
+      requestAnimationFrame(() => setSearchPanelAnimated(true));
+    });
+  }, [searchModalOpen, recentFromRedux]);
 
   useEffect(() => {
     if (!searchModalOpen) {
-      setSearchPanelAnimated(false)
+      setSearchPanelAnimated(false);
     }
-  }, [searchModalOpen])
+  }, [searchModalOpen]);
 
   // Keep search bar in sync with URL q (e.g. when on /search?q=...)
   useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const q = params.get('q')
-    if (location.pathname === ROUTES.SEARCH && q != null && q !== '') {
-      setSearchInputValue(decodeURIComponent(q))
+    const params = new URLSearchParams(location.search);
+    const q = params.get("q");
+    if (location.pathname === ROUTES.SEARCH && q != null && q !== "") {
+      setSearchInputValue(decodeURIComponent(q));
     }
-  }, [location.pathname, location.search])
+  }, [location.pathname, location.search]);
 
-  const goToSearch = useCallback((keyword) => {
-    const term = keyword != null ? String(keyword).trim() : ''
-    if (!term) return
-    closeSearchModal()
-    if (!recentFromApi) dispatch(addRecentKeyword(term))
-    navigate(`${ROUTES.SEARCH}?q=${encodeURIComponent(term)}`)
-  }, [navigate, recentFromApi, dispatch])
+  const goToSearch = useCallback(
+    (keyword) => {
+      const term = keyword != null ? String(keyword).trim() : "";
+      if (!term) return;
+      closeSearchModal();
+      if (!recentFromApi) dispatch(addRecentKeyword(term));
+      navigate(`${ROUTES.SEARCH}?q=${encodeURIComponent(term)}`);
+    },
+    [navigate, recentFromApi, dispatch],
+  );
 
-  const removeRecentItem = useCallback((keyword) => {
-    const term = typeof keyword === 'string' ? keyword : keyword?.keyword ?? ''
-    if (!term) return
-    if (recentFromApi) {
-      searchKeywordsService.deleteKeyword(term).then(() => {
-        setRecentSearches((prev) => prev.filter((item) => (item?.keyword ?? item) !== term))
-      }).catch(() => {})
-    } else {
-      dispatch(removeRecentKeyword(term))
-      setRecentSearches((prev) => prev.filter((item) => (item?.keyword ?? item) !== term))
-    }
-  }, [recentFromApi, dispatch])
+  const removeRecentItem = useCallback(
+    (keyword) => {
+      const term =
+        typeof keyword === "string" ? keyword : (keyword?.keyword ?? "");
+      if (!term) return;
+      if (recentFromApi) {
+        searchKeywordsService
+          .deleteKeyword(term)
+          .then(() => {
+            setRecentSearches((prev) =>
+              prev.filter((item) => (item?.keyword ?? item) !== term),
+            );
+          })
+          .catch(() => {});
+      } else {
+        dispatch(removeRecentKeyword(term));
+        setRecentSearches((prev) =>
+          prev.filter((item) => (item?.keyword ?? item) !== term),
+        );
+      }
+    },
+    [recentFromApi, dispatch],
+  );
 
   const handleSearchModalSubmit = (e) => {
-    e.preventDefault()
-    goToSearch(searchInputValue || e.currentTarget?.querySelector?.('input[name="q"]')?.value)
-  }
+    e.preventDefault();
+    goToSearch(
+      searchInputValue ||
+        e.currentTarget?.querySelector?.('input[name="q"]')?.value,
+    );
+  };
 
   const toggleSubcategory = (key) => {
     setExpandedSubcategories((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
-  const headerRef = useRef(null)
-  const isHome = location.pathname === '/' || location.pathname === ''
-  const [scrolled, setScrolled] = useState(false)
-  const [searchDropdownTop, setSearchDropdownTop] = useState(0)
+  const headerRef = useRef(null);
+  const isHome = location.pathname === "/" || location.pathname === "";
+  const [scrolled, setScrolled] = useState(false);
+  const [searchDropdownTop, setSearchDropdownTop] = useState(0);
   // On non-home pages always use white header; on home use white only when scrolled
-  const useWhiteStyle = !isHome || scrolled
+  const useWhiteStyle = !isHome || scrolled;
 
   // Position search dropdown just below header when it opens
   useEffect(() => {
     if (searchModalOpen && headerRef.current) {
-      const top = headerRef.current.getBoundingClientRect().bottom
-      setSearchDropdownTop(top)
+      const top = headerRef.current.getBoundingClientRect().bottom;
+      setSearchDropdownTop(top);
     }
-  }, [searchModalOpen])
+  }, [searchModalOpen]);
 
   // When hamburger opens with first category expanded, fetch its subcategories by category
   useEffect(() => {
     if (menuOpen && effectiveActiveCategory) {
-      console.log('[Header] menu open, loading subcategories for effectiveActiveCategory', { effectiveActiveCategory, menuOpen })
-      loadSubcategoriesForCategory(effectiveActiveCategory)
+      console.log(
+        "[Header] menu open, loading subcategories for effectiveActiveCategory",
+        { effectiveActiveCategory, menuOpen },
+      );
+      loadSubcategoriesForCategory(effectiveActiveCategory);
     }
-  }, [menuOpen, effectiveActiveCategory, loadSubcategoriesForCategory])
+  }, [menuOpen, effectiveActiveCategory, loadSubcategoriesForCategory]);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Panel slide-in animation + body scroll lock
   useEffect(() => {
     if (menuOpen) {
-      document.documentElement.style.overflow = 'hidden'
-      document.body.style.overflow = 'hidden'
-      setPanelAnimated(false)
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+      setPanelAnimated(false);
       const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => setPanelAnimated(true))
-      })
+        requestAnimationFrame(() => setPanelAnimated(true));
+      });
       return () => {
-        cancelAnimationFrame(id)
-        document.documentElement.style.overflow = ''
-        document.body.style.overflow = ''
-      }
+        cancelAnimationFrame(id);
+        document.documentElement.style.overflow = "";
+        document.body.style.overflow = "";
+      };
     } else {
-      setPanelAnimated(false)
-      document.documentElement.style.overflow = ''
-      document.body.style.overflow = ''
+      setPanelAnimated(false);
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
     }
-  }, [menuOpen])
+  }, [menuOpen]);
 
   return (
     <header
       ref={headerRef}
       className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 ${
-        useWhiteStyle ? 'bg-white' : 'bg-transparent'
+        useWhiteStyle ? "bg-white" : "bg-transparent"
       }`}
     >
       {/* Promo Bar */}
@@ -299,10 +391,9 @@ export default function Header() {
       {/* Main */}
       <div
         className={`px-4 md:px-[1.56vw] py-2 md:py-[0.52vw] transition-colors duration-300 ${
-          useWhiteStyle ? 'bg-white' : 'bg-transparent'
+          useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
-
         {/* Mobile/Tablet Layout - Line 1: Logo; Line 2: Hamburger + Location + Search + Profile in a row */}
         <div className="md:hidden flex flex-col gap-3">
           {/* Line 1: Logo first */}
@@ -314,7 +405,7 @@ export default function Header() {
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className={`h-16 sm:h-9 ${useWhiteStyle ? '' : 'brightness-0 invert'}`}
+                className={`h-16 sm:h-9 ${useWhiteStyle ? "" : "brightness-0 invert"}`}
               />
             </NavLink>
           </div>
@@ -325,31 +416,36 @@ export default function Header() {
               onClick={() => setMenuOpen(true)}
               className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                 useWhiteStyle
-                  ? 'text-black hover:bg-gray-100'
-                  : 'text-white hover:bg-white/10'
+                  ? "text-black hover:bg-gray-100"
+                  : "text-white hover:bg-white/10"
               }`}
               aria-label="Open menu"
               aria-expanded={menuOpen}
             >
               <HamburgerIcon
-                className={`h-6 w-6 ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                className={`h-6 w-6 ${useWhiteStyle ? "text-black" : "text-white"}`}
                 open={false}
               />
             </button>
 
-            <LocationPicker scrolled={useWhiteStyle} className="flex flex-1 min-w-0" />
+            <LocationPicker
+              scrolled={useWhiteStyle}
+              className="flex flex-1 min-w-0"
+            />
 
             <button
               type="button"
               onClick={openSearchModal}
               className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                 useWhiteStyle
-                  ? 'text-black hover:bg-gray-100'
-                  : 'text-white hover:bg-white/10'
+                  ? "text-black hover:bg-gray-100"
+                  : "text-white hover:bg-white/10"
               }`}
               aria-label="Search"
             >
-              <SearchIcon className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`} />
+              <SearchIcon
+                className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+              />
             </button>
 
             {isAuthenticated ? (
@@ -358,12 +454,14 @@ export default function Header() {
                 onClick={() => setProfileModalOpen(true)}
                 className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                   useWhiteStyle
-                    ? 'text-black hover:opacity-70'
-                    : 'text-white hover:opacity-70'
+                    ? "text-black hover:opacity-70"
+                    : "text-white hover:opacity-70"
                 }`}
                 aria-label="Account"
               >
-                <ProfileIcon className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`} />
+                <ProfileIcon
+                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                />
               </button>
             ) : (
               <button
@@ -371,12 +469,14 @@ export default function Header() {
                 onClick={() => openAuthModal(ROUTES.ACCOUNT)}
                 className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                   useWhiteStyle
-                    ? 'text-black hover:opacity-70'
-                    : 'text-white hover:opacity-70'
+                    ? "text-black hover:opacity-70"
+                    : "text-white hover:opacity-70"
                 }`}
                 aria-label="Account – sign in"
               >
-                <ProfileIcon className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`} />
+                <ProfileIcon
+                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                />
               </button>
             )}
           </div>
@@ -384,20 +484,21 @@ export default function Header() {
 
         {/* Desktop/Tablet Layout - Single Row (for screens >= 768px) */}
         <div className="hidden md:flex flex-row items-center gap-0">
-
           {/* Left: Menu (Hamburger) + Location */}
           <div className="flex shrink-0 items-center gap-[1.04vw]">
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
               className={`cursor-pointer font-inter flex items-center gap-[0.42vw] text-[0.83vw] ${
-                useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'
+                useWhiteStyle
+                  ? "text-black hover:opacity-70"
+                  : "text-white hover:opacity-70"
               }`}
               aria-label="Open menu"
               aria-expanded={menuOpen}
             >
               <HamburgerIcon
-                className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
                 open={false}
               />
               <span>Menu</span>
@@ -412,25 +513,22 @@ export default function Header() {
               to={ROUTES.HOME}
               className="cursor-pointer flex flex-col items-center justify-center gap-[0.26vw]"
             >
-             
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className={`h-[3.81vw] w-[8.29vw] ${useWhiteStyle ? '' : 'brightness-0 invert'}`}
+                className={`h-12 md:h-14 lg:h-16 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
               />
-              
             </NavLink>
           </div>
 
           {/* Right Section */}
           <div className="flex items-center gap-[0.83vw]">
-
             <form
               action={ROUTES.SEARCH}
               method="get"
               onSubmit={() => closeSearchModal()}
               className={`flex items-center gap-[4.63vw] rounded-full px-[1.04vw] py-[0.63vw] ${
-                useWhiteStyle ? 'bg-[#F5F5F5]' : 'bg-white/10'
+                useWhiteStyle ? "bg-[#F5F5F5]" : "bg-white/10"
               }`}
             >
               <input
@@ -443,13 +541,17 @@ export default function Header() {
                 onClick={openSearchModal}
                 className={`font-inter w-full bg-transparent text-[0.83vw] focus:outline-none ${
                   useWhiteStyle
-                    ? 'text-black placeholder:text-[#636363]'
-                    : 'text-white placeholder:text-white/80'
+                    ? "text-black placeholder:text-[#636363]"
+                    : "text-white placeholder:text-white/80"
                 }`}
               />
-              <button type="submit" className="cursor-pointer shrink-0" aria-label="Search">
+              <button
+                type="submit"
+                className="cursor-pointer shrink-0"
+                aria-label="Search"
+              >
                 <SearchIcon
-                  className={`h-5 w-5 ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
                 />
               </button>
             </form>
@@ -458,12 +560,12 @@ export default function Header() {
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.WISHLIST}
-                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
+                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
                   aria-label="Wishlist"
                 >
                   <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
                     <HeartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
                     />
                   </IconBadge>
                 </NavLink>
@@ -471,12 +573,12 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.WISHLIST)}
-                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
+                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
                   aria-label="Wishlist – sign in"
                 >
                   <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
                     <HeartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
                     />
                   </IconBadge>
                 </button>
@@ -485,12 +587,12 @@ export default function Header() {
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.CART}
-                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
+                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
                   aria-label="Cart"
                 >
                   <IconBadge count={cartCount} scrolled={useWhiteStyle}>
                     <CartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
                     />
                   </IconBadge>
                 </NavLink>
@@ -498,12 +600,12 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.CART)}
-                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
+                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
                   aria-label="Cart – sign in"
                 >
                   <IconBadge count={cartCount} scrolled={useWhiteStyle}>
                     <CartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
                     />
                   </IconBadge>
                 </button>
@@ -513,29 +615,27 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => setProfileModalOpen(true)}
-                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
+                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
                   aria-label="Account"
                 >
                   <ProfileIcon
-                    className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                    className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
                   />
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                  className={`cursor-pointer ${useWhiteStyle ? 'text-black hover:opacity-70' : 'text-white hover:opacity-70'}`}
+                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
                   aria-label="Account – sign in"
                 >
                   <ProfileIcon
-                    className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? 'text-black' : 'text-white'}`}
+                    className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
                   />
                 </button>
               )}
             </div>
-
           </div>
-
         </div>
 
         {/* Search dropdown: curved panel below header */}
@@ -558,7 +658,10 @@ export default function Header() {
             >
               {/* Search row: input + close */}
               <div className="flex items-center gap-3 shrink-0 p-4 pb-3">
-                <form onSubmit={handleSearchModalSubmit} className="flex-1 min-w-0 flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2.5">
+                <form
+                  onSubmit={handleSearchModalSubmit}
+                  className="flex-1 min-w-0 flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2.5"
+                >
                   <SearchIcon className="h-5 w-5 text-gray-400 shrink-0" />
                   <input
                     type="search"
@@ -583,7 +686,9 @@ export default function Header() {
               {/* Recent & Popular in scrollable area */}
               <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 {searchModalLoading ? (
-                  <div className="font-inter text-sm text-gray-400 py-6">Loading…</div>
+                  <div className="font-inter text-sm text-gray-400 py-6">
+                    Loading…
+                  </div>
                 ) : (
                   <>
                     <div className="mb-5">
@@ -591,13 +696,18 @@ export default function Header() {
                         Recent Searches
                       </h3>
                       {recentSearches.length === 0 ? (
-                        <p className="font-inter text-sm text-gray-500">No recent searches</p>
+                        <p className="font-inter text-sm text-gray-500">
+                          No recent searches
+                        </p>
                       ) : (
                         <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
                           {recentSearches.map((item) => {
-                            const keyword = item?.keyword ?? item
-                            const text = typeof keyword === 'string' ? keyword : keyword?.keyword ?? ''
-                            if (!text) return null
+                            const keyword = item?.keyword ?? item;
+                            const text =
+                              typeof keyword === "string"
+                                ? keyword
+                                : (keyword?.keyword ?? "");
+                            if (!text) return null;
                             return (
                               <span
                                 key={text}
@@ -612,14 +722,17 @@ export default function Header() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); removeRecentItem(text) }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeRecentItem(text);
+                                  }}
                                   className="cursor-pointer text-gray-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
                                   aria-label={`Remove ${text}`}
                                 >
                                   <span aria-hidden>×</span>
                                 </button>
                               </span>
-                            )
+                            );
                           })}
                         </div>
                       )}
@@ -629,13 +742,18 @@ export default function Header() {
                         Popular Searches
                       </h3>
                       {popularSearches.length === 0 ? (
-                        <p className="font-inter text-sm text-gray-500">No popular searches</p>
+                        <p className="font-inter text-sm text-gray-500">
+                          No popular searches
+                        </p>
                       ) : (
                         <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
                           {popularSearches.map((item) => {
-                            const keyword = item?.keyword ?? item
-                            const text = typeof keyword === 'string' ? keyword : keyword?.keyword ?? ''
-                            if (!text) return null
+                            const keyword = item?.keyword ?? item;
+                            const text =
+                              typeof keyword === "string"
+                                ? keyword
+                                : (keyword?.keyword ?? "");
+                            if (!text) return null;
                             return (
                               <button
                                 key={text}
@@ -645,7 +763,7 @@ export default function Header() {
                               >
                                 {text}
                               </button>
-                            )
+                            );
                           })}
                         </div>
                       )}
@@ -659,183 +777,181 @@ export default function Header() {
 
         {/* Full-screen hamburger menu modal */}
         {menuOpen && (
-  <>
-    <div
-      className="fixed inset-0 z-40 cursor-pointer bg-black/30 transition-opacity duration-300"
-      onClick={closeMenu}
-      aria-hidden
-    />
+          <>
+            <div
+              className="fixed inset-0 z-40 cursor-pointer bg-black/30 transition-opacity duration-300"
+              onClick={closeMenu}
+              aria-hidden
+            />
 
-    <div
-      className="fixed left-0 top-0 bottom-0 z-50 w-[80vw] min-w-[280px] max-w-[800px] bg-white flex flex-col transition-transform duration-300 ease-out"
-      style={{ transform: panelAnimated ? 'translateX(0)' : 'translateX(-100%)' }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Navigation menu"
-    >
-      {/* Close Button */}
-      <div className="flex justify-end shrink-0 pt-4 pr-4 md:pt-6 md:pr-6">
-        <button
-          type="button"
-          onClick={closeMenu}
-          className="cursor-pointer flex h-12 w-12 items-center justify-center text-black hover:bg-gray-100 rounded-lg transition-colors"
-          aria-label="Close menu"
-        >
-          <CloseIcon className="h-7 w-7" />
-        </button>
-      </div>
-
-      {/* ========================= */}
-      {/* ✅ FIXED CATEGORY SCROLL */}
-      {/* ========================= */}
-
-      <div
-        className="shrink-0 w-full overflow-x-auto scrollbar-hide border-b border-gray-200"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        <div className="flex w-max gap-6 md:gap-10 px-4 pb-3">
-          {navbarCategories.map((cat) => {
-            const categoryId = cat._id ?? cat.id
-            const categoryName = (cat.name ?? '').toUpperCase()
-            const isActive = effectiveActiveCategory === categoryId
-
-            return (
-              <button
-                key={categoryId}
-                type="button"
-                onClick={() => {
-                  setActiveMobileCategory(categoryId)
-                  loadSubcategoriesForCategory(categoryId)
-                }}
-                className="cursor-pointer relative shrink-0 font-inter text-sm md:text-base font-medium tracking-wide pb-2 transition-colors"
-              >
-                <span
-                  className={
-                    isActive
-                      ? 'text-black'
-                      : 'text-gray-400 hover:text-gray-600'
-                  }
+            <div
+              className="fixed left-0 top-0 bottom-0 z-50 w-[80vw] min-w-[280px] max-w-[800px] bg-white flex flex-col transition-transform duration-300 ease-out"
+              style={{
+                transform: panelAnimated
+                  ? "translateX(0)"
+                  : "translateX(-100%)",
+              }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation menu"
+            >
+              {/* Close Button */}
+              <div className="flex justify-end shrink-0 pt-4 pr-4 md:pt-6 md:pr-6">
+                <button
+                  type="button"
+                  onClick={closeMenu}
+                  className="cursor-pointer flex h-12 w-12 items-center justify-center text-black hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Close menu"
                 >
-                  {categoryName || 'Category'}
-                </span>
+                  <CloseIcon className="h-7 w-7" />
+                </button>
+              </div>
 
-                {isActive && (
-                  <>
-                    <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-black" />
-                    <span className="absolute left-1/2 -translate-x-1/2 bottom-0 translate-y-1/2 flex justify-center">
-                      <DiamondIcon className="h-1.5 w-1.5 text-black" />
-                    </span>
-                  </>
-                )}
-              </button>
-            )
-          })}
+              {/* ========================= */}
+              {/* ✅ FIXED CATEGORY SCROLL */}
+              {/* ========================= */}
 
-          {!menuLoading && navbarCategories.length === 0 && (
-            <span className="font-inter text-sm text-gray-400 shrink-0">
-              No categories
-            </span>
-          )}
-        </div>
-      </div>
+              <div
+                className="shrink-0 w-full overflow-x-auto scrollbar-hide border-b border-gray-200"
+                style={{ WebkitOverflowScrolling: "touch" }}
+              >
+                <div className="flex w-max gap-6 md:gap-10 px-4 pb-3">
+                  {navbarCategories.map((cat) => {
+                    const categoryId = cat._id ?? cat.id;
+                    const categoryName = (cat.name ?? "").toUpperCase();
+                    const isActive = effectiveActiveCategory === categoryId;
 
-      {/* ========================= */}
-      {/* Subcategories */}
-      {/* ========================= */}
-
-      <nav className="flex-1 overflow-y-auto">
-        {menuLoading ? (
-          <div className="px-4 py-6 font-inter text-sm text-gray-500">
-            Loading menu…
-          </div>
-        ) : effectiveActiveCategory ? (
-          subcategoriesLoading?.[effectiveActiveCategory] ? (
-            <div className="px-4 py-6 font-inter text-sm text-gray-500">
-              Loading…
-            </div>
-          ) : (
-            <ul className="py-2">
-              {(subcategoriesByCategoryId[effectiveActiveCategory] ?? []).map(
-                (sub, subIdx) => {
-                  const subId = sub._id ?? sub.id ?? `sub-${subIdx}`
-                  const subName =
-                    sub.name ?? sub.label ?? 'Subcategory'
-                  const isExpanded =
-                    expandedSubcategories.has(subId)
-
-                  return (
-                    <li
-                      key={subId}
-                      className="border-b border-gray-200"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <button
-                          type="button"
-                          onClick={() => toggleSubcategory(subId)}
-                          className="cursor-pointer font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50/80 transition-colors"
+                    return (
+                      <button
+                        key={categoryId}
+                        type="button"
+                        onClick={() => {
+                          setActiveMobileCategory(categoryId);
+                          loadSubcategoriesForCategory(categoryId);
+                        }}
+                        className="cursor-pointer relative shrink-0 font-inter text-sm md:text-base font-medium tracking-wide pb-2 transition-colors"
+                      >
+                        <span
+                          className={
+                            isActive
+                              ? "text-black"
+                              : "text-gray-400 hover:text-gray-600"
+                          }
                         >
-                          {subName}
-                        </button>
-
-                        <span className="pr-4 text-gray-400 pointer-events-none">
-                          {isExpanded ? (
-                            <ChevronUpIcon className="h-5 w-5" />
-                          ) : (
-                            <ChevronDownIcon className="h-5 w-5" />
-                          )}
+                          {categoryName || "Category"}
                         </span>
-                      </div>
 
-                      {isExpanded && (
-                        <div className="pl-6 pr-4 pb-4">
+                        {isActive && (
+                          <>
+                            <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-black" />
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-0 translate-y-1/2 flex justify-center">
+                              <DiamondIcon className="h-1.5 w-1.5 text-black" />
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {!menuLoading && navbarCategories.length === 0 && (
+                    <span className="font-inter text-sm text-gray-400 shrink-0">
+                      No categories
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* ========================= */}
+              {/* Subcategories */}
+              {/* ========================= */}
+
+              <nav className="flex-1 overflow-y-auto">
+                {menuLoading ? (
+                  <div className="px-4 py-6 font-inter text-sm text-gray-500">
+                    Loading menu…
+                  </div>
+                ) : effectiveActiveCategory ? (
+                  subcategoriesLoading?.[effectiveActiveCategory] ? (
+                    <div className="px-4 py-6 font-inter text-sm text-gray-500">
+                      Loading…
+                    </div>
+                  ) : (
+                    <ul className="py-2">
+                      {(
+                        subcategoriesByCategoryId[effectiveActiveCategory] ?? []
+                      ).map((sub, subIdx) => {
+                        const subId = sub._id ?? sub.id ?? `sub-${subIdx}`;
+                        const subName = sub.name ?? sub.label ?? "Subcategory";
+                        const isExpanded = expandedSubcategories.has(subId);
+
+                        return (
+                          <li key={subId} className="border-b border-gray-200">
+                            <div className="flex items-center justify-between w-full">
+                              <button
+                                type="button"
+                                onClick={() => toggleSubcategory(subId)}
+                                className="cursor-pointer font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50/80 transition-colors"
+                              >
+                                {subName}
+                              </button>
+
+                              <span className="pr-4 text-gray-400 pointer-events-none">
+                                {isExpanded ? (
+                                  <ChevronUpIcon className="h-5 w-5" />
+                                ) : (
+                                  <ChevronDownIcon className="h-5 w-5" />
+                                )}
+                              </span>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="pl-6 pr-4 pb-4">
+                                <NavLink
+                                  to={getSearchUrl({
+                                    categoryId: effectiveActiveCategory,
+                                    subcategoryId: subId,
+                                  })}
+                                  onClick={closeMenu}
+                                  className="cursor-pointer font-inter block py-2 text-sm text-gray-700 hover:text-black transition-colors"
+                                >
+                                  View all in {subName}
+                                </NavLink>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+
+                      {(
+                        subcategoriesByCategoryId[effectiveActiveCategory] ?? []
+                      ).length === 0 && (
+                        <li className="px-4 py-6">
                           <NavLink
                             to={getSearchUrl({
                               categoryId: effectiveActiveCategory,
-                              subcategoryId: subId,
                             })}
                             onClick={closeMenu}
-                            className="cursor-pointer font-inter block py-2 text-sm text-gray-700 hover:text-black transition-colors"
+                            className="cursor-pointer font-inter text-sm text-gray-600 hover:text-black"
                           >
-                            View all in {subName}
+                            View all in{" "}
+                            {navbarCategories.find(
+                              (c) =>
+                                (c._id ?? c.id) === effectiveActiveCategory,
+                            )?.name ?? "this category"}
                           </NavLink>
-                        </div>
+                        </li>
                       )}
-                    </li>
+                    </ul>
                   )
-                }
-              )}
-
-              {(subcategoriesByCategoryId[
-                effectiveActiveCategory
-              ] ?? []).length === 0 && (
-                <li className="px-4 py-6">
-                  <NavLink
-                    to={getSearchUrl({
-                      categoryId: effectiveActiveCategory,
-                    })}
-                    onClick={closeMenu}
-                    className="cursor-pointer font-inter text-sm text-gray-600 hover:text-black"
-                  >
-                    View all in{' '}
-                    {navbarCategories.find(
-                      (c) =>
-                        (c._id ?? c.id) ===
-                        effectiveActiveCategory
-                    )?.name ?? 'this category'}
-                  </NavLink>
-                </li>
-              )}
-            </ul>
-          )
-        ) : (
-          <div className="px-4 py-6 font-inter text-sm text-gray-500">
-            Select a category above.
-          </div>
+                ) : (
+                  <div className="px-4 py-6 font-inter text-sm text-gray-500">
+                    Select a category above.
+                  </div>
+                )}
+              </nav>
+            </div>
+          </>
         )}
-      </nav>
-    </div>
-  </>
-)}
 
         {/* Profile slide-over modal */}
         <ProfileModal
@@ -844,5 +960,5 @@ export default function Header() {
         />
       </div>
     </header>
-  )
+  );
 }
