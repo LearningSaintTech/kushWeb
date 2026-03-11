@@ -405,7 +405,7 @@ export default function Header() {
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className={`h-16 sm:h-9 ${useWhiteStyle ? "" : "brightness-0 invert"}`}
+                className={`h-12 sm:h-14 md:h-16 lg:h-20 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
               />
             </NavLink>
           </div>
@@ -642,7 +642,7 @@ export default function Header() {
         {searchModalOpen && (
           <>
             <div
-              className="fixed inset-0 z-40 cursor-pointer bg-black/40 transition-opacity duration-300"
+              className="fixed inset-0 z-40 cursor-pointer bg-black/20  transition-opacity duration-300"
               onClick={closeSearchModal}
               aria-hidden
             />
@@ -660,7 +660,7 @@ export default function Header() {
               <div className="flex items-center gap-3 shrink-0 p-4 pb-3">
                 <form
                   onSubmit={handleSearchModalSubmit}
-                  className="flex-1 min-w-0 flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2.5"
+                  className="flex-1 min-w-0 flex items-center gap-2 rounded-xl bg-black/10 backdrop-blur-sm px-3 py-2.5"
                 >
                   <SearchIcon className="h-5 w-5 text-gray-400 shrink-0" />
                   <input
@@ -885,23 +885,27 @@ export default function Header() {
                         const isExpanded = expandedSubcategories.has(subId);
 
                         return (
-                          <li key={subId} className="border-b border-gray-200">
+                          <li key={subId} className="">
                             <div className="flex items-center justify-between w-full">
                               <button
                                 type="button"
                                 onClick={() => toggleSubcategory(subId)}
-                                className="cursor-pointer font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50/80 transition-colors"
+                                className="cursor-pointer font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50 transition-colors"
                               >
                                 {subName}
                               </button>
 
-                              <span className="pr-4 text-gray-400 pointer-events-none">
+                              <button
+                                type="button"
+                                onClick={() => toggleSubcategory(subId)}
+                                className="pr-4 text-gray-400 hover:text-black transition"
+                              >
                                 {isExpanded ? (
                                   <ChevronUpIcon className="h-5 w-5" />
                                 ) : (
                                   <ChevronDownIcon className="h-5 w-5" />
                                 )}
-                              </span>
+                              </button>
                             </div>
 
                             {isExpanded && (

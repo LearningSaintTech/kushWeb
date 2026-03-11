@@ -472,7 +472,7 @@ function ProductPage() {
                     ? Number(item.avgRating).toFixed(1)
                     : "4.0"}
                 </div> */}
-                <div className="mt-1 sm:mt-1.5 md:mt-1.5 lg:mt-2 text-[10px] text-gray-700 sm:text-[11px] md:text-xs lg:text-[14px]">
+                {/* <div className="mt-1 sm:mt-1.5 md:mt-1.5 lg:mt-2 text-[10px] text-gray-700 sm:text-[11px] md:text-xs lg:text-[14px]">
                   {deliveryOptions.length > 0 ? (
                     <select
                       className="border border-gray-300 bg-white py-1 px-2 text-inherit cursor-pointer max-w-full sm:max-w-[200px] md:max-w-[160px] w-full sm:w-auto text-xs sm:text-sm md:text-xs lg:text-sm uppercase"
@@ -505,7 +505,7 @@ function ProductPage() {
                   ) : (
                     deliveryText
                   )}
-                </div>
+                </div> */}
               </div>
             </div>
 
