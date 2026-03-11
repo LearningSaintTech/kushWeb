@@ -266,7 +266,7 @@ function NewArrivals({ section }) {
     <section className="bg-white pt-10 md:pt-16 pb-6 md:pb-8 overflow-hidden">
       <div className="container mx-auto px-4">
 
-        <h2 className="text-2xl md:text-4xl font-bold text-center mb-8 md:mb-10">
+        <h2 className="text-2xl md:text-4xl font-extrabold font-Raleway  text-center mb-8 md:mb-10">
           {sectionTitle}
         </h2>
 

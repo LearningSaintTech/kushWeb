@@ -41,23 +41,23 @@ function Collection({ section }) {
           </div>
 
           {/* Grid: 1 col phone, 2 col tablet, 4 col desktop */}
-          <div className="grid grid-cols-1 min-[425px]:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 min-[425px]:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-2">
             {items.map((item) => (
               <Link
                 key={item.id}
                 to={item.to}
                 className="group relative rounded-2xl overflow-hidden border border-white/20"
               >
-                <div className="relative aspect-[3/4]">
+                <div className="relative aspect-[3/5]">
                   <img
                     src={item.image}
                     alt={item.title}
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent" />
 
                   <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4">
-                    <div className="rounded-xl px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-md border border-white/20">
+                    <div className="rounded-xl px-3 py-2 sm:px-4 sm:py-3 bg-white/30 backdrop-blur-md border border-white/20">
                       <span
                         className="text-white text-base sm:text-lg lg:text-xl font-bold uppercase tracking-wide block text-center"
                         style={{ fontFamily: "'Headlines', sans-serif" }}

@@ -6,7 +6,7 @@ export default function HomePromo() {
     <section className=" py-20 flex justify-center">
       <div className="max-w-[1100px] w-full px-4">
         
-        <div className="rounded-2xl overflow-hidden">
+        <div className="rounded-xl overflow-hidden">
           <img
             src={promoImage}
             alt="Promo Banner"
