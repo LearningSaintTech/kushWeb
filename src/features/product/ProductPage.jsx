@@ -518,7 +518,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("details")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
+                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium  uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
                   <RiFileList2Line className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Details</span>
                 </span>
