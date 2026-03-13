@@ -7,6 +7,7 @@ import { ProductPage } from '../../features/product'
 import { AuthPage } from '../../features/auth'
 import { CheckoutPage } from '../../features/checkout'
 import { OrdersPage, TrackOrderPage } from '../../features/orders'
+import { NotificationsPage } from '../../features/notifications'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
 import { CouponsPage } from '../../features/coupons'
@@ -36,6 +37,7 @@ const router = createBrowserRouter([
       { path: 'checkout', element: <CheckoutPage /> },
       { path: 'orders', element: <OrdersPage /> },
       { path: 'orders/track/:orderId/:itemId', element: <TrackOrderPage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'section/:sectionId', element: <SectionExplorePage /> },
       { path: 'refund-cancel-policy', element: <RefundCancelPolicyPage /> },

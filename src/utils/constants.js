@@ -13,6 +13,7 @@ export const ROUTES = {
   ORDERS: '/orders',
   /** Track single order item: /orders/track/:orderId/:itemId */
   ORDER_TRACK: '/orders/track/:orderId/:itemId',
+  NOTIFICATIONS: '/notifications',
   COUPONS: '/coupons',
   ADDRESS: '/address',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',

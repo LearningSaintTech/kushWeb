@@ -10,7 +10,8 @@ import {
   addRecentKeyword,
   removeRecentKeyword,
 } from "../../app/store/slices/searchSlice.js";
-import { SearchIcon, HeartIcon, CartIcon, ProfileIcon } from "../ui/icons";
+import { SearchIcon, HeartIcon, CartIcon, ProfileIcon, NotificationIcon } from "../ui/icons";
+import { useNotification } from "../../app/context/NotificationContext";
 // Location picker in header: no map – shows delivery location as text (current location / search / pincode).
 import LocationPicker from "./LocationPicker";
 import ProfileModal from "./ProfileModal";
@@ -191,6 +192,13 @@ export default function Header() {
   const [panelAnimated, setPanelAnimated] = useState(false);
   const { isAuthenticated, openAuthModal } = useAuth();
   const { wishlistCount, cartCount } = useCartWishlist();
+  const {
+    unreadCount,
+    dropdownList,
+    markRead,
+    markAllRead,
+  } = useNotification();
+  const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const {
     categories: navbarCategories,
     subcategoriesByCategoryId,
@@ -449,6 +457,24 @@ export default function Header() {
             </button>
 
             {isAuthenticated ? (
+              <NavLink
+                to={ROUTES.NOTIFICATIONS}
+                className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg relative ${
+                  useWhiteStyle
+                    ? "text-black hover:opacity-70"
+                    : "text-white hover:opacity-70"
+                }`}
+                aria-label="Notifications"
+              >
+                <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
+                  <NotificationIcon
+                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                  />
+                </IconBadge>
+              </NavLink>
+            ) : null}
+
+            {isAuthenticated ? (
               <button
                 type="button"
                 onClick={() => setProfileModalOpen(true)}
@@ -612,16 +638,80 @@ export default function Header() {
               )}
 
               {isAuthenticated ? (
-                <button
-                  type="button"
-                  onClick={() => setProfileModalOpen(true)}
-                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
-                  aria-label="Account"
-                >
-                  <ProfileIcon
-                    className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  />
-                </button>
+                <>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setNotificationDropdownOpen((prev) => !prev)}
+                      className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                      aria-label="Notifications"
+                      aria-expanded={notificationDropdownOpen}
+                    >
+                      <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
+                        <NotificationIcon
+                          className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
+                        />
+                      </IconBadge>
+                    </button>
+                    {notificationDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          aria-hidden
+                          onClick={() => setNotificationDropdownOpen(false)}
+                        />
+                        <div className="absolute right-0 top-full z-50 mt-1 w-80 max-h-96 overflow-auto rounded-xl bg-white shadow-lg border border-gray-200 py-2">
+                          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                            <span className="font-semibold text-gray-900">Notifications</span>
+                            {unreadCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => { markAllRead(); setNotificationDropdownOpen(false); }}
+                                className="text-sm text-gray-600 hover:text-gray-900"
+                              >
+                                Mark all read
+                              </button>
+                            )}
+                          </div>
+                          <div className="max-h-64 overflow-auto">
+                            {dropdownList.length === 0 ? (
+                              <p className="px-3 py-4 text-sm text-gray-500">No notifications</p>
+                            ) : (
+                              dropdownList.map((n) => (
+                                <button
+                                  key={n._id}
+                                  type="button"
+                                  onClick={() => { markRead(n._id); setNotificationDropdownOpen(false); navigate(ROUTES.NOTIFICATIONS); }}
+                                  className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0 ${!n.read ? "bg-blue-50/50" : ""}`}
+                                >
+                                  <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
+                                  {n.body ? <p className="text-xs text-gray-600 truncate mt-0.5">{n.body}</p> : null}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                          <NavLink
+                            to={ROUTES.NOTIFICATIONS}
+                            onClick={() => setNotificationDropdownOpen(false)}
+                            className="block px-3 py-2 text-sm text-center text-gray-600 hover:bg-gray-50 font-medium"
+                          >
+                            See all
+                          </NavLink>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProfileModalOpen(true)}
+                    className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                    aria-label="Account"
+                  >
+                    <ProfileIcon
+                      className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    />
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"
