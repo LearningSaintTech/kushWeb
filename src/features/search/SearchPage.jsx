@@ -1122,7 +1122,7 @@ function SearchPage() {
       )}
 
       {/* Results from search API with filters */}
-      <div className="">
+      <div className=" pb-20">
      
         {loading ? (
           <div className="font-inter text-gray-500 py-12 text-center">Loading results…</div>

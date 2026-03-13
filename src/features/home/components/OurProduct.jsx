@@ -201,7 +201,7 @@ function OurProduct({ section }) {
                   onClick={() => handleTabClick(cat)}
                   className={`uppercase text-xs sm:text-sm tracking-widest pb-2 transition-all whitespace-nowrap cursor-pointer ${
                     activeCategoryId === cat.id
-                      ? "text-black border-b-2 border-black"
+                      ? "text-black border-b-1 border-black"
                       : "text-gray-400 hover:text-black"
                   }`}
                 >

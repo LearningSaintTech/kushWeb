@@ -117,15 +117,15 @@ const Couples = ({ section }) => {
               }}
             >
               <span
-                className="text-white"
+                className="text-transparent"
                 style={{
-                  WebkitTextStroke: '1.5px black',
+                  WebkitTextStroke: '1.5px white',
                   paintOrder: 'stroke fill',
                 }}
               >
-                COLLECTI
+                COLLECT
               </span>
-              <span className="text-black">ON</span>
+              <span className="text-black">ION</span>
             </h2>
           </div>
         </div>

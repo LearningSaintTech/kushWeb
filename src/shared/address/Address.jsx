@@ -348,7 +348,7 @@ export default function Address() {
   }
 
   return (
-    <div className="min-h-screen mt-[10vw] bg-white pt-24 pb-12">
+    <div className="min-h-screen  bg-white pt-24 pb-12">
       <div className=" px-4 sm:px-6 md:px-8 lg:px-10 ">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h1 className="text-lg sm:text-xl font-bold text-black uppercase">
@@ -391,7 +391,7 @@ export default function Address() {
                   <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 md:py-10 md:min-h-[120px]">
                     <div className="max-w-[320px] pr-2">
                       {isCurrent && (
-                        <p className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-white bg-green-600 px-2.5 py-1 rounded mb-3 md:mb-4">
+                        <p className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-[#0E8635] bg-[#CBE1D2] px-2.5 py-1 rounded mb-3 md:mb-4">
                           Current Address
                         </p>
                       )}
@@ -410,6 +410,9 @@ export default function Address() {
                           <br />
                         </>}
                         {addr.pinCode && `${addr.pinCode}`}
+                         {/* <p className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-[#0E8635] bg-[#CBE1D2] px-2.5 py-1 rounded mb-3 md:mb-4">
+                          Current Address
+                        </p> */}
                       </p>
                     </div>
                   </div>

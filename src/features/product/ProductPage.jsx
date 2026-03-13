@@ -472,7 +472,7 @@ function ProductPage() {
                     ? Number(item.avgRating).toFixed(1)
                     : "4.0"}
                 </div> */}
-                <div className="mt-1 sm:mt-1.5 md:mt-1.5 lg:mt-2 text-[10px] text-gray-700 sm:text-[11px] md:text-xs lg:text-[14px]">
+                {/* <div className="mt-1 sm:mt-1.5 md:mt-1.5 lg:mt-2 text-[10px] text-gray-700 sm:text-[11px] md:text-xs lg:text-[14px]">
                   {deliveryOptions.length > 0 ? (
                     <select
                       className="border border-gray-300 bg-white py-1 px-2 text-inherit cursor-pointer max-w-full sm:max-w-[200px] md:max-w-[160px] w-full sm:w-auto text-xs sm:text-sm md:text-xs lg:text-sm uppercase"
@@ -505,7 +505,7 @@ function ProductPage() {
                   ) : (
                     deliveryText
                   )}
-                </div>
+                </div> */}
               </div>
             </div>
 
@@ -518,7 +518,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("details")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
+                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium  uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
                   <RiFileList2Line className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Details</span>
                 </span>

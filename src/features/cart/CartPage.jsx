@@ -560,7 +560,7 @@ function CartPage() {
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-black">Add new address</h3>
                     <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="p-2 text-gray-500 hover:text-black" aria-label="Close">×</button>
                   </div>
-                  <form onSubmit={handleAddressFormSubmit} className="overflow-y-auto p-4 flex-1 space-y-3">
+                  <form onSubmit={handleAddressFormSubmit} className="overflow-y-auto p-4 flex-1 space-y-3  scrollbar-hide">
                     {addressFormError && <p className="text-xs text-red-600">{addressFormError}</p>}
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Name</label>

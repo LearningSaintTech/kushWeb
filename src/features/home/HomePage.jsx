@@ -12,11 +12,12 @@ import { sectionsService } from '../../services/content.service.js'
 
 const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
-  2: Couples,
-  3: OurCategory,
-  4: Collection,
-  5: BestSellar,
-  6: OurProduct,
+  2:WearYour,
+  3: Couples,
+  4: OurCategory,
+  5: Collection,
+  6: BestSellar,
+  7: OurProduct,
 }
 
 function HomePage() {
@@ -73,7 +74,7 @@ function HomePage() {
           {error}
         </div>
       )}
-      {!loading && !error && [1, 2, 3, 4, 5, 6].map((order) => {
+      {!loading && !error && [1, 2, 3, 4, 5, 6,7].map((order) => {
         const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
         const section = sectionsByOrder[order]
         if (!SectionComponent) return null
