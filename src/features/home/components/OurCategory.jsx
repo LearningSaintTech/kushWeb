@@ -89,6 +89,11 @@ function OurCategory({ section }) {
   );
   const [sectionSubcategoriesResolved, setSectionSubcategoriesResolved] =
     useState([]);
+  /** When section has only categories, we fetch subcategories for the active category on tab click */
+  const [subcategoriesForActiveCategory, setSubcategoriesForActiveCategory] =
+    useState([]);
+  const [subcategoriesForActiveLoading, setSubcategoriesForActiveLoading] =
+    useState(false);
 
   const hasPopulatedCategories = (section?.categories?.length ?? 0) > 0;
   const hasPopulatedSubcategories = (section?.subcategories?.length ?? 0) > 0;
@@ -183,6 +188,37 @@ function OurCategory({ section }) {
   const activeCategoryId = activeCategory
     ? String(activeCategory._id ?? activeCategory.id)
     : null;
+
+  // When section has only categories (no subcategories), fetch subcategories for the active category on tab click
+  const sectionHasOnlyCategories = hasCategories && !hasSubcategories;
+  useEffect(() => {
+    if (!sectionHasOnlyCategories || !activeCategoryId) {
+      setSubcategoriesForActiveCategory([]);
+      return;
+    }
+    let cancelled = false;
+    setSubcategoriesForActiveLoading(true);
+    subcategoriesService
+      .getByCategoryId(activeCategoryId)
+      .then((r) => {
+        const data = r?.data?.data ?? r?.data;
+        const list = data?.subcategories ?? data ?? [];
+        if (!cancelled)
+          setSubcategoriesForActiveCategory(
+            Array.isArray(list) ? list.filter(Boolean) : [],
+          );
+      })
+      .catch(() => {
+        if (!cancelled) setSubcategoriesForActiveCategory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSubcategoriesForActiveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sectionHasOnlyCategories, activeCategoryId]);
+
   const cardsFromSection =
     hasCategories && hasSubcategories && activeCategory
       ? subcategories
@@ -196,18 +232,22 @@ function OurCategory({ section }) {
           )
       : hasCategories && hasSubcategories
         ? []
-        : hasCategories
-          ? categories.map((cat) => mapCategoryToCard(cat, false, sectionId))
-          : hasSubcategories
-            ? subcategories.map((sub) =>
-                mapCategoryToCard(
-                  sub,
-                  true,
-                  sectionId,
-                  sub.categoryId ?? sub.category,
-                ),
-              )
-            : null;
+        : sectionHasOnlyCategories && activeCategory
+          ? subcategoriesForActiveCategory.map((sub) =>
+              mapCategoryToCard(sub, true, sectionId, activeCategoryId),
+            )
+          : hasCategories
+            ? categories.map((cat) => mapCategoryToCard(cat, false, sectionId))
+            : hasSubcategories
+              ? subcategories.map((sub) =>
+                  mapCategoryToCard(
+                    sub,
+                    true,
+                    sectionId,
+                    sub.categoryId ?? sub.category,
+                  ),
+                )
+              : null;
 
   const cards =
     hasCategories &&
@@ -215,7 +255,12 @@ function OurCategory({ section }) {
     activeCategory &&
     cardsFromSection?.length === 0
       ? [mapCategoryToCard(activeCategory, false, sectionId)]
-      : (cardsFromSection ?? CATEGORY_CARDS);
+      : sectionHasOnlyCategories &&
+          activeCategory &&
+          !subcategoriesForActiveLoading &&
+          (cardsFromSection?.length ?? 0) === 0
+        ? [mapCategoryToCard(activeCategory, false, sectionId)]
+        : (cardsFromSection ?? CATEGORY_CARDS);
 
   const sectionTitle = section?.title || "OUR CATEGORY";
   const exploreTo = sectionId ? `/search?sectionId=${sectionId}` : "/search";
@@ -262,7 +307,12 @@ function OurCategory({ section }) {
         </div>
         {/* ================= GRID ================= */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-          {cards.slice(0, 8).map((card) => {
+          {subcategoriesForActiveLoading ? (
+            <div className="col-span-full flex items-center justify-center py-12 text-gray-500 text-sm uppercase tracking-wider">
+              Loading…
+            </div>
+          ) : (
+          cards.slice(0, 8).map((card) => {
             const Wrapper = card.to ? Link : "div";
             const wrapperProps = card.to ? { to: card.to } : {};
             return (
@@ -308,7 +358,8 @@ function OurCategory({ section }) {
                 </div>
               </Wrapper>
             );
-          })}
+          })
+          )}
         </div>
         {/* Explore More — below cards */}
         {sectionId && (

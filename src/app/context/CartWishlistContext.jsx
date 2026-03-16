@@ -44,8 +44,13 @@ function mapWishlistItem(item, deliveryOptions = []) {
   const name = item?.itemId?.name ?? item?.name ?? ''
   const firstVariant = item?.itemId?.variants?.[0] ?? item?.variants?.[0]
   const imageUrl = firstVariant?.images?.[0]?.url ?? item?.itemId?.thumbnail ?? item?.imageUrl ?? ''
-  const price = item?.itemId?.discountedPrice ?? item?.discountedPrice ?? item?.price ?? 0
-  const priceStr = typeof price === 'number' ? `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : (item?.price ?? '')
+  const discountedPrice = item?.itemId?.discountedPrice ?? item?.discountedPrice
+  const originalPriceNum = item?.itemId?.price ?? item?.price ?? 0
+  const priceNum = discountedPrice ?? originalPriceNum ?? 0
+  const priceStr = typeof priceNum === 'number' ? `₹${Number(priceNum).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : (item?.price ?? '')
+  const originalPriceStr = discountedPrice != null && originalPriceNum != null && Number(originalPriceNum) > Number(discountedPrice)
+    ? `₹${Number(originalPriceNum).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    : undefined
   const deliveryFromItem = item?.itemId?.deliveryType ?? item?.deliveryType
   let deliveryText = '—'
   if (deliveryFromItem === '90_MIN') deliveryText = '90 min'
@@ -56,6 +61,7 @@ function mapWishlistItem(item, deliveryOptions = []) {
     id,
     title: name || 'Product',
     price: priceStr,
+    originalPrice: originalPriceStr,
     image: imageUrl,
     hoverImage: firstVariant?.images?.[1]?.url ?? imageUrl,
     delivery: deliveryText,
@@ -276,7 +282,7 @@ export function CartWishlistProvider({ children }) {
   const addToWishlist = useCallback(
     async (product) => {
       const id = product?.id ?? product?._id
-      const { title, price, image, hoverImage, delivery, rating } = product ?? {}
+      const { title, price, originalPrice, image, hoverImage, delivery, rating } = product ?? {}
       if (isAuthenticated) {
         if (wishlistIds.some((wid) => String(wid) === String(id))) return
         try {
@@ -300,7 +306,7 @@ export function CartWishlistProvider({ children }) {
       }
       setWishlist((prev) => {
         if (prev.some((item) => item.id === id)) return prev
-        return [...prev, { id, title, price, image, hoverImage, delivery, rating }]
+        return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating }]
       })
     },
     [isAuthenticated, wishlistIds, pincode]
@@ -358,9 +364,9 @@ export function CartWishlistProvider({ children }) {
     setWishlist((prev) => {
       const inList = prev.some((item) => item.id === id)
       if (inList) return prev.filter((item) => item.id !== id)
-      const { title, price, image, hoverImage, delivery, rating } = typeof product === 'object' ? product : {}
+      const { title, price, originalPrice, image, hoverImage, delivery, rating } = typeof product === 'object' ? product : {}
       if (typeof product !== 'object' || !title) return prev
-      return [...prev, { id, title, price, image, hoverImage, delivery, rating }]
+      return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating }]
     })
   }, [isAuthenticated, pincode])
 

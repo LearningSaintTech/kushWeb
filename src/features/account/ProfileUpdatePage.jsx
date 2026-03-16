@@ -213,7 +213,7 @@ export default function ProfileUpdatePage() {
             />
           </div>
 
-          <div>
+          {/* <div>
             <label htmlFor="address" className="font-inter block text-sm font-medium text-black uppercase tracking-wider mb-1">
               Address
             </label>
@@ -226,7 +226,7 @@ export default function ProfileUpdatePage() {
               className="font-inter w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none"
               placeholder="Street, area"
             />
-          </div>
+          </div> */}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

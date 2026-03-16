@@ -27,11 +27,16 @@ function mapItemToCard(item, deliveryTypeFallback) {
         : deliveryTypeFallback
           ? `GET IN ${deliveryTypeFallback}`
           : '—'
+  const price = item.discountedPrice != null ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0'
+  const originalPrice = item.discountedPrice != null && item.price != null && Number(item.price) > Number(item.discountedPrice)
+    ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    : undefined
   return {
     id,
     image: imageUrl || productImage,
     title: item.name ?? '',
-    price: item.discountedPrice != null ? `₹${item.discountedPrice}` : '₹0',
+    price,
+    originalPrice,
     delivery,
     rating: item.avgRating ?? 0,
     outOfStock: item.inStock === false,
@@ -57,15 +62,23 @@ function NewArrivals({ section }) {
 
   const listFromSection = section?.products
     ?.filter((p) => p?.item)
-    ?.map((p) => ({
-      id: p.item._id,
-      image: p.item.thumbnail || productImage,
-      title: p.item.name || '',
-      price: p.item.discountedPrice != null ? `₹${p.item.discountedPrice}` : '₹0',
-      delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
-      rating: p.item.avgRating ?? 0,
-      outOfStock: p.inStock === false,
-    })) || []
+    ?.map((p) => {
+      const item = p.item
+      const price = item.discountedPrice != null ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0'
+      const originalPrice = item.discountedPrice != null && item.price != null && Number(item.price) > Number(item.discountedPrice)
+        ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+        : undefined
+      return {
+        id: item._id,
+        image: item.thumbnail || productImage,
+        title: item.name || '',
+        price,
+        originalPrice,
+        delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
+        rating: item.avgRating ?? 0,
+        outOfStock: p.inStock === false,
+      }
+    }) || []
 
   const [sectionList, setSectionList] = useState([])
   const [sectionPage, setSectionPage] = useState(1)
@@ -349,9 +362,14 @@ function NewArrivals({ section }) {
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center gap-2 text-xs md:text-sm">
-                    <span className="font-medium">{item.price}</span>
-                    <span className="flex items-center gap-1 font-medium">
+                  <div className="flex justify-between items-center gap-2 text-xs md:text-sm flex-wrap">
+                    <div className="flex items-center gap-2 flex-nowrap min-w-0">
+                      <span className="font-medium">{item.price}</span>
+                      {item.originalPrice && (
+                        <span className="font-medium text-white/80 line-through">{item.originalPrice}</span>
+                      )}
+                    </div>
+                    <span className="flex items-center gap-1 font-medium shrink-0">
                       <LuClock4 className="h-3.5 w-3.5 text-white" />
                       {item.delivery}
                     </span>
