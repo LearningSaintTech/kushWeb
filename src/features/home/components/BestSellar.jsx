@@ -36,12 +36,17 @@ function mapItemToCard(item, deliveryTypeFallback) {
         : deliveryTypeFallback
           ? `GET IN ${deliveryTypeFallback}`
           : '—'
+  const price = item.discountedPrice != null ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0'
+  const originalPrice = item.discountedPrice != null && item.price != null && Number(item.price) > Number(item.discountedPrice)
+    ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    : undefined
   return {
     id,
     image: imageUrl || productImage,
     hoverImage: hoverUrl || hoverProductImage,
     title: item.name ?? '',
-    price: item.discountedPrice != null ? `₹${item.discountedPrice}` : '₹0',
+    price,
+    originalPrice,
     delivery,
     rating: item.avgRating ?? 4.5,
     outOfStock: item.inStock === false,
@@ -53,16 +58,24 @@ function BestSellar({ section }) {
 
   const listFromSection = section?.products
     ?.filter((p) => p?.item)
-    ?.map((p, i) => ({
-      id: p.item._id,
-      image: p.item.thumbnail || productImage,
-      hoverImage: p.item.thumbnail || hoverProductImage,
-      title: p.item.name || '',
-      price: p.item.discountedPrice != null ? `₹${p.item.discountedPrice}` : '₹0',
-      delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
-      rating: p.item.avgRating ?? 4.5,
-      outOfStock: p.inStock === false,
-    })) || []
+    ?.map((p, i) => {
+      const item = p.item
+      const price = item.discountedPrice != null ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0'
+      const originalPrice = item.discountedPrice != null && item.price != null && Number(item.price) > Number(item.discountedPrice)
+        ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+        : undefined
+      return {
+        id: item._id,
+        image: item.thumbnail || productImage,
+        hoverImage: item.thumbnail || hoverProductImage,
+        title: item.name || '',
+        price,
+        originalPrice,
+        delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
+        rating: item.avgRating ?? 4.5,
+        outOfStock: p.inStock === false,
+      }
+    }) || []
 
   const [sectionList, setSectionList] = useState([])
   const [sectionPage, setSectionPage] = useState(1)

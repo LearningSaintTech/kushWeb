@@ -43,6 +43,7 @@ const ProductCard = React.memo(function ProductCard({
   hoverImage,
   title,
   price,
+  originalPrice,
   delivery,
   rating,
   rounded = "lg",
@@ -188,6 +189,7 @@ const ProductCard = React.memo(function ProductCard({
                     hoverImage,
                     title,
                     price,
+                    originalPrice,
                     delivery,
                     rating,
                   }),
@@ -248,6 +250,7 @@ const ProductCard = React.memo(function ProductCard({
                     hoverImage,
                     title,
                     price,
+                    originalPrice,
                     delivery,
                     rating,
                   });
@@ -298,12 +301,19 @@ const ProductCard = React.memo(function ProductCard({
           </h3>
 
           <div className="mt-0.5 sm:mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs sm:text-sm">
-            <span
-              className="text-gray-600 font-medium text-xs sm:text-sm md:text-base"
+            <div
+              className="flex items-center gap-2 flex-nowrap min-w-0"
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
-              {price}
-            </span>
+              <span className="text-gray-600 font-medium text-xs sm:text-sm md:text-base shrink-0">
+                {price}
+              </span>
+              {originalPrice && (
+                <span className="text-gray-500 line-through text-xs sm:text-sm md:text-base shrink-0">
+                  {originalPrice}
+                </span>
+              )}
+            </div>
 
             <div className="flex items-center gap-2 sm:gap-4 md:gap-6">
               <span

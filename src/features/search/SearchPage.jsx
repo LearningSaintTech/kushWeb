@@ -55,7 +55,12 @@ function itemToCardProps(item) {
   const hoverUrl = sorted[1]?.url ?? imageUrl
   const price = item.discountedPrice != null
     ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-    : '—'
+    : item.price != null
+      ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : '—'
+  const originalPrice = item.discountedPrice != null && item.price != null && Number(item.price) > Number(item.discountedPrice)
+    ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    : undefined
   const delivery = item.deliveryType === '90_MIN'
     ? '90 min'
     : item.deliveryType === 'ONE_DAY'
@@ -69,6 +74,7 @@ function itemToCardProps(item) {
     hoverImage: hoverUrl || undefined,
     title: item.name ?? 'Product',
     price,
+    originalPrice,
     delivery,
     rating: 4,
   }

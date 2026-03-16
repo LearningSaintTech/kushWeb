@@ -187,6 +187,13 @@ function ProductPage() {
     );
   }, [deliveryOptions, item?.shipping]);
 
+  const originalPriceDisplay =
+    item?.discountedPrice != null &&
+    item?.price != null &&
+    Number(item.price) > Number(item.discountedPrice)
+      ? `₹${Number(item.price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+      : null;
+
   const productForCart = useMemo(() => {
     if (!item || !selectedVariant || !selectedSizeObj) return null;
     const imageUrl = selectedVariant.images?.[0]?.url ?? item.thumbnail ?? "";
@@ -195,6 +202,7 @@ function ProductPage() {
       _id: item._id,
       title: item.name,
       price: priceDisplay,
+      originalPrice: originalPriceDisplay ?? undefined,
       image: imageUrl,
       hoverImage: imageUrl,
       delivery: deliveryText,
@@ -213,6 +221,7 @@ function ProductPage() {
     selectedSizeObj,
     selectedColor,
     priceDisplay,
+    originalPriceDisplay,
     deliveryText,
   ]);
 
