@@ -10,14 +10,14 @@ import Couples from './components/Couples'
 import WearYour from './components/WearYour'
 import { sectionsService } from '../../services/content.service.js'
 
+// API webOrder 1,2,3... maps to these components. WearYour is static (not in API order).
 const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
-  2: WearYour,
-  3: Couples,
-  4: OurCategory,
-  5: Collection,
-  6: BestSellar,
-  7: OurProduct,
+  2: Couples,
+  3: OurCategory,
+  4: Collection,
+  5: BestSellar,
+  6: OurProduct,
 }
 
 function HomePage() {
@@ -35,16 +35,19 @@ function HomePage() {
     sectionsService
       .getActive(params)
       .then((res) => {
+        console.log("res", res)
         if (cancelled) return
         const raw = res?.data?.data?.items ?? res?.data?.items ?? []
+        console.log("raw", raw)
         const sorted = [...raw].sort(
           (a, b) => (a.webinfo?.webOrder ?? 999) - (b.webinfo?.webOrder ?? 999)
         )
+        console.log("sorted", sorted)
         const byOrder = {}
         sorted.forEach((s) => {
           let order = s.webinfo?.webOrder ?? 999
           if (order === 0) order = 1 // webOrder 0 → slot 1 (New Arrivals)
-          if (order >= 1 && order <= 7) byOrder[order] = s
+          if (order >= 1 && order <= 6) byOrder[order] = s
         })
         setSectionsByOrder(byOrder)
       })
@@ -70,11 +73,15 @@ function HomePage() {
           {error}
         </div>
       )}
-      {!loading && !error && [1, 2, 3, 4, 5, 6, 7].map((order) => {
+      {!loading && !error && [1, 2, 3, 4, 5, 6].map((order) => {
         const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
         const section = sectionsByOrder[order]
-        if (!SectionComponent) return null
-        return <SectionComponent key={order} section={section} />
+        return (
+          <React.Fragment key={order}>
+            {order === 2 && <WearYour key="wear-your-static" />}
+            {SectionComponent ? <SectionComponent key={`section-${order}`} section={section} /> : null}
+          </React.Fragment>
+        )
       })}
       {!loading && !error && Object.keys(sectionsByOrder).length === 0 && (
         <>

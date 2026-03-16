@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { IoChevronForwardOutline } from 'react-icons/io5'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import ProductCard from '../../shared/components/ProductCard'
 import { ROUTES } from '../../utils/constants'
@@ -8,7 +9,6 @@ import wishlistBanner from '../../assets/temporary/collection.png'
 const PAGE_SIZE = 12
 
 function WishlistPage() {
-  const navigate = useNavigate()
   const { wishlist, wishlistDeliveries, wishlistCount, wishlistLoading } = useCartWishlist()
   const [currentPage, setCurrentPage] = useState(1)
   const listRef = useRef(null)
@@ -34,27 +34,43 @@ function WishlistPage() {
     setCurrentPage(next)
   }
 
+  const breadcrumbSegments = [
+    { label: 'Home', to: ROUTES.HOME },
+    { label: 'Wishlist', to: null },
+  ]
+  const breadcrumbPillClass = (i) => {
+    const isLast = i === breadcrumbSegments.length - 1
+    return `inline-flex items-center justify-center rounded-[22px] px-5 py-1.5 font-medium tracking-[0.36px] transition-colors text-base sm:text-lg ${
+      isLast ? 'bg-[#F5F5F5] text-gray-700' : 'bg-[#F5F5F5] text-[#BDBDBD] hover:bg-neutral-200 hover:text-gray-600'
+    }`
+  }
   const breadcrumb = (
-    <div className=" mx-auto px-4 py-4 border-b border-gray-100">
-      <nav className="flex items-center gap-3 font-inter text-sm" aria-label="Breadcrumb">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 text-gray-600 hover:text-black transition-colors"
-          aria-label="Go back"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <Link to={ROUTES.HOME} className="text-gray-500 hover:text-black transition-colors">
-          Home
-        </Link>
-        <span className="text-gray-400" aria-hidden>/</span>
-        <Link to={ROUTES.WISHLIST} className="text-gray-900 font-medium">
-          Wishlist
-        </Link>
-      </nav>
+    <div className="bg-white my-4">
+      <div className="mx-10 py-4">
+        <nav className="flex flex-wrap items-center justify-between gap-3 font-inter text-sm" aria-label="Breadcrumb">
+          <div className="flex flex-wrap items-center gap-2">
+            {breadcrumbSegments.map((seg, i) => (
+              <span key={i} className="flex items-center gap-2">
+                {i > 0 && (
+                  <IoChevronForwardOutline
+                    className="h-5 w-5 shrink-0 text-[#BDBDBD]"
+                    aria-hidden
+                  />
+                )}
+                {seg.to ? (
+                  <Link to={seg.to} className={breadcrumbPillClass(i)}>
+                    {seg.label}
+                  </Link>
+                ) : (
+                  <span className={breadcrumbPillClass(i)}>
+                    {seg.label}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        </nav>
+      </div>
     </div>
   )
 
