@@ -28,9 +28,9 @@ function mapItemToCard(item, deliveryTypeFallback) {
   const imageUrl = item.thumbnail ?? sorted[0]?.url ?? ''
   const hoverUrl = sorted[1]?.url ?? imageUrl
   const delivery = item.deliveryType === '90_MIN'
-    ? '90 min delivery'
+    ? '90 min'
     : item.deliveryType === 'ONE_DAY'
-      ? '1 day delivery'
+      ? '1 day'
       : item.deliveryType
         ? String(item.deliveryType)
         : deliveryTypeFallback
@@ -59,7 +59,7 @@ function BestSellar({ section }) {
       hoverImage: p.item.thumbnail || hoverProductImage,
       title: p.item.name || '',
       price: p.item.discountedPrice != null ? `₹${p.item.discountedPrice}` : '₹0',
-      delivery: section.deliveryType ? `GET IN ${section.deliveryType}` : '',
+      delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
       rating: p.item.avgRating ?? 4.5,
       outOfStock: p.inStock === false,
     })) || []

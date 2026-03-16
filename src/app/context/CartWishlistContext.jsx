@@ -48,8 +48,8 @@ function mapWishlistItem(item, deliveryOptions = []) {
   const priceStr = typeof price === 'number' ? `₹${price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : (item?.price ?? '')
   const deliveryFromItem = item?.itemId?.deliveryType ?? item?.deliveryType
   let deliveryText = '—'
-  if (deliveryFromItem === '90_MIN') deliveryText = '90 min delivery'
-  else if (deliveryFromItem === 'ONE_DAY') deliveryText = '1 day delivery'
+  if (deliveryFromItem === '90_MIN') deliveryText = '90 min'
+  else if (deliveryFromItem === 'ONE_DAY') deliveryText = '1 day'
   else if (deliveryFromItem) deliveryText = String(deliveryFromItem)
   else if (deliveryOptions?.length > 0) deliveryText = formatDeliveryOption(deliveryOptions[0])
   return {

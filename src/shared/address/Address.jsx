@@ -10,9 +10,11 @@ import GoogleMapPicker from '../components/GoogleMapPicker'
 import { LocationIcon } from '../ui/icons'
 
 function formatAddress(addr) {
-  if (!addr) return ''
-  const parts = [addr.addressLine, addr.city, addr.state, addr.pinCode].filter(Boolean)
-  return parts.join(', ')
+  if (!addr) return "";
+  const parts = [addr.addressLine, addr.city, addr.state, addr.pinCode].filter(
+    Boolean,
+  );
+  return parts.join(", ");
 }
 
 function TrashIcon({ className }) {
@@ -30,7 +32,7 @@ function TrashIcon({ className }) {
         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
       />
     </svg>
-  )
+  );
 }
 
 function EditIcon({ className }) {
@@ -48,30 +50,31 @@ function EditIcon({ className }) {
         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 113 3L13 14l-4 1 1-4 8.5-8.5z"
       />
     </svg>
-  )
+  );
 }
 
 export default function Address() {
-  const dispatch = useDispatch()
-  const { isAuthenticated } = useAuth()
+  const dispatch = useDispatch();
+  const { isAuthenticated } = useAuth();
 
-  const [addresses, setAddresses] = useState([])
-  const [defaultAddressId, setDefaultAddressId] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [addresses, setAddresses] = useState([]);
+  const [page, setPage] = useState(1);
+  const [defaultAddressId, setDefaultAddressId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalMode, setModalMode] = useState('create') // 'create' | 'edit'
-  const [editingAddressId, setEditingAddressId] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState("create"); // 'create' | 'edit'
+  const [editingAddressId, setEditingAddressId] = useState(null);
   const [form, setForm] = useState({
-    name: '',
-    phoneNumber: '',
-    countryCode: '+91',
-    addressLine: '',
-    city: '',
-    state: '',
-    pinCode: '',
-    addressType: 'HOME',
+    name: "",
+    phoneNumber: "",
+    countryCode: "+91",
+    addressLine: "",
+    city: "",
+    state: "",
+    pinCode: "",
+    addressType: "HOME",
     latitude: null,
     longitude: null,
   })
@@ -87,63 +90,67 @@ export default function Address() {
 
   const loadAddresses = useCallback(async () => {
     if (!isAuthenticated) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
       const [defaultRes, allRes] = await Promise.all([
         addressService.getDefaultAddress().catch(() => null),
-        addressService.getAll({ page: 1, limit: 50 }),
-      ])
+        addressService.getAll({ page, limit: 5 }),
+      ]);
 
-      const defaultData = defaultRes?.data?.data ?? defaultRes?.data ?? null
-      const allData = allRes?.data?.data ?? allRes?.data
+      const defaultData = defaultRes?.data?.data ?? defaultRes?.data ?? null;
+      const allData = allRes?.data?.data ?? allRes?.data;
       const arr = Array.isArray(allData)
         ? allData
         : Array.isArray(allData?.addresses)
           ? allData.addresses
           : Array.isArray(allData?.data)
             ? allData.data
-            : []
+            : [];
 
-      setAddresses(arr)
-      setDefaultAddressId(defaultData?._id ?? null)
+      setAddresses(arr);
+      setDefaultAddressId(defaultData?._id ?? null);
     } catch (err) {
-      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load addresses')
-      setAddresses([])
-      setDefaultAddressId(null)
+      setError(
+        err?.response?.data?.message ??
+          err?.message ??
+          "Failed to load addresses",
+      );
+      setAddresses([]);
+      setDefaultAddressId(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, page]);
 
   useEffect(() => {
-    loadAddresses()
-  }, [loadAddresses])
+    loadAddresses();
+  }, [loadAddresses]);
 
   const openCreateModal = () => {
-    setModalMode('create')
-    setEditingAddressId(null)
-    setFormError(null)
-    setAddressSearchQuery('')
-    setAddressSearchResults([])
-    setAddressSearchOpen(false)
+    setModalMode("create");
+    setEditingAddressId(null);
+    setFormError(null);
+    setAddressSearchQuery("");
+    setAddressSearchResults([]);
+    setAddressSearchOpen(false);
     setForm({
-      name: '',
-      phoneNumber: '',
-      countryCode: '+91',
-      addressLine: '',
-      city: '',
-      state: '',
-      pinCode: '',
-      addressType: 'HOME',
+      name: "",
+      phoneNumber: "",
+      countryCode: "+91",
+      addressLine: "",
+      city: "",
+      state: "",
+      pinCode: "",
+      addressType: "HOME",
       latitude: null,
       longitude: null,
-    })
-    setModalOpen(true)
-  }
+    });
+    setModalOpen(true);
+  };
 
   const openEditModal = (addr) => {
     const type = addr?.addressType === 'WORK' ? 'OFFICE' : (addr?.addressType ?? 'HOME')
@@ -161,46 +168,46 @@ export default function Address() {
       addressType: type,
       latitude: addr?.latitude ?? null,
       longitude: addr?.longitude ?? null,
-    })
-    setModalOpen(true)
-  }
+    });
+    setModalOpen(true);
+  };
 
   const closeModal = () => {
-    if (formLoading) return
-    setModalOpen(false)
-  }
+    if (formLoading) return;
+    setModalOpen(false);
+  };
 
   const handleFormChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
-  }
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleMapSelect = useCallback((lat, lng) => {
-    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }))
-  }, [])
+    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+  }, []);
 
   // Address search: debounced suggestions (Zomato/Swiggy style)
   useEffect(() => {
-    if (!modalOpen || modalMode !== 'create') return
-    const q = addressSearchQuery.trim()
+    if (!modalOpen || modalMode !== "create") return;
+    const q = addressSearchQuery.trim();
     if (q.length < 2) {
-      setAddressSearchResults([])
-      setAddressSearchOpen(false)
-      return
+      setAddressSearchResults([]);
+      setAddressSearchOpen(false);
+      return;
     }
-    setAddressSearchLoading(true)
+    setAddressSearchLoading(true);
     const t = setTimeout(async () => {
       try {
-        const results = await searchPlaces(q)
-        setAddressSearchResults(Array.isArray(results) ? results : [])
-        setAddressSearchOpen(true)
+        const results = await searchPlaces(q);
+        setAddressSearchResults(Array.isArray(results) ? results : []);
+        setAddressSearchOpen(true);
       } catch {
-        setAddressSearchResults([])
+        setAddressSearchResults([]);
       } finally {
-        setAddressSearchLoading(false)
+        setAddressSearchLoading(false);
       }
-    }, 400)
-    return () => clearTimeout(t)
-  }, [modalOpen, modalMode, addressSearchQuery])
+    }, 400);
+    return () => clearTimeout(t);
+  }, [modalOpen, modalMode, addressSearchQuery]);
 
   const handleSelectAddressSuggestion = useCallback((item) => {
     setForm((prev) => ({
@@ -211,18 +218,18 @@ export default function Address() {
       pinCode: item.pincode ? String(item.pincode) : prev.pinCode,
       latitude: item.latitude ?? prev.latitude,
       longitude: item.longitude ?? prev.longitude,
-    }))
-    setAddressSearchQuery(item.label || '')
-    setAddressSearchOpen(false)
-    setAddressSearchResults([])
-  }, [])
+    }));
+    setAddressSearchQuery(item.label || "");
+    setAddressSearchOpen(false);
+    setAddressSearchResults([]);
+  }, []);
 
   const handleUseCurrentLocation = useCallback(async () => {
-    setMapGeocoding(true)
-    setFormError(null)
+    setMapGeocoding(true);
+    setFormError(null);
     try {
-      const { latitude, longitude } = await getCurrentPosition()
-      const res = await reverseGeocode(latitude, longitude)
+      const { latitude, longitude } = await getCurrentPosition();
+      const res = await reverseGeocode(latitude, longitude);
       setForm((prev) => ({
         ...prev,
         addressLine: res?.addressLabel || prev.addressLine,
@@ -231,30 +238,38 @@ export default function Address() {
         pinCode: res?.pincode ? String(res.pincode) : prev.pinCode,
         latitude,
         longitude,
-      }))
-      setAddressSearchQuery(res?.addressLabel || '')
-      setAddressSearchOpen(false)
+      }));
+      setAddressSearchQuery(res?.addressLabel || "");
+      setAddressSearchOpen(false);
     } catch (err) {
-      setFormError(err?.message ?? 'Could not get location. Try search instead.')
+      setFormError(
+        err?.message ?? "Could not get location. Try search instead.",
+      );
     } finally {
-      setMapGeocoding(false)
+      setMapGeocoding(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    if (!addressSearchOpen) return
+    if (!addressSearchOpen) return;
     const onOutside = (e) => {
-      if (addressSearchRef.current && !addressSearchRef.current.contains(e.target)) setAddressSearchOpen(false)
-    }
-    document.addEventListener('click', onOutside)
-    return () => document.removeEventListener('click', onOutside)
-  }, [addressSearchOpen])
+      if (
+        addressSearchRef.current &&
+        !addressSearchRef.current.contains(e.target)
+      )
+        setAddressSearchOpen(false);
+    };
+    document.addEventListener("click", onOutside);
+    return () => document.removeEventListener("click", onOutside);
+  }, [addressSearchOpen]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setFormError(null)
+    e.preventDefault();
+    setFormError(null);
 
-    const pin = String(form.pinCode || '').trim().replace(/\D/g, '')
+    const pin = String(form.pinCode || "")
+      .trim()
+      .replace(/\D/g, "");
     if (
       !form.name?.trim() ||
       !form.addressLine?.trim() ||
@@ -262,61 +277,74 @@ export default function Address() {
       !form.state?.trim() ||
       !pin
     ) {
-      setFormError('Please fill name, address, city, state and pincode.')
-      return
+      setFormError("Please fill name, address, city, state and pincode.");
+      return;
     }
-    if (modalMode === 'create' && (form.latitude == null || form.longitude == null)) {
-      setFormError('Please search for your area or use current location so we can confirm your delivery point.')
-      return
+    if (
+      modalMode === "create" &&
+      (form.latitude == null || form.longitude == null)
+    ) {
+      setFormError(
+        "Please search for your area or use current location so we can confirm your delivery point.",
+      );
+      return;
     }
 
     const addressType = (form.addressType || 'HOME').toUpperCase()
     const payload = {
       name: form.name.trim(),
-      phoneNumber: (form.phoneNumber || '').trim() || undefined,
-      countryCode: (form.countryCode || '+91').trim(),
+      phoneNumber: (form.phoneNumber || "").trim() || undefined,
+      countryCode: (form.countryCode || "+91").trim(),
       addressLine: form.addressLine.trim(),
       city: form.city.trim(),
       state: form.state.trim(),
       pinCode: parseInt(pin, 10) || 0,
       addressType: addressType === 'WORK' ? 'OFFICE' : addressType,
       isDefault: false,
-    }
+    };
     if (form.latitude != null && form.longitude != null) {
-      payload.latitude = Number(form.latitude)
-      payload.longitude = Number(form.longitude)
+      payload.latitude = Number(form.latitude);
+      payload.longitude = Number(form.longitude);
     }
 
     if (payload.pinCode <= 0) {
-      setFormError('Please enter a valid pincode.')
-      return
+      setFormError("Please enter a valid pincode.");
+      return;
     }
 
-    setFormLoading(true)
+    setFormLoading(true);
     try {
-      if (modalMode === 'edit' && editingAddressId) {
-        await addressService.update(editingAddressId, payload)
+      if (modalMode === "edit" && editingAddressId) {
+        await addressService.update(editingAddressId, payload);
       } else {
-        await addressService.create(payload)
+        await addressService.create(payload);
       }
-      await loadAddresses()
-      setModalOpen(false)
+      await loadAddresses();
+      setModalOpen(false);
     } catch (err) {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to save address.'
-      setFormError(msg)
+      const msg =
+        err?.response?.data?.message ??
+        err?.message ??
+        "Failed to save address.";
+      setFormError(msg);
     } finally {
-      setFormLoading(false)
+      setFormLoading(false);
     }
-  }
+  };
 
   const handleSetDefault = async (addr) => {
-    const id = addr?._id
-    if (!id) return
+    const id = addr?._id;
+    if (!id) return;
     try {
-      await addressService.setDefault(id)
-      await loadAddresses()
-      const label = formatAddress(addr)
-      dispatch(setLocation({ pincode: addr.pinCode ? String(addr.pinCode) : null, addressLabel: label || null }))
+      await addressService.setDefault(id);
+      await loadAddresses();
+      const label = formatAddress(addr);
+      dispatch(
+        setLocation({
+          pincode: addr.pinCode ? String(addr.pinCode) : null,
+          addressLabel: label || null,
+        }),
+      );
     } catch {
       // ignore
     }
@@ -329,21 +357,25 @@ export default function Address() {
 
   const handleDelete = async (id) => {
     // simple confirm to avoid accidental deletes
-    if (!window.confirm('Delete this address?')) return
+    if (!window.confirm("Delete this address?")) return;
     try {
-      await addressService.delete(id)
-      await loadAddresses()
+      await addressService.delete(id);
+      await loadAddresses();
     } catch {
       // ignore
     }
-  }
+  };
 
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className=" px-4 sm:px-6 md:px-8 py-12 sm:py-16 text-center ">
-          <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">Address Book</h1>
-          <p className="mt-2 text-sm sm:text-base text-gray-600">Please sign in to manage your addresses.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">
+            Address Book
+          </h1>
+          <p className="mt-2 text-sm sm:text-base text-gray-600">
+            Please sign in to manage your addresses.
+          </p>
           <Link
             to={ROUTES.AUTH}
             className="mt-6 inline-block px-6 py-3 bg-black text-white text-sm font-medium uppercase hover:bg-gray-800 transition-colors"
@@ -352,7 +384,7 @@ export default function Address() {
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -376,7 +408,9 @@ export default function Address() {
         {loading ? (
           <p className="text-sm text-gray-500">Loading addresses…</p>
         ) : addresses.length === 0 ? (
-          <p className="text-sm text-gray-500">No addresses added yet. Add your first address.</p>
+          <p className="text-sm text-gray-500">
+            No addresses added yet. Add your first address.
+          </p>
         ) : (
           <div className="border border-[#E6E6E6] bg-white rounded-lg overflow-hidden">
             {/* Header row — visible from md up */}
@@ -413,19 +447,23 @@ export default function Address() {
                         )}
                       </div>
                       <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-gray-800 break-words">
-                        {addr.name || 'Name'}
+                        {addr.name || "Name"}
                       </p>
                       <p className="mt-2 text-[11px] leading-5 uppercase tracking-[0.04em] text-gray-500 whitespace-pre-line break-words">
                         {addr.addressLine}
                         {addr.addressLine && <br />}
-                        {addr.city && <>
-                          {addr.city}
-                          <br />
-                        </>}
-                        {addr.state && <>
-                          {addr.state}
-                          <br />
-                        </>}
+                        {addr.city && (
+                          <>
+                            {addr.city}
+                            <br />
+                          </>
+                        )}
+                        {addr.state && (
+                          <>
+                            {addr.state}
+                            <br />
+                          </>
+                        )}
                         {addr.pinCode && `${addr.pinCode}`}
                       </p>
                     </div>
@@ -472,10 +510,30 @@ export default function Address() {
                     </div>
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
         )}
+      </div>
+
+      {/* Pagination */}
+      <div className="flex justify-center items-center gap-4 mt-6">
+        <button
+          onClick={() => setPage((p) => Math.max(p - 1, 1))}
+          disabled={page === 1}
+          className="px-4 py-2 border text-sm disabled:opacity-40"
+        >
+          Prev
+        </button>
+
+        <span className="text-sm font-medium">Page {page}</span>
+
+        <button
+          onClick={() => setPage((p) => p + 1)}
+          className="px-4 py-2 border text-sm"
+        >
+          Next
+        </button>
       </div>
 
       {/* Add / Edit address modal */}
@@ -491,7 +549,7 @@ export default function Address() {
           >
             <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xs sm:text-sm font-semibold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-gray-800 truncate pr-2">
-                {modalMode === 'edit' ? 'Edit Address' : 'New Address'}
+                {modalMode === "edit" ? "Edit Address" : "New Address"}
               </h2>
               <button
                 type="button"
@@ -502,9 +560,12 @@ export default function Address() {
                 ×
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="px-4 sm:px-5 py-4 space-y-3 max-h-[min(85vh,560px)] overflow-y-auto">
+            <form
+              onSubmit={handleSubmit}
+              className="px-4 sm:px-5 py-4 space-y-3 max-h-[min(85vh,560px)] overflow-y-auto"
+            >
               {formError && <p className="text-xs text-red-600">{formError}</p>}
-              {modalMode === 'create' && (
+              {modalMode === "create" && (
                 <>
                   <div className="relative" ref={addressSearchRef}>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
@@ -514,7 +575,10 @@ export default function Address() {
                       type="text"
                       value={addressSearchQuery}
                       onChange={(e) => setAddressSearchQuery(e.target.value)}
-                      onFocus={() => addressSearchQuery.trim().length >= 2 && setAddressSearchOpen(true)}
+                      onFocus={() =>
+                        addressSearchQuery.trim().length >= 2 &&
+                        setAddressSearchOpen(true)
+                      }
                       placeholder="e.g. Sector 16B Bhangel, Greater Noida or 201318"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder:text-gray-400"
                       autoComplete="off"
@@ -526,7 +590,9 @@ export default function Address() {
                       className="mt-2 w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-60"
                     >
                       <LocationIcon className="h-4 w-4 text-gray-500" />
-                      {mapGeocoding ? 'Getting location…' : 'Use current location'}
+                      {mapGeocoding
+                        ? "Getting location…"
+                        : "Use current location"}
                     </button>
                     {addressSearchOpen && addressSearchResults.length > 0 && (
                       <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto border border-gray-200 bg-white rounded-lg shadow-lg py-1">
@@ -534,13 +600,19 @@ export default function Address() {
                           <li key={`${item.label}-${item.pincode}-${idx}`}>
                             <button
                               type="button"
-                              onClick={() => handleSelectAddressSuggestion(item)}
+                              onClick={() =>
+                                handleSelectAddressSuggestion(item)
+                              }
                               className="w-full px-3 py-2.5 text-left text-sm text-gray-800 hover:bg-gray-50 flex flex-col gap-0.5"
                             >
-                              <span className="font-medium truncate">{item.label}</span>
+                              <span className="font-medium truncate">
+                                {item.label}
+                              </span>
                               {(item.city || item.pincode) && (
                                 <span className="text-xs text-gray-500">
-                                  {[item.city, item.state, item.pincode].filter(Boolean).join(', ')}
+                                  {[item.city, item.state, item.pincode]
+                                    .filter(Boolean)
+                                    .join(", ")}
                                 </span>
                               )}
                             </button>
@@ -561,17 +633,24 @@ export default function Address() {
                         Tap the map to adjust the pin. Delivery only in India.
                       </p>
                       <GoogleMapPicker
-                        initialCenter={{ lat: form.latitude, lng: form.longitude }}
+                        initialCenter={{
+                          lat: form.latitude,
+                          lng: form.longitude,
+                        }}
                         center={{ lat: form.latitude, lng: form.longitude }}
                         onSelect={handleMapSelect}
                         height={200}
                       />
-                      {mapGeocoding && <p className="text-xs text-gray-500 mt-1">Getting address…</p>}
+                      {mapGeocoding && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Getting address…
+                        </p>
+                      )}
                     </div>
                   )}
                 </>
               )}
-              {modalMode === 'create' && (
+              {modalMode === "create" && (
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 pt-1">
                   Add more details
                 </p>
@@ -580,7 +659,7 @@ export default function Address() {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => handleFormChange('name', e.target.value)}
+                  onChange={(e) => handleFormChange("name", e.target.value)}
                   placeholder="Name"
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
@@ -590,7 +669,9 @@ export default function Address() {
                 <input
                   type="text"
                   value={form.addressLine}
-                  onChange={(e) => handleFormChange('addressLine', e.target.value)}
+                  onChange={(e) =>
+                    handleFormChange("addressLine", e.target.value)
+                  }
                   placeholder="Address (area, street, flat, building)"
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
@@ -599,7 +680,9 @@ export default function Address() {
               <div>
                 <select
                   value={form.addressType}
-                  onChange={(e) => handleFormChange('addressType', e.target.value)}
+                  onChange={(e) =>
+                    handleFormChange("addressType", e.target.value)
+                  }
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none bg-transparent text-gray-700 min-w-0"
                   aria-label="Address type"
                 >
@@ -612,7 +695,7 @@ export default function Address() {
                 <input
                   type="text"
                   value={form.city}
-                  onChange={(e) => handleFormChange('city', e.target.value)}
+                  onChange={(e) => handleFormChange("city", e.target.value)}
                   placeholder="City"
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
@@ -622,7 +705,7 @@ export default function Address() {
                 <input
                   type="text"
                   value={form.state}
-                  onChange={(e) => handleFormChange('state', e.target.value)}
+                  onChange={(e) => handleFormChange("state", e.target.value)}
                   placeholder="State"
                   className="flex-1 min-w-[100px] border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
                   required
@@ -632,8 +715,8 @@ export default function Address() {
                   value={form.pinCode}
                   onChange={(e) =>
                     handleFormChange(
-                      'pinCode',
-                      e.target.value.replace(/\D/g, '').slice(0, 6),
+                      "pinCode",
+                      e.target.value.replace(/\D/g, "").slice(0, 6),
                     )
                   }
                   placeholder="PIN code"
@@ -647,8 +730,8 @@ export default function Address() {
                   value={form.phoneNumber}
                   onChange={(e) =>
                     handleFormChange(
-                      'phoneNumber',
-                      e.target.value.replace(/\D/g, '').slice(0, 10),
+                      "phoneNumber",
+                      e.target.value.replace(/\D/g, "").slice(0, 10),
                     )
                   }
                   placeholder="Phone number"
@@ -661,18 +744,17 @@ export default function Address() {
                 className="mt-4 w-full bg-black text-white text-xs font-semibold uppercase tracking-[0.15em] py-3 hover:bg-gray-800 transition-colors disabled:opacity-60"
               >
                 {formLoading
-                  ? modalMode === 'edit'
-                    ? 'Saving...'
-                    : 'Adding...'
-                  : modalMode === 'edit'
-                    ? 'Save Address'
-                    : 'Add Address'}
+                  ? modalMode === "edit"
+                    ? "Saving..."
+                    : "Adding..."
+                  : modalMode === "edit"
+                    ? "Save Address"
+                    : "Add Address"}
               </button>
             </form>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
-

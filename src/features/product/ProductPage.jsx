@@ -28,7 +28,7 @@ function ProductPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
-  const [expandedSection, setExpandedSection] = useState("care");
+  const [expandedSection, setExpandedSection] = useState("");
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
   );
@@ -177,9 +177,9 @@ function ProductPage() {
       : deliveries;
   const deliveryText = useMemo(() => {
     if (deliveryOptions.some((d) => d.deliveryType === "90_MIN"))
-      return "⊙ GET IN 90 min.";
+      return "90 min";
     if (deliveryOptions.some((d) => d.deliveryType === "ONE_DAY"))
-      return "⊙ GET IN 1 day";
+      return "1 day";
     return (
       item?.shipping?.estimatedDelivery ||
       item?.shipping?.title ||
@@ -380,28 +380,29 @@ function ProductPage() {
                   {item.shortDescription || ""}
                 </p>
                 <div className="mt-1.5 sm:mt-2 flex items-center justify-between flex-wrap gap-2">
+                  {/* LEFT : PRICE */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {item?.discountedPrice && (
+                      <span className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-[22px] font-semibold text-[#e07a5f]">
+                        ₹{Number(item.discountedPrice).toLocaleString("en-IN")}
+                      </span>
+                    )}
 
-  {/* LEFT : PRICE */}
-  <div className="flex items-center gap-2 flex-wrap">
-    {item?.discountedPrice && (
-      <span className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-[22px] font-semibold text-[#e07a5f]">
-        ₹{Number(item.discountedPrice).toLocaleString("en-IN")}
-      </span>
-    )}
+                    {item?.price && item?.discountedPrice && (
+                      <span className="text-xs sm:text-sm md:text-base text-gray-500 line-through">
+                        ₹{Number(item.price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
 
-    {item?.price && item?.discountedPrice && (
-      <span className="text-xs sm:text-sm md:text-base text-gray-500 line-through">
-        ₹{Number(item.price).toLocaleString("en-IN")}
-      </span>
-    )}
-  </div>
-
-  {/* RIGHT : RATING */}
-  <div className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px]">
-    ★ {item.avgRating != null ? Number(item.avgRating).toFixed(1) : "4.0"}
-  </div>
-
-</div>
+                  {/* RIGHT : RATING - only show when there is a rating > 0 */}
+                  {item.avgRating != null && Number(item.avgRating) > 0 && (
+                    <div className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px]">
+                      ★{" "}
+                      {Number(item.avgRating).toFixed(1)}
+                    </div>
+                  )}
+                </div>
               </div>
               <button
                 type="button"
@@ -556,7 +557,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("care")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
+                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
                   <RiTruckLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Care</span>
                 </span>
@@ -608,7 +609,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("cod")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
+                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
                   <FaTag className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">COD Policy </span>
                 </span>
@@ -646,7 +647,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("return")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0">
+                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
                   <RiRefreshLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Return Policy</span>
                 </span>

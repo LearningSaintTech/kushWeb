@@ -21,9 +21,9 @@ function itemToCardProps(item) {
     ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
     : '—'
   const delivery = item.deliveryType === '90_MIN'
-    ? '90 min delivery'
+    ? '90 min'
     : item.deliveryType === 'ONE_DAY'
-      ? '1 day delivery'
+      ? '1 day'
       : item.deliveryType ? String(item.deliveryType) : '—'
   return {
     id,

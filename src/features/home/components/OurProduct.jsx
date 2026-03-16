@@ -35,9 +35,9 @@ function itemToCardProps(item, index) {
       : "₹0.00";
   const delivery =
     item.deliveryType === "90_MIN"
-      ? "90 min delivery"
+      ? "90 min"
       : item.deliveryType === "ONE_DAY"
-        ? "1 day delivery"
+        ? "1 day"
         : item.deliveryType
           ? String(item.deliveryType)
           : "GET IN 6-7 days";
