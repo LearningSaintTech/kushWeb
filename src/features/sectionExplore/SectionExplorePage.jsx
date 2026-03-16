@@ -80,9 +80,13 @@ export function SectionExplorePage() {
     if (!sectionId) return
     try {
       const res = await sectionsService.getOne(sectionId)
+      console.log('[SectionExplore] section response (full):', res)
+      console.log('[SectionExplore] section response data:', res?.data)
       const data = res?.data?.data ?? res?.data
+      console.log('[SectionExplore] section parsed:', data)
       setSection(data || null)
     } catch (e) {
+      console.error('[SectionExplore] section error:', e)
       setError(e?.message ?? 'Section not found')
       setSection(null)
     }
@@ -91,22 +95,38 @@ export function SectionExplorePage() {
   /** Fetch category/subcategory details when section is CATEGORY type */
   const loadCategoriesAndSubcategories = useCallback(async (sec) => {
     if (!sec || sec.type !== 'CATEGORY') {
+      console.log('[SectionExplore] categories/subs skipped (not CATEGORY section):', sec?.type)
       setCategories([])
       setSubcategories([])
       return
     }
     const catIds = Array.isArray(sec.categoryId) ? sec.categoryId : []
     const subIds = Array.isArray(sec.subcategoryId) ? sec.subcategoryId : []
+    console.log('[SectionExplore] loading categories/subcategories:', { catIds, subIds })
     const catPromises = catIds.map((id) =>
-      categoriesService.getById(id).then((r) => r?.data?.data ?? r?.data).catch(() => null)
+      categoriesService.getById(id).then((r) => {
+        console.log('[SectionExplore] category response:', id, r?.data)
+        return r?.data?.data ?? r?.data
+      }).catch((e) => {
+        console.error('[SectionExplore] category error:', id, e)
+        return null
+      })
     )
     const subPromises = subIds.map((id) =>
-      subcategoriesService.getById(id).then((r) => r?.data?.data ?? r?.data).catch(() => null)
+      subcategoriesService.getById(id).then((r) => {
+        console.log('[SectionExplore] subcategory response:', id, r?.data)
+        return r?.data?.data ?? r?.data
+      }).catch((e) => {
+        console.error('[SectionExplore] subcategory error:', id, e)
+        return null
+      })
     )
     const [catResults, subResults] = await Promise.all([
       Promise.all(catPromises),
       Promise.all(subPromises),
     ])
+    console.log('[SectionExplore] categories result:', catResults)
+    console.log('[SectionExplore] subcategories result:', subResults)
     setCategories(catResults.filter(Boolean))
     setSubcategories(subResults.filter(Boolean))
   }, [])
@@ -157,12 +177,19 @@ export function SectionExplorePage() {
         return
       }
 
+      console.log('[SectionExplore] products search params:', params)
       const res = await itemsService.search(params)
+      console.log('[SectionExplore] products response (full):', res)
+      console.log('[SectionExplore] products response data:', res?.data)
       const data = res?.data?.data ?? res?.data
-      const items = (data?.items ?? []).map(itemToCardProps)
+      const rawItems = data?.items ?? []
+      console.log('[SectionExplore] products raw items:', rawItems)
+      console.log('[SectionExplore] products pagination:', data?.pagination)
+      const items = rawItems.map(itemToCardProps)
       setProducts(items)
       setPagination(data?.pagination ?? null)
     } catch (e) {
+      console.error('[SectionExplore] products error:', e)
       setError(e?.message ?? 'Failed to load products')
       setProducts([])
       setPagination(null)

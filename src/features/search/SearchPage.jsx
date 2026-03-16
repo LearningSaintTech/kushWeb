@@ -214,13 +214,17 @@ function SearchPage() {
     filtersService
       .getAll(params)
       .then((res) => {
-        console.log('[SearchPage] filters response', res)
+        console.log('[SearchPage] filters response (full):', res)
+        console.log('[SearchPage] filters response data:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = data?.filters ?? []
         console.log('[SearchPage] filters parsed', { data, list })
         setFilterList(Array.isArray(list) ? list : [])
       })
-      .catch(() => setFilterList([]))
+      .catch((err) => {
+        console.error('[SearchPage] filters error:', err)
+        setFilterList([])
+      })
       .finally(() => setFiltersLoading(false))
   }, [filtersPanelOpen, pincode])
 
@@ -236,13 +240,15 @@ function SearchPage() {
     console.log('[SearchPage] fetching section', sectionIdFromUrl)
     sectionsService.getOne(sectionIdFromUrl)
       .then((res) => {
+        console.log('[SearchPage] section response (full):', res)
+        console.log('[SearchPage] section response data:', res?.data)
         const data = res?.data?.data ?? res?.data
         console.log('[SearchPage] section fetch result', { raw: res?.data, data, type: data?.type, categoryId: data?.categoryId, subcategoryId: data?.subcategoryId })
         if (cancelled) return
         setSection(data || null)
       })
       .catch((err) => {
-        console.log('[SearchPage] section fetch error', err)
+        console.error('[SearchPage] section fetch error:', err)
         if (!cancelled) setSection(null)
       })
     return () => { cancelled = true }
@@ -259,10 +265,16 @@ function SearchPage() {
     const subIds = Array.isArray(section.subcategoryId) ? section.subcategoryId.map((id) => (id && typeof id === 'object' && id.toString) ? id.toString() : String(id)) : []
     console.log('[SearchPage] loading section categories/subcategories', { catIds, subIds })
     const catPromises = catIds.map((id) =>
-      categoriesService.getById(id).then((r) => r?.data?.data ?? r?.data).catch((err) => { console.log('[SearchPage] category getById error', id, err); return null })
+      categoriesService.getById(id).then((r) => {
+        console.log('[SearchPage] category getById response:', id, r?.data)
+        return r?.data?.data ?? r?.data
+      }).catch((err) => { console.error('[SearchPage] category getById error', id, err); return null })
     )
     const subPromises = subIds.map((id) =>
-      subcategoriesService.getById(id).then((r) => r?.data?.data ?? r?.data).catch((err) => { console.log('[SearchPage] subcategory getById error', id, err); return null })
+      subcategoriesService.getById(id).then((r) => {
+        console.log('[SearchPage] subcategory getById response:', id, r?.data)
+        return r?.data?.data ?? r?.data
+      }).catch((err) => { console.error('[SearchPage] subcategory getById error', id, err); return null })
     )
     let cancelled = false
     Promise.all([Promise.all(catPromises), Promise.all(subPromises)])
@@ -274,7 +286,7 @@ function SearchPage() {
         }
       })
       .catch((err) => {
-        console.log('[SearchPage] section categories load error', err)
+        console.error('[SearchPage] section categories load error', err)
         if (!cancelled) { setSectionCategories([]); setSectionSubcategories([]) }
       })
     return () => { cancelled = true }
@@ -290,11 +302,17 @@ function SearchPage() {
     let cancelled = false
     categoriesService.getNavbar()
       .then((res) => {
+        console.log('[SearchPage] navbar categories response (full):', res)
+        console.log('[SearchPage] navbar categories response data:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = data?.categories ?? []
+        console.log('[SearchPage] navbar categories parsed', { data, list })
         if (!cancelled) setCategories(Array.isArray(list) ? list : [])
       })
-      .catch(() => { if (!cancelled) setCategories([]) })
+      .catch((err) => {
+        console.error('[SearchPage] navbar categories error:', err)
+        if (!cancelled) setCategories([])
+      })
       .finally(() => { if (!cancelled) setCategoriesLoading(false) })
     return () => { cancelled = true }
   }, [sectionIdFromUrl])
@@ -310,11 +328,17 @@ function SearchPage() {
     let cancelled = false
     subcategoriesService.getNavbarByCategoryId(categoryFromUrl)
       .then((res) => {
+        console.log('[SearchPage] navbar subcategories response (full):', res)
+        console.log('[SearchPage] navbar subcategories response data:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = data?.subcategories ?? data ?? []
+        console.log('[SearchPage] navbar subcategories parsed', { data, list })
         if (!cancelled) setSubcategories(Array.isArray(list) ? list : [])
       })
-      .catch(() => { if (!cancelled) setSubcategories([]) })
+      .catch((err) => {
+        console.error('[SearchPage] navbar subcategories error:', err)
+        if (!cancelled) setSubcategories([])
+      })
       .finally(() => { if (!cancelled) setSubcategoriesLoading(false) })
     return () => { cancelled = true }
   }, [sectionIdFromUrl, categoryFromUrl])
@@ -369,9 +393,14 @@ function SearchPage() {
       console.log('[SearchPage] runSearch params', params)
 
       const res = await itemsService.search(params)
+      console.log('[SearchPage] products search response (full):', res)
+      console.log('[SearchPage] products search response data:', res?.data)
       const data = res?.data?.data ?? res?.data
-      const items = (data?.items ?? []).map(itemToCardProps)
+      const rawItems = data?.items ?? []
+      console.log('[SearchPage] products search raw items:', rawItems)
       const pag = data?.pagination ?? null
+      console.log('[SearchPage] products search pagination:', pag)
+      const items = rawItems.map(itemToCardProps)
 
       if (sectionIdFromUrl) {
         console.log('[SearchPage] section-scoped search response', {
@@ -392,7 +421,8 @@ function SearchPage() {
         setTimeout(() => setLastAppendedCount(0), 600)
       }
       setPagination(pag)
-    } catch {
+    } catch (err) {
+      console.error('[SearchPage] products search error:', err)
       if (isPageOne || isNewSearch) setProducts([])
       setPagination(null)
     } finally {

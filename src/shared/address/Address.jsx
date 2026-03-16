@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
 import { addressService } from '../../services/address.service.js'
 import { reverseGeocode, searchPlaces, getCurrentPosition } from '../../services/geo.service'
@@ -75,6 +75,7 @@ export default function Address() {
     latitude: null,
     longitude: null,
   })
+  const currentPincode = useSelector((s) => s?.location?.pincode)
   const [formError, setFormError] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
   const [mapGeocoding, setMapGeocoding] = useState(false)
@@ -145,6 +146,7 @@ export default function Address() {
   }
 
   const openEditModal = (addr) => {
+    const type = addr?.addressType === 'WORK' ? 'OFFICE' : (addr?.addressType ?? 'HOME')
     setModalMode('edit')
     setEditingAddressId(addr?._id ?? null)
     setFormError(null)
@@ -156,7 +158,7 @@ export default function Address() {
       city: addr?.city ?? '',
       state: addr?.state ?? '',
       pinCode: addr?.pinCode != null ? String(addr.pinCode) : '',
-      addressType: addr?.addressType ?? 'HOME',
+      addressType: type,
       latitude: addr?.latitude ?? null,
       longitude: addr?.longitude ?? null,
     })
@@ -268,6 +270,7 @@ export default function Address() {
       return
     }
 
+    const addressType = (form.addressType || 'HOME').toUpperCase()
     const payload = {
       name: form.name.trim(),
       phoneNumber: (form.phoneNumber || '').trim() || undefined,
@@ -276,7 +279,7 @@ export default function Address() {
       city: form.city.trim(),
       state: form.state.trim(),
       pinCode: parseInt(pin, 10) || 0,
-      addressType: form.addressType || 'HOME',
+      addressType: addressType === 'WORK' ? 'OFFICE' : addressType,
       isDefault: false,
     }
     if (form.latitude != null && form.longitude != null) {
@@ -317,6 +320,11 @@ export default function Address() {
     } catch {
       // ignore
     }
+  }
+
+  const handleUseAsCurrent = (addr) => {
+    const label = formatAddress(addr)
+    dispatch(setLocation({ pincode: addr.pinCode ? String(addr.pinCode) : null, addressLabel: label || null }))
   }
 
   const handleDelete = async (id) => {
@@ -381,7 +389,9 @@ export default function Address() {
               </div>
             </div>
             {addresses.map((addr) => {
-              const isCurrent = defaultAddressId && defaultAddressId === addr._id
+              const isDefault = defaultAddressId && defaultAddressId === addr._id
+              const pinStr = addr.pinCode != null ? String(addr.pinCode) : ''
+              const isCurrent = currentPincode && pinStr && String(currentPincode) === pinStr
               return (
                 <div
                   key={addr._id}
@@ -390,11 +400,18 @@ export default function Address() {
                   {/* Address content */}
                   <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 md:py-10 md:min-h-[120px]">
                     <div className="max-w-[320px] pr-2">
-                      {isCurrent && (
-                        <p className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-[#0E8635] bg-[#CBE1D2] px-2.5 py-1 rounded mb-3 md:mb-4">
-                          Current Address
-                        </p>
-                      )}
+                      <div className="flex flex-wrap gap-2 mb-3 md:mb-4">
+                        {isDefault && (
+                          <span className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-[#0E8635] bg-[#CBE1D2] px-2.5 py-1 rounded">
+                            Default
+                          </span>
+                        )}
+                        {isCurrent && (
+                          <span className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-blue-700 bg-blue-100 px-2.5 py-1 rounded">
+                            Current location
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-gray-800 break-words">
                         {addr.name || 'Name'}
                       </p>
@@ -410,9 +427,6 @@ export default function Address() {
                           <br />
                         </>}
                         {addr.pinCode && `${addr.pinCode}`}
-                         {/* <p className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-[#0E8635] bg-[#CBE1D2] px-2.5 py-1 rounded mb-3 md:mb-4">
-                          Current Address
-                        </p> */}
                       </p>
                     </div>
                   </div>
@@ -436,15 +450,26 @@ export default function Address() {
                         <EditIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                       </button>
                     </div>
-                    {!isCurrent && (
-                      <button
-                        type="button"
-                        onClick={() => handleSetDefault(addr)}
-                        className="w-full md:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.12em] sm:tracking-[0.18em] hover:bg-gray-800 transition-colors"
-                      >
-                        Set as current address
-                      </button>
-                    )}
+                    <div className="flex flex-col gap-2 w-full md:w-auto">
+                      {!isDefault && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefault(addr)}
+                          className="w-full md:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.12em] sm:tracking-[0.18em] hover:bg-gray-800 transition-colors"
+                        >
+                          Set as default
+                        </button>
+                      )}
+                      {!isCurrent && (
+                        <button
+                          type="button"
+                          onClick={() => handleUseAsCurrent(addr)}
+                          className="w-full md:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-gray-300 text-gray-800 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.12em] hover:bg-gray-50 transition-colors"
+                        >
+                          Use this location
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
@@ -578,9 +603,9 @@ export default function Address() {
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none bg-transparent text-gray-700 min-w-0"
                   aria-label="Address type"
                 >
-                  <option value="HOME">Address type: Home</option>
-                  <option value="WORK">Address type: Work</option>
-                  <option value="OTHER">Address type: Other</option>
+                  <option value="HOME">Home</option>
+                  <option value="OFFICE">Office</option>
+                  <option value="OTHER">Other</option>
                 </select>
               </div>
               <div>

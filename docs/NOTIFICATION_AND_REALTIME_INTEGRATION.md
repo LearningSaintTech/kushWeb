@@ -8,9 +8,9 @@ This document describes how to implement **in-app notifications** and **real-tim
 
 The backend exposes:
 
-- **Base URL:** All API requests use `API_BASE_URL` = `import.meta.env.VITE_API_URL + "/api"` (e.g. `https://api.khushpehno.com/api`).
+- **Base URL:** All API requests use `API_BASE_URL` = `import.meta.env.VITE_API_URL + "/api"` (e.g. `http://localhost:5000/api`).
 - **Auth:** Every notification request must send `Authorization: Bearer <accessToken>`. The existing `axiosClient` already adds this when `getAccessToken()` returns a token (AuthContext sets it from `localStorage` key `khush_access_token`).
-- **Socket.IO:** The same HTTP server that serves the API also runs Socket.IO. The socket **URL is the API host only** (no `/api` path), i.e. `import.meta.env.VITE_API_URL` (e.g. `https://api.khushpehno.com` or `http://localhost:5000`). Auth is done by sending the JWT in the handshake (e.g. `auth: { token: accessToken }` or `query: { token: accessToken }`). After connect, the server joins the client to room `user:${userId}` and emits `notification:new` when a new in-app notification is created.
+- **Socket.IO:** The same HTTP server that serves the API also runs Socket.IO. The socket **URL is the API host only** (no `/api` path), i.e. `import.meta.env.VITE_API_URL` (e.g. `http://localhost:5000` or `http://localhost:5000`). Auth is done by sending the JWT in the handshake (e.g. `auth: { token: accessToken }` or `query: { token: accessToken }`). After connect, the server joins the client to room `user:${userId}` and emits `notification:new` when a new in-app notification is created.
 
 ### 1.1 User Notification REST APIs (Backend)
 
@@ -58,7 +58,7 @@ No other events are required for the basic notification bell + list; optional fu
 
 - Use existing **VITE_API_URL** for both:
   - REST: `API_BASE_URL = VITE_API_URL + "/api"` (already used by axios).
-  - Socket: connect to `VITE_API_URL` (no `/api`). For local dev, `http://localhost:5000`; for prod, same host as API (e.g. `https://api.khushpehno.com`).
+  - Socket: connect to `VITE_API_URL` (no `/api`). For local dev, `http://localhost:5000`; for prod, same host as API (e.g. `http://localhost:5000`).
 
 ### 3.3 Notification REST Service
 

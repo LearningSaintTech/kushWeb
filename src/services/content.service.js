@@ -6,7 +6,7 @@
 import client from './axiosClient.js';
 
 export const bannerService = {
-  getAll: () => client.get('/banner/getAll'),
+  getAll: (params) => client.get('/banner/getAll', { params }),
 
   getById: (bannerId) => client.get(`/banner/getSingle/${bannerId}`),
 };

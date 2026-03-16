@@ -17,12 +17,18 @@ function PushSubscribeConnector() {
   return null
 }
 
+function LocationOnLoadConnector() {
+  const { isAuthenticated } = useAuth()
+  useLocationOnLoad(isAuthenticated)
+  return null
+}
+
 function AppContent() {
-  useLocationOnLoad()
   return (
     <AuthProvider>
       <CartWishlistProvider>
         <NotificationProvider>
+          <LocationOnLoadConnector />
           <NotificationSocketConnector />
           <PushSubscribeConnector />
           <Routes />

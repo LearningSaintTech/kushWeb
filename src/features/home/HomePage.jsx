@@ -12,7 +12,7 @@ import { sectionsService } from '../../services/content.service.js'
 
 const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
-  2:WearYour,
+  2: WearYour,
   3: Couples,
   4: OurCategory,
   5: Collection,
@@ -36,20 +36,16 @@ function HomePage() {
       .getActive(params)
       .then((res) => {
         if (cancelled) return
-        console.log('[HomePage] sections response (full):', res)
-        console.log('[HomePage] sections response data:', res?.data)
         const raw = res?.data?.data?.items ?? res?.data?.items ?? []
-        console.log('[HomePage] sections raw items:', raw)
         const sorted = [...raw].sort(
           (a, b) => (a.webinfo?.webOrder ?? 999) - (b.webinfo?.webOrder ?? 999)
         )
-        console.log('[HomePage] sections sorted:', sorted)
         const byOrder = {}
         sorted.forEach((s) => {
-          const order = s.webinfo?.webOrder ?? 999
-          if (order >= 1 && order <= 6) byOrder[order] = s
+          let order = s.webinfo?.webOrder ?? 999
+          if (order === 0) order = 1 // webOrder 0 → slot 1 (New Arrivals)
+          if (order >= 1 && order <= 7) byOrder[order] = s
         })
-        console.log('[HomePage] sections byOrder (mapped for render):', byOrder)
         setSectionsByOrder(byOrder)
       })
       .catch((err) => {
@@ -74,7 +70,7 @@ function HomePage() {
           {error}
         </div>
       )}
-      {!loading && !error && [1, 2, 3, 4, 5, 6,7].map((order) => {
+      {!loading && !error && [1, 2, 3, 4, 5, 6, 7].map((order) => {
         const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
         const section = sectionsByOrder[order]
         if (!SectionComponent) return null
