@@ -990,15 +990,15 @@ export default function Header() {
                                 onClick={() => toggleSubcategory(subId)}
                                 className="pr-4 text-gray-400 hover:text-black transition"
                               >
-                                {isExpanded ? (
+                                {/* {isExpanded ? (
                                   <ChevronUpIcon className="h-5 w-5" />
                                 ) : (
                                   <ChevronDownIcon className="h-5 w-5" />
-                                )}
+                                )} */}
                               </button>
                             </div>
 
-                            {isExpanded && (
+                            {/* {isExpanded && (
                               <div className="pl-6 pr-4 pb-4">
                                 <NavLink
                                   to={getSearchUrl({
@@ -1011,7 +1011,7 @@ export default function Header() {
                                   View all in {subName}
                                 </NavLink>
                               </div>
-                            )}
+                            )} */}
                           </li>
                         );
                       })}

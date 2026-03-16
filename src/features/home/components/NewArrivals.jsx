@@ -19,9 +19,9 @@ function mapItemToCard(item, deliveryTypeFallback) {
   const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   const imageUrl = item.thumbnail ?? sorted[0]?.url ?? ''
   const delivery = item.deliveryType === '90_MIN'
-    ? '90 min delivery'
+    ? '90 min'
     : item.deliveryType === 'ONE_DAY'
-      ? '1 day delivery'
+      ? '1 day'
       : item.deliveryType
         ? String(item.deliveryType)
         : deliveryTypeFallback
@@ -62,7 +62,7 @@ function NewArrivals({ section }) {
       image: p.item.thumbnail || productImage,
       title: p.item.name || '',
       price: p.item.discountedPrice != null ? `₹${p.item.discountedPrice}` : '₹0',
-      delivery: section.deliveryType ? `GET IN ${section.deliveryType}` : '',
+      delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
       rating: p.item.avgRating ?? 0,
       outOfStock: p.inStock === false,
     })) || []
@@ -341,10 +341,12 @@ function NewArrivals({ section }) {
                     <h3 className="uppercase tracking-widest text-sm md:text-base font-medium">
                       {item.title}
                     </h3>
-                    <span className="flex items-center gap-1 text-xs md:text-sm">
-                      <IoStarSharp className="h-3.5 w-3.5 text-white" />
-                      {item.rating}
-                    </span>
+                    {item.rating != null && item.rating !== "" && Number(item.rating) > 0 && (
+                      <span className="flex items-center gap-1 text-xs md:text-sm">
+                        <IoStarSharp className="h-3.5 w-3.5 text-white" />
+                        {item.rating}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex justify-between items-center gap-2 text-xs md:text-sm">
