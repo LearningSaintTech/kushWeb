@@ -265,12 +265,14 @@ export default function Header() {
     }
   }, [searchModalOpen]);
 
-  // Keep search bar in sync with URL q (e.g. when on /search?q=...)
+  // Keep search bar in sync with URL q (e.g. when on /search?q=...). Clear when leaving search (e.g. back to home).
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const q = params.get("q");
     if (location.pathname === ROUTES.SEARCH && q != null && q !== "") {
       setSearchInputValue(decodeURIComponent(q));
+    } else if (location.pathname !== ROUTES.SEARCH) {
+      setSearchInputValue("");
     }
   }, [location.pathname, location.search]);
 
@@ -972,46 +974,19 @@ export default function Header() {
                       ).map((sub, subIdx) => {
                         const subId = sub._id ?? sub.id ?? `sub-${subIdx}`;
                         const subName = sub.name ?? sub.label ?? "Subcategory";
-                        const isExpanded = expandedSubcategories.has(subId);
 
                         return (
-                          <li key={subId} className="">
-                            <div className="flex items-center justify-between w-full">
-                              <button
-                                type="button"
-                                onClick={() => toggleSubcategory(subId)}
-                                className="cursor-pointer font-inter flex-1 text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50 transition-colors"
-                              >
-                                {subName}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => toggleSubcategory(subId)}
-                                className="pr-4 text-gray-400 hover:text-black transition"
-                              >
-                                {/* {isExpanded ? (
-                                  <ChevronUpIcon className="h-5 w-5" />
-                                ) : (
-                                  <ChevronDownIcon className="h-5 w-5" />
-                                )} */}
-                              </button>
-                            </div>
-
-                            {/* {isExpanded && (
-                              <div className="pl-6 pr-4 pb-4">
-                                <NavLink
-                                  to={getSearchUrl({
-                                    categoryId: effectiveActiveCategory,
-                                    subcategoryId: subId,
-                                  })}
-                                  onClick={closeMenu}
-                                  className="cursor-pointer font-inter block py-2 text-sm text-gray-700 hover:text-black transition-colors"
-                                >
-                                  View all in {subName}
-                                </NavLink>
-                              </div>
-                            )} */}
+                          <li key={subId}>
+                            <NavLink
+                              to={getSearchUrl({
+                                categoryId: effectiveActiveCategory,
+                                subcategoryId: subId,
+                              })}
+                              onClick={closeMenu}
+                              className="cursor-pointer font-inter flex items-center w-full text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50 transition-colors"
+                            >
+                              {subName}
+                            </NavLink>
                           </li>
                         );
                       })}

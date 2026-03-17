@@ -8,6 +8,7 @@ import OurCategory from './components/OurCategory'
 import NewArrivals from './components/NewArrivals'
 import Couples from './components/Couples'
 import WearYour from './components/WearYour'
+import HomePageLoader from './components/HomePageLoader'
 import { sectionsService } from '../../services/content.service.js'
 
 // API webOrder 1,2,3... maps to these components. WearYour is static (not in API order).
@@ -63,11 +64,7 @@ function HomePage() {
   return (
     <div>
       <Banner />
-      {loading && (
-        <div className="container mx-auto px-4 py-8 text-center text-gray-500">
-          Loading...
-        </div>
-      )}
+      {loading && <HomePageLoader />}
       {error && (
         <div className="container mx-auto px-4 py-8 text-center text-red-600">
           {error}

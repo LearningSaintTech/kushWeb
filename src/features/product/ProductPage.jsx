@@ -90,12 +90,32 @@ function ProductPage() {
           return;
         }
         setItemData({ item, deliveries: data?.deliveries ?? [] });
-        // const defaultColorName = item.defaultColor || item.variants?.[0]?.color?.name
-        // const firstSize = item.variants?.[0]?.sizes?.[0]?.size
-        // console.log('[ProductPage] set initial selectedColor:', defaultColorName, 'selectedSize:', firstSize)
-        setSelectedColor(null);
-        setSelectedSize(null);
         setSelectedImageIndex(0);
+        // Auto-select first available color and size so Buy Now / Add to Cart are enabled on first visit
+        if (item?.variants?.length) {
+          let firstAvailableColor = null;
+          let firstAvailableSize = null;
+          for (const v of item.variants) {
+            const firstInStock = v.sizes?.find((s) => {
+              const qty = Number(s.availableQuantity ?? s.stock ?? 0);
+              return s.inStock === true || (s.inStock !== false && qty > 0);
+            });
+            if (firstInStock) {
+              firstAvailableColor = v.color?.name ?? null;
+              firstAvailableSize = firstInStock.size;
+              break;
+            }
+          }
+          setSelectedColor(
+            firstAvailableColor ?? item.variants[0]?.color?.name ?? null,
+          );
+          setSelectedSize(
+            firstAvailableSize ?? item.variants[0]?.sizes?.[0]?.size ?? null,
+          );
+        } else {
+          setSelectedColor(null);
+          setSelectedSize(null);
+        }
       })
       .catch((err) => {
         setError(
@@ -151,11 +171,18 @@ function ProductPage() {
     });
   }, [selectedVariant]);
 
-  // useEffect(() => {
-  //   if (sizes.length && !sizes.some((s) => String(s.size).trim() === String(selectedSize).trim())) {
-  //     setSelectedSize(sizes[0].size)
-  //   }
-  // }, [sizes, selectedSize])
+  // When color changes, if current size is unavailable in new variant, select first available size
+  useEffect(() => {
+    if (!sizes.length) return;
+    const currentInList = sizes.find(
+      (s) => String(s.size).trim() === String(selectedSize).trim(),
+    );
+    const currentAvailable = currentInList?.inStock;
+    if (!currentInList || !currentAvailable) {
+      const firstAvailable = sizes.find((s) => s.inStock);
+      setSelectedSize(firstAvailable ? firstAvailable.size : sizes[0].size);
+    }
+  }, [sizes, selectedSize]);
 
   const mainImage = images[selectedImageIndex] ?? images[0] ?? productImage;
 
@@ -458,14 +485,21 @@ function ProductPage() {
                         <button
                           key={s.sku}
                           type="button"
-                          onClick={() => setSelectedSize(s.size)}
+                          onClick={() => s.inStock && setSelectedSize(s.size)}
                           disabled={!s.inStock}
+                          title={
+                            s.inStock
+                              ? `Size ${s.size} - Available`
+                              : `Size ${s.size} - Out of stock`
+                          }
                           className={`flex h-7 w-7 min-w-7 items-center justify-center rounded-full border text-[11px] sm:h-8 sm:w-8 sm:min-w-8 sm:text-xs md:h-8 md:w-8 md:min-w-8 md:text-xs lg:h-9 lg:w-9 lg:min-w-9 lg:text-sm xl:h-[36px] xl:w-[36px] xl:min-w-[36px] xl:text-[14px] touch-manipulation ${
                             selectedSize === s.size
-                              ? "border-black bg-black text-white cursor-pointer"
+                              ? s.inStock
+                                ? "border-black bg-black text-white cursor-pointer"
+                                : "border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed line-through"
                               : s.inStock
-                                ? "border-gray-300 text-gray-600 cursor-pointer"
-                                : "cursor-not-allowed border-gray-200 text-gray-400"
+                                ? "border-gray-400 bg-white text-gray-700 cursor-pointer hover:border-gray-600"
+                                : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 opacity-60 line-through"
                           }`}
                         >
                           {s.size}
@@ -697,7 +731,7 @@ function ProductPage() {
                     <button
                       type="button"
                       onClick={handleBuyNow}
-                      disabled={!productForCart}
+                      disabled={!productForCart || !selectedSizeObj?.inStock}
                       className="h-10 w-full sm:flex-1 bg-black text-xs font-medium uppercase tracking-wider text-white sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
                     >
                       Buy It Now
@@ -715,7 +749,7 @@ function ProductPage() {
                   <button
                     type="button"
                     onClick={handleBuyNow}
-                    disabled={!productForCart}
+                    disabled={!productForCart || !selectedSizeObj?.inStock}
                     className="h-10 w-full bg-black text-xs font-medium uppercase tracking-wider text-white sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
                   >
                     Buy It Now
@@ -723,7 +757,7 @@ function ProductPage() {
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    disabled={!productForCart}
+                    disabled={!productForCart || !selectedSizeObj?.inStock}
                     className="h-10 w-full border border-black text-xs font-medium uppercase tracking-wider text-black cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px] touch-manipulation"
                   >
                     Add To Cart

@@ -44,6 +44,21 @@ function parseFiltersFromUrl(str) {
   }
 }
 
+/** True if item has at least one variant/size with available stock */
+function hasAnyStock(item) {
+  if (item.inStock === true) return true
+  if (item.inStock === false) return false
+  const variants = item.variants ?? []
+  for (const v of variants) {
+    const sizes = v.sizes ?? []
+    for (const s of sizes) {
+      const qty = Number(s.availableQuantity ?? s.stock ?? 0)
+      if (s.inStock === true || (s.inStock !== false && qty > 0)) return true
+    }
+  }
+  return false
+}
+
 /** Map backend item to ProductCard props */
 function itemToCardProps(item) {
   const id = item._id ?? item.id
@@ -68,6 +83,9 @@ function itemToCardProps(item) {
       : item.deliveryType
         ? String(item.deliveryType)
         : '—'
+  const rawRating = item.rating ?? item.averageRating
+  const rating = rawRating != null && rawRating !== '' && Number(rawRating) > 0 ? Number(rawRating) : undefined
+  const outOfStock = item.inStock === false || !hasAnyStock(item)
   return {
     id,
     image: imageUrl || 'https://placehold.co/400x520?text=Product',
@@ -76,7 +94,8 @@ function itemToCardProps(item) {
     price,
     originalPrice,
     delivery,
-    rating: 4,
+    ...(rating != null ? { rating } : {}),
+    outOfStock,
   }
 }
 

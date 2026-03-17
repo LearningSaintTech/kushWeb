@@ -27,6 +27,34 @@ function formatCouponDate(dateVal) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function isCouponApplicable(coupon, cartSubTotal) {
+  if (cartSubTotal == null || Number.isNaN(cartSubTotal)) return false
+  const now = new Date()
+  const minCart = coupon.minCartValue ?? 0
+  const maxCart = coupon.maxCartValue
+  if (minCart > 0 && cartSubTotal < minCart) return false
+  if (maxCart != null && maxCart > 0 && cartSubTotal > maxCart) return false
+  if (coupon.expiryDate) {
+    const expiry = new Date(coupon.expiryDate)
+    if (!Number.isNaN(expiry.getTime()) && expiry < now) return false
+  }
+  if (coupon.startDate) {
+    const start = new Date(coupon.startDate)
+    if (!Number.isNaN(start.getTime()) && start > now) return false
+  }
+  return true
+}
+
+function formatDeliveryDuration(dur, fallbackLabel = '') {
+  if (!dur || typeof dur !== 'object') return fallbackLabel
+  const min = dur.min ?? 0
+  const max = dur.max ?? min
+  const unit = (dur.unit || 'DAY').toUpperCase()
+  const unitLabel = unit === 'DAY' ? (max === 1 ? 'Day' : 'Days') : unit === 'HOUR' ? (max === 1 ? 'Hour' : 'Hours') : unit
+  if (min === max) return `${min} ${unitLabel}`
+  return `${min}-${max} ${unitLabel}`
+}
+
 function CartPage() {
   const { isAuthenticated } = useAuth()
   const { removeFromCart, refetchCart } = useCartWishlist()
@@ -229,6 +257,13 @@ function CartPage() {
     fetchPriceSummary(code)
   }
 
+  const handleRemoveCoupon = () => {
+    setAppliedCouponCode(null)
+    setCouponInput('')
+    setCouponError(null)
+    fetchPriceSummary(null)
+  }
+
   const openCouponModal = () => {
     setCouponModalOpen(true)
     setLoadingCoupons(true)
@@ -244,13 +279,12 @@ function CartPage() {
       .finally(() => setLoadingCoupons(false))
   }
 
-  const handleSelectCoupon = (code) => {
-    if (code) {
-      setCouponInput(code)
-      setAppliedCouponCode(code)
-      setCouponError(null)
-      fetchPriceSummary(code)
-    }
+  const handleApplyCouponFromModal = (code) => {
+    if (!code) return
+    setCouponInput(code)
+    setAppliedCouponCode(code)
+    setCouponError(null)
+    fetchPriceSummary(code)
     setCouponModalOpen(false)
   }
 
@@ -352,6 +386,7 @@ function CartPage() {
   }
 
   const items = cartData?.items ?? []
+  const hasOutOfStockItem = items.some((row) => row.outOfStock === true || (row.availableQuantity != null && Number(row.availableQuantity) === 0))
   const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : (cartData?.deliveryOptions ?? [])
 
   if (items.length === 0 && !cartError) {
@@ -391,6 +426,8 @@ function CartPage() {
                     const name = item?.name ?? 'Product'
                     const shortDesc = item?.shortDescription ?? ''
                     const color = row.variant?.color ?? ''
+                    const colorHex = row.variant?.hex ?? ''
+                    const size = row.variant?.size ?? row.variant?.sizeLabel ?? ''
                     const imageUrl = row.variant?.imageUrl ?? ''
                     const sku = row.variant?.sku
                     const qty = row.quantity ?? 1
@@ -424,12 +461,46 @@ function CartPage() {
                               {productPath ? (
                                 <Link to={productPath} className="block hover:underline">
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc || color || ''}</p>
+                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  {(color || size) && (
+                                    <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
+                                      {color && (
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span
+                                            className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
+                                            style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                            title={color}
+                                            aria-hidden
+                                          />
+                                          <span>{color}</span>
+                                        </span>
+                                      )}
+                                      {color && size && <span className="text-gray-400">|</span>}
+                                      {size && <span>Size: {size}</span>}
+                                    </p>
+                                  )}
                                 </Link>
                               ) : (
                                 <>
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc || color || ''}</p>
+                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  {(color || size) && (
+                                    <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
+                                      {color && (
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span
+                                            className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
+                                            style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                            title={color}
+                                            aria-hidden
+                                          />
+                                          <span>{color}</span>
+                                        </span>
+                                      )}
+                                      {color && size && <span className="text-gray-400">|</span>}
+                                      {size && <span>Size: {size}</span>}
+                                    </p>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -469,10 +540,12 @@ function CartPage() {
                             <option value="">Select delivery</option>
                             {deliveryOptions.map((opt) => {
                               const id = opt._id?.toString?.() ?? opt._id
-                              const label = opt.deliveryType === '90_MIN' ? '90 MIN DELIVERY' : opt.deliveryType === 'ONE_DAY' ? '1 DAY DELIVERY' : opt.deliveryType || 'Standard'
+                              const fallback = opt.deliveryType === '90_MIN' ? '90 MIN' : opt.deliveryType === 'ONE_DAY' ? '1 DAY' : opt.deliveryType || 'Standard'
+                              const durationLabel = formatDeliveryDuration(opt.deliveryDuration, fallback)
+                              const charge = opt.deliveryCharge != null && opt.deliveryCharge > 0 ? ` — Rs ${Number(opt.deliveryCharge).toLocaleString('en-IN')}` : ' — Free'
                               return (
                                 <option key={id} value={id}>
-                                  {label}
+                                  {durationLabel}{charge}
                                 </option>
                               )
                             })}
@@ -629,53 +702,68 @@ function CartPage() {
                   See all
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2 items-stretch">
-                <div className="flex-1 min-w-[140px] relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="ENTER COUPON CODE HERE"
-                    value={couponInput}
-                    onChange={(e) => setCouponInput(e.target.value)}
-                    className="w-full border border-gray-300 py-2 pl-9 pr-3 text-sm placeholder-gray-400 uppercase rounded-none"
-                  />
+              {appliedCouponCode ? (
+                <div className="flex items-center justify-between gap-2 p-3 border border-green-600 bg-green-50/80">
+                  <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-xs font-semibold uppercase text-green-700 hover:text-green-900 underline"
+                  >
+                    Remove coupon
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleApplyCoupon}
-                  className="bg-black text-white py-2 px-5 text-sm font-semibold uppercase hover:bg-gray-800 transition-colors whitespace-nowrap rounded-none"
-                >
-                  Apply
-                </button>
-              </div>
-              {couponError && <p className="mt-1 text-xs text-red-600">{couponError}</p>}
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2 items-stretch">
+                    <div className="flex-1 min-w-[140px] relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="ENTER COUPON CODE HERE"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value)}
+                        className="w-full border border-gray-300 py-2 pl-9 pr-3 text-sm placeholder-gray-400 uppercase rounded-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      className="bg-black text-white py-2 px-5 text-sm font-semibold uppercase hover:bg-gray-800 transition-colors whitespace-nowrap rounded-none"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  {couponError && <p className="mt-1 text-xs text-red-600">{couponError}</p>}
+                </>
+              )}
             </section>
 
-            {/* Coupons modal */}
+            {/* Coupons modal — larger, enhanced UI with Apply / Remove per coupon */}
             {couponModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setCouponModalOpen(false)}>
-                <div className="bg-white w-full max-w-md max-h-[80vh] flex flex-col shadow-lg" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">All coupons</h3>
-                    <button type="button" onClick={() => setCouponModalOpen(false)} className="p-2 text-gray-500 hover:text-black" aria-label="Close">×</button>
+                <div className="bg-white w-full max-w-xl max-h-[85vh] flex flex-col shadow-xl rounded-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gray-50">
+                    <h3 className="text-base font-semibold uppercase tracking-wider text-black">Available coupons</h3>
+                    <button type="button" onClick={() => setCouponModalOpen(false)} className="p-2 text-gray-500 hover:text-black text-xl leading-none" aria-label="Close">×</button>
                   </div>
-                  <div className="overflow-y-auto p-4 flex-1">
+                  <div className="overflow-y-auto flex-1 p-5 scrollbar-hide">
                     {loadingCoupons ? (
-                      <p className="text-sm text-gray-500 text-center py-6">Loading coupons…</p>
+                      <p className="text-sm text-gray-500 text-center py-10">Loading coupons…</p>
                     ) : availableCoupons.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-6">No coupons available.</p>
+                      <p className="text-sm text-gray-500 text-center py-10">No coupons available.</p>
                     ) : (
-                      <ul className="space-y-3">
+                      <ul className="space-y-4">
                         {availableCoupons.map((c) => {
-                          const code = c.code ?? ''
+                          const code = (c.code ?? '').trim()
                           const desc = c.description ?? ''
                           const type = (c.discountType || '').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FLAT'
                           const value = c.discountValue ?? 0
-                          const maxDiscount = c.maxDiscountAmount
+                          const maxDiscount = c.maxDiscountAmount ?? c.maxDiscount
                           const minCart = c.minCartValue ?? 0
                           const maxCart = c.maxCartValue
                           const perUserLimit = c.perUserUsageLimit ?? 0
@@ -683,23 +771,52 @@ function CartPage() {
                           const discountLabel = type === 'PERCENT'
                             ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString('en-IN')})` : ''}`
                             : `Rs ${Number(value).toLocaleString('en-IN')} off`
+                          const isApplied = appliedCouponCode && String(appliedCouponCode).toUpperCase() === String(code).toUpperCase()
+                          const applicable = isCouponApplicable(c, subTotal)
                           return (
-                            <li key={c._id ?? code}>
-                              <button
-                                type="button"
-                                onClick={() => handleSelectCoupon(code)}
-                                className="w-full text-left border border-gray-300 p-4 hover:border-black hover:bg-gray-50 transition-colors"
-                              >
-                                <span className="block font-semibold uppercase text-black">{code}</span>
-                                {desc && <span className="block text-sm text-gray-700 mt-1">{desc}</span>}
-                                <span className="block text-sm font-medium text-gray-800 mt-1">{discountLabel}</span>
-                                <div className="mt-2 space-y-0.5 text-xs text-gray-500">
-                                  {minCart > 0 && <p>Min order: Rs {Number(minCart).toLocaleString('en-IN')}</p>}
-                                  {maxCart != null && maxCart > 0 && <p>Valid on orders up to Rs {Number(maxCart).toLocaleString('en-IN')}</p>}
-                                  {expiryDate && <p>Valid till: {expiryDate}</p>}
-                                  {perUserLimit > 0 && <p>{perUserLimit === 1 ? 'One use per user' : `Use up to ${perUserLimit} times per user`}</p>}
+                            <li key={c._id ?? code} className={isApplied ? 'ring-2 ring-green-600 ring-offset-1' : ''}>
+                              <div className={`w-full text-left border p-4 transition-colors ${applicable ? 'border-gray-300 bg-white hover:border-gray-400' : 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-75'}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className={`block font-semibold uppercase ${applicable ? 'text-black' : 'text-gray-500'}`}>{code}</span>
+                                    {desc && <span className={`block text-sm mt-1 ${applicable ? 'text-gray-700' : 'text-gray-500'}`}>{desc}</span>}
+                                    <span className={`block text-sm font-medium mt-1 ${applicable ? 'text-gray-800' : 'text-gray-500'}`}>{discountLabel}</span>
+                                    <div className="mt-2 space-y-0.5 text-xs text-gray-500">
+                                      {minCart > 0 && <p>Min order: Rs {Number(minCart).toLocaleString('en-IN')}</p>}
+                                      {maxCart != null && maxCart > 0 && <p>Valid on orders up to Rs {Number(maxCart).toLocaleString('en-IN')}</p>}
+                                      {expiryDate && <p>Valid till: {expiryDate}</p>}
+                                      {perUserLimit > 0 && <p>{perUserLimit === 1 ? 'One use per user' : `Use up to ${perUserLimit} times per user`}</p>}
+                                    </div>
+                                  </div>
+                                  <div className="shrink-0">
+                                    {isApplied ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => { handleRemoveCoupon(); setCouponModalOpen(false) }}
+                                        className="px-4 py-2 text-xs font-semibold uppercase border border-green-600 text-green-700 bg-white hover:bg-green-50 transition-colors"
+                                      >
+                                        Remove coupon
+                                      </button>
+                                    ) : applicable ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApplyCouponFromModal(code)}
+                                        className="px-4 py-2 text-xs font-semibold uppercase bg-black text-white hover:bg-gray-800 transition-colors"
+                                      >
+                                        Apply
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="px-4 py-2 text-xs font-semibold uppercase bg-gray-300 text-gray-500 cursor-not-allowed"
+                                      >
+                                        Not applicable
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              </button>
+                              </div>
                             </li>
                           )
                         })}
@@ -774,17 +891,26 @@ function CartPage() {
             </section>
 
             <div className="pt-4 border-t border-gray-200">
-              <Link
-                to={ROUTES.CHECKOUT}
-                state={{
-                  couponCode: appliedCouponCode || null,
-                  selectedAddress: selectedAddress || null,
-                  addresses: addresses?.length ? addresses : null,
-                }}
-                className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"
-              >
-                Checkout
-              </Link>
+              {hasOutOfStockItem ? (
+                <span
+                  className="block w-full bg-gray-300 text-gray-500 py-3 px-4 text-center font-semibold uppercase cursor-not-allowed"
+                  title="Remove out of stock items to proceed"
+                >
+                  Checkout (remove out of stock items)
+                </span>
+              ) : (
+                <Link
+                  to={ROUTES.CHECKOUT}
+                  state={{
+                    couponCode: appliedCouponCode || null,
+                    selectedAddress: selectedAddress || null,
+                    addresses: addresses?.length ? addresses : null,
+                  }}
+                  className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"
+                >
+                  Checkout
+                </Link>
+              )}
               <Link
                 to={ROUTES.SEARCH}
                 className="mt-3 block w-full text-center text-sm font-medium uppercase text-black hover:underline"
