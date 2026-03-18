@@ -20,4 +20,24 @@ export const orderService = {
 
   /** Get single order item. Backend: GET /order/items/:orderId/:itemId */
   getOrderItemById: (orderId, itemId) => client.get(`${BASE}/items/${orderId}/${itemId}`),
+
+  /**
+   * Download invoice PDF for an order item.
+   * Backend: GET /order/invoice/:orderId/:itemId (returns PDF binary)
+   * Triggers browser download; returns void.
+   */
+  downloadInvoice: async (orderId, itemId) => {
+    const res = await client.get(`${BASE}/invoice/${orderId}/${itemId}`, {
+      responseType: 'blob',
+    });
+    const blob = res.data;
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoice_${orderId}_${itemId || 'order'}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+  },
 };

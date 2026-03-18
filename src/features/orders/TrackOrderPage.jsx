@@ -5,7 +5,8 @@ import { orderService } from '../../services/order.service.js'
 import { itemsService } from '../../services/items.service.js'
 import { cancellationService } from '../../services/cancellation.service.js'
 import { exchangeService } from '../../services/exchange.service.js'
-import { ROUTES } from '../../utils/constants'
+import { policyService } from '../../services/policy.service.js'
+import { ROUTES, getOrderTrackPath } from '../../utils/constants'
 
 const QUANTITY_LABELS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten' }
 function getExchangeQuantityOptions(maxQuantity) {
@@ -16,7 +17,7 @@ function getExchangeQuantityOptions(maxQuantity) {
   })
 }
 
-const CANCEL_REASONS = [
+const FALLBACK_CANCEL_REASONS = [
   'Changed my mind',
   'Wrong size or color',
   'Ordered by mistake',
@@ -25,7 +26,7 @@ const CANCEL_REASONS = [
   'Other',
 ]
 
-const EXCHANGE_REASONS = [
+const FALLBACK_EXCHANGE_REASONS = [
   'Wrong size',
   'Wrong color',
   'Defective or damaged',
@@ -46,7 +47,8 @@ const DELIVERY_STATUS_ORDER = [
 
 const STEPPER = [
   { key: 'order_placed', label: 'Order Placed', statuses: ['CREATED'] },
-  { key: 'confirmed', label: 'Confirmed', statuses: ['CONFIRMED', 'PROCESSING'] },
+  { key: 'confirmed', label: 'Confirmed', statuses: ['CONFIRMED'] },
+  { key: 'processing', label: 'Processing', statuses: ['PROCESSING'] },
   { key: 'shipped', label: 'Shipped', statuses: ['SHIPPED'] },
   { key: 'out_for_delivery', label: 'Out for Delivery', statuses: ['OUT_FOR_DELIVERY'] },
   { key: 'delivered', label: 'Delivered', statuses: ['DELIVERED'] },
@@ -54,19 +56,21 @@ const STEPPER = [
 
 const EXCHANGE_STATUSES = [
   'EXCHANGE_REQUESTED', 'EXCHANGE_APPROVED', 'EXCHANGE_REJECTED', 'EXCHANGE_PICKUP_SCHEDULED',
-  'EXCHANGE_PICKED', 'EXCHANGE_RECEIVED', 'EXCHANGE_PROCESSING', 'EXCHANGE_SHIPPED',
-  'EXCHANGE_DELIVERED', 'EXCHANGE_COMPLETED' // EXCHANGE_COMPLETED shown as final step "Exchange Delivered"
+  'EXCHANGE_OUT_FOR_PICKUP', 'EXCHANGE_PICKED', 'EXCHANGE_RECEIVED', 'EXCHANGE_PROCESSING', 'EXCHANGE_SHIPPED',
+  'EXCHANGE_OUT_FOR_DELIVERY', 'EXCHANGE_DELIVERED', 'EXCHANGE_COMPLETED'
 ]
 
-// Exchange stepper (EXCHANGE_COMPLETED removed; EXCHANGE_DELIVERED is the final step)
+// Exchange stepper (EXCHANGE_COMPLETED shown as final step "Exchange Delivered")
 const EXCHANGE_STEPPER = [
   { key: 'EXCHANGE_REQUESTED', label: 'Exchange Requested', statuses: ['EXCHANGE_REQUESTED'] },
   { key: 'EXCHANGE_APPROVED', label: 'Exchange Approved', statuses: ['EXCHANGE_APPROVED'] },
   { key: 'EXCHANGE_PICKUP_SCHEDULED', label: 'Exchange Pickup Scheduled', statuses: ['EXCHANGE_PICKUP_SCHEDULED'] },
+  { key: 'EXCHANGE_OUT_FOR_PICKUP', label: 'Exchange Out for Pickup', statuses: ['EXCHANGE_OUT_FOR_PICKUP'] },
   { key: 'EXCHANGE_PICKED', label: 'Exchange Picked', statuses: ['EXCHANGE_PICKED'] },
   { key: 'EXCHANGE_RECEIVED', label: 'Exchange Received', statuses: ['EXCHANGE_RECEIVED'] },
   { key: 'EXCHANGE_PROCESSING', label: 'Exchange Processing', statuses: ['EXCHANGE_PROCESSING'] },
   { key: 'EXCHANGE_SHIPPED', label: 'Exchange Shipped', statuses: ['EXCHANGE_SHIPPED'] },
+  { key: 'EXCHANGE_OUT_FOR_DELIVERY', label: 'Exchange Out for Delivery', statuses: ['EXCHANGE_OUT_FOR_DELIVERY'] },
   { key: 'EXCHANGE_DELIVERED', label: 'Exchange Delivered', statuses: ['EXCHANGE_DELIVERED', 'EXCHANGE_COMPLETED'] },
 ]
 
@@ -118,7 +122,7 @@ function getStepStatus(statusHistory, currentStatus, step) {
   }
 }
 
-/** Current step index (0–4) for progress bar; maps ORDER_STATUS_ENUM to stepper step */
+/** Current step index (0–5) for progress bar; maps ORDER_STATUS_ENUM to stepper step */
 function getCurrentStepIndex(currentStatus) {
   const statusUpper = (currentStatus || '').toUpperCase()
   for (let i = STEPPER.length - 1; i >= 0; i--) {
@@ -168,9 +172,13 @@ export default function TrackOrderPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Active policies (fetched from backend); if unavailable we fall back to local defaults above.
+  const [cancelPolicy, setCancelPolicy] = useState(null)
+  const [exchangePolicy, setExchangePolicy] = useState(null)
+
   const [cancelStep, setCancelStep] = useState(0)
   const [selectedCancelItemId, setSelectedCancelItemId] = useState(null)
-  const [cancelReason, setCancelReason] = useState(CANCEL_REASONS[0])
+  const [cancelReason, setCancelReason] = useState(FALLBACK_CANCEL_REASONS[0])
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState(null)
   const [policyAccepted, setPolicyAccepted] = useState(false)
@@ -178,7 +186,7 @@ export default function TrackOrderPage() {
   const [exchangeStep, setExchangeStep] = useState(0)
   const [exchangeQuantity, setExchangeQuantity] = useState(1)
   const [selectedExchangeItemId, setSelectedExchangeItemId] = useState(null)
-  const [exchangeReason, setExchangeReason] = useState(EXCHANGE_REASONS[0])
+  const [exchangeReason, setExchangeReason] = useState(FALLBACK_EXCHANGE_REASONS[0])
   const [exchangeDesiredSize, setExchangeDesiredSize] = useState('')
   const [exchangeDesiredColor, setExchangeDesiredColor] = useState('')
   const [exchangeItemDetails, setExchangeItemDetails] = useState(null)
@@ -186,8 +194,26 @@ export default function TrackOrderPage() {
   const [exchangeImages, setExchangeImages] = useState([])
   const [exchangeSubmitting, setExchangeSubmitting] = useState(false)
   const [exchangeError, setExchangeError] = useState(null)
+  const [exchangePolicyAccepted, setExchangePolicyAccepted] = useState(false)
+
+  const [invoiceDownloading, setInvoiceDownloading] = useState(false)
+  const [invoiceError, setInvoiceError] = useState(null)
+  const [invoiceAccordionOpen, setInvoiceAccordionOpen] = useState(false)
 
   const userName = user?.name || user?.firstName || 'Customer'
+
+  const handleDownloadInvoice = () => {
+    if (!orderId || !itemId) return
+    setInvoiceError(null)
+    setInvoiceDownloading(true)
+    orderService
+      .downloadInvoice(orderId, itemId)
+      .then(() => setInvoiceDownloading(false))
+      .catch((err) => {
+        setInvoiceError(err?.response?.data?.message || err?.message || 'Failed to download invoice')
+        setInvoiceDownloading(false)
+      })
+  }
 
   useEffect(() => {
     if (!isAuthenticated || !orderId || !itemId) {
@@ -209,6 +235,33 @@ export default function TrackOrderPage() {
       })
       .finally(() => setLoading(false))
   }, [isAuthenticated, orderId, itemId])
+
+  // Load active cancellation & exchange policies once (for reasons + policy copy)
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    policyService
+      .getActiveCancellation()
+      .then((res) => {
+        console.log('[TrackOrder] RES getActiveCancellation', res?.data)
+        const payload = res?.data?.data ?? res?.data
+        if (payload) setCancelPolicy(payload)
+      })
+      .catch(() => {
+        setCancelPolicy(null)
+      })
+
+    policyService
+      .getActiveExchange()
+      .then((res) => {
+        console.log('[TrackOrder] RES getActiveExchange', res?.data)
+        const payload = res?.data?.data ?? res?.data
+        if (payload) setExchangePolicy(payload)
+      })
+      .catch(() => {
+        setExchangePolicy(null)
+      })
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (exchangeStep === 1 && data?.item?.quantity != null) {
@@ -248,7 +301,9 @@ export default function TrackOrderPage() {
     setPolicyAccepted(false)
     setCancelStep(1)
     setSelectedCancelItemId(data?.itemId ?? null)
-    setCancelReason(CANCEL_REASONS[0])
+    // When policy is loaded, default to its first reason; otherwise fallback.
+    const reasons = (cancelPolicy?.cancellationReasons || []).filter(Boolean)
+    setCancelReason((reasons[0] || FALLBACK_CANCEL_REASONS[0]) ?? '')
   }
 
   const closeCancelModal = () => {
@@ -291,9 +346,11 @@ export default function TrackOrderPage() {
   const openExchangeModal = () => {
     setExchangeQuantity(1)
     setExchangeError(null)
+    setExchangePolicyAccepted(false)
     setExchangeStep(1)
     setSelectedExchangeItemId(data?.itemId ?? null)
-    setExchangeReason(EXCHANGE_REASONS[0])
+    const reasons = (exchangePolicy?.exchangeReasons || []).filter(Boolean)
+    setExchangeReason((reasons[0] || FALLBACK_EXCHANGE_REASONS[0]) ?? '')
     setExchangeDesiredSize('')
     setExchangeDesiredColor('')
     setExchangeImages([])
@@ -406,12 +463,21 @@ export default function TrackOrderPage() {
   const currentStatus = (data.status || '').toUpperCase()
   const statusHistory = data.statusHistory || []
   const otherItems = data.otherItemsInOrder || []
-  const bookedItems = [{ item, itemId: data.itemId }].concat(
+  const currentItemIdStr = (data.itemId ?? itemId)?.toString()
+  const allBookedEntries = [{ item, itemId: data.itemId }].concat(
     otherItems.map((o) => ({
       item: { ...(o.item || {}), name: o.name, shortDescription: o.shortDescription },
       itemId: o.itemId,
     }))
   )
+  // Deduplicate by itemId so the same item does not appear twice
+  const seenIds = new Set()
+  const bookedItems = allBookedEntries.filter((entry) => {
+    const id = entry.itemId?.toString()
+    if (!id || seenIds.has(id)) return false
+    seenIds.add(id)
+    return true
+  })
   const isCancellable = data.isCancellable === true
   const isExchangeable = data.isExchangeable !== false
   const exchangeInProgress = isExchangeInProgress(data.exchange)
@@ -425,7 +491,8 @@ export default function TrackOrderPage() {
   // Delivery boy from API (returned for SHIPPED / OUT_FOR_DELIVERY or exchange pickup/delivery when driver assigned)
   const deliveryBoyName = data.deliveryBoy?.name ?? data.shipment?.deliveryAgentName ?? null
   const deliveryBoyPhone = data.deliveryBoy?.phoneNumber ?? data.shipment?.deliveryAgentPhone ?? null
-  const deliveryStatusesShowDriver = ['SHIPPED', 'OUT_FOR_DELIVERY', 'EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_PICKED', 'EXCHANGE_SHIPPED', 'EXCHANGE_DELIVERED']
+  // Delivery partner visible only: (1) between Out for delivery → Delivered, (2) between Exchange out for pickup → Exchange picked, (3) between Exchange out for delivery → Exchange delivered
+  const deliveryStatusesShowDriver = ['OUT_FOR_DELIVERY', 'EXCHANGE_OUT_FOR_PICKUP', 'EXCHANGE_PICKED', 'EXCHANGE_OUT_FOR_DELIVERY', 'EXCHANGE_DELIVERED']
   const showDeliveryBoyContact = (deliveryBoyName || deliveryBoyPhone) && deliveryStatusesShowDriver.includes(currentStatus)
 
   return (
@@ -477,6 +544,97 @@ export default function TrackOrderPage() {
             </div>
           </div>
         </div>
+
+        {/* Invoice accordion: closed by default, click to open */}
+        {data?.item && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setInvoiceAccordionOpen((o) => !o)}
+              className="w-full flex flex-wrap items-center justify-between gap-3 px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-black uppercase text-sm">Invoice</h2>
+                <span
+                  className={`inline-block transition-transform duration-200 ${invoiceAccordionOpen ? 'rotate-180' : ''}`}
+                  aria-hidden
+                >
+                  ▼
+                </span>
+              </div>
+              <span className="text-sm font-semibold">
+                ₹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
+              </span>
+            </button>
+            {invoiceAccordionOpen && (
+              <div className="px-6 pb-6 pt-0 border-t border-gray-200">
+                <div className="flex flex-wrap items-center justify-between gap-4 mt-4 mb-4">
+                  <span className="text-gray-600 text-sm">Details</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDownloadInvoice()
+                    }}
+                    disabled={invoiceDownloading}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-black hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed uppercase"
+                  >
+                    {invoiceDownloading ? (
+                      <>
+                        <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Downloading…
+                      </>
+                    ) : (
+                      <>↓ Download invoice</>
+                    )}
+                  </button>
+                </div>
+                {invoiceError && (
+                  <p className="text-sm text-red-600 mb-3">{invoiceError}</p>
+                )}
+                {data.item.invoiceLineId && (
+                  <p className="text-gray-600 text-sm mb-4">
+                    Invoice No. <strong>{data.item.invoiceLineId}</strong>
+                  </p>
+                )}
+                <div className="border-t border-gray-200 pt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span>₹{(Number(data.item.itemSubtotal) ?? (Number(data.item.unitPrice) || 0) * (Number(data.item.quantity) || 1)).toFixed(2)}</span>
+                  </div>
+                  {data.item.delivery?.charge != null && Number(data.item.delivery.charge) !== 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Delivery ({data.item.delivery?.type || 'Delivery'})</span>
+                      <span>₹{Number(data.item.delivery.charge).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {Array.isArray(data.item.charges) && data.item.charges.length > 0 && data.item.charges.map((ch, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-gray-600">{ch.key || ch.description || 'Charge'}</span>
+                      <span>₹{(Number(ch.amount) || 0).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {data.item.gst?.amount != null && Number(data.item.gst.amount) !== 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">GST {data.item.gst?.percent ? `(${data.item.gst.percent}%)` : ''}</span>
+                      <span>₹{Number(data.item.gst.amount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {data.item.couponDiscount?.discountAmount != null && Number(data.item.couponDiscount.discountAmount) !== 0 && (
+                    <div className="flex justify-between text-sm text-green-700">
+                      <span>Coupon {data.item.couponDiscount?.code ? `(${data.item.couponDiscount.code})` : ''}</span>
+                      <span>- ₹{Number(data.item.couponDiscount.discountAmount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-semibold pt-2 border-t border-gray-200">
+                    <span>Total</span>
+                    <span>₹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Order status card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -590,9 +748,9 @@ export default function TrackOrderPage() {
             {showDeliveryBoyContact ? (
               <div>
                 <p className="text-sm font-medium text-gray-800 mb-2">
-                  {['EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_PICKED'].includes(currentStatus)
+                  {['EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_OUT_FOR_PICKUP', 'EXCHANGE_PICKED'].includes(currentStatus)
                     ? 'Assigned driver (pickup)'
-                    : ['EXCHANGE_SHIPPED', 'EXCHANGE_DELIVERED'].includes(currentStatus)
+                    : ['EXCHANGE_SHIPPED', 'EXCHANGE_OUT_FOR_DELIVERY', 'EXCHANGE_DELIVERED'].includes(currentStatus)
                       ? 'Assigned driver (exchange delivery)'
                       : 'Contact delivery partner'}
                 </p>
@@ -636,27 +794,34 @@ export default function TrackOrderPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="font-bold text-black uppercase text-sm mb-4">BOOKED ITEMS</h2>
           <ul className="space-y-4">
-            {bookedItems.map((entry, idx) => {
-              const it = entry.item || {}
-              const img = it.variant?.imageUrl ?? ''
-              const b = it.brandName || it.brand || '—'
-              const n = it.name || it.shortDescription || '—'
-              return (
-                <li key={entry.itemId?.toString() || idx} className="flex gap-4 items-center">
-                  <div className="w-16 h-16 shrink-0 overflow-hidden bg-gray-100 rounded">
-                    {img ? (
-                      <img src={img} alt={n} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    {/* <p className="font-bold text-gray-900 uppercase text-sm">{b}</p> */}
-                    <p className="text-gray-700 text-sm normal-case">{n}</p>
-                  </div>
-                </li>
-              )
-            })}
+            {bookedItems
+              .filter((entry) => entry.itemId?.toString() !== currentItemIdStr)
+              .map((entry, idx) => {
+                const it = entry.item || {}
+                const img = it.variant?.imageUrl ?? ''
+                const n = it.name || it.shortDescription || '—'
+                const trackPath = getOrderTrackPath(orderId, entry.itemId)
+                return (
+                  <li key={entry.itemId?.toString() || idx}>
+                    <Link
+                      to={trackPath}
+                      className="flex gap-4 items-center rounded-lg border border-transparent p-2 -m-2 transition-colors hover:bg-gray-50 hover:border-gray-200"
+                    >
+                      <div className="w-16 h-16 shrink-0 overflow-hidden bg-gray-100 rounded">
+                        {img ? (
+                          <img src={img} alt={n} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-gray-700 text-sm normal-case">{n}</p>
+                      </div>
+                      <span className="text-gray-400 shrink-0">→</span>
+                    </Link>
+                  </li>
+                )
+              })}
           </ul>
         </div>
 
@@ -680,30 +845,32 @@ export default function TrackOrderPage() {
                     <p className="font-semibold text-black uppercase text-sm mb-3">Reason for cancel</p>
                     <p className="text-xs text-gray-600 mb-3">Select the item you want to cancel:</p>
                     <ul className="space-y-2 mb-4">
-                      {bookedItems.map((entry, idx) => {
-                        const it = entry.item || {}
-                        const label = [it.brandName || it.brand, it.name || it.shortDescription].filter(Boolean).join(' ') || 'Item'
-                        const idVal = entry.itemId?.toString?.() ?? idx
-                        const isSelected = selectedCancelItemId?.toString?.() === idVal
-                        return (
-                          <li key={idVal}>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="cancelItem"
-                                checked={isSelected}
-                                onChange={() => setSelectedCancelItemId(entry.itemId)}
-                                className="w-4 h-4 border-gray-300 text-black"
-                              />
-                              <span className="text-sm uppercase text-gray-800">{label}</span>
-                            </label>
-                          </li>
-                        )
-                      })}
+                      {bookedItems
+                        .filter((entry) => entry.itemId?.toString() === (data?.itemId ?? itemId)?.toString())
+                        .map((entry, idx) => {
+                          const it = entry.item || {}
+                          const label = [it.brandName || it.brand, it.name || it.shortDescription].filter(Boolean).join(' ') || 'Item'
+                          const idVal = entry.itemId?.toString?.() ?? idx
+                          const isSelected = selectedCancelItemId?.toString?.() === idVal
+                          return (
+                            <li key={idVal}>
+                              <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="cancelItem"
+                                  checked={isSelected}
+                                  onChange={() => setSelectedCancelItemId(entry.itemId)}
+                                  className="w-4 h-4 border-gray-300 text-black"
+                                />
+                                <span className="text-sm uppercase text-gray-800">{label}</span>
+                              </label>
+                            </li>
+                          )
+                        })}
                     </ul>
                     <p className="text-xs text-gray-600 mb-2 mt-4">Reason for cancellation:</p>
                     <ul className="space-y-2">
-                      {CANCEL_REASONS.map((r) => {
+                      {(cancelPolicy?.cancellationReasons?.length ? cancelPolicy.cancellationReasons : FALLBACK_CANCEL_REASONS).map((r) => {
                         const isSelected = cancelReason === r
                         return (
                           <li key={r}>
@@ -731,49 +898,87 @@ export default function TrackOrderPage() {
               )}
               {cancelStep === 2 && (
                 <>
-                  <div className="flex items-center justify-between p-4 border-b border-black">
-                    <h3 className="font-bold text-black uppercase">Policies</h3>
-                    <button type="button" className="p-1 text-gray-500 hover:text-black text-lg" aria-label="Close" onClick={closeCancelModal}>✕</button>
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                    <h3 className="text-sm font-bold tracking-wider text-black uppercase">Policies</h3>
+                    <button
+                      type="button"
+                      className="p-1.5 rounded text-gray-400 hover:text-black hover:bg-gray-100 transition-colors"
+                      aria-label="Close"
+                      onClick={closeCancelModal}
+                    >
+                      <span className="text-lg leading-none">×</span>
+                    </button>
                   </div>
-                  <div className="p-4 space-y-4">
-                    <div>
-                      <p className="font-bold text-black uppercase text-xs mb-1">Order cancellation</p>
-                      <p className="text-sm text-gray-700">If You Choose To Cancel Your Order After It Has Been Booked, The Order Will Be Successfully Cancelled As Per Our Cancellation Policy.</p>
-                    </div>
-                    <div>
-                      <p className="font-bold text-black uppercase text-xs mb-1">Refund method</p>
-                      <p className="text-sm text-gray-700">Instead Of A Cash Or Bank Refund, The Deducted Amount Will Be Credited As A Coupon To Your Account.</p>
-                    </div>
-                    <div>
-                      <p className="font-bold text-black uppercase text-xs mb-1">Coupon details</p>
-                      <label className="flex items-center gap-3 cursor-pointer mt-1">
-                        <input
-                          type="radio"
-                          name="couponDetails"
-                          checked
-                          readOnly
-                          className="w-4 h-4 border-gray-300 text-black"
-                        />
-                        <span className="text-sm text-gray-800 uppercase">The Coupon Value Will Be Equal To The Amount Deducted</span>
-                      </label>
-                    </div>
-                    <label className="flex items-start gap-3 cursor-pointer mt-4">
+                  <div className="px-5 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
+                    {cancelPolicy ? (
+                      <>
+                        {cancelPolicy.name?.trim() && (
+                          <div>
+                            <p className="text-[11px] font-bold tracking-wider text-black uppercase mb-1.5">Policy name</p>
+                            <p className="text-sm font-normal text-gray-700">{cancelPolicy.name.trim()}</p>
+                          </div>
+                        )}
+                        {(cancelPolicy.description?.trim() ?? '') && (
+                          <div>
+                            <p className="text-[11px] font-bold tracking-wider text-black uppercase mb-1.5">Description</p>
+                            <p className="text-sm font-normal text-gray-600 leading-relaxed whitespace-pre-line">{cancelPolicy.description.trim()}</p>
+                          </div>
+                        )}
+                        {cancelPolicy.cancellationReasons?.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-bold tracking-wider text-black uppercase mb-1.5">Cancellation reasons</p>
+                            <p className="text-sm font-normal text-gray-600">{cancelPolicy.cancellationReasons.join(', ')}</p>
+                          </div>
+                        )}
+                        {cancelPolicy.policies && typeof cancelPolicy.policies === 'object' && Object.keys(cancelPolicy.policies).length > 0 && (
+                          <div className="space-y-4">
+                            <p className="text-[11px] font-bold tracking-wider text-black uppercase mb-1.5">Policy rules</p>
+                            {Object.entries(cancelPolicy.policies).map(([key, value]) => (
+                              <div key={key}>
+                                <p className="text-[11px] font-semibold tracking-wider text-black uppercase mb-1">
+                                  {key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
+                                </p>
+                                <p className="text-sm font-normal text-gray-600 leading-relaxed">
+                                  {Array.isArray(value) ? value.join(', ') : String(value ?? '')}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="text-[11px] font-bold tracking-wider text-black uppercase mb-1.5">Order cancellation</p>
+                          <p className="text-sm font-normal text-gray-600 leading-relaxed">
+                            If you choose to cancel your order after it has been booked, the cancellation will be processed as per the store&apos;s cancellation policy.
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold tracking-wider text-black uppercase mb-1.5">Refund method</p>
+                          <p className="text-sm font-normal text-gray-600 leading-relaxed">
+                            Refunds may be issued as coupons or other methods according to the store&apos;s refund policy.
+                          </p>
+                        </div>
+                      </>
+                    )}
+                    <label className="flex items-start gap-3 cursor-pointer pt-2">
                       <input
                         type="checkbox"
                         checked={policyAccepted}
                         onChange={(e) => setPolicyAccepted(e.target.checked)}
-                        className="w-4 h-4 mt-0.5 border-gray-300 text-black shrink-0"
+                        className="w-4 h-4 mt-0.5 rounded border-2 border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 shrink-0 accent-blue-600"
                       />
-                      <span className="text-sm text-gray-700">I accept the terms and conditions of the cancellation and refund policy.</span>
+                      <span className="text-sm font-normal text-gray-700 leading-snug">I accept the terms and conditions of the cancellation and refund policy.</span>
                     </label>
                   </div>
-                  {cancelError && <p className="px-4 text-red-600 text-sm">{cancelError}</p>}
-                  <div className="p-4 border-t border-gray-200">
+                  {cancelError && <p className="px-5 pb-1 text-red-600 text-sm">{cancelError}</p>}
+                  <div className="px-5 py-4 border-t border-gray-200 bg-gray-50/50">
                     <button
                       type="button"
                       onClick={cancelModalContinue}
                       disabled={cancelSubmitting || !policyAccepted}
-                      className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full bg-black text-white py-3.5 text-sm font-bold tracking-wider uppercase hover:bg-gray-800 active:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-sm"
                     >
                       {cancelSubmitting ? 'Cancelling…' : 'Continue'}
                     </button>
@@ -790,8 +995,14 @@ export default function TrackOrderPage() {
                       <span className="text-2xl">✓</span>
                     </div>
                     <h3 className="font-bold text-black uppercase text-lg mb-2">Order cancelled successfully</h3>
-                    <p className="text-sm text-gray-600">The refund coupon will be added to your Coupons section within 24 hours.</p>
-                    <Link to={ROUTES.COUPONS} className="mt-4 inline-block text-sm font-semibold uppercase text-black hover:underline">View coupons</Link>
+                    {(data?.payment?.mode ?? data?.item?.paymentMode ?? '').toUpperCase() === 'COD' ? (
+                      <p className="text-sm text-gray-600">This order item has been cancelled.</p>
+                    ) : (
+                      <>
+                        <p className="text-sm text-gray-600">The refund coupon will be added to your Coupons section within 24 hours.</p>
+                        <Link to={ROUTES.COUPONS} className="mt-4 inline-block text-sm font-semibold uppercase text-black hover:underline">View coupons</Link>
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -807,13 +1018,15 @@ export default function TrackOrderPage() {
                 const currentItemQuantity = Math.max(1, Number(data?.item?.quantity) || 1)
                 const quantityOptions = getExchangeQuantityOptions(currentItemQuantity)
                 const clampedQuantity = Math.min(exchangeQuantity, currentItemQuantity)
+                const maxDays = exchangePolicy?.maxExchangeTimeInDays ?? 3
+                const maxLimit = exchangePolicy?.maxExchangeLimit ?? 1
                 return (
                 <>
                   <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <h3 className="font-bold text-black uppercase text-sm">Select the quantity to be exchanged</h3>
                     <button type="button" className="p-1 text-gray-500 hover:text-black text-lg" aria-label="Close" onClick={closeExchangeModal}>✕</button>
                   </div>
-                  <div className="p-4">
+                  <div className="p-4 space-y-4">
                     <p className="text-xs text-gray-600 mb-2">Current order quantity: {currentItemQuantity}</p>
                     <div className="relative">
                       <select
@@ -827,9 +1040,32 @@ export default function TrackOrderPage() {
                       </select>
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">▼</span>
                     </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5">
+                      <p className="text-[11px] font-bold tracking-wider text-black uppercase">Exchange policy</p>
+                      <p className="text-sm text-gray-600">
+                        You can request an exchange within <strong>{maxDays} day{maxDays !== 1 ? 's' : ''}</strong> of delivery.
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Maximum <strong>{maxLimit} exchange{maxLimit !== 1 ? 's' : ''}</strong> per order.
+                      </p>
+                    </div>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={exchangePolicyAccepted}
+                        onChange={(e) => setExchangePolicyAccepted(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 rounded border-2 border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 shrink-0 accent-blue-600"
+                      />
+                      <span className="text-sm text-gray-700">I accept the terms and conditions of the exchange policy.</span>
+                    </label>
                   </div>
                   <div className="p-4 border-t border-gray-200">
-                    <button type="button" onClick={exchangeModalContinue} className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors">
+                    <button
+                      type="button"
+                      onClick={exchangeModalContinue}
+                      disabled={!exchangePolicyAccepted}
+                      className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       Exchange order
                     </button>
                   </div>
@@ -847,23 +1083,20 @@ export default function TrackOrderPage() {
                   </div>
                   <div className="p-4">
                     <ul className="space-y-2">
-                      {EXCHANGE_REASONS.map((reason) => {
-                        const isSelected = exchangeReason === reason
-                        return (
-                          <li key={reason}>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="exchangeReason"
-                                checked={isSelected}
-                                onChange={() => setExchangeReason(reason)}
-                                className="w-4 h-4 border-gray-300 text-black"
-                              />
-                              <span className="text-sm text-gray-800">{reason}</span>
-                            </label>
-                          </li>
-                        )
-                      })}
+                      {(exchangePolicy?.exchangeReasons?.length ? exchangePolicy.exchangeReasons : FALLBACK_EXCHANGE_REASONS).map((reason) => (
+                        <li key={reason}>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="exchangeReason"
+                              checked={exchangeReason === reason}
+                              onChange={() => setExchangeReason(reason)}
+                              className="w-4 h-4 border-gray-300 text-black"
+                            />
+                            <span className="text-sm text-gray-800">{reason}</span>
+                          </label>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                   <div className="p-4 border-t border-gray-200">

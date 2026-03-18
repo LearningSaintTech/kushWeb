@@ -5,6 +5,8 @@ const MAX_RECENT_PINCODES = 5;
 const initialState = {
   pincode: null,
   addressLabel: null,
+  /** When user selects a saved address in navbar (LocationPicker), store its id so Cart can use same address */
+  selectedAddressId: null,
   recentPincodes: [],
   suggestedPincodes: [
     { pincode: '110001', label: 'Connaught Place, New Delhi' },
@@ -23,9 +25,10 @@ const locationSlice = createSlice({
   initialState,
   reducers: {
     setLocation: (state, { payload }) => {
-      const { pincode, addressLabel } = payload ?? {};
+      const { pincode, addressLabel, selectedAddressId } = payload ?? {};
       state.pincode = pincode ?? state.pincode;
       state.addressLabel = addressLabel ?? state.addressLabel;
+      state.selectedAddressId = selectedAddressId !== undefined ? selectedAddressId : null;
       state.error = null;
       state.isLoading = false; // always clear loading when we have a location
       if (pincode) {
@@ -56,6 +59,7 @@ const locationSlice = createSlice({
     clearLocation: (state) => {
       state.pincode = null;
       state.addressLabel = null;
+      state.selectedAddressId = null;
       state.error = null;
     },
   },

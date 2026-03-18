@@ -55,7 +55,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
     try {
       const { pincode: pin, addressLabel: label } = await getCurrentLocationPincode()
       if (pin || label) {
-        dispatch(setLocation({ pincode: pin, addressLabel: label }))
+        dispatch(setLocation({ pincode: pin, addressLabel: label, selectedAddressId: null }))
         setOpen(false)
       } else {
         dispatch(setError('Address could not be resolved. Please choose from addresses.'))
@@ -101,8 +101,9 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
   const handleUseSavedAddress = (addr) => {
     const label = formatAddressLabel(addr)
     const pin = addr.pinCode != null ? String(addr.pinCode) : null
+    const id = addr._id ?? null
     if (pin) {
-      dispatch(setLocation({ pincode: pin, addressLabel: label || `Pin ${pin}` }))
+      dispatch(setLocation({ pincode: pin, addressLabel: label || `Pin ${pin}`, selectedAddressId: id }))
       dispatch(setError(null))
       setOpen(false)
     }

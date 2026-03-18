@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
+import { setLocation } from '../../app/store/slices/locationSlice'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import { cartService } from '../../services/cart.service.js'
 import { addressService } from '../../services/address.service.js'
@@ -56,9 +57,11 @@ function formatDeliveryDuration(dur, fallbackLabel = '') {
 }
 
 function CartPage() {
+  const dispatch = useDispatch()
   const { isAuthenticated } = useAuth()
   const { removeFromCart, refetchCart } = useCartWishlist()
   const pincodeRedux = useSelector((s) => s?.location?.pincode) ?? null
+  const selectedAddressIdFromRedux = useSelector((s) => s?.location?.selectedAddressId) ?? null
   const [cartData, setCartData] = useState(null)
   const [addresses, setAddresses] = useState([])
   const [selectedAddress, setSelectedAddress] = useState(null)
@@ -143,20 +146,21 @@ function CartPage() {
       .then((res) => {
         const data = res?.data?.data ?? res?.data
         defaultAddr = data
-        if (data) setSelectedAddress(data)
         return data
       })
       .catch(() => null)
       .then(() => addressService.getAll({ page: 1, limit: 50 }).then((res) => {
         const list = res?.data?.data ?? res?.data
         const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
-        addressList = Array.isArray(arr) ? arr : []
-        setAddresses(addressList)
-        if (!defaultAddr && addressList.length) setSelectedAddress(addressList[0])
-        return addressList
+        return Array.isArray(arr) ? arr : []
       }).catch(() => []))
-      .then((list) => {
-        const id = defaultAddr?._id ?? list?.[0]?._id
+      .then((addressList) => {
+        setAddresses(addressList)
+        const chosen = (selectedAddressIdFromRedux && addressList.length)
+          ? addressList.find((a) => String(a._id) === String(selectedAddressIdFromRedux)) ?? defaultAddr ?? addressList[0]
+          : defaultAddr ?? addressList[0]
+        setSelectedAddress(chosen || null)
+        const id = chosen?._id
         refetchCart(id ? { addressId: id } : {})
         const cartParams = { limit: 100 }
         if (id) cartParams.addressId = id
@@ -169,14 +173,17 @@ function CartPage() {
       })
       .catch(() => setCartError('Failed to load cart'))
       .finally(() => setLoading(false))
-  }, [isAuthenticated])
+  }, [isAuthenticated, selectedAddressIdFromRedux])
 
-  // When addresses load, ensure we have a selected address so details show on first visit
+  // When addresses load, ensure we have a selected address (prefer navbar/Redux current address)
   useEffect(() => {
     if (addresses.length === 0 || selectedAddress != null) return
-    const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0]
+    const fromRedux = selectedAddressIdFromRedux
+      ? addresses.find((a) => String(a._id) === String(selectedAddressIdFromRedux))
+      : null
+    const defaultOrFirst = fromRedux ?? addresses.find((a) => a.isDefault) ?? addresses[0]
     if (defaultOrFirst) setSelectedAddress(defaultOrFirst)
-  }, [addresses, selectedAddress])
+  }, [addresses, selectedAddress, selectedAddressIdFromRedux])
 
   // When selected address changes, refetch cart with new addressId (for delivery options)
   useEffect(() => {
@@ -583,7 +590,14 @@ function CartPage() {
                     onChange={(e) => {
                       const id = e.target.value
                       const addr = addresses.find((a) => String(a._id ?? '') === id)
-                      if (addr) setSelectedAddress(addr)
+                      if (addr) {
+                        setSelectedAddress(addr)
+                        dispatch(setLocation({
+                          pincode: addr.pinCode != null ? String(addr.pinCode) : null,
+                          addressLabel: formatAddress(addr) || (addr.pinCode ? `Pin ${addr.pinCode}` : null),
+                          selectedAddressId: addr._id ?? null,
+                        }))
+                      }
                     }}
                     className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
                   >

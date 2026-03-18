@@ -421,7 +421,8 @@ function CheckoutPage() {
         const data = res?.data?.data ?? res?.data
         const order = data?.order ?? data
         const orderId = order?.orderId
-        console.log('[Checkout] COD success, navigate to orders:', orderId)
+        console.log('[Checkout] COD success, refetch cart and navigate to orders:', orderId)
+        refetchCart()
         navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
         return
       }
@@ -1102,6 +1103,7 @@ function CheckoutPage() {
                           const data = verifyRes?.data?.data ?? verifyRes?.data
                           const orderId = data?.orderId ?? data?.order?.orderId
                           paymentSuccessHandledRef.current = true
+                          refetchCart()
                           console.log('[Checkout] Retry verification success, navigate:', orderId)
                           navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
                         } catch (err) {

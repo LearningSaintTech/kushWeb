@@ -91,10 +91,12 @@ function OrdersPage() {
       EXCHANGE_APPROVED: 'Exchange approved',
       EXCHANGE_REJECTED: 'Exchange rejected',
       EXCHANGE_PICKUP_SCHEDULED: 'Pickup scheduled',
+      EXCHANGE_OUT_FOR_PICKUP: 'Out for pickup',
       EXCHANGE_PICKED: 'Picked for exchange',
       EXCHANGE_RECEIVED: 'Exchange received',
       EXCHANGE_PROCESSING: 'Exchange processing',
       EXCHANGE_SHIPPED: 'Exchange shipped',
+      EXCHANGE_OUT_FOR_DELIVERY: 'Out for delivery',
       EXCHANGE_COMPLETED: 'Exchanged',
       CANCELLED: 'Cancelled',
     }
@@ -123,7 +125,7 @@ function OrdersPage() {
     if (status === 'EXCHANGE_DELIVERED') {
       return { type: 'exchange_process', label: 'EXCHANGE DELIVERED', statusLabel, dateStr, name, fullAddress }
     }
-    if (['EXCHANGE_REQUESTED', 'EXCHANGE_APPROVED', 'EXCHANGE_REJECTED', 'EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_PICKED', 'EXCHANGE_RECEIVED', 'EXCHANGE_PROCESSING', 'EXCHANGE_SHIPPED'].includes(status)) {
+    if (['EXCHANGE_REQUESTED', 'EXCHANGE_APPROVED', 'EXCHANGE_REJECTED', 'EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_OUT_FOR_PICKUP', 'EXCHANGE_PICKED', 'EXCHANGE_RECEIVED', 'EXCHANGE_PROCESSING', 'EXCHANGE_SHIPPED', 'EXCHANGE_OUT_FOR_DELIVERY'].includes(status)) {
       return { type: 'exchange_process', label: 'EXCHANGE IN PROCESS', statusLabel, dateStr, name, fullAddress }
     }
     if (status === 'EXCHANGE_COMPLETED') {

@@ -343,6 +343,7 @@ export default function Address() {
         setLocation({
           pincode: addr.pinCode ? String(addr.pinCode) : null,
           addressLabel: label || null,
+          selectedAddressId: addr._id ?? null,
         }),
       );
     } catch {
@@ -352,7 +353,7 @@ export default function Address() {
 
   const handleUseAsCurrent = (addr) => {
     const label = formatAddress(addr)
-    dispatch(setLocation({ pincode: addr.pinCode ? String(addr.pinCode) : null, addressLabel: label || null }))
+    dispatch(setLocation({ pincode: addr.pinCode ? String(addr.pinCode) : null, addressLabel: label || null, selectedAddressId: addr._id ?? null }))
   }
 
   const handleDelete = async (id) => {
