@@ -125,12 +125,12 @@ export default function CouponsPage() {
         : (data?.items ?? data?.data ?? data?.coupons ?? [])
       const pag = data?.pagination ?? data?.meta ?? null
 
-      const couponList = Array.isArray(list) ? list : []
+      const couponList = (Array.isArray(list) ? list : []).filter((c) => !c?.isInfluencer)
       console.log('Coupons response:', JSON.stringify(res?.data, null, 2))
       console.log('Coupon details:', JSON.stringify(couponList, null, 2))
       if (couponList.length > 0) console.table(couponList)
 
-      setCoupons(Array.isArray(list) ? list : [])
+      setCoupons(couponList)
       setPagination(pag && typeof pag === 'object' ? pag : null)
     } catch (err) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load coupons')

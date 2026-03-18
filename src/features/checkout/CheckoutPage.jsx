@@ -317,7 +317,8 @@ function CheckoutPage() {
         console.log('[Checkout] RES couponsService.getAvailable:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = Array.isArray(data) ? data : (data?.data ?? [])
-        setAvailableCoupons(list)
+        const normalCoupons = (Array.isArray(list) ? list : []).filter((c) => !c?.isInfluencer)
+        setAvailableCoupons(normalCoupons)
       })
       .catch(() => setAvailableCoupons([]))
       .finally(() => setLoadingCoupons(false))
