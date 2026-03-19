@@ -7,6 +7,7 @@ import {
   categoriesService,
   subcategoriesService,
 } from "../../services/categories.service.js";
+import { contactUsService } from "../../services";
 import {
   FaFacebookF,
   FaInstagram,
@@ -69,7 +70,15 @@ const FALLBACK_SECTIONS = [
 
 function Footer() {
   const currentYear = new Date().getFullYear();
-  const [email, setEmail] = useState("");
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    subject: "",
+    message: "",
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [footerSections, setFooterSections] = useState([]);
   const [collectionsLoaded, setCollectionsLoaded] = useState(false);
 
@@ -154,10 +163,40 @@ function Footer() {
     };
   }, []);
 
-  const handleEmailSubmit = (e) => {
+  const handleContactChange = (e) => {
+    const { name, value } = e.target;
+    setContactForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleContactSubmit = async (e) => {
     e.preventDefault();
-    console.log("Email submitted:", email);
-    setEmail("");
+    const { name, email, phone, subject, message } = contactForm;
+    if (!name.trim() || !email.trim() || !message.trim()) return;
+
+    try {
+      setIsSubmitting(true);
+      await contactUsService.submit({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        subject: subject.trim() || undefined,
+        message: message.trim(),
+        source: "web-footer-modal",
+      });
+      setShowContactForm(false);
+      setContactForm({
+        name: "",
+        email: "",
+        phone: "",
+        subject: "",
+        message: "",
+      });
+    } catch (err) {
+      // optional: surface error via toast/snackbar
+      console.error("Failed to submit contact-us request from footer modal", err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const sectionsToRender = footerSections.length
@@ -222,24 +261,17 @@ function Footer() {
             <div className="flex flex-col lg:flex-row gap-12">
               {/* LEFT SIDE */}
               <div className="lg:max-w-md space-y-8">
-                {/* EMAIL */}
-                <form onSubmit={handleEmailSubmit}>
-                  <div className="flex items-center gap-3 border-b border-white/40 pb-3">
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="ENTER YOUR EMAIL ADDRESS"
-                      className="flex-1 bg-transparent text-white placeholder-white/50 text-sm tracking-widest focus:outline-none"
-                    />
-                    <button
-                      type="submit"
-                      className="hover:opacity-80 transition"
-                    >
-                      ➤
-                    </button>
-                  </div>
-                </form>
+                {/* CLICKABLE CONTACT US BAR (FAKE INPUT) */}
+                <button
+                  type="button"
+                  onClick={() => setShowContactForm(true)}
+                  className="w-full flex items-center gap-3 border-b border-white/40 pb-3 text-left"
+                >
+                  <span className="flex-1 bg-transparent text-white/50 text-sm tracking-widest">
+                    CONTACT US
+                  </span>
+                  <span className="hover:opacity-80 transition">➤</span>
+                </button>
 
                 {/* LOGO */}
                 <img
@@ -423,6 +455,115 @@ function Footer() {
       <div className="py-6 text-center text-xs sm:text-sm text-white/60 px-4">
         © {currentYear} KHUSH. All rights reserved.
       </div>
+
+      {/* ================= CONTACT US MODAL ================= */}
+      {showContactForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-white text-black w-full max-w-lg rounded-2xl shadow-2xl p-6 sm:p-8 relative">
+            <button
+              type="button"
+              onClick={() => setShowContactForm(false)}
+              className="absolute right-4 top-4 text-gray-500 hover:text-black"
+            >
+              ✕
+            </button>
+            <h2 className="text-xl sm:text-2xl font-semibold mb-4 tracking-wide">
+              Contact Us
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Share your query or feedback and our team will get back to you.
+            </p>
+            <form onSubmit={handleContactSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Name*
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    required
+                    value={contactForm.name}
+                    onChange={handleContactChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Email*
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    required
+                    value={contactForm.email}
+                    onChange={handleContactChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={contactForm.phone}
+                    onChange={handleContactChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
+                  <input
+                    type="text"
+                    name="subject"
+                    value={contactForm.subject}
+                    onChange={handleContactChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Message*
+                </label>
+                <textarea
+                  name="message"
+                  rows={4}
+                  required
+                  value={contactForm.message}
+                  onChange={handleContactChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowContactForm(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-full hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-900 disabled:opacity-50"
+                >
+                  Submit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </footer>
   );
 }
