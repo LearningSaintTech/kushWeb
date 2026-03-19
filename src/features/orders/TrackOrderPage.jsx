@@ -7,6 +7,7 @@ import { cancellationService } from '../../services/cancellation.service.js'
 import { exchangeService } from '../../services/exchange.service.js'
 import { policyService } from '../../services/policy.service.js'
 import { ROUTES, getOrderTrackPath } from '../../utils/constants'
+import { reviewsService } from '../../services/reviews.service.js'
 
 const QUANTITY_LABELS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten' }
 function getExchangeQuantityOptions(maxQuantity) {
@@ -78,6 +79,36 @@ const IN_PROGRESS_EXCHANGE_STATUSES = [
   'exchangeRequested', 'exchangeApproved', 'pickupScheduled', 'pickedUp', 'inTransit',
   'receivedAtWarehouse', 'qualityCheck', 'exchangeShipped', 'outForDelivery', 'exchangeDelivered'
 ]
+
+function isNormalDeliveryType(v) {
+  return String(v || '').toUpperCase() === 'NORMAL'
+}
+
+function getShiprocketFromOrderItem(data) {
+  const item = data?.item || {}
+  const sr = item?.shiprocket || data?.shiprocket || {}
+  const awb = sr?.awbCode || item?.trackingId || data?.trackingId || data?.shipment?.trackingId || null
+  const trackingUrl = sr?.trackingUrl || (awb ? `https://shiprocket.co/tracking/${encodeURIComponent(String(awb))}` : null)
+  const hasAny = Boolean(
+    awb ||
+      trackingUrl ||
+      sr?.orderId != null ||
+      sr?.shipmentId != null ||
+      (sr?.status && String(sr.status).trim()) ||
+      (item?.courier && String(item.courier).trim())
+  )
+  if (!hasAny) return null
+  return {
+    awb,
+    trackingUrl,
+    status: sr?.status || null,
+    orderId: sr?.orderId ?? null,
+    shipmentId: sr?.shipmentId ?? null,
+    courier: item?.courier || null,
+    labelUrl: sr?.labelUrl || null,
+    invoiceUrl: sr?.invoiceUrl || null,
+  }
+}
 
 function formatStepperDate(dateVal) {
   if (!dateVal) return ''
@@ -172,6 +203,17 @@ export default function TrackOrderPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Review state (per item for current user)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewError, setReviewError] = useState(null)
+  const [review, setReview] = useState(null)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewText, setReviewText] = useState('')
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewEditing, setReviewEditing] = useState(false)
+  const [reviewImages, setReviewImages] = useState([])
+  const [reviewModalOpen, setReviewModalOpen] = useState(false)
+
   // Active policies (fetched from backend); if unavailable we fall back to local defaults above.
   const [cancelPolicy, setCancelPolicy] = useState(null)
   const [exchangePolicy, setExchangePolicy] = useState(null)
@@ -201,6 +243,7 @@ export default function TrackOrderPage() {
   const [invoiceAccordionOpen, setInvoiceAccordionOpen] = useState(false)
 
   const userName = user?.name || user?.firstName || 'Customer'
+  const currentUserId = user?._id || user?.id || user?.userId
 
   const handleDownloadInvoice = () => {
     if (!orderId || !itemId) return
@@ -228,13 +271,101 @@ export default function TrackOrderPage() {
         const payload = res?.data?.data ?? res?.data
         setData(payload)
         setSelectedCancelItemId(payload?.itemId ?? null)
+        // After we know the item and status, try loading existing review (if any)
+        const status = (payload?.status || '').toUpperCase()
+        const resolvedItemId = payload?.itemId ?? itemId
+        if (status === 'DELIVERED' && resolvedItemId && currentUserId) {
+          loadUserReviewForItem(resolvedItemId, currentUserId)
+        } else {
+          setReview(null)
+        }
       })
       .catch((err) => {
         console.log('[TrackOrder] ERR getOrderItemById', err?.response?.data ?? err?.message)
         setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load order details')
       })
       .finally(() => setLoading(false))
-  }, [isAuthenticated, orderId, itemId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, orderId, itemId, currentUserId])
+
+  // Helper to load current user's review for an item
+  const loadUserReviewForItem = (resolvedItemId, currentUserIdVal) => {
+    setReviewLoading(true)
+    setReviewError(null)
+    reviewsService
+      .getByItem(resolvedItemId, { page: 1, limit: 50 })
+      .then((res) => {
+        const payload = res?.data?.data ?? res?.data
+        const list = payload?.reviews ?? payload?.data ?? []
+        const myReview = (list || []).find((r) => {
+          const uid = r?.userId?._id || r?.userId?.id || r?.userId || r?.user
+          return uid && currentUserIdVal && String(uid) === String(currentUserIdVal)
+        })
+        if (myReview) {
+          setReview(myReview)
+          setReviewRating(Number(myReview.rating) || 5)
+          setReviewText(myReview.description || '')
+          setReviewModalOpen(false)
+        } else {
+          setReview(null)
+          setReviewRating(5)
+          setReviewText('')
+          // Auto-open review modal when delivered and user has not posted a review yet
+          setReviewModalOpen(true)
+        }
+      })
+      .catch((err) => {
+        setReviewError(err?.response?.data?.message ?? err?.message ?? 'Failed to load review')
+      })
+      .finally(() => setReviewLoading(false))
+  }
+
+  const handleSubmitReview = (e) => {
+    e?.preventDefault?.()
+    if (!data?.itemId || !currentUserId) return
+    setReviewSubmitting(true)
+    setReviewError(null)
+    const commonPayload = {
+      rating: reviewRating,
+      description: reviewText?.trim() || '',
+      files: reviewImages,
+    }
+    const promise = review
+      ? reviewsService.update(review._id || review.id, commonPayload)
+      : reviewsService.create({ ...commonPayload, itemId: data.itemId })
+
+    promise
+      .then((res) => {
+        const payload = res?.data?.data ?? res?.data
+        setReview(payload ?? null)
+        setReviewEditing(false)
+        setReviewModalOpen(false)
+      })
+      .catch((err) => {
+        setReviewError(err?.response?.data?.message ?? err?.message ?? 'Failed to submit review')
+      })
+      .finally(() => setReviewSubmitting(false))
+  }
+
+  const handleDeleteReview = () => {
+    if (!review?._id && !review?.id) return
+    if (!window.confirm('Delete your review for this item?')) return
+    setReviewSubmitting(true)
+    setReviewError(null)
+    reviewsService
+      .delete(review._id || review.id)
+      .then(() => {
+        setReview(null)
+        setReviewRating(5)
+        setReviewText('')
+        setReviewImages([])
+        setReviewModalOpen(false)
+      })
+      .catch((err) => {
+        setReviewError(err?.response?.data?.message ?? err?.message ?? 'Failed to delete review')
+      })
+      .finally(() => setReviewSubmitting(false))
+  }
 
   // Load active cancellation & exchange policies once (for reasons + policy copy)
   useEffect(() => {
@@ -459,6 +590,9 @@ export default function TrackOrderPage() {
   const name = item.name || item.shortDescription || '—'
   const imageUrl = item.variant?.imageUrl ?? ''
   const trackingId = data.shipment?.trackingId || data.trackingId || null
+  const deliveryType = data?.item?.delivery?.type || data?.shipment?.deliveryType || data?.deliveryType || null
+  const isNormalDelivery = isNormalDeliveryType(deliveryType)
+  const shiprocket = isNormalDelivery ? getShiprocketFromOrderItem(data) : null
   const orderNo = data.orderId || '—'
   const currentStatus = (data.status || '').toUpperCase()
   const statusHistory = data.statusHistory || []
@@ -478,12 +612,18 @@ export default function TrackOrderPage() {
     seenIds.add(id)
     return true
   })
+  // Other line items in the same order (exclude the item currently being tracked)
+  const otherBookedItemsForList = bookedItems.filter(
+    (entry) => entry.itemId?.toString() !== currentItemIdStr
+  )
+  const showBookedItemsSection = otherBookedItemsForList.length > 0
   const isCancellable = data.isCancellable === true
   const isExchangeable = data.isExchangeable !== false
   const exchangeInProgress = isExchangeInProgress(data.exchange)
   const showExchangeButton = isExchangeable && !exchangeInProgress && currentStatus === 'DELIVERED'
-  const showDeliveryStepper = isDeliveryStepperRelevant(currentStatus)
+  const showDeliveryStepper = !isNormalDelivery && isDeliveryStepperRelevant(currentStatus)
   const showExchangeStepper =
+    !isNormalDelivery &&
     currentStatus !== 'CANCELLED' &&
     EXCHANGE_STATUSES.includes(currentStatus) &&
     currentStatus !== 'EXCHANGE_REJECTED'
@@ -521,6 +661,44 @@ export default function TrackOrderPage() {
                 <p className="text-gray-600 text-sm mt-2">
                   Tracking ID : <strong>#{trackingId}</strong>
                 </p>
+              )}
+              {isNormalDelivery && (
+                <div className="mt-3 rounded border border-sky-200 bg-sky-50 px-4 py-3">
+                  <p className="text-[11px] font-bold tracking-wider text-sky-900 uppercase">Shiprocket tracking (normal delivery)</p>
+                  {shiprocket ? (
+                    <div className="mt-2 space-y-1 text-sm">
+                      {shiprocket.awb && (
+                        <p className="text-gray-700">
+                          AWB : <strong className="font-mono">{shiprocket.awb}</strong>
+                        </p>
+                      )}
+                      {shiprocket.status && (
+                        <p className="text-gray-600 text-sm">
+                          Status : <strong className="uppercase">{String(shiprocket.status)}</strong>
+                        </p>
+                      )}
+                      {shiprocket.courier && (
+                        <p className="text-gray-600 text-sm">
+                          Courier : <strong>{shiprocket.courier}</strong>
+                        </p>
+                      )}
+                      {shiprocket.trackingUrl && (
+                        <a
+                          href={shiprocket.trackingUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-block mt-1 text-black font-semibold uppercase text-xs hover:underline"
+                        >
+                          Track on Shiprocket
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-gray-700">
+                      Shipment not created yet. Tracking will appear here once shipped.
+                    </p>
+                  )}
+                </div>
               )}
               <p className="text-gray-600 text-sm mt-0.5">
                 Order No : <strong>{orderNo}</strong>
@@ -640,6 +818,39 @@ export default function TrackOrderPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <h2 className="font-bold text-black uppercase text-sm mb-1">ORDER STATUS</h2>
           <p className="text-gray-600 text-sm mb-6">ORDER #{orderNo}</p>
+
+          {/* NORMAL delivery: hide local track bar and show Shiprocket info */}
+          {isNormalDelivery && (
+            <div className="py-4 mb-6 rounded border border-sky-200 bg-sky-50 px-4">
+              <p className="text-sky-900 font-semibold uppercase text-sm">Normal delivery (Shiprocket)</p>
+              {shiprocket ? (
+                <div className="mt-2 space-y-1 text-sm text-gray-700">
+                  {shiprocket.awb && (
+                    <p>
+                      AWB : <strong className="font-mono">{shiprocket.awb}</strong>
+                    </p>
+                  )}
+                  {shiprocket.status && (
+                    <p>
+                      Status : <strong className="uppercase">{String(shiprocket.status)}</strong>
+                    </p>
+                  )}
+                  {shiprocket.trackingUrl && (
+                    <a
+                      href={shiprocket.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-block mt-1 bg-black text-white px-4 py-2 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
+                    >
+                      Track on Shiprocket
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-700 text-sm mt-1">Shiprocket details are not available yet.</p>
+              )}
+            </div>
+          )}
 
           {/* Status: Cancelled */}
           {currentStatus === 'CANCELLED' && (
@@ -790,13 +1001,115 @@ export default function TrackOrderPage() {
           </div>
         </div>
 
-        {/* Booked items card */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="font-bold text-black uppercase text-sm mb-4">BOOKED ITEMS</h2>
-          <ul className="space-y-4">
-            {bookedItems
-              .filter((entry) => entry.itemId?.toString() !== currentItemIdStr)
-              .map((entry, idx) => {
+        {/* Your review – show after delivery */}
+        {currentStatus === 'DELIVERED' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="font-bold text-black uppercase text-sm mb-3">Your review</h2>
+            {reviewLoading ? (
+              <p className="text-sm text-gray-500">Loading your review…</p>
+            ) : review ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <div className="flex items-center gap-0.5" aria-label={`Rating ${review.rating} out of 5`}>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const ratingNum = Number(review.rating) || 0
+                      const filled = star <= ratingNum
+                      return (
+                        <span
+                          key={star}
+                          className={`text-lg leading-none ${filled ? 'text-black' : 'text-gray-200'}`}
+                        >
+                          ★
+                        </span>
+                      )
+                    })}
+                  </div>
+                  <span className="text-xs text-gray-600">
+                    {Number(review.rating) || 0} / 5
+                  </span>
+                </div>
+                {review.description?.trim() ? (
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap mb-3">{review.description.trim()}</p>
+                ) : (
+                  <p className="text-sm text-gray-500 italic mb-3">No written review.</p>
+                )}
+                {(review.imageUrl || (Array.isArray(review.images) && review.images.length > 0)) && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {review.imageUrl && (
+                      <img
+                        src={review.imageUrl}
+                        alt=""
+                        className="w-20 h-20 object-cover rounded border border-gray-200"
+                      />
+                    )}
+                    {Array.isArray(review.images) &&
+                      review.images.map((img, i) => {
+                        const src = img?.url || img?.imageUrl
+                        if (!src) return null
+                        return (
+                          <img
+                            key={img?.imageKey || img?.key || i}
+                            src={src}
+                            alt=""
+                            className="w-20 h-20 object-cover rounded border border-gray-200"
+                          />
+                        )
+                      })}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3 pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReviewRating(Number(review.rating) || 5)
+                      setReviewText(review.description || '')
+                      setReviewImages([])
+                      setReviewError(null)
+                      setReviewEditing(true)
+                      setReviewModalOpen(true)
+                    }}
+                    className="bg-black text-white px-5 py-2 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
+                  >
+                    Edit review
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteReview}
+                    disabled={reviewSubmitting}
+                    className="bg-white text-red-600 border border-red-600 px-5 py-2 text-xs font-semibold uppercase hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Delete review
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">You haven&apos;t reviewed this product yet.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewRating(5)
+                    setReviewText('')
+                    setReviewImages([])
+                    setReviewError(null)
+                    setReviewEditing(false)
+                    setReviewModalOpen(true)
+                  }}
+                  className="bg-black text-white px-5 py-2.5 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
+                >
+                  Rate & review
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Booked items card – only when there are other items in the order */}
+        {showBookedItemsSection && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="font-bold text-black uppercase text-sm mb-4">BOOKED ITEMS</h2>
+            <ul className="space-y-4">
+              {otherBookedItemsForList.map((entry, idx) => {
                 const it = entry.item || {}
                 const img = it.variant?.imageUrl ?? ''
                 const n = it.name || it.shortDescription || '—'
@@ -822,8 +1135,9 @@ export default function TrackOrderPage() {
                   </li>
                 )
               })}
-          </ul>
-        </div>
+            </ul>
+          </div>
+        )}
 
         <div className="mt-8">
           <Link to={ROUTES.ORDERS} className="text-sm font-medium uppercase text-gray-700 hover:text-black hover:underline">
@@ -1241,6 +1555,142 @@ export default function TrackOrderPage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Review modal */}
+        {reviewModalOpen && currentStatus === 'DELIVERED' && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={(e) => e.target === e.currentTarget && setReviewModalOpen(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <div>
+                  <h3 className="font-bold text-black uppercase text-sm">Rate & review</h3>
+                  <p className="text-xs text-gray-600 mt-0.5">Share your experience with this product.</p>
+                </div>
+                <button
+                  type="button"
+                  className="p-1 text-gray-500 hover:text-black text-lg"
+                  aria-label="Close"
+                  onClick={() => setReviewModalOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="px-4 py-4">
+                {reviewLoading ? (
+                  <p className="text-sm text-gray-500">Loading your review…</p>
+                ) : (
+                  <>
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold uppercase text-gray-700 mb-1">Your rating</p>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setReviewRating(star)}
+                            className="p-0.5"
+                            aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                          >
+                            <span
+                              className={`text-xl ${
+                                star <= reviewRating ? 'text-black' : 'text-gray-300'
+                              }`}
+                            >
+                              ★
+                            </span>
+                          </button>
+                        ))}
+                        <span className="ml-2 text-xs text-gray-600">{reviewRating} / 5</span>
+                      </div>
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        handleSubmitReview(e)
+                      }}
+                      className="space-y-3"
+                    >
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-gray-700 mb-1">
+                          Your review (optional)
+                        </label>
+                        <textarea
+                          value={reviewText}
+                          onChange={(e) => setReviewText(e.target.value)}
+                          rows={3}
+                          placeholder="Tell us about fit, quality, and your overall experience."
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-gray-700 mb-1">
+                          Add photos (optional)
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []).slice(0, 5)
+                            setReviewImages(files)
+                          }}
+                          className="block w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3 file:border file:border-gray-300 file:rounded file:text-[11px] file:font-semibold file:uppercase file:bg-white file:text-black hover:file:bg-gray-50"
+                        />
+                        {reviewImages.length > 0 && (
+                          <p className="mt-1 text-[10px] text-gray-500">
+                            {reviewImages.length} image{reviewImages.length > 1 ? 's' : ''} selected (max 5).
+                          </p>
+                        )}
+                      </div>
+
+                      {reviewError && (
+                        <p className="text-sm text-red-600">{reviewError}</p>
+                      )}
+
+                      <div className="flex items-center justify-between gap-3 pt-2">
+                        {review ? (
+                          <button
+                            type="button"
+                            onClick={handleDeleteReview}
+                            disabled={reviewSubmitting}
+                            className="text-xs font-semibold uppercase text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Delete review
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-gray-500">
+                            You can update or delete this review later.
+                          </span>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={reviewSubmitting}
+                          className="bg-black text-white px-5 py-2.5 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {reviewSubmitting
+                            ? review
+                              ? 'Saving…'
+                              : 'Posting…'
+                            : review
+                              ? 'Save changes'
+                              : 'Post review'}
+                        </button>
+                      </div>
+                    </form>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}

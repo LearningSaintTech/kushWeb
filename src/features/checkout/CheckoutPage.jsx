@@ -496,7 +496,82 @@ function CheckoutPage() {
           handler: handlePaymentSuccess,
           modal: {
             ondismiss: () => {
-              console.log('[Checkout] Razorpay modal closed')
+              console.log('[Checkout] Razorpay modal closed via ondismiss', { paymentSuccessHandled: paymentSuccessHandledRef.current, businessOrderId })
+              setPlaceOrderLoading(false)
+              if (paymentSuccessHandledRef.current || !businessOrderId) {
+                console.log('[Checkout] ondismiss: skip polling (already success or no orderId)')
+                return
+              }
+              setError(null)
+              setLastVerifyError(null)
+              setStatusMessage('Checking payment status…')
+              setCheckingPaymentStatus(true)
+              console.log('[Checkout] ondismiss: start polling order-status for', businessOrderId)
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
+              let attempts = 0
+              pollingIntervalRef.current = setInterval(async () => {
+                attempts += 1
+                console.log('[Checkout] polling getOrderStatus attempt', attempts, businessOrderId)
+                // Show user which retry attempt we are on (1–5)
+                if (attempts <= 5) {
+                  setStatusMessage(`Retry ${attempts}/5: checking payment status…`)
+                }
+                try {
+                  const statusRes = await paymentService.getOrderStatus(businessOrderId)
+                  const statusData = statusRes?.data?.data ?? statusRes?.data
+                  const pStatus = statusData?.payment?.status
+                  const ordStatus = statusData?.status
+                  console.log('[Checkout] getOrderStatus response:', { attempts, pStatus, ordStatus, statusData })
+                  if (pStatus === 'SUCCESS' || ordStatus === 'CONFIRMED') {
+                    if (pollingIntervalRef.current) {
+                      clearInterval(pollingIntervalRef.current)
+                      pollingIntervalRef.current = null
+                    }
+                    setCheckingPaymentStatus(false)
+                    setStatusMessage(null)
+                    paymentSuccessHandledRef.current = true
+                    refetchCart()
+                    console.log('[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:', businessOrderId)
+                    navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
+                    return
+                  }
+                  // If payment stays pending/created for first few checks, stop early and allow retry
+                  if (attempts >= 5 && (pStatus === 'PENDING' || !pStatus) && (ordStatus === 'CREATED' || !ordStatus)) {
+                    if (pollingIntervalRef.current) {
+                      clearInterval(pollingIntervalRef.current)
+                      pollingIntervalRef.current = null
+                    }
+                    setCheckingPaymentStatus(false)
+                    setStatusMessage('Payment not completed. You can try again.')
+                    console.log('[Checkout] polling: still PENDING/CREATED after few attempts, stop and allow retry')
+                    return
+                  }
+                } catch (err) {
+                  console.log('[Checkout] getOrderStatus error:', err?.response?.status, err?.response?.data ?? err?.message)
+                  if (err?.response?.status === 404) {
+                    if (pollingIntervalRef.current) {
+                      clearInterval(pollingIntervalRef.current)
+                      pollingIntervalRef.current = null
+                    }
+                    setCheckingPaymentStatus(false)
+                    setStatusMessage('Order not found. Check My Orders or contact support.')
+                    console.log('[Checkout] polling: 404, stop')
+                    return
+                  }
+                }
+                if (attempts >= POLL_MAX_ATTEMPTS) {
+                  if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current)
+                    pollingIntervalRef.current = null
+                  }
+                  setCheckingPaymentStatus(false)
+                  setStatusMessage('If you were charged, the order will appear in My Orders shortly.')
+                  console.log('[Checkout] polling: max attempts reached, stop')
+                }
+              }, POLL_INTERVAL_MS)
             },
           },
         }
@@ -505,69 +580,6 @@ function CheckoutPage() {
           console.log('[Checkout] Razorpay payment.failed', response)
           setError('Payment failed or was cancelled.')
           setPlaceOrderLoading(false)
-        })
-        rzp.on('modal_close', () => {
-          console.log('[Checkout] Razorpay modal closed', { paymentSuccessHandled: paymentSuccessHandledRef.current, businessOrderId })
-          setPlaceOrderLoading(false)
-          if (paymentSuccessHandledRef.current || !businessOrderId) {
-            console.log('[Checkout] modal_close: skip polling (already success or no orderId)')
-            return
-          }
-          setError(null)
-          setLastVerifyError(null)
-          setStatusMessage('Checking payment status…')
-          setCheckingPaymentStatus(true)
-          console.log('[Checkout] modal_close: start polling order-status for', businessOrderId)
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current)
-            pollingIntervalRef.current = null
-          }
-          let attempts = 0
-          pollingIntervalRef.current = setInterval(async () => {
-            attempts += 1
-            console.log('[Checkout] polling getOrderStatus attempt', attempts, businessOrderId)
-            try {
-              const statusRes = await paymentService.getOrderStatus(businessOrderId)
-              const statusData = statusRes?.data?.data ?? statusRes?.data
-              const pStatus = statusData?.payment?.status
-              const ordStatus = statusData?.status
-              console.log('[Checkout] getOrderStatus response:', { attempts, pStatus, ordStatus, statusData })
-              if (pStatus === 'SUCCESS' || ordStatus === 'CONFIRMED') {
-                if (pollingIntervalRef.current) {
-                  clearInterval(pollingIntervalRef.current)
-                  pollingIntervalRef.current = null
-                }
-                setCheckingPaymentStatus(false)
-                setStatusMessage(null)
-                paymentSuccessHandledRef.current = true
-                refetchCart()
-                console.log('[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:', businessOrderId)
-                navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
-                return
-              }
-            } catch (err) {
-              console.log('[Checkout] getOrderStatus error:', err?.response?.status, err?.response?.data ?? err?.message)
-              if (err?.response?.status === 404) {
-                if (pollingIntervalRef.current) {
-                  clearInterval(pollingIntervalRef.current)
-                  pollingIntervalRef.current = null
-                }
-                setCheckingPaymentStatus(false)
-                setStatusMessage('Order not found. Check My Orders or contact support.')
-                console.log('[Checkout] polling: 404, stop')
-                return
-              }
-            }
-            if (attempts >= POLL_MAX_ATTEMPTS) {
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current)
-                pollingIntervalRef.current = null
-              }
-              setCheckingPaymentStatus(false)
-              setStatusMessage('If you were charged, the order will appear in My Orders shortly.')
-              console.log('[Checkout] polling: max attempts reached, stop')
-            }
-          }, POLL_INTERVAL_MS)
         })
         console.log('[Checkout] Razorpay rzp.open()')
         rzp.open()
@@ -645,7 +657,36 @@ function CheckoutPage() {
     <div className="min-h-screen bg-white text-black pt-40 pb-12 font-sans">
       <div className="px-4 md:px-6 lg:px-8">
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-        {statusMessage && !error && <p className="mb-4 text-sm text-gray-700">{statusMessage}</p>}
+        {/* Retry/polling + final "not completed" status as a square modal popup */}
+        {statusMessage && !error && (checkingPaymentStatus || /payment not completed/i.test(String(statusMessage))) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white w-full max-w-[360px] border border-gray-200 shadow-xl">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+                <p className="text-sm font-semibold uppercase tracking-wider text-black">Payment status</p>
+              </div>
+              <div className="p-5">
+                <p className="text-sm text-gray-800">{statusMessage}</p>
+                {checkingPaymentStatus ? (
+                  <p className="text-xs text-gray-500 mt-2">Please don’t refresh this page.</p>
+                ) : (
+                  <div className="pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setStatusMessage(null)}
+                      className="w-full border border-black py-2.5 px-4 text-sm font-semibold uppercase bg-white text-black hover:bg-gray-50 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Non-blocking info message (when not polling) */}
+        {statusMessage && !checkingPaymentStatus && !error && !/payment not completed/i.test(String(statusMessage)) && (
+          <p className="mb-4 text-sm text-gray-700">{statusMessage}</p>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           {/* Left column: Order items (read-only, same table as cart) */}
           <div className="lg:col-span-2">
@@ -666,6 +707,8 @@ function CheckoutPage() {
                     const name = item?.name ?? 'Product'
                     const shortDesc = item?.shortDescription ?? ''
                     const color = row.variant?.color ?? ''
+                    const colorHex = row.variant?.hex ?? ''
+                    const size = row.variant?.size ?? row.variant?.sizeLabel ?? ''
                     const imageUrl = row.variant?.imageUrl ?? ''
                     const sku = row.variant?.sku
                     const qty = row.quantity ?? 1
@@ -700,12 +743,46 @@ function CheckoutPage() {
                               {productPath ? (
                                 <Link to={productPath} className="block hover:underline">
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc || color || ''}</p>
+                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  {(color || size) && (
+                                    <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
+                                      {color && (
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span
+                                            className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
+                                            style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                            title={color}
+                                            aria-hidden
+                                          />
+                                          <span>{color}</span>
+                                        </span>
+                                      )}
+                                      {color && size && <span className="text-gray-400">|</span>}
+                                      {size && <span>Size: {size}</span>}
+                                    </p>
+                                  )}
                                 </Link>
                               ) : (
                                 <>
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc || color || ''}</p>
+                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  {(color || size) && (
+                                    <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
+                                      {color && (
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span
+                                            className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
+                                            style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                            title={color}
+                                            aria-hidden
+                                          />
+                                          <span>{color}</span>
+                                        </span>
+                                      )}
+                                      {color && size && <span className="text-gray-400">|</span>}
+                                      {size && <span>Size: {size}</span>}
+                                    </p>
+                                  )}
                                 </>
                               )}
                             </div>
