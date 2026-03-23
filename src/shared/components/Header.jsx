@@ -16,7 +16,7 @@ import { useNotification } from "../../app/context/NotificationContext";
 import LocationPicker from "./LocationPicker";
 import ProfileModal from "./ProfileModal";
 
-import logoImg from "../../assets/images/navBar/logos.svg";
+import logoImg from "../../assets/images/navBar/Khush Logo.svg";
 
 function ChevronDownIcon({ className }) {
   return (
@@ -651,7 +651,7 @@ export default function Header() {
                     >
                       <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
                         <NotificationIcon
-                          className={`h-[1.04vw] w-[1.04vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
+                          className={`h-[1.04vw] w-[1.06vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
                         />
                       </IconBadge>
                     </button>
@@ -762,17 +762,17 @@ export default function Header() {
                     onChange={(e) => setSearchInputValue(e.target.value)}
                     placeholder="Search T-Shirts"
                     className="font-inter flex-1 bg-transparent text-sm text-gray-100 placeholder:text-gray-500 focus:outline-none"
-                    autoFocus
+                    autofocus
                   />
                 </form>
-                <button
+                  {/* <button
                   type="button"
                   onClick={closeSearchModal}
                   className="cursor-pointer shrink-0 flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
                   aria-label="Close"
                 >
-                  <CloseIcon className="h-6 w-6" />
-                </button>
+                  <CloseIcon className="h-6 w-6" /> 
+                </button>   */}
               </div>
 
               {/* Recent & Popular in scrollable area */}
@@ -821,7 +821,7 @@ export default function Header() {
                                   className="cursor-pointer text-gray-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
                                   aria-label={`Remove ${text}`}
                                 >
-                                  <span aria-hidden>×</span>
+                                  {/* <span aria-hidden>×</span> */}
                                 </button>
                               </span>
                             );
@@ -877,7 +877,7 @@ export default function Header() {
             />
 
             <div
-              className="fixed left-0 top-0 bottom-0 z-50 w-[80vw] min-w-[280px] max-w-[800px] bg-white flex flex-col transition-transform duration-300 ease-out"
+              className="fixed left-0 top-0 bottom-0 z-50 w-[80vw] min-w-[280px] max-w-[400px] bg-white flex flex-col transition-transform duration-300 ease-out"
               style={{
                 transform: panelAnimated
                   ? "translateX(0)"

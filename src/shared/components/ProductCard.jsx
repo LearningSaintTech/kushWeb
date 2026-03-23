@@ -354,16 +354,13 @@ const ProductCard = React.memo(function ProductCard({
           </div>
         </div>
       </div>
-      {outOfStock && (
-        <div
-          className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
-          aria-hidden
-        >
-          <span className="rounded-md bg-black/80 px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white">
-            Out of stock
-          </span>
-        </div>
-      )}
+    {outOfStock && (
+  <div className="absolute top-3 left-3 z-20 pointer-events-none">
+    <span className="bg-black text-white px-3 py-2 text-[10px] font-medium uppercase tracking-wider">
+      OUT OF STOCK
+    </span>
+  </div>
+)}
     </CardWrapper>
   );
 });

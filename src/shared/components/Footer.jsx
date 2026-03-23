@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../utils/constants";
-import logoImg from "../../assets/images/navBar/logo.svg";
+import logoImg from "../../assets/images/navBar/SVG.svg";
 import khushDressImg from "../../assets/images/footer/khushDress.png";
 import {
   categoriesService,

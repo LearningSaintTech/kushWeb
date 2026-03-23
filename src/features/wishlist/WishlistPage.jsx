@@ -4,7 +4,7 @@ import { IoChevronForwardOutline } from 'react-icons/io5'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import ProductCard from '../../shared/components/ProductCard'
 import { ROUTES } from '../../utils/constants'
-import wishlistBanner from '../../assets/temporary/collection.png'
+// import wishlistBanner from '../../assets/temporary/collection.png'
 
 const PAGE_SIZE = 12
 
@@ -74,29 +74,33 @@ function WishlistPage() {
     </div>
   )
 
-  const banner = (
-    <div className="relative w-full h-screen  overflow-hidden">
-      <img
-        src={wishlistBanner}
-        alt=""
-        className="absolute inset-0 w-full h-full object-cover object-center"
-      />
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <h2 className="font-raleway text-3xl sm:text-4xl md:text-5xl font-bold text-white uppercase tracking-wide">
-          Wishlist
-        </h2>
-      </div>
-    </div>
-  )
+  // const banner = (
+  //   <div className="relative w-full h-screen  overflow-hidden">
+  //     <img
+  //       src={wishlistBanner}
+  //       alt=""
+  //       className="absolute inset-0 w-full h-full object-cover object-center"
+  //     />
+  //     <div className="absolute inset-0 bg-black/40" />
+  //     <div className="absolute inset-0 flex items-center justify-center">
+  //       <h2 className="font-raleway text-3xl sm:text-4xl md:text-5xl font-bold text-white uppercase tracking-wide">
+  //         Wishlist
+  //       </h2>
+  //     </div>
+  //   </div>
+  // )
 
   // Empty when we're not loading and there are no items (by count and list)
   if (!wishlistLoading && wishlistCount === 0 && wishlist.length === 0) {
     return (
       <div>
-        {banner}
+        {/* {banner} */}
         {breadcrumb}
-
+        {/* <div className="w-full bg-gray-100 px-10 py-6">
+  <h1 className="text-2xl sm:text-3xl font-bold tracking-wide text-black">
+    WISHLIST
+  </h1>
+</div> */}
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold text-gray-900">
             Your wishlist is empty
@@ -120,8 +124,13 @@ function WishlistPage() {
   if (wishlistLoading || (wishlistCount > 0 && wishlist.length === 0)) {
     return (
       <div>
-        {banner}
+        {/* {banner} */}
         {breadcrumb}
+    {/* <div className="w-full bg-gray-100 px-10 py-6">
+  <h1 className="text-2xl sm:text-3xl font-bold tracking-wide text-black">
+    WISHLIST
+  </h1>
+</div> */}
         <div className="py-8 flex items-center justify-center min-h-[200px]">
           <p className="text-gray-500">Loading wishlist…</p>
         </div>
@@ -132,9 +141,13 @@ function WishlistPage() {
   // ✅ WITH ITEMS
   return (
     <div>
-      {banner}
+      {/* {banner} */}
       {breadcrumb}
-
+      <div className="w-full  px-10 py-6">
+  <h1 className="text-2xl sm:text-3xl font-bold tracking-wide text-black">
+    WISHLIST
+  </h1>
+</div>
       <div className="py-8">
        
 

@@ -1,20 +1,96 @@
 import PolicyPageLayout from './PolicyPageLayout'
+import { Shield, Lock, FileText, UserCheck } from 'lucide-react'
 
 export default function PrivacyPolicyPage() {
   return (
-    <PolicyPageLayout title="Privacy policy">
-      {/* <p><strong>Last updated:</strong> [Date]</p> */}
-      <p>KHUSH respects your privacy. This policy describes how we collect, use, and protect your personal information when you use our website and services.</p>
-      <h2 className="text-lg font-semibold text-black mt-6">Information we collect</h2>
-      <p>We may collect your name, email, phone number, delivery address, payment details, and browsing data when you register, place orders, or interact with our site.</p>
-      <h2 className="text-lg font-semibold text-black mt-6">How we use it</h2>
-      <p>We use your information to process orders, communicate with you, improve our services, send promotional communications (with your consent), and comply with legal obligations.</p>
-      <h2 className="text-lg font-semibold text-black mt-6">Sharing and disclosure</h2>
-      <p>We do not sell your personal data. We may share information with service providers (e.g. payment gateways, couriers) necessary to fulfil orders and run our business, subject to confidentiality and data protection obligations.</p>
-      <h2 className="text-lg font-semibold text-black mt-6">Security and retention</h2>
-      <p>We implement reasonable security measures to protect your data. We retain your information for as long as needed for the purposes described in this policy or as required by law.</p>
-      <h2 className="text-lg font-semibold text-black mt-6">Your rights</h2>
-      <p>You may request access, correction, or deletion of your personal data, or withdraw consent for marketing, by contacting us. Applicable laws may give you additional rights.</p>
+    <PolicyPageLayout title="Privacy Policy">
+      <div className="space-y-6 text-gray-700 leading-relaxed">
+
+        {/* Intro */}
+        <div className="bg-gray-50 p-5 rounded-xl shadow-sm">
+          <p className="text-sm text-gray-500 mb-2">
+            {/* <strong>Last updated:</strong> March 2026 */}
+          </p>
+          <p>
+            <span className="font-semibold text-black">KHUSH</span> values your privacy.
+            This policy explains how we collect, use, and protect your personal information.
+          </p>
+        </div>
+
+        {/* Information We Collect */}
+        <div className="bg-white p-5 rounded-xl shadow border">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText size={18} />
+            <h2 className="text-lg font-semibold text-black">
+              Information We Collect
+            </h2>
+          </div>
+          <ul className="list-disc ml-5 space-y-1">
+            <li>Personal details (name, email, phone, address)</li>
+            <li>Payment details via secure gateways</li>
+            <li>Browsing & purchase history</li>
+          </ul>
+        </div>
+
+        {/* How We Use */}
+        <div className="bg-white p-5 rounded-xl shadow border">
+          <div className="flex items-center gap-2 mb-3">
+            <UserCheck size={18} />
+            <h2 className="text-lg font-semibold text-black">
+              How We Use Your Information
+            </h2>
+          </div>
+          <ul className="list-disc ml-5 space-y-1">
+            <li>To process and deliver orders</li>
+            <li>Provide customer support</li>
+            <li>Send updates, offers, and promotions</li>
+          </ul>
+        </div>
+
+        {/* Data Protection */}
+        <div className="bg-white p-5 rounded-xl shadow border">
+          <div className="flex items-center gap-2 mb-3">
+            <Lock size={18} />
+            <h2 className="text-lg font-semibold text-black">
+              Data Protection
+            </h2>
+          </div>
+          <p>
+            Your data is stored securely and never shared for marketing without your consent.
+            You can request account deletion anytime via Contact Us.
+          </p>
+        </div>
+
+        {/* Cookies */}
+        <div className="bg-white p-5 rounded-xl shadow border">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield size={18} />
+            <h2 className="text-lg font-semibold text-black">
+              Cookies & Tracking
+            </h2>
+          </div>
+          <p>
+            We use cookies to enhance your browsing experience and analyze website traffic.
+          </p>
+        </div>
+
+        {/* User Rights */}
+        <div className="bg-white p-5 rounded-xl shadow border">
+          <h2 className="text-lg font-semibold text-black mb-2">
+            Your Rights
+          </h2>
+          <p>
+            You can access, update, or delete your personal data anytime.
+          </p>
+          <p className="mt-2">
+            Contact us at:
+            <span className="text-blue-600 font-medium ml-1">
+              support@khushpehno.com
+            </span>
+          </p>
+        </div>
+
+      </div>
     </PolicyPageLayout>
   )
 }

@@ -372,7 +372,7 @@ export default function Address() {
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className=" px-4 sm:px-6 md:px-8 py-12 sm:py-16 text-center ">
           <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">
-            Address Book
+            Address 
           </h1>
           <p className="mt-2 text-sm sm:text-base text-gray-600">
             Please sign in to manage your addresses.

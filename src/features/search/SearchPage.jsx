@@ -7,14 +7,14 @@ import { useSearchParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { ACCESS_TOKEN_KEY } from '../../services/axiosClient.js'
 import { addRecentKeyword } from '../../app/store/slices/searchSlice.js'
-import collectionBanner from '../../assets/temporary/collection.png'
+import collectionBanner from '../../assets/temporary/Banner_Men.svg'
 import { ROUTES, getProductPath } from '../../utils/constants'
 import ProductCard from '../../shared/components/ProductCard'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
 import { sectionsService } from '../../services/content.service.js'
 import { filtersService } from '../../services/filters.service.js'
-
+import Filter from "../../assets/temporary/filtericon.svg"
 const DEFAULT_LIMIT = 12
 
 /** Section has only categoryId (no subcategoryId) → Our Product: category dropdown only */
@@ -734,12 +734,12 @@ function SearchPage() {
     <div className="bg-white  my-4">
       <div className=" mx-10 py-4">
         <nav className="flex flex-wrap items-center justify-between gap-3 font-inter text-sm" aria-label="Breadcrumb">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 ">
             {breadcrumbSegments.map((seg, i) => (
-              <span key={i} className="flex items-center gap-2">
+              <span key={i} className="flex items-center gap-2 ">
                 {i > 0 && (
                   <IoChevronForwardOutline
-                    className="h-5 w-5 shrink-0 text-[#BDBDBD]"
+                    className="h-5 w-5 shrink-0 text-[#5A5A5A]"
                     aria-hidden
                   />
                 )}
@@ -748,7 +748,7 @@ function SearchPage() {
                     {seg.label}
                   </Link>
                 ) : (
-                  <span className={breadcrumbPillClass(i) + ' text-base sm:text-lg'}>
+                  <span className={breadcrumbPillClass(i) + ' text-base sm:text-lg ' }>
                     {seg.label}
                   </span>
                 )}
@@ -765,9 +765,9 @@ function SearchPage() {
                   onClick={() => { setFilterOpen((o) => !o); setSortOpen(false) }}
                   className={filterBtnClass}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  /* <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
+                  </svg> *
                   <span>{categoryLabel || (collectionFromUrl ? 'Collection' : 'Category')}</span>
                   <span className="inline-flex shrink-0 transition-transform duration-200 ease-out">
                     {filterOpen ? <FaChevronUp className="w-4 h-4" /> : <FaChevronDown className="w-4 h-4" />}
@@ -814,9 +814,7 @@ function SearchPage() {
                     onClick={() => { setFilterOpen((o) => !o); setSortOpen(false) }}
                     className={filterBtnClass}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
+                    {/* c:\Users\Prachi_PP41\Music\filtericon.svg */}
                     <span>{categoryLabel || 'All categories'}</span>
                     <span className="inline-flex shrink-0 transition-transform duration-200 ease-out">
                       {filterOpen ? <FaChevronUp className="w-4 h-4" /> : <FaChevronDown className="w-4 h-4" />}
@@ -835,10 +833,12 @@ function SearchPage() {
             )}
             {/* Filters button - no chevron per image */}
             <button type="button" onClick={() => setFiltersPanelOpen(true)} className={filterBtnClass}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              {/* <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              <span>Filters</span>
+              </svg> */}
+              {/* <img src ={Filter}/> */}
+              <span>Filter</span>
+               <img src ={Filter}/>
               {Object.keys(selectedFilters).some((k) => (selectedFilters[k]?.length ?? 0) > 0) && (
                 <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-black px-1.5 text-xs font-medium text-white">{Object.values(selectedFilters).flat().length}</span>
               )}

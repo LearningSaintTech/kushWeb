@@ -270,7 +270,7 @@ function OurCategory({ section }) {
       <div className="max-w-[1150px] mx-auto px-4">
         {" "}
         <div className="flex flex-col items-center mb-10">
-          <h2 className="font-raleway text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-wide text-black text-center">
+          <h2 className="font-Raleway text-3xl sm:text-4xl lg:text-4xl font-extrabold tracking-wide text-black text-center">
             {sectionTitle}
           </h2>
 

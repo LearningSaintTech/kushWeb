@@ -4,8 +4,8 @@ import promo from "../../../assets/temporary/wearphn.svg";
 
 export default function HomePromo() {
   return (
-    <section className="py-10 sm:py-14 lg:py-20 flex justify-center">
-      <div className="max-w-[1100px] w-full px-4">
+    <section className="py-10 sm:py-10 lg:py-10 flex justify-center">
+      <div className="max-w-[1100px] w-full px-12">
 
         <div className="rounded-xl overflow-hidden">
 
@@ -20,7 +20,7 @@ export default function HomePromo() {
           <img
             src={promoImage}
             alt="Promo Banner Desktop"
-            className="w-full h-auto object-cover hidden lg:block"
+            className="w-full h-full object-cover hidden lg:block"
           />
 
         </div>
