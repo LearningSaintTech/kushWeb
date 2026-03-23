@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
@@ -199,6 +200,7 @@ function isExchangeInProgress(exchange) {
 export default function TrackOrderPage() {
   const { orderId, itemId } = useParams()
   const { user, isAuthenticated } = useAuth()
+  const pincodeRedux = useSelector((s) => s?.location?.pincode) ?? null
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -411,21 +413,30 @@ export default function TrackOrderPage() {
     setExchangeDesiredSize('')
     setExchangeDesiredColor('')
     const id = typeof selectedExchangeItemId === 'string' ? selectedExchangeItemId : selectedExchangeItemId?.toString?.()
+    // Prefer pincode from Redux location slice; fallback to order's delivery pincode if available.
+    const pinFromOrder =
+      data?.shipment?.deliveryPincode ??
+      data?.item?.delivery?.pincode ??
+      data?.deliveryPincode ??
+      null
+    const pinCodeParam = pincodeRedux || pinFromOrder || null
     itemsService
-      .getById(id)
+      // Use same param name pattern as ProductPage (`pincode`) so backend returns pincode-based availability.
+      .getById(id, pinCodeParam ? { pincode: String(pinCodeParam) } : {})
       .then((res) => {
         const data = res?.data?.data ?? res?.data
         const item = data?.item ?? data
         setExchangeItemDetails(item || null)
+        // Preselect first color (for better UX), but keep size unselected so user must choose it.
         if (item?.variants?.length) {
-          const first = item.variants[0]
-          setExchangeDesiredColor(first.color?.name ?? '')
-          if (first.sizes?.length) setExchangeDesiredSize(first.sizes[0].size ?? '')
+          const firstVariant = item.variants[0]
+          setExchangeDesiredColor(firstVariant?.color?.name ?? '')
+          setExchangeDesiredSize('')
         }
       })
       .catch(() => setExchangeItemDetails(null))
       .finally(() => setExchangeItemLoading(false))
-  }, [exchangeStep, selectedExchangeItemId])
+  }, [exchangeStep, selectedExchangeItemId, pincodeRedux, data?.shipment?.deliveryPincode, data?.item?.delivery?.pincode, data?.deliveryPincode])
 
   const openCancelModal = () => {
     setCancelError(null)
@@ -1380,7 +1391,7 @@ export default function TrackOrderPage() {
                       disabled={!exchangePolicyAccepted}
                       className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Exchange order
+                      Continue
                     </button>
                   </div>
                 </>
@@ -1439,15 +1450,28 @@ export default function TrackOrderPage() {
                             const colorName = v.color?.name ?? ''
                             const isSelected = exchangeDesiredColor === colorName
                             const imgUrl = v.images?.[0]?.url ?? (v.images && v.images[0] && v.images[0].url)
+                            const hasInStockSize = (v.sizes || []).some((s) => {
+                              const qty = Number(s.availableQuantity ?? s.stock ?? 0)
+                              return s.inStock === true || (s.inStock !== false && qty > 0)
+                            })
                             return (
                               <button
                                 key={colorName}
                                 type="button"
                                 onClick={() => {
+                                  if (!hasInStockSize) return
                                   setExchangeDesiredColor(colorName)
-                                  if (v.sizes?.length) setExchangeDesiredSize(v.sizes[0].size ?? '')
+                                  // Clear size so user explicitly picks one, even after color change
+                                  setExchangeDesiredSize('')
                                 }}
-                                className={`flex flex-col items-center rounded-lg border-2 p-1 transition-colors ${isSelected ? 'border-black' : 'border-gray-200 hover:border-gray-400'}`}
+                                disabled={!hasInStockSize}
+                                className={`flex flex-col items-center rounded-lg border-2 p-1 transition-colors ${
+                                  isSelected
+                                    ? 'border-black'
+                                    : hasInStockSize
+                                      ? 'border-gray-200 hover:border-gray-400'
+                                      : 'border-gray-100 opacity-60 cursor-not-allowed'
+                                }`}
                               >
                                 <div className="w-24 h-24 sm:w-28 sm:h-28 rounded overflow-hidden bg-gray-100 shrink-0">
                                   {imgUrl ? (
@@ -1462,22 +1486,49 @@ export default function TrackOrderPage() {
                           })}
                         </div>
                         <p className="text-xs font-semibold text-black uppercase mb-2">Select size</p>
-                        <div className="flex flex-wrap gap-2">
-                          {(exchangeItemDetails.variants.find((v) => v.color?.name === exchangeDesiredColor)?.sizes ?? []).map((s) => {
-                            const sizeVal = s.size ?? ''
-                            const isSelected = exchangeDesiredSize === sizeVal
-                            return (
-                              <button
-                                key={s.sku ?? sizeVal}
-                                type="button"
-                                onClick={() => setExchangeDesiredSize(sizeVal)}
-                                className={`px-4 py-2 rounded border text-xs font-semibold uppercase ${isSelected ? 'border-black bg-black text-white' : 'border-gray-300 text-gray-800 hover:border-gray-500'}`}
-                              >
-                                {sizeVal}
-                              </button>
-                            )
-                          })}
-                        </div>
+                        {(() => {
+                          const rawSizes =
+                            exchangeItemDetails.variants.find((v) => v.color?.name === exchangeDesiredColor)?.sizes ??
+                            []
+                          const sizesWithStock = rawSizes.map((s) => {
+                            const qty = Number(s.availableQuantity ?? s.stock ?? 0)
+                            const inStock = s.inStock === true || (s.inStock !== false && qty > 0)
+                            return { ...s, inStock }
+                          })
+                          const anyInStock = sizesWithStock.some((s) => s.inStock)
+                          return (
+                            <div className="flex flex-wrap gap-2">
+                              {sizesWithStock.map((s) => {
+                                const sizeVal = s.size ?? ''
+                                const isSelected = exchangeDesiredSize === sizeVal
+                                const disabled = !s.inStock
+                                return (
+                                  <button
+                                    key={s.sku ?? sizeVal}
+                                    type="button"
+                                    onClick={() => {
+                                      if (disabled) return
+                                      setExchangeDesiredSize(sizeVal)
+                                    }}
+                                    disabled={disabled}
+                                    className={`px-4 py-2 rounded border text-xs font-semibold uppercase ${
+                                      isSelected
+                                        ? 'border-black bg-black text-white'
+                                        : disabled
+                                          ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                          : 'border-gray-300 text-gray-800 hover:border-gray-500'
+                                    }`}
+                                  >
+                                    {sizeVal}
+                                    {disabled && anyInStock && (
+                                      <span className="ml-1 text-[9px] uppercase tracking-wide">OOS</span>
+                                    )}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )
+                        })()}
                       </>
                     )}
                   </div>
@@ -1536,7 +1587,7 @@ export default function TrackOrderPage() {
                       disabled={exchangeSubmitting || exchangeImages.length < 3}
                       className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {exchangeSubmitting ? 'Submitting…' : 'Continue'}
+                      {exchangeSubmitting ? 'Submitting…' : 'Exchange order'}
                     </button>
                   </div>
                 </>

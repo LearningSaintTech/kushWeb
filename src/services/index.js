@@ -35,5 +35,6 @@ export { searchKeywordsService } from './search.service.js';
 export { reviewsService } from './reviews.service.js';
 export { brandsService } from './brands.service.js';
 export { filtersService } from './filters.service.js';
+export { contactUsService } from './contactUs.service.js';
 
 export { getCurrentPosition, reverseGeocode, getCurrentLocationPincode } from './geo.service.js';
