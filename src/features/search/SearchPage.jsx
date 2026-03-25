@@ -220,7 +220,33 @@ function SearchPage() {
   }, [qFromUrl])
 
   useEffect(() => {
-    setSelectedFilters(parseFiltersFromUrl(filtersParam))
+    const parsed = parseFiltersFromUrl(filtersParam)
+    setSelectedFilters(parsed)
+
+    // Keep slider state in sync with URL filters
+    const pr = parsed?.price_range ?? parsed?.priceRange
+    const defaultMin = 0
+    const defaultMax = 50000
+
+    if (Array.isArray(pr) && pr.length >= 2) {
+      const min = Number(pr[0])
+      const max = Number(pr[1])
+      if (!Number.isNaN(min) && !Number.isNaN(max)) {
+        setPriceRange({ min, max })
+        return
+      }
+    }
+
+    if (pr && typeof pr === 'object' && !Array.isArray(pr)) {
+      const min = Number(pr.min ?? pr.priceMin ?? pr.low)
+      const max = Number(pr.max ?? pr.priceMax ?? pr.high)
+      if (!Number.isNaN(min) && !Number.isNaN(max)) {
+        setPriceRange({ min, max })
+        return
+      }
+    }
+
+    setPriceRange({ min: defaultMin, max: defaultMax })
   }, [filtersParam])
 
   // Guest: add search query to Redux recent when landing with q (so header modal shows it)
@@ -403,8 +429,33 @@ function SearchPage() {
       if (!itemsOnlyFromUrl && subcategoryFromUrl) params.subcategoryId = subcategoryFromUrl
       if (pincode) params.pinCode = String(pincode)
       const parsed = parseFiltersFromUrl(filtersParam)
-      const filtersObj = Object.keys(parsed).length ? parsed : undefined
-      if (filtersObj) params.filters = filtersObj
+
+      // Extract special filters and pass them as first-class query params
+      const pr = parsed?.price_range ?? parsed?.priceRange
+      if (Array.isArray(pr) && pr.length >= 2) {
+        const min = Number(pr[0])
+        const max = Number(pr[1])
+        if (!Number.isNaN(min) && !Number.isNaN(max)) params.price = `${min}-${max}`
+      } else if (pr && typeof pr === 'object') {
+        const min = Number(pr.min ?? pr.priceMin ?? pr.low)
+        const max = Number(pr.max ?? pr.priceMax ?? pr.high)
+        if (!Number.isNaN(min) && !Number.isNaN(max)) params.price = `${min}-${max}`
+      }
+
+      const colorVal = parsed?.color ?? parsed?.colour
+      if (colorVal) {
+        params.color = Array.isArray(colorVal) ? colorVal.join(',') : String(colorVal)
+      }
+
+      // Remaining dynamic filters go inside `filters` for backend matching
+      const filtersObj = Object.keys(parsed).length ? { ...parsed } : undefined
+      if (filtersObj) {
+        delete filtersObj.price_range
+        delete filtersObj.priceRange
+        delete filtersObj.color
+        delete filtersObj.colour
+        if (Object.keys(filtersObj).length) params.filters = filtersObj
+      }
 
       // Section navigation: restrict results to section's products only
       if (sectionIdFromUrl) {
@@ -599,11 +650,22 @@ function SearchPage() {
 
   const applyFilters = () => {
     const next = new URLSearchParams(searchParams)
-    if (Object.keys(selectedFilters).length) {
-      next.set('filters', JSON.stringify(selectedFilters))
+
+    // Persist price slider range into URL so backend can filter
+    const nextFilters = { ...selectedFilters }
+    const min = Math.min(priceRange.min, priceRange.max)
+    const max = Math.max(priceRange.min, priceRange.max)
+    const defaultMin = 0
+    const defaultMax = 50000
+
+    if (min !== defaultMin || max !== defaultMax) {
+      nextFilters.price_range = [min, max]
     } else {
-      next.delete('filters')
+      delete nextFilters.price_range
     }
+
+    if (Object.keys(nextFilters).length) next.set('filters', JSON.stringify(nextFilters))
+    else next.delete('filters')
     next.set('page', '1')
     setSearchParams(next)
     setFiltersPanelOpen(false)
@@ -611,6 +673,7 @@ function SearchPage() {
 
   const clearFilters = () => {
     setSelectedFilters({})
+    setPriceRange({ min: 0, max: 50000 })
     const next = new URLSearchParams(searchParams)
     next.delete('filters')
     next.set('page', '1')
@@ -642,6 +705,7 @@ function SearchPage() {
   const selectedFilterChips = (() => {
     const list = []
     for (const filterKey of Object.keys(selectedFilters)) {
+      if (filterKey === 'price_range') continue
       const vals = selectedFilters[filterKey]
       if (!Array.isArray(vals)) continue
       const filterDef = filterList.find((f) => (f.key ?? '').toLowerCase() === filterKey)
