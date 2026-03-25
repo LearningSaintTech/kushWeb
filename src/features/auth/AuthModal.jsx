@@ -234,7 +234,7 @@ export default function AuthModal() {
                 onClick={() => { setMode('register'); setError(''); }}
                 className={btnPrimaryClass}
               >
-                CREATE ACCOUNT
+                CREATE ACCOUNT 
               </button>
             </form>
           </>

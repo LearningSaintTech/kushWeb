@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
 import { addressService } from '../../services/address.service.js'
 import { reverseGeocode, searchPlaces, getCurrentPosition } from '../../services/geo.service'
-import { ROUTES } from '../../utils/constants'
 import { setLocation } from '../../app/store/slices/locationSlice'
 import GoogleMapPicker from '../components/GoogleMapPicker'
 import { LocationIcon } from '../ui/icons'
@@ -55,7 +53,7 @@ function EditIcon({ className }) {
 
 export default function Address() {
   const dispatch = useDispatch();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, openAuthModal } = useAuth();
 
   const [addresses, setAddresses] = useState([]);
   const [page, setPage] = useState(1);
@@ -377,12 +375,13 @@ export default function Address() {
           <p className="mt-2 text-sm sm:text-base text-gray-600">
             Please sign in to manage your addresses.
           </p>
-          <Link
-            to={ROUTES.AUTH}
+          <button
+            type="button"
+            onClick={() => openAuthModal()}
             className="mt-6 inline-block px-6 py-3 bg-black text-white text-sm font-medium uppercase hover:bg-gray-800 transition-colors"
           >
             Sign in
-          </Link>
+          </button>
         </div>
       </div>
     );
