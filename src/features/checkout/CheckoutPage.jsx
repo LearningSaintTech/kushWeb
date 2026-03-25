@@ -114,6 +114,7 @@ function CheckoutPage() {
     isDefault: true,
   })
   const [paymentMode, setPaymentMode] = useState('RAZORPAY')
+  const [codWarningOpen, setCodWarningOpen] = useState(false)
   const [placeOrderLoading, setPlaceOrderLoading] = useState(false)
   const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false)
   const [statusMessage, setStatusMessage] = useState(null)
@@ -152,9 +153,11 @@ function CheckoutPage() {
     return data
   }, [addressId, pincode])
 
-  const fetchPriceSummary = useCallback(async (couponCode = null) => {
+  const fetchPriceSummary = useCallback(async (couponCode = null, paymentModeParam = paymentMode) => {
     try {
-      const params = couponCode ? { couponCode } : {}
+      const params = {}
+      if (couponCode) params.couponCode = couponCode
+      if (paymentModeParam) params.paymentMode = paymentModeParam
       console.log('[Checkout] REQ cartService.getPriceSummary:', params)
       const res = await cartService.getPriceSummary(params)
       console.log('[Checkout] RES cartService.getPriceSummary:', res?.data)
@@ -169,7 +172,7 @@ function CheckoutPage() {
       setPriceSummary(null)
       return null
     }
-  }, [])
+  }, [paymentMode])
 
   useEffect(() => {
     console.log('[Checkout] init effect', { isAuthenticated })
@@ -268,8 +271,8 @@ function CheckoutPage() {
 
   useEffect(() => {
     if (!cartData?.items?.length || !isAuthenticated) return
-    fetchPriceSummary(appliedCouponCode || null)
-  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated])
+    fetchPriceSummary(appliedCouponCode || null, paymentMode)
+  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated, paymentMode])
 
   // Preload Razorpay script when user selects Online payment
   useEffect(() => {
@@ -295,14 +298,14 @@ function CheckoutPage() {
     if (!code) return
     setAppliedCouponCode(code)
     setCouponError(null)
-    fetchPriceSummary(code)
+    fetchPriceSummary(code, paymentMode)
   }
 
   const handleRemoveCoupon = () => {
     setAppliedCouponCode(null)
     setCouponInput('')
     setCouponError(null)
-    fetchPriceSummary(null)
+    fetchPriceSummary(null, paymentMode)
   }
 
   const openCouponModal = () => {
@@ -329,7 +332,7 @@ function CheckoutPage() {
     setCouponInput(code)
     setAppliedCouponCode(code)
     setCouponError(null)
-    fetchPriceSummary(code)
+    fetchPriceSummary(code, paymentMode)
     setCouponModalOpen(false)
   }
 
@@ -1141,8 +1144,8 @@ function CheckoutPage() {
                     value="COD"
                     checked={paymentMode === 'COD'}
                     onChange={() => {
-                      console.log('[Checkout] paymentMode changed to COD')
-                      setPaymentMode('COD')
+                      if (paymentMode === 'COD') return
+                      setCodWarningOpen(true)
                     }}
                     className="border-gray-300"
                   />
@@ -1164,6 +1167,50 @@ function CheckoutPage() {
                 </label>
               </div>
             </section>
+
+            {/* COD warning popup */}
+            {codWarningOpen && (
+              <div
+                className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-gray-900/60"
+                onClick={() => setCodWarningOpen(false)}
+                role="dialog"
+                aria-modal="true"
+              >
+                <div
+                  className="w-full max-w-md bg-white rounded-lg shadow-2xl overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">
+                      Cash on delivery charges
+                    </h3>
+                  </div>
+                  <div className="px-5 py-4 text-sm text-gray-700">
+                    If you choose COD, there will be extra charges.
+                    Choose online payment for less price.
+                  </div>
+                  <div className="px-5 py-4 border-t border-gray-200 flex gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setCodWarningOpen(false)}
+                      className="px-4 py-2 text-sm font-semibold uppercase border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCodWarningOpen(false)
+                        setPaymentMode('COD')
+                      }}
+                      className="px-4 py-2 text-sm font-semibold uppercase border border-black bg-black text-white hover:bg-gray-800 transition-colors"
+                    >
+                      Choose COD
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="pt-4 border-t border-gray-200">
               {lastVerifyError && (
