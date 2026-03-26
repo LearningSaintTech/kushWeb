@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ROUTES } from "../../utils/constants";
+import { ROUTES, getSearchPath } from "../../utils/constants";
 import logoImg from "../../assets/images/navBar/SVG.svg";
 import khushDressImg from "../../assets/images/footer/khushDress.png";
 import {
@@ -120,14 +120,22 @@ function Footer() {
             title: cat.name || "Collection",
             items: subcategories.map((sub) => ({
               name: sub.name,
-              searchUrl: `${ROUTES.SEARCH}?categoryId=${catId}&subcategoryId=${sub._id}`,
+              searchUrl: getSearchPath({
+                categoryId: catId,
+                subcategoryId: sub._id,
+                categoryName: cat.name,
+                subcategoryName: sub.name,
+              }),
             })),
           });
           if (subcategories.length === 0) {
             sections[sections.length - 1].items = [
               {
                 name: cat.name || "View all",
-                searchUrl: `${ROUTES.SEARCH}?categoryId=${catId}`,
+                searchUrl: getSearchPath({
+                  categoryId: catId,
+                  categoryName: cat.name,
+                }),
               },
             ];
           }

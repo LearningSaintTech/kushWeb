@@ -444,7 +444,7 @@ function CartPage() {
                     const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
 
                     const productId = item?._id
-                    const productPath = productId ? getProductPath(productId) : null
+                    const productPath = productId ? getProductPath(productId, name, shortDesc) : null
 
                     return (
                       <tr key={row._id ?? sku} className="align-middle border-b border-gray-200">

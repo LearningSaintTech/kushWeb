@@ -33,6 +33,7 @@ const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'cart', element: <CartPage /> },
       { path: 'wishlist', element: <WishlistPage /> },
+      { path: 'product/:slug/:id', element: <ProductPage /> },
       { path: 'product/:id', element: <ProductPage /> },
       { path: 'checkout', element: <CheckoutPage /> },
       { path: 'orders', element: <OrdersPage /> },

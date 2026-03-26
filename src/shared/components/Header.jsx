@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
-import { ROUTES } from "../../utils/constants";
+import { ROUTES, getSearchPath } from "../../utils/constants";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { useNavbarMenu } from "../../app/hooks/useNavbarMenu";
@@ -161,12 +161,18 @@ function IconBadge({ count, children, scrolled }) {
 }
 
 /** Build search URL for menu links; SearchPage reads categoryId + subcategoryId (or category/subcategory) */
-function getSearchUrl({ categoryId, subcategoryId } = {}) {
-  const params = new URLSearchParams();
-  if (categoryId) params.set("categoryId", categoryId);
-  if (subcategoryId) params.set("subcategoryId", subcategoryId);
-  const q = params.toString();
-  return q ? `${ROUTES.SEARCH}?${q}` : ROUTES.SEARCH;
+function getSearchUrl({
+  categoryId,
+  subcategoryId,
+  categoryName,
+  subcategoryName,
+} = {}) {
+  return getSearchPath({
+    categoryId,
+    subcategoryId,
+    categoryName,
+    subcategoryName,
+  });
 }
 
 export default function Header() {
@@ -981,6 +987,11 @@ export default function Header() {
                               to={getSearchUrl({
                                 categoryId: effectiveActiveCategory,
                                 subcategoryId: subId,
+                                categoryName: navbarCategories.find(
+                                  (c) =>
+                                    (c._id ?? c.id) === effectiveActiveCategory,
+                                )?.name,
+                                subcategoryName: subName,
                               })}
                               onClick={closeMenu}
                               className="cursor-pointer font-inter flex items-center w-full text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50 transition-colors"
@@ -998,6 +1009,10 @@ export default function Header() {
                           <NavLink
                             to={getSearchUrl({
                               categoryId: effectiveActiveCategory,
+                              categoryName: navbarCategories.find(
+                                (c) =>
+                                  (c._id ?? c.id) === effectiveActiveCategory,
+                              )?.name,
                             })}
                             onClick={closeMenu}
                             className="cursor-pointer font-inter text-sm text-gray-600 hover:text-black"

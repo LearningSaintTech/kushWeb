@@ -42,6 +42,7 @@ const ProductCard = React.memo(function ProductCard({
   image,
   hoverImage,
   title,
+  shortDescription,
   price,
   originalPrice,
   delivery,
@@ -142,7 +143,8 @@ const ProductCard = React.memo(function ProductCard({
     `${imageIsNumeric ? "" : roundedTopClass} ${imageIsNumeric ? "" : roundedBottomClass}`.trim();
 
   const CardWrapper = id != null ? Link : "div";
-  const wrapperProps = id != null ? { to: getProductPath(id) } : {};
+  const wrapperProps =
+    id != null ? { to: getProductPath(id, title, shortDescription) } : {};
 
   return (
     <CardWrapper
@@ -188,6 +190,7 @@ const ProductCard = React.memo(function ProductCard({
                     image,
                     hoverImage,
                     title,
+                    shortDescription,
                     price,
                     originalPrice,
                     delivery,
@@ -249,6 +252,7 @@ const ProductCard = React.memo(function ProductCard({
                     image,
                     hoverImage,
                     title,
+                    shortDescription,
                     price,
                     originalPrice,
                     delivery,

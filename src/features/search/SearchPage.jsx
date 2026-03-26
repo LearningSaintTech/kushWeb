@@ -91,6 +91,7 @@ function itemToCardProps(item) {
     image: imageUrl || 'https://placehold.co/400x520?text=Product',
     hoverImage: hoverUrl || undefined,
     title: item.name ?? 'Product',
+    shortDescription: item.shortDescription ?? '',
     price,
     originalPrice,
     delivery,
@@ -1253,7 +1254,11 @@ function SearchPage() {
                 return (
                   <Link
                     key={`${product.id}-${index}`}
-                    to={getProductPath(product.id)}
+                    to={getProductPath(
+                      product.id,
+                      product.title,
+                      product.shortDescription,
+                    )}
                     className={`block transition-all duration-500 ease-out ${
                       isNew ? 'animate-search-card-in' : ''
                     }`}

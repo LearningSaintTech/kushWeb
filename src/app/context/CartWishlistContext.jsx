@@ -42,6 +42,7 @@ function formatDeliveryOption(d) {
 function mapWishlistItem(item, deliveryOptions = []) {
   const id = item?.itemId?._id ?? item?.itemId ?? item?._id
   const name = item?.itemId?.name ?? item?.name ?? ''
+  const shortDescription = item?.itemId?.shortDescription ?? item?.shortDescription ?? ''
   const firstVariant = item?.itemId?.variants?.[0] ?? item?.variants?.[0]
   const imageUrl = firstVariant?.images?.[0]?.url ?? item?.itemId?.thumbnail ?? item?.imageUrl ?? ''
   const discountedPrice = item?.itemId?.discountedPrice ?? item?.discountedPrice
@@ -60,6 +61,7 @@ function mapWishlistItem(item, deliveryOptions = []) {
   return {
     id,
     title: name || 'Product',
+    shortDescription,
     price: priceStr,
     originalPrice: originalPriceStr,
     image: imageUrl,

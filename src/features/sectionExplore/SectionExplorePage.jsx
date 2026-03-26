@@ -5,7 +5,7 @@ import ProductCard from '../../shared/components/ProductCard'
 import { sectionsService } from '../../services/content.service.js'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
-import { ROUTES } from '../../utils/constants'
+import { ROUTES, getSearchPath } from '../../utils/constants'
 
 const DEFAULT_LIMIT = 12
 
@@ -35,6 +35,7 @@ function itemToCardProps(item) {
     image: imageUrl || 'https://placehold.co/400x520?text=Product',
     hoverImage: hoverUrl || undefined,
     title: item.name ?? 'Product',
+    shortDescription: item.shortDescription ?? '',
     price,
     originalPrice,
     delivery,
@@ -280,7 +281,12 @@ export function SectionExplorePage() {
   const sectionTitle = section?.title ?? 'Section'
   const isCategorySection = section?.type === 'CATEGORY'
   const exploreSearchUrl = isCategorySection && section?.categoryId?.[0]
-    ? `${ROUTES.SEARCH}?categoryId=${section.categoryId[0]}`
+    ? getSearchPath({
+        categoryId: section.categoryId[0],
+        categoryName: categories.find(
+          (c) => String(c._id ?? c.id) === String(section.categoryId[0]),
+        )?.name,
+      })
     : ROUTES.SEARCH
 
   const showOurProductDropdown = isOurProductSection(section) && categories.length > 0

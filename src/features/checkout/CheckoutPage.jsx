@@ -721,7 +721,7 @@ function CheckoutPage() {
                     const selectedOpt = deliveryOptions.find((d) => (d._id?.toString?.() ?? d._id) === selectedDeliveryId)
                     const deliveryLabel = selectedOpt?.deliveryType === '90_MIN' ? '90 MIN DELIVERY' : selectedOpt?.deliveryType === 'ONE_DAY' ? '1 DAY DELIVERY' : selectedOpt?.deliveryType || 'Standard'
                     const productId = item?._id
-                    const productPath = productId ? getProductPath(productId) : null
+                    const productPath = productId ? getProductPath(productId, name, shortDesc) : null
 
                     return (
                       <tr key={row._id ?? sku} className="align-middle border-b border-gray-200">

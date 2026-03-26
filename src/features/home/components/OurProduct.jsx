@@ -7,6 +7,7 @@ import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
 import { IoChevronForward } from "react-icons/io5";
 import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
+import { getSearchPath } from "../../../utils/constants";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const CATEGORY_PRODUCT_LIMIT = 8;
@@ -52,6 +53,7 @@ function itemToCardProps(item, index) {
     image: imageUrl,
     hoverImage: hoverUrl,
     title: item.name ?? "Product",
+    shortDescription: item.shortDescription ?? "",
     price,
     originalPrice,
     delivery,
@@ -119,10 +121,17 @@ function OurProduct({ section }) {
   const [loadingCategory, setLoadingCategory] = useState(false);
 
   const sectionTitle = section?.title || "OUR PRODUCTS";
+  const activeCategoryName =
+    categoriesWithId.find((c) => String(c.id ?? "") === String(activeCategoryId))
+      ?.raw?.name ?? null;
   const exploreTo = section?._id
     ? activeCategoryId
-      ? `/search?sectionId=${section._id}&categoryId=${activeCategoryId}`
-      : `/search?sectionId=${section._id}`
+      ? getSearchPath({
+          sectionId: section._id,
+          categoryId: activeCategoryId,
+          categoryName: activeCategoryName,
+        })
+      : getSearchPath({ sectionId: section._id })
     : "/search";
 
   const listFromSection =

@@ -2,7 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import collectionImage from '../../../assets/temporary/collection.png'
 import { IoChevronForward } from "react-icons/io5"
-import { ROUTES } from '../../../utils/constants'
+import { ROUTES, getSearchPath } from '../../../utils/constants'
 
 const COLLECTIONS = [
   { id: 'mens', title: "MEN'S COLLECTION", image: collectionImage, to: '/search?category=men' },
@@ -17,7 +17,10 @@ function Collection({ section }) {
         id: cat._id,
         title: cat.name ? `${cat.name.toUpperCase()} COLLECTION` : '',
         image: cat.imageUrl || collectionImage,
-        to: `/search?categoryId=${cat._id}`,
+        to: getSearchPath({
+          categoryId: cat._id,
+          categoryName: cat.name,
+        }),
       }))
     : COLLECTIONS
   return (

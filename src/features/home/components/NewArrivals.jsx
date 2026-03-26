@@ -35,6 +35,7 @@ function mapItemToCard(item, deliveryTypeFallback) {
     id,
     image: imageUrl || productImage,
     title: item.name ?? '',
+    shortDescription: item.shortDescription ?? '',
     price,
     originalPrice,
     delivery,
@@ -72,6 +73,7 @@ function NewArrivals({ section }) {
         id: item._id,
         image: item.thumbnail || productImage,
         title: item.name || '',
+        shortDescription: item.shortDescription || '',
         price,
         originalPrice,
         delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
@@ -238,7 +240,10 @@ function NewArrivals({ section }) {
       return
     }
     const productId = item?.id
-    if (productId != null) navigate(getProductPath(String(productId)))
+    if (productId != null)
+      navigate(
+        getProductPath(String(productId), item?.title, item?.shortDescription),
+      )
   }
 
   const getStyles = (index) => {

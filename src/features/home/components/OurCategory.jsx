@@ -8,6 +8,7 @@ import {
   categoriesService,
   subcategoriesService,
 } from "../../../services/categories.service.js";
+import { getSearchPath } from "../../../utils/constants";
 
 const CATEGORY_TABS = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 
@@ -62,18 +63,18 @@ function mapCategoryToCard(
   useSubcategoryLink = false,
   sectionId = null,
   parentCategoryId = null,
+  parentCategoryName = null,
 ) {
   const id = cat._id ?? cat.id;
-  const params = new URLSearchParams();
-  if (sectionId) params.set("sectionId", sectionId);
-  if (useSubcategoryLink) {
-    const categoryId = parentCategoryId ?? cat.categoryId ?? cat.category ?? "";
-    if (categoryId) params.set("categoryId", String(categoryId));
-    params.set("subcategoryId", id);
-  } else {
-    params.set("categoryId", id);
-  }
-  const to = `/search?${params.toString()}`;
+  const to = getSearchPath({
+    sectionId,
+    categoryId: useSubcategoryLink
+      ? parentCategoryId ?? cat.categoryId ?? cat.category ?? ""
+      : id,
+    subcategoryId: useSubcategoryLink ? id : null,
+    categoryName: useSubcategoryLink ? parentCategoryName : cat.name,
+    subcategoryName: useSubcategoryLink ? cat.name : null,
+  });
   return {
     id,
     title: (cat.name ?? "").toUpperCase() || "Category",
@@ -228,13 +229,25 @@ function OurCategory({ section }) {
               String(activeCategory._id ?? activeCategory.id),
           )
           .map((sub) =>
-            mapCategoryToCard(sub, true, sectionId, activeCategoryId),
+            mapCategoryToCard(
+              sub,
+              true,
+              sectionId,
+              activeCategoryId,
+              activeCategory?.name,
+            ),
           )
       : hasCategories && hasSubcategories
         ? []
         : sectionHasOnlyCategories && activeCategory
           ? subcategoriesForActiveCategory.map((sub) =>
-              mapCategoryToCard(sub, true, sectionId, activeCategoryId),
+              mapCategoryToCard(
+                sub,
+                true,
+                sectionId,
+                activeCategoryId,
+                activeCategory?.name,
+              ),
             )
           : hasCategories
             ? categories.map((cat) => mapCategoryToCard(cat, false, sectionId))
