@@ -125,7 +125,7 @@ export default function ProfileUpdatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black pt-24 pb-16">
+    <div className="min-h-screen bg-white text-black pt-30 pb-16">
       <div className="max-w-xl mx-auto px-4 sm:px-6">
         <Link
           to={ROUTES.HOME}

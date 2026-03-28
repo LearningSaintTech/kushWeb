@@ -7,6 +7,9 @@ import { setLocation } from '../../app/store/slices/locationSlice'
 import GoogleMapPicker from '../components/GoogleMapPicker'
 import { LocationIcon } from '../ui/icons'
 
+/** Delivery is India-only; API still expects countryCode. */
+const INDIA_PHONE_CODE = "+91";
+
 function formatAddress(addr) {
   if (!addr) return "";
   const parts = [addr.addressLine, addr.city, addr.state, addr.pinCode].filter(
@@ -67,7 +70,6 @@ export default function Address() {
   const [form, setForm] = useState({
     name: "",
     phoneNumber: "",
-    countryCode: "+91",
     addressLine: "",
     city: "",
     state: "",
@@ -138,7 +140,6 @@ export default function Address() {
     setForm({
       name: "",
       phoneNumber: "",
-      countryCode: "+91",
       addressLine: "",
       city: "",
       state: "",
@@ -158,7 +159,6 @@ export default function Address() {
     setForm({
       name: addr?.name ?? '',
       phoneNumber: addr?.phoneNumber ?? '',
-      countryCode: addr?.countryCode ?? '+91',
       addressLine: addr?.addressLine ?? '',
       city: addr?.city ?? '',
       state: addr?.state ?? '',
@@ -292,7 +292,7 @@ export default function Address() {
     const payload = {
       name: form.name.trim(),
       phoneNumber: (form.phoneNumber || "").trim() || undefined,
-      countryCode: (form.countryCode || "+91").trim(),
+      countryCode: INDIA_PHONE_CODE,
       addressLine: form.addressLine.trim(),
       city: form.city.trim(),
       state: form.state.trim(),
@@ -388,7 +388,7 @@ export default function Address() {
   }
 
   return (
-    <div className="min-h-screen  bg-white pt-24 pb-12">
+    <div className="min-h-screen  bg-white pt-30 pb-12">
       <div className=" px-4 sm:px-6 md:px-8 lg:px-10 ">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h1 className="text-lg sm:text-xl font-bold text-black uppercase">
@@ -725,18 +725,31 @@ export default function Address() {
                 />
               </div>
               <div>
-                <input
-                  type="text"
-                  value={form.phoneNumber}
-                  onChange={(e) =>
-                    handleFormChange(
-                      "phoneNumber",
-                      e.target.value.replace(/\D/g, "").slice(0, 10),
-                    )
-                  }
-                  placeholder="Phone number"
-                  className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
-                />
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                  Phone
+                </p>
+                <div className="flex border-b border-gray-300 min-w-0">
+                  <span
+                    className="shrink-0 flex items-center pr-2 py-2 text-sm text-gray-600"
+                    aria-hidden
+                  >
+                    {INDIA_PHONE_CODE}
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    value={form.phoneNumber}
+                    onChange={(e) =>
+                      handleFormChange(
+                        "phoneNumber",
+                        e.target.value.replace(/\D/g, "").slice(0, 10),
+                      )
+                    }
+                    placeholder="10-digit mobile number"
+                    className="min-w-0 flex-1 border-0 py-2 text-sm outline-none placeholder:text-gray-400"
+                  />
+                </div>
               </div>
               <button
                 type="submit"

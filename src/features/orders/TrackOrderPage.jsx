@@ -658,9 +658,13 @@ export default function TrackOrderPage() {
         {/* Order item summary card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex flex-col sm:flex-row gap-6">
-            <div className="w-full sm:w-40 h-40 shrink-0 overflow-hidden bg-gray-100 rounded">
+            <div className="w-full max-w-[min(100%,20rem)] aspect-square mx-auto sm:mx-0 sm:max-w-none sm:w-56 sm:h-56 md:w-64 md:h-64 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden p-3 sm:p-4">
               {imageUrl ? (
-                <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                <img
+                  src={imageUrl}
+                  alt={name}
+                  className="max-h-full max-w-full object-contain object-center"
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">No image</div>
               )}
@@ -1050,7 +1054,7 @@ export default function TrackOrderPage() {
                       <img
                         src={review.imageUrl}
                         alt=""
-                        className="w-20 h-20 object-cover rounded border border-gray-200"
+                        className="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-lg border border-gray-200 bg-gray-50 p-1"
                       />
                     )}
                     {Array.isArray(review.images) &&
@@ -1062,7 +1066,7 @@ export default function TrackOrderPage() {
                             key={img?.imageKey || img?.key || i}
                             src={src}
                             alt=""
-                            className="w-20 h-20 object-cover rounded border border-gray-200"
+                            className="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-lg border border-gray-200 bg-gray-50 p-1"
                           />
                         )
                       })}
@@ -1131,9 +1135,13 @@ export default function TrackOrderPage() {
                       to={trackPath}
                       className="flex gap-4 items-center rounded-lg border border-transparent p-2 -m-2 transition-colors hover:bg-gray-50 hover:border-gray-200"
                     >
-                      <div className="w-16 h-16 shrink-0 overflow-hidden bg-gray-100 rounded">
+                      <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden p-1.5">
                         {img ? (
-                          <img src={img} alt={n} className="w-full h-full object-cover" />
+                          <img
+                            src={img}
+                            alt={n}
+                            className="max-h-full max-w-full object-contain object-center"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
                         )}
@@ -1473,11 +1481,15 @@ export default function TrackOrderPage() {
                                       : 'border-gray-100 opacity-60 cursor-not-allowed'
                                 }`}
                               >
-                                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded overflow-hidden bg-gray-100 shrink-0">
+                                <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-lg border border-gray-200 bg-gray-50 shrink-0 flex items-center justify-center overflow-hidden p-1.5">
                                   {imgUrl ? (
-                                    <img src={imgUrl} alt={colorName} className="w-full h-full object-cover" />
+                                    <img
+                                      src={imgUrl}
+                                      alt={colorName}
+                                      className="max-h-full max-w-full object-contain object-center"
+                                    />
                                   ) : (
-                                    <div className="w-full h-full" style={{ backgroundColor: v.color?.hex || '#e5e7eb' }} title={colorName} />
+                                    <div className="w-full h-full min-h-20" style={{ backgroundColor: v.color?.hex || '#e5e7eb' }} title={colorName} />
                                   )}
                                 </div>
                                 <span className="text-[10px] font-medium uppercase mt-1 text-gray-800">{colorName}</span>
@@ -1553,11 +1565,18 @@ export default function TrackOrderPage() {
                   </div>
                   <div className="p-4">
                     <p className="text-xs text-gray-600 mb-3">Upload 3 to 5 images of the item (required for exchange).</p>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3">
                       {[0, 1, 2, 3, 4].map((i) => (
-                        <div key={i} className="aspect-square rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                        <div
+                          key={i}
+                          className="aspect-square min-h-38 rounded-lg bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center p-2"
+                        >
                           {exchangeImages[i] ? (
-                            <img src={URL.createObjectURL(exchangeImages[i])} alt="" className="w-full h-full object-cover" />
+                            <img
+                              src={URL.createObjectURL(exchangeImages[i])}
+                              alt=""
+                              className="max-h-full max-w-full object-contain object-center"
+                            />
                           ) : (
                             <span className="text-gray-400 text-2xl">📷</span>
                           )}

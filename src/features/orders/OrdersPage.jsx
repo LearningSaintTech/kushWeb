@@ -159,7 +159,7 @@ function OrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black pt-24 pb-12 font-sans">
+    <div className="min-h-screen bg-white text-black pt-30 pb-12 font-sans">
       <div className=" px-4 sm:px-6 md:px-8 ">
         <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-wider text-gray-800 mb-6 sm:mb-8">My orders</h1>
 
@@ -217,9 +217,13 @@ function OrdersPage() {
                 >
                   {/* Product */}
                   <div className="flex gap-3 sm:gap-4 min-w-0 md:col-span-6">
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 overflow-hidden bg-gray-100 rounded">
+                    <div className="w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden p-2">
                       {imageUrl ? (
-                        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                        <img
+                          src={imageUrl}
+                          alt={name}
+                          className="max-h-full max-w-full object-contain object-center"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
                       )}

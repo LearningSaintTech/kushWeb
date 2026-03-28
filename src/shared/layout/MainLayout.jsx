@@ -6,10 +6,10 @@ import AuthModal from '../../features/auth/AuthModal'
 
 function MainLayout() {
   return (
-    <div className="min-h-screen flex flex-col bg-white overflow-x-hidden max-w-full">
+    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-gray-100 max-w-full">
       <ScrollToTop />
       <Header />
-      <main className="flex-1 ">
+      <main className="flex-1 bg-gray-100">
         <Outlet />
       </main>
       <Footer />

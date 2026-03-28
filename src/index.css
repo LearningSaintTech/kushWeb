@@ -65,3 +65,40 @@ body::-webkit-scrollbar {
 .animate-search-card-in {
   animation: search-card-in 0.4s ease-out forwards;
 }
+
+/*
+ * Product PDP: clamp without a trailing ellipsis (Safari/iOS often adds … with
+ * Tailwind line-clamp + whitespace-pre-wrap).
+ */
+.product-desc-clamp-short {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  text-overflow: clip;
+  word-break: break-word;
+}
+@media (min-width: 640px) {
+  .product-desc-clamp-short {
+    -webkit-line-clamp: 4;
+  }
+}
+
+.product-desc-clamp-long {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  text-overflow: clip;
+  word-break: break-word;
+}
+@media (min-width: 640px) {
+  .product-desc-clamp-long {
+    -webkit-line-clamp: 5;
+  }
+}
+@media (min-width: 1024px) {
+  .product-desc-clamp-long {
+    -webkit-line-clamp: 6;
+  }
+}

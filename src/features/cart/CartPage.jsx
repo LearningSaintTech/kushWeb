@@ -10,6 +10,9 @@ import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
 
+/** Delivery is India-only; API still expects countryCode. */
+const INDIA_PHONE_CODE = '+91'
+
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return 'Rs 0'
   return `Rs ${Number(num).toLocaleString('en-IN', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`
@@ -100,7 +103,6 @@ function CartPage() {
   const [addressForm, setAddressForm] = useState({
     name: '',
     phoneNumber: '',
-    countryCode: '+91',
     addressLine: '',
     city: '',
     state: '',
@@ -347,7 +349,6 @@ function CartPage() {
     setAddressForm({
       name: '',
       phoneNumber: '',
-      countryCode: '+91',
       addressLine: '',
       city: '',
       state: '',
@@ -375,7 +376,7 @@ function CartPage() {
       const payload = {
         name: addressForm.name.trim(),
         phoneNumber: (addressForm.phoneNumber || '').trim() || undefined,
-        countryCode: (addressForm.countryCode || '+91').trim(),
+        countryCode: INDIA_PHONE_CODE,
         addressLine: addressForm.addressLine.trim(),
         city: addressForm.city.trim(),
         state: addressForm.state.trim(),
@@ -825,14 +826,26 @@ function CartPage() {
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Name</label>
                       <input type="text" value={addressForm.name} onChange={(e) => handleAddressFormChange('name', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Full name" required />
                     </div>
-                    <div className="grid grid-cols-[auto_1fr] gap-2">
-                      <div>
-                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Code</label>
-                        <input type="text" value={addressForm.countryCode} onChange={(e) => handleAddressFormChange('countryCode', e.target.value)} className="w-full border border-gray-300 py-2 px-2 text-sm" placeholder="+91" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
-                        <input type="text" value={addressForm.phoneNumber} onChange={(e) => handleAddressFormChange('phoneNumber', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Phone number" />
+                    <div>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
+                      <div className="flex border border-gray-300 overflow-hidden rounded-none">
+                        <span className="shrink-0 flex items-center border-r border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600" aria-hidden>
+                          {INDIA_PHONE_CODE}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="tel-national"
+                          value={addressForm.phoneNumber}
+                          onChange={(e) =>
+                            handleAddressFormChange(
+                              'phoneNumber',
+                              e.target.value.replace(/\D/g, '').slice(0, 10),
+                            )
+                          }
+                          className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
+                          placeholder="10-digit mobile number"
+                        />
                       </div>
                     </div>
                     <div>
