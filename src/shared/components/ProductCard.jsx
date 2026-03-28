@@ -298,7 +298,7 @@ const ProductCard = React.memo(function ProductCard({
           style={infoBottomStyle}
         >
           <h3
-            className="uppercase tracking-[0.2em] sm:tracking-[0.3em] text-sm sm:text-base md:text-lg text-black"
+            className=" uppercase tracking-[0.2em] sm:tracking-[0.1em] text-sm sm:text-base md:text-lg text-black"
             style={{ fontFamily: "'Tenor Sans', sans-serif" }}
           >
             {title}

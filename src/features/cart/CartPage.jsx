@@ -56,6 +56,25 @@ function formatDeliveryDuration(dur, fallbackLabel = '') {
   return `${min}-${max} ${unitLabel}`
 }
 
+function pushDataLayer(payload) {
+  if (typeof window === 'undefined') return
+  window.dataLayer = window.dataLayer || []
+  window.dataLayer.push(payload)
+}
+
+/** Build GA4-friendly cart line item for dataLayer (GTM) */
+function cartRowToEcommerceItem(row) {
+  const item = row?.itemId
+  const id = item?._id ?? item?.id
+  return {
+    item_id: id != null ? String(id) : undefined,
+    item_name: item?.name ?? undefined,
+    price: row?.unitPrice != null ? Number(row.unitPrice) : undefined,
+    quantity: row?.quantity != null ? Number(row.quantity) : 1,
+    item_variant: row?.variant?.sku != null ? String(row.variant.sku) : undefined,
+  }
+}
+
 function CartPage() {
   const dispatch = useDispatch()
   const { isAuthenticated } = useAuth()
@@ -219,27 +238,49 @@ function CartPage() {
     fetchPriceSummary(appliedCouponCode || null)
   }, [cartData?.items?.length, appliedCouponCode, isAuthenticated])
 
-  const handleIncreaseQty = async (sku) => {
+  const handleIncreaseQty = async (sku, row) => {
     try {
       await cartService.increaseQty(sku)
+      pushDataLayer({
+        event: 'add_to_cart',
+        ecommerce: {
+          currency: 'INR',
+          value: row?.unitPrice != null ? Number(row.unitPrice) : undefined,
+          items: [cartRowToEcommerceItem({ ...row, quantity: 1 })],
+        },
+      })
       refetchCart({ addressId })
       const next = await fetchCart()
       if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
     } catch (_) {}
   }
 
-  const handleDecreaseQty = async (sku) => {
+  const handleDecreaseQty = async (sku, row) => {
     try {
       await cartService.decreaseQty(sku)
+      pushDataLayer({
+        event: 'remove_from_cart',
+        ecommerce: {
+          currency: 'INR',
+          items: [cartRowToEcommerceItem({ ...row, quantity: 1 })],
+        },
+      })
       refetchCart({ addressId })
       const next = await fetchCart()
       if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
     } catch (_) {}
   }
 
-  const handleRemove = async (sku) => {
+  const handleRemove = async (sku, row) => {
     try {
       await removeFromCart(sku)
+      pushDataLayer({
+        event: 'remove_from_cart',
+        ecommerce: {
+          currency: 'INR',
+          items: [cartRowToEcommerceItem(row)],
+        },
+      })
       refetchCart({ addressId })
       const next = await fetchCart()
       setCartData(next)
@@ -518,7 +559,7 @@ function CartPage() {
                           <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-md overflow-hidden">
                             <button
                               type="button"
-                              onClick={() => handleDecreaseQty(sku)}
+                              onClick={() => handleDecreaseQty(sku, row)}
                               className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
                               aria-label="Decrease quantity"
                             >
@@ -527,7 +568,7 @@ function CartPage() {
                             <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">{qty}</span>
                             <button
                               type="button"
-                              onClick={() => handleIncreaseQty(sku)}
+                              onClick={() => handleIncreaseQty(sku, row)}
                               className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
                               aria-label="Increase quantity"
                             >
@@ -562,7 +603,7 @@ function CartPage() {
                         <td className="pl-2 py-4 align-middle">
                           <button
                             type="button"
-                            onClick={() => handleRemove(sku)}
+                            onClick={() => handleRemove(sku, row)}
                             className="p-2 text-gray-500 hover:text-black transition-colors"
                             aria-label="Remove from cart"
                           >
@@ -920,6 +961,16 @@ function CartPage() {
                     couponCode: appliedCouponCode || null,
                     selectedAddress: selectedAddress || null,
                     addresses: addresses?.length ? addresses : null,
+                  }}
+                  onClick={() => {
+                    pushDataLayer({
+                      event: 'begin_checkout',
+                      ecommerce: {
+                        currency: 'INR',
+                        value: finalPayable != null ? Number(finalPayable) : undefined,
+                        items: items.map((row) => cartRowToEcommerceItem(row)),
+                      },
+                    })
                   }}
                   className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"
                 >
