@@ -409,7 +409,7 @@ function ProductPage() {
           <div className="bg-[#f5f5f5] px-0 sm:px-4 md:px-4 lg:px-10 xl:px-10 font-inter min-w-0 flex flex-col">
             <div className="flex justify-between items-start gap-2 sm:gap-3 md:gap-3 lg:gap-4">
               <div className="min-w-0 flex-1">
-                <h1 className="text-base font-medium uppercase tracking-wide text-black sm:text-lg sm:tracking-[4px] md:text-xl md:tracking-[4px] lg:text-2xl lg:tracking-[5px] xl:text-3xl xl:tracking-[6px] wrap-break-word">
+                <h1 className="text-base font-medium font-inter uppercase  text-black sm:text-lg sm:tracking-[4px] md:text-lg md:tracking-[4px] lg:text-2xl lg:tracking-[5px] xl:text-2xl xl:tracking-[4px] wrap-break-word">
                   {item.name}
                 </h1>
                 <p className="font-inter mt-1 sm:mt-1.5 font-normal capitalize text-[#646464] wrap-break-word text-xs sm:text-sm md:text-sm lg:text-lg xl:text-xl">

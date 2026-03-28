@@ -6,15 +6,15 @@ import BestSellar from './components/BestSellar'
 import Collection from './components/Collection'
 import OurCategory from './components/OurCategory'
 import NewArrivals from './components/NewArrivals'
-import Couples from './components/Couples'
-import WearYour from './components/WearYour'
+// import Couples from './components/Couples'
+// import WearYour from './components/WearYour'
 import HomePageLoader from './components/HomePageLoader'
 import { sectionsService } from '../../services/content.service.js'
 
 // API webOrder 1,2,3... maps to these components. WearYour is static (not in API order).
 const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
-  2: Couples,
+  // 2: Couples,
   3: OurCategory,
   4: Collection,
   5: BestSellar,
@@ -70,26 +70,30 @@ function HomePage() {
           {error}
         </div>
       )}
-      {!loading && !error && [1, 2, 3, 4, 5, 6].map((order) => {
-        const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
-        const section = sectionsByOrder[order]
-        return (
-          <React.Fragment key={order}>
-            {order === 2 && <WearYour key="wear-your-static" />}
-            {SectionComponent ? <SectionComponent key={`section-${order}`} section={section} /> : null}
-          </React.Fragment>
-        )
-      })}
-      {!loading && !error && Object.keys(sectionsByOrder).length === 0 && (
-        <>
-          <NewArrivals />
-          <WearYour />
-          <Couples />
-          <OurCategory />
-          <Collection />
-          <BestSellar />
-          <OurProduct />
-        </>
+      {!loading && !error && (
+        <div className="pt-8 md:pt-12 lg:pt-16 space-y-8 md:space-y-12 lg:space-y-16">
+          {[1, 2, 3, 4, 5, 6].map((order) => {
+            const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
+            const section = sectionsByOrder[order]
+            return (
+              <React.Fragment key={order}>
+                {/* {order === 2 && <WearYour key="wear-your-static" />} */}
+                {SectionComponent ? <SectionComponent key={`section-${order}`} section={section} /> : null}
+              </React.Fragment>
+            )
+          })}
+          {Object.keys(sectionsByOrder).length === 0 && (
+            <>
+              <NewArrivals />
+              {/* <WearYour /> */}
+              {/* <Couples /> */}
+              <OurCategory />
+              <Collection />
+              <BestSellar />
+              <OurProduct />
+            </>
+          )}
+        </div>
       )}
     </div>
   )

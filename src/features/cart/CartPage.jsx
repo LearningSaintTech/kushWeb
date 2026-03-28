@@ -129,6 +129,14 @@ function CartPage() {
     }
   }, [])
 
+  const fetchAvailableCoupons = useCallback(async () => {
+    const res = await couponsService.getAvailable({ page: 1, limit: 50 })
+    const data = res?.data?.data ?? res?.data
+    const list = Array.isArray(data) ? data : (data?.data ?? [])
+    return Array.isArray(list) ? list : []
+  }, [])
+  const cartSubTotalForCoupon = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
+
   // On mount / auth: load addresses, then cart with addressId, then price summary
   useEffect(() => {
     if (!isAuthenticated) {
@@ -275,12 +283,9 @@ function CartPage() {
     setCouponModalOpen(true)
     setLoadingCoupons(true)
     setAvailableCoupons([])
-    couponsService
-      .getAvailable({ page: 1, limit: 50 })
+    fetchAvailableCoupons()
       .then((res) => {
-        const data = res?.data?.data ?? res?.data
-        const list = Array.isArray(data) ? data : (data?.data ?? [])
-        const normalCoupons = (Array.isArray(list) ? list : []).filter((c) => !c?.isInfluencer)
+        const normalCoupons = res.filter((c) => !c?.isInfluencer)
         setAvailableCoupons(normalCoupons)
       })
       .catch(() => setAvailableCoupons([]))
@@ -417,7 +422,132 @@ function CartPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           {/* Left column: Cart items */}
           <div className="lg:col-span-2">
-            <div className="overflow-x-auto">
+            <div className="md:hidden space-y-3">
+              {items.map((row) => {
+                const item = row.itemId
+                const name = item?.name ?? 'Product'
+                const shortDesc = item?.shortDescription ?? ''
+                const color = row.variant?.color ?? ''
+                const colorHex = row.variant?.hex ?? ''
+                const size = row.variant?.size ?? row.variant?.sizeLabel ?? ''
+                const imageUrl = row.variant?.imageUrl ?? ''
+                const sku = row.variant?.sku
+                const qty = row.quantity ?? 1
+                const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
+                const itemTotal = row.itemTotal ?? unitPrice * qty
+                const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
+                const productId = item?._id
+                const productPath = productId ? getProductPath(productId, name, shortDesc) : null
+
+                return (
+                  <div key={row._id ?? sku} className="border border-gray-200 p-3 bg-white">
+                    <div className="flex items-start gap-3">
+                      <div className="w-[72px] h-[96px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
+                        {productPath ? (
+                          <Link to={productPath} className="block w-full h-full">
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                            )}
+                          </Link>
+                        ) : imageUrl ? (
+                          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {productPath ? (
+                          <Link to={productPath} className="block hover:underline">
+                            <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                          </Link>
+                        ) : (
+                          <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                        )}
+                        {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case line-clamp-2">{shortDesc}</p>}
+                        {(color || size) && (
+                          <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
+                            {color && (
+                              <span className="inline-flex items-center gap-1.5">
+                                <span
+                                  className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
+                                  style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                  title={color}
+                                  aria-hidden
+                                />
+                                <span>{color}</span>
+                              </span>
+                            )}
+                            {color && size && <span className="text-gray-400">|</span>}
+                            {size && <span>Size: {size}</span>}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-md overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => handleDecreaseQty(sku)}
+                          className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
+                          aria-label="Decrease quantity"
+                        >
+                          −
+                        </button>
+                        <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">{qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleIncreaseQty(sku)}
+                          className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
+                          aria-label="Increase quantity"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <p className="text-sm font-semibold whitespace-nowrap">
+                        Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <select
+                        value={selectedDeliveryId ?? ''}
+                        onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
+                        className="flex-1 border border-gray-200 bg-gray-100 py-2 pl-3 pr-8 text-xs uppercase text-gray-800 rounded-md appearance-none cursor-pointer"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a5568'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }}
+                      >
+                        <option value="">Select delivery</option>
+                        {deliveryOptions.map((opt) => {
+                          const id = opt._id?.toString?.() ?? opt._id
+                          const fallback = opt.deliveryType === '90_MIN' ? '90 MIN' : opt.deliveryType === 'ONE_DAY' ? '1 DAY' : opt.deliveryType || 'Standard'
+                          const durationLabel = formatDeliveryDuration(opt.deliveryDuration, fallback)
+                          const charge = opt.deliveryCharge != null && opt.deliveryCharge > 0 ? ` — Rs ${Number(opt.deliveryCharge).toLocaleString('en-IN')}` : ' — Free'
+                          return (
+                            <option key={id} value={id}>
+                              {durationLabel}{charge}
+                            </option>
+                          )
+                        })}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(sku)}
+                        className="p-2 text-gray-500 hover:text-black transition-colors border border-gray-200 rounded-md"
+                        aria-label="Remove from cart"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
                 <thead>
                   <tr className="bg-gray-100">

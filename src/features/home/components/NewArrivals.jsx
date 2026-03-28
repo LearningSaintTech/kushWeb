@@ -94,12 +94,16 @@ function NewArrivals({ section }) {
   const sectionTitle = section?.title || 'NEW ARRIVALS'
   const exploreTo = section?._id ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}` : `${ROUTES.SEARCH}?itemsOnly=1`
 
-  const [activeSlide, setActiveSlide] = useState(0)
+  const [activeSlide, setActiveSlide] = useState(2)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const titleRefs = useRef({})
+  const [expandedTitles, setExpandedTitles] = useState({})
+  const [overflowTitles, setOverflowTitles] = useState({})
 
   const startX = useRef(0)
   const isDragging = useRef(false)
   const moved = useRef(false)
+  const didSetInitialSlideRef = useRef(false)
 
   const fetchSectionPage = useCallback(async (page) => {
     if (!section?._id) return
@@ -158,10 +162,28 @@ function NewArrivals({ section }) {
   }, [])
 
   useEffect(() => {
+    // First visit should center from index 2 when possible.
+    if (didSetInitialSlideRef.current || list.length === 0) return
+    setActiveSlide(Math.min(2, list.length - 1))
+    didSetInitialSlideRef.current = true
+  }, [list.length])
+
+  useEffect(() => {
     if (list.length > 0 && activeSlide >= list.length) {
       setActiveSlide(list.length - 1)
     }
   }, [list.length, activeSlide])
+
+  useEffect(() => {
+    const nextOverflow = {}
+    list.forEach((item, i) => {
+      const key = item.id ?? i
+      const el = titleRefs.current[key]
+      if (!el) return
+      nextOverflow[key] = el.scrollHeight > el.clientHeight + 1
+    })
+    setOverflowTitles(nextOverflow)
+  }, [list, expandedTitles, isMobile, activeSlide])
 
   const CARD_WIDTH = isMobile ? 260 : 320
   const CARD_HEIGHT = isMobile ? 380 : 500
@@ -356,7 +378,19 @@ function NewArrivals({ section }) {
 
                 <div className="absolute bottom-0 left-0 right-0 px-5 py-4 text-white flex flex-col gap-2">
                   <div className="flex justify-between items-start gap-2">
-                    <h3 className="uppercase tracking-widest text-sm md:text-base font-medium">
+                    <h3
+                      ref={(el) => {
+                        titleRefs.current[item.id ?? i] = el
+                      }}
+                      className="uppercase tracking-widest text-sm md:text-base font-medium"
+                      style={{
+                        display: expandedTitles[item.id ?? i] ? 'block' : '-webkit-box',
+                        WebkitLineClamp: expandedTitles[item.id ?? i] ? 'unset' : 2,
+                        WebkitBoxOrient: expandedTitles[item.id ?? i] ? 'unset' : 'vertical',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
                       {item.title}
                     </h3>
                     {item.rating != null && item.rating !== "" && Number(item.rating) > 0 && (
@@ -366,6 +400,19 @@ function NewArrivals({ section }) {
                       </span>
                     )}
                   </div>
+                  {overflowTitles[item.id ?? i] && !expandedTitles[item.id ?? i] && (
+                    <button
+                      type="button"
+                      className="self-start -mt-1 text-[11px] md:text-xs text-white/90 underline underline-offset-2"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setExpandedTitles((prev) => ({ ...prev, [item.id ?? i]: true }))
+                      }}
+                    >
+                      See more
+                    </button>
+                  )}
 
                   <div className="flex justify-between items-center gap-2 text-xs md:text-sm flex-wrap">
                     <div className="flex items-center gap-2 flex-nowrap min-w-0">
