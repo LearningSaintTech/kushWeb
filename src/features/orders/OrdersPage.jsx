@@ -47,6 +47,35 @@ function getPaymentModeLabel(oi) {
   return mode || '—'
 }
 
+/** Normalize API line status (e.g. Shiprocket "PICKED UP" → PICKED_UP) for comparisons */
+function normalizeLineStatus(raw) {
+  return String(raw ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+}
+
+/** Line-item statuses where we still show "Track order" (in transit, not yet delivered). */
+const TRACKABLE_LINE_STATUSES = new Set([
+  'CREATED',
+  'CONFIRMED',
+  'PROCESSING',
+  'SHIPPED',
+  'OUT_FOR_DELIVERY',
+  // Shiprocket / courier granular states (often on `status` while order is in transit)
+  'PICKED_UP',
+  'IN_TRANSIT',
+  'DISPATCHED',
+  'MANIFESTED',
+  'AWB_ASSIGNED',
+  'BOOKED',
+  'SHIPMENT_BOOKED',
+  'PENDING_PICKUP',
+  'PICKUP_SCHEDULED',
+  'REACHED_DESTINATION_HUB',
+  'OUT_FOR_PICKUP',
+])
+
 function OrdersPage() {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
@@ -130,13 +159,23 @@ function OrdersPage() {
 
   /** Map backend status to display label (lifecycle order) */
   const getStatusLabel = (status) => {
-    const s = (status ?? '').toUpperCase()
+    const s = normalizeLineStatus(status)
     const map = {
       CREATED: 'Order placed',
       CONFIRMED: 'Confirmed',
       PROCESSING: 'Processing',
       SHIPPED: 'Shipped',
       OUT_FOR_DELIVERY: 'Out for delivery',
+      PICKED_UP: 'Picked up',
+      IN_TRANSIT: 'In transit',
+      DISPATCHED: 'Dispatched',
+      MANIFESTED: 'Manifested',
+      AWB_ASSIGNED: 'AWB assigned',
+      BOOKED: 'Booked',
+      SHIPMENT_BOOKED: 'Shipment booked',
+      PENDING_PICKUP: 'Pending pickup',
+      PICKUP_SCHEDULED: 'Pickup scheduled',
+      REACHED_DESTINATION_HUB: 'Reached hub',
       DELIVERED: 'Delivered',
       EXCHANGE_DELIVERED: 'Exchange Delivered',
       EXCHANGE_REQUESTED: 'Exchange requested',
@@ -151,12 +190,13 @@ function OrdersPage() {
       EXCHANGE_OUT_FOR_DELIVERY: 'Out for delivery',
       EXCHANGE_COMPLETED: 'Exchanged',
       CANCELLED: 'Cancelled',
+      CANCELED: 'Cancelled',
     }
-    return map[s] || s || '—'
+    return map[s] || (s ? s.replace(/_/g, ' ') : '—')
   }
 
   const getStatusDisplay = (oi) => {
-    const status = (oi.status ?? oi.itemStatus ?? '').toUpperCase()
+    const status = normalizeLineStatus(oi.status ?? oi.itemStatus)
     const address = oi.address ?? {}
     const name = address?.name ?? '—'
     const fullAddress = address?.fullAddress ?? address?.addressLine ?? '—'
@@ -164,7 +204,7 @@ function OrdersPage() {
     const dateStr = formatStatusDate(deliveredAt || oi.orderCreatedAt)
     const statusLabel = getStatusLabel(status)
 
-    if (['CONFIRMED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(status)) {
+    if (TRACKABLE_LINE_STATUSES.has(status)) {
       return {
         type: 'track',
         label: 'TRACK ORDER',
@@ -183,7 +223,7 @@ function OrdersPage() {
     if (status === 'EXCHANGE_COMPLETED') {
       return { type: 'exchanged', label: 'EXCHANGED', statusLabel, dateStr, name, fullAddress }
     }
-    if (status === 'CANCELLED') {
+    if (status === 'CANCELLED' || status === 'CANCELED') {
       return { type: 'cancelled', label: 'CANCELLED', statusLabel, dateStr, name, fullAddress }
     }
     return { type: 'other', label: statusLabel, statusLabel, dateStr, name, fullAddress }
