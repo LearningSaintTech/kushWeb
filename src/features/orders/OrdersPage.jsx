@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
 import { ROUTES, getOrderTrackPath } from '../../utils/constants'
+
+const LOG = (...args) => {
+  if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
+}
 
 function formatPrice(num) {
   if (num == null || Number.isNaN(num)) return 'Rs. 0.00'
@@ -55,26 +59,74 @@ function OrdersPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    LOG('mount / deps', {
+      isAuthenticated,
+      pathname: location.pathname,
+      state: location.state,
+      orderSuccessFromState,
+      orderIdFromState,
+    })
+  }, [isAuthenticated, location.pathname, location.state, orderSuccessFromState, orderIdFromState])
+
+  useEffect(() => {
     if (!isAuthenticated) {
+      LOG('fetch skipped: not authenticated')
       setLoading(false)
       return
     }
     const params = { page: 1, limit: 20 }
+    LOG('getOrderItems request', params)
     orderService
       .getOrderItems(params)
       .then((res) => {
-        console.log("res",res)
+        LOG('getOrderItems raw response', res)
+        LOG('getOrderItems res.data', res?.data)
         const data = res?.data?.data ?? res?.data
+        LOG('getOrderItems parsed `data`', data)
         const items = data?.items ?? data ?? []
         const pag = data?.pagination ?? null
-        setOrderItems(Array.isArray(items) ? items : [])
+        LOG('getOrderItems items (before array check)', items, 'isArray:', Array.isArray(items))
+        const list = Array.isArray(items) ? items : []
+        LOG('getOrderItems order line count', list.length, 'pagination:', pag)
+        if (list.length > 0) {
+          list.forEach((oi, i) => {
+            LOG(`row[${i}] keys`, oi && typeof oi === 'object' ? Object.keys(oi) : oi)
+            LOG(`row[${i}] summary`, {
+              orderId: oi?.orderId,
+              itemId: oi?.itemId,
+              productItemId: oi?.productItemId,
+              status: oi?.status ?? oi?.itemStatus,
+              orderCreatedAt: oi?.orderCreatedAt,
+              itemKeys: oi?.item && typeof oi.item === 'object' ? Object.keys(oi.item) : null,
+              itemName: oi?.item?.name,
+              payment: oi?.payment,
+            })
+          })
+        }
+        setOrderItems(list)
         setPagination(pag)
       })
       .catch((err) => {
+        LOG('getOrderItems error', err)
+        LOG('getOrderItems error.response', err?.response)
+        LOG('getOrderItems error.response?.data', err?.response?.data)
+        LOG('getOrderItems error.response?.status', err?.response?.status)
         setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load orders')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        LOG('getOrderItems finished (loading false)')
+        setLoading(false)
+      })
   }, [isAuthenticated])
+
+  useEffect(() => {
+    LOG('state snapshot', {
+      loading,
+      error,
+      orderItemsLength: orderItems.length,
+      pagination,
+    })
+  }, [loading, error, orderItems, pagination])
 
   /** Map backend status to display label (lifecycle order) */
   const getStatusLabel = (status) => {
@@ -138,11 +190,41 @@ function OrdersPage() {
   }
 
   /** Latest orders first */
-  const sortedOrderItems = [...orderItems].sort((a, b) => {
-    const dateA = a.orderCreatedAt ? new Date(a.orderCreatedAt).getTime() : 0
-    const dateB = b.orderCreatedAt ? new Date(b.orderCreatedAt).getTime() : 0
-    return dateB - dateA
-  })
+  const sortedOrderItems = useMemo(
+    () =>
+      [...orderItems].sort((a, b) => {
+        const dateA = a.orderCreatedAt ? new Date(a.orderCreatedAt).getTime() : 0
+        const dateB = b.orderCreatedAt ? new Date(b.orderCreatedAt).getTime() : 0
+        return dateB - dateA
+      }),
+    [orderItems]
+  )
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !sortedOrderItems.length) return
+    const table = sortedOrderItems.map((oi, idx) => {
+      const item = oi.item ?? {}
+      const sd = getStatusDisplay(oi)
+      return {
+        idx,
+        orderId: oi.orderId,
+        itemId: oi.itemId,
+        productItemId: oi.productItemId,
+        rawStatus: oi.status ?? oi.itemStatus,
+        statusDisplay: sd,
+        trackPath: getOrderTrackPath(oi.orderId, oi.itemId),
+        name: item?.name,
+        quantity: item?.quantity,
+        imageUrl: item?.variant?.imageUrl,
+        priceFields: {
+          finalPayable: item?.finalPayable,
+          itemSubtotal: item?.itemSubtotal,
+          unitPrice: item?.unitPrice,
+        },
+      }
+    })
+    LOG('sorted rows (full debug table)', table)
+  }, [sortedOrderItems])
 
   if (!isAuthenticated) {
     return (
