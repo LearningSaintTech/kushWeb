@@ -157,7 +157,7 @@ function OrdersPage() {
     })
   }, [loading, error, orderItems, pagination])
 
-  /** Map backend status to display label (lifecycle order) */
+  /** Map backend status to displfay label (lifecycle order) */
   const getStatusLabel = (status) => {
     const s = normalizeLineStatus(status)
     const map = {
