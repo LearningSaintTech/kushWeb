@@ -16,7 +16,7 @@ import { useNotification } from "../../app/context/NotificationContext";
 import LocationPicker from "./LocationPicker";
 import ProfileModal from "./ProfileModal";
 
-import logoImg from "../../assets/images/navBar/Khush Logo.svg";
+import logoImg from "../../assets/images/navBar/khush-logo.svg";
 
 function ChevronDownIcon({ className }) {
   return (
