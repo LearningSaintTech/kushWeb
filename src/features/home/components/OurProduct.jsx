@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSelector } from "react-redux";
 import ProductCard from "../../../shared/components/ProductCard";
 import productImage from "../../../assets/temporary/productimage.png";
 import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
-import { IoChevronForward } from "react-icons/io5";
 import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
-import { getSearchPath } from "../../../utils/constants";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const CATEGORY_PRODUCT_LIMIT = 8;
+const FIRST_LOAD_MORE_DELAY_MS = 1500;
 
 const PRODUCTS_STATIC = Array.from({ length: 8 }, (_, i) => ({
   id: i + 1,
@@ -118,21 +116,15 @@ function OurProduct({ section }) {
     categoriesWithId[0]?.id ?? null,
   );
   const [categoryProducts, setCategoryProducts] = useState([]);
-  const [loadingCategory, setLoadingCategory] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const loadMoreRef = useRef(null);
+  const firstLoadDelayAppliedRef = useRef(false);
+  const firstLoadDelayTimerRef = useRef(null);
 
   const sectionTitle = section?.title || "OUR PRODUCTS";
-  const activeCategoryName =
-    categoriesWithId.find((c) => String(c.id ?? "") === String(activeCategoryId))
-      ?.raw?.name ?? null;
-  const exploreTo = section?._id
-    ? activeCategoryId
-      ? getSearchPath({
-          sectionId: section._id,
-          categoryId: activeCategoryId,
-          categoryName: activeCategoryName,
-        })
-      : getSearchPath({ sectionId: section._id })
-    : "/search";
 
   const listFromSection =
     section?.products
@@ -143,25 +135,34 @@ function OurProduct({ section }) {
       })) ?? [];
 
   const fetchByCategory = useCallback(
-    async (categoryId) => {
+    async (categoryId, page = 1) => {
       if (!categoryId) {
         setCategoryProducts([]);
+        setCurrentPage(1);
+        setHasMore(false);
         return;
       }
-      setLoadingCategory(true);
+      if (page === 1) setLoadingInitial(true);
+      else setLoadingMore(true);
+
       try {
-        const params = { categoryId, limit: CATEGORY_PRODUCT_LIMIT, page: 1 };
+        const params = { categoryId, limit: CATEGORY_PRODUCT_LIMIT, page };
         if (pincode) params.pinCode = String(pincode);
         const res = await itemsService.search(params);
         const data = res?.data?.data ?? res?.data;
         const items = (data?.items ?? []).map((item, i) =>
-          itemToCardProps(item, i),
+          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i),
         );
-        setCategoryProducts(items);
+
+        setCategoryProducts((prev) => (page === 1 ? items : [...prev, ...items]));
+        setCurrentPage(page);
+        setHasMore(items.length === CATEGORY_PRODUCT_LIMIT);
       } catch {
-        setCategoryProducts([]);
+        if (page === 1) setCategoryProducts([]);
+        setHasMore(false);
       } finally {
-        setLoadingCategory(false);
+        if (page === 1) setLoadingInitial(false);
+        else setLoadingMore(false);
       }
     },
     [pincode],
@@ -176,14 +177,84 @@ function OurProduct({ section }) {
   useEffect(() => {
     if (listFromSection.length > 0) {
       setCategoryProducts([]);
+      setCurrentPage(1);
+      setHasMore(false);
+      firstLoadDelayAppliedRef.current = false;
+      if (firstLoadDelayTimerRef.current) {
+        clearTimeout(firstLoadDelayTimerRef.current);
+        firstLoadDelayTimerRef.current = null;
+      }
       return;
     }
     if (activeCategoryId) {
-      fetchByCategory(activeCategoryId);
+      setCurrentPage(1);
+      setHasMore(true);
+      firstLoadDelayAppliedRef.current = false;
+      if (firstLoadDelayTimerRef.current) {
+        clearTimeout(firstLoadDelayTimerRef.current);
+        firstLoadDelayTimerRef.current = null;
+      }
+      fetchByCategory(activeCategoryId, 1);
     } else {
       setCategoryProducts([]);
+      setCurrentPage(1);
+      setHasMore(false);
+      firstLoadDelayAppliedRef.current = false;
+      if (firstLoadDelayTimerRef.current) {
+        clearTimeout(firstLoadDelayTimerRef.current);
+        firstLoadDelayTimerRef.current = null;
+      }
     }
   }, [activeCategoryId, listFromSection.length, fetchByCategory]);
+
+  useEffect(() => {
+    if (listFromSection.length > 0 || !activeCategoryId) return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (
+          first.isIntersecting &&
+          hasMore &&
+          !loadingInitial &&
+          !loadingMore
+        ) {
+          const nextPage = currentPage + 1;
+          if (nextPage === 2 && !firstLoadDelayAppliedRef.current) {
+            firstLoadDelayAppliedRef.current = true;
+            if (!firstLoadDelayTimerRef.current) {
+              firstLoadDelayTimerRef.current = setTimeout(() => {
+                firstLoadDelayTimerRef.current = null;
+                fetchByCategory(activeCategoryId, nextPage);
+              }, FIRST_LOAD_MORE_DELAY_MS);
+            }
+            return;
+          }
+          fetchByCategory(activeCategoryId, nextPage);
+        }
+      },
+      { root: null, rootMargin: "120px", threshold: 0.1 },
+    );
+
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (firstLoadDelayTimerRef.current) {
+        clearTimeout(firstLoadDelayTimerRef.current);
+        firstLoadDelayTimerRef.current = null;
+      }
+    };
+  }, [
+    activeCategoryId,
+    currentPage,
+    hasMore,
+    loadingInitial,
+    loadingMore,
+    fetchByCategory,
+    listFromSection.length,
+  ]);
 
   const productsToShow =
     listFromSection.length > 0
@@ -217,7 +288,7 @@ function OurProduct({ section }) {
                   onClick={() => handleTabClick(cat)}
                   className={`uppercase text-xs sm:text-sm tracking-widest pb-2 transition-all whitespace-nowrap cursor-pointer ${
                     activeCategoryId === cat.id
-                      ? "text-black border-b-1 border-black"
+                      ? "text-black border-b border-black"
                       : "text-gray-400 hover:text-black"
                   }`}
                 >
@@ -227,26 +298,16 @@ function OurProduct({ section }) {
             </div>
           </div>
 
-          {/* EXPLORE MORE — single line */}
-          <div className="flex justify-center lg:justify-end lg:shrink-0 mr-[10vw]">
-            <Link
-              to={exploreTo}
-              className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity whitespace-nowrap cursor-pointer"
-            >
-              <span>Explore More</span>
-              <IoChevronForward className="shrink-0" />
-            </Link>
-          </div>
         </div>
 
         {/* ================= PRODUCT GRID (1 card on mobile) ================= */}
-        {loadingCategory && (
+        {loadingInitial && (
           <div className="text-center py-8 text-gray-500 text-sm">
             Loading...
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-6">
-          {!loadingCategory &&
+          {!loadingInitial &&
             productsToShow.map((product, idx) => (
               <ProductCard
                 key={product.id ?? idx}
@@ -255,17 +316,14 @@ function OurProduct({ section }) {
               />
             ))}
         </div>
-
-        {/* EXPLORE MORE — below grid */}
-        <div className="flex justify-center mt-10 sm:mt-12">
-          <Link
-            to={exploreTo}
-            className="font-inter inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 hover:opacity-70 transition-opacity cursor-pointer"
-          >
-            <span>Explore More</span>
-            <IoChevronForward />
-          </Link>
-        </div>
+        {listFromSection.length === 0 && activeCategoryId && hasMore && (
+          <div ref={loadMoreRef} className="h-2 w-full" />
+        )}
+        {listFromSection.length === 0 && loadingMore && (
+          <div className="text-center py-6 text-gray-500 text-sm">
+            Loading more products...
+          </div>
+        )}
       </div>
     </section>
   );

@@ -221,6 +221,10 @@ export default function Header() {
   const effectiveActiveCategory =
     activeMobileCategory ??
     (firstCategoryId && !menuLoading ? firstCategoryId : null);
+  const activeCategoryNameForMenu =
+    navbarCategories.find(
+      (c) => (c._id ?? c.id) === effectiveActiveCategory,
+    )?.name ?? "";
 
   const closeMenu = () => setMenuOpen(false);
   const closeSearchModal = () => setSearchModalOpen(false);
@@ -410,27 +414,13 @@ export default function Header() {
           useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
-        {/* Mobile/Tablet Layout - Line 1: Logo; Line 2: Hamburger + Location + Search + Profile in a row */}
-        <div className="md:hidden flex flex-col gap-3">
-          {/* Line 1: Logo first */}
-          <div className="flex justify-center">
-            <NavLink
-              to={ROUTES.HOME}
-              className="cursor-pointer flex items-center justify-center"
-            >
-              <img
-                src={logoImg}
-                alt="KHUSH"
-                className={`h-12 sm:h-14 md:h-16 lg:h-20 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
-              />
-            </NavLink>
-          </div>
-          {/* Line 2: Everything else in a row */}
-          <div className="flex items-center gap-2">
+        {/* Mobile: row 1 — hamburger, logo, notification, profile; row 2 — location, search */}
+        <div className="md:hidden flex flex-col gap-2.5">
+          <div className="relative flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+              className={`relative z-10 cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                 useWhiteStyle
                   ? "text-black hover:bg-gray-100"
                   : "text-white hover:bg-white/10"
@@ -443,12 +433,72 @@ export default function Header() {
                 open={false}
               />
             </button>
-
+            <NavLink
+              to={ROUTES.HOME}
+              className="pointer-events-auto absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 cursor-pointer flex max-w-[calc(100%-8.5rem)] items-center justify-center"
+            >
+              <img
+                src={logoImg}
+                alt="KHUSH"
+                className={`h-11 w-auto max-h-10 max-w-full object-contain sm:h-12 sm:max-h-11 ${useWhiteStyle ? "" : "brightness-0 invert"}`}
+              />
+            </NavLink>
+            <div className="relative z-10 flex shrink-0 items-center justify-end gap-0.5">
+              {isAuthenticated ? (
+                <NavLink
+                  to={ROUTES.NOTIFICATIONS}
+                  className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg relative ${
+                    useWhiteStyle
+                      ? "text-black hover:opacity-70"
+                      : "text-white hover:opacity-70"
+                  }`}
+                  aria-label="Notifications"
+                >
+                  <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
+                    <NotificationIcon
+                      className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    />
+                  </IconBadge>
+                </NavLink>
+              ) : null}
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={() => setProfileModalOpen(true)}
+                  className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                    useWhiteStyle
+                      ? "text-black hover:opacity-70"
+                      : "text-white hover:opacity-70"
+                  }`}
+                  aria-label="Account"
+                >
+                  <ProfileIcon
+                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                  />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.ACCOUNT)}
+                  className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                    useWhiteStyle
+                      ? "text-black hover:opacity-70"
+                      : "text-white hover:opacity-70"
+                  }`}
+                  aria-label="Account – sign in"
+                >
+                  <ProfileIcon
+                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                  />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
             <LocationPicker
               scrolled={useWhiteStyle}
-              className="flex flex-1 min-w-0"
+              className="flex min-w-0 flex-1"
             />
-
             <button
               type="button"
               onClick={openSearchModal}
@@ -463,56 +513,6 @@ export default function Header() {
                 className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
               />
             </button>
-
-            {isAuthenticated ? (
-              <NavLink
-                to={ROUTES.NOTIFICATIONS}
-                className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg relative ${
-                  useWhiteStyle
-                    ? "text-black hover:opacity-70"
-                    : "text-white hover:opacity-70"
-                }`}
-                aria-label="Notifications"
-              >
-                <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
-                  <NotificationIcon
-                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  />
-                </IconBadge>
-              </NavLink>
-            ) : null}
-
-            {isAuthenticated ? (
-              <button
-                type="button"
-                onClick={() => setProfileModalOpen(true)}
-                className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                  useWhiteStyle
-                    ? "text-black hover:opacity-70"
-                    : "text-white hover:opacity-70"
-                }`}
-                aria-label="Account"
-              >
-                <ProfileIcon
-                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                  useWhiteStyle
-                    ? "text-black hover:opacity-70"
-                    : "text-white hover:opacity-70"
-                }`}
-                aria-label="Account – sign in"
-              >
-                <ProfileIcon
-                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                />
-              </button>
-            )}
           </div>
         </div>
 
@@ -987,10 +987,7 @@ export default function Header() {
                               to={getSearchUrl({
                                 categoryId: effectiveActiveCategory,
                                 subcategoryId: subId,
-                                categoryName: navbarCategories.find(
-                                  (c) =>
-                                    (c._id ?? c.id) === effectiveActiveCategory,
-                                )?.name,
+                                categoryName: activeCategoryNameForMenu,
                                 subcategoryName: subName,
                               })}
                               onClick={closeMenu}
@@ -1002,29 +999,21 @@ export default function Header() {
                         );
                       })}
 
-                      {(
-                        subcategoriesByCategoryId[effectiveActiveCategory] ?? []
-                      ).length === 0 && (
-                        <li className="px-4 py-6">
-                          <NavLink
-                            to={getSearchUrl({
-                              categoryId: effectiveActiveCategory,
-                              categoryName: navbarCategories.find(
-                                (c) =>
-                                  (c._id ?? c.id) === effectiveActiveCategory,
-                              )?.name,
-                            })}
-                            onClick={closeMenu}
-                            className="cursor-pointer font-inter text-sm text-gray-600 hover:text-black"
-                          >
-                            View all in{" "}
-                            {navbarCategories.find(
-                              (c) =>
-                                (c._id ?? c.id) === effectiveActiveCategory,
-                            )?.name ?? "this category"}
-                          </NavLink>
-                        </li>
-                      )}
+                      <li className="border-t border-gray-200 mt-1">
+                        <NavLink
+                          to={getSearchUrl({
+                            categoryId: effectiveActiveCategory,
+                            categoryName: activeCategoryNameForMenu || undefined,
+                          })}
+                          onClick={closeMenu}
+                          className="cursor-pointer font-inter flex items-center w-full text-left py-4 px-4 text-black text-sm md:text-base font-semibold uppercase tracking-wide hover:bg-gray-50 transition-colors"
+                        >
+                          View all
+                          {activeCategoryNameForMenu
+                            ? ` in ${activeCategoryNameForMenu}`
+                            : ""}
+                        </NavLink>
+                      </li>
                     </ul>
                   )
                 ) : (

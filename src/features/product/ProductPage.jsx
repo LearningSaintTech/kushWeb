@@ -4,7 +4,6 @@ import { useSelector } from "react-redux";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { FaTag } from "react-icons/fa6";
 import { RiFileList2Line, RiRefreshLine, RiTruckLine } from "react-icons/ri";
-import { HeartIcon } from "../../shared/ui/icons";
 import { itemsService } from "../../services/items.service.js";
 import { deliveryService } from "../../services/delivery.service.js";
 import { useAuth } from "../../app/context/AuthContext";
@@ -29,9 +28,15 @@ function ProductPage() {
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [expandedSection, setExpandedSection] = useState("");
+  const [shortDescExpanded, setShortDescExpanded] = useState(false);
+  const [longDescExpanded, setLongDescExpanded] = useState(false);
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
   );
+
+  /** Chars above this show See more (lower so narrow / phone layouts get toggle sooner) */
+  const SHORT_DESC_COLLAPSE_THRESHOLD = 100;
+  const LONG_DESC_COLLAPSE_THRESHOLD = 260;
 
   // Fetch delivery options by pincode for dropdown
   useEffect(() => {
@@ -91,6 +96,8 @@ function ProductPage() {
         }
         setItemData({ item, deliveries: data?.deliveries ?? [] });
         setSelectedImageIndex(0);
+        setShortDescExpanded(false);
+        setLongDescExpanded(false);
         // Auto-select first available color and size so Buy Now / Add to Cart are enabled on first visit
         if (item?.variants?.length) {
           let firstAvailableColor = null;
@@ -349,10 +356,16 @@ function ProductPage() {
     setExpandedSection((prev) => (prev === key ? null : key));
   };
 
+  const shortDescText = (item?.shortDescription ?? "").trim();
+  const shortDescNeedsMore =
+    shortDescText.length > SHORT_DESC_COLLAPSE_THRESHOLD;
+  const longDescText = (item?.longDescription ?? "").trim();
+  const longDescNeedsMore = longDescText.length > LONG_DESC_COLLAPSE_THRESHOLD;
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 pt-20 pb-10 font-inter sm:pt-24 sm:pb-12 md:pt-28 md:pb-14 lg:pt-32 lg:pb-16">
-        <div className="px-4 sm:px-6 md:px-8 lg:px-[6vw] max-w-[1600px] mx-auto flex items-center justify-center py-16 sm:py-20">
+      <div className="min-h-dvh bg-gray-100 pt-24 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] font-inter sm:pt-28 sm:pb-[max(3rem,env(safe-area-inset-bottom,0px))] md:pt-32 md:pb-[max(3.5rem,env(safe-area-inset-bottom,0px))] lg:pt-36 lg:pb-[max(4rem,env(safe-area-inset-bottom,0px))]">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-center px-4 py-16 sm:px-6 sm:py-20 md:px-8 lg:px-[6vw]">
           <p className="text-sm sm:text-base text-gray-500">Loading product…</p>
         </div>
       </div>
@@ -361,9 +374,9 @@ function ProductPage() {
 
   if (error || !item) {
     return (
-      <div className="min-h-screen bg-gray-100 pt-20 pb-10 font-inter sm:pt-24 sm:pb-12 md:pt-28 md:pb-14 lg:pt-32 lg:pb-16">
-        <div className="px-4 sm:px-6 md:px-8 lg:px-[6vw] max-w-[1600px] mx-auto flex flex-col items-center justify-center py-16 sm:py-20">
-          <p className="text-sm sm:text-base text-gray-600 text-center px-4">
+      <div className="min-h-dvh bg-gray-100 pt-24 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] font-inter sm:pt-28 sm:pb-[max(3rem,env(safe-area-inset-bottom,0px))] md:pt-32 md:pb-[max(3.5rem,env(safe-area-inset-bottom,0px))] lg:pt-36 lg:pb-[max(4rem,env(safe-area-inset-bottom,0px))]">
+        <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-center px-4 py-16 sm:px-6 sm:py-20 md:px-8 lg:px-[6vw]">
+          <p className="px-4 text-center text-sm text-gray-600 sm:text-base">
             {error || "Product not found"}
           </p>
         </div>
@@ -372,17 +385,18 @@ function ProductPage() {
   }
 
   return (
-    <div className="min-h-screen mt-5 bg-gray-100 pt-20 pb-10 font-inter sm:pt-24 sm:pb-12 md:pt-28 md:pb-14 lg:pt-32 lg:pb-16">
-      <div className="px-4 sm:px-6 md:px-8 lg:px-[6vw] ">
+    <div className="mt-8 min-h-dvh bg-gray-100 pt-24 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] font-inter sm:pt-28 sm:pb-[max(3rem,env(safe-area-inset-bottom,0px))] md:pt-32 md:pb-[max(3.5rem,env(safe-area-inset-bottom,0px))] lg:pt-36 lg:pb-[max(4rem,env(safe-area-inset-bottom,0px))]">
+      <div className="px-4 sm:px-6 md:px-8 lg:px-[6vw]">
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8  lg:gap-6  xl:gap-8">
           {/* LEFT SIDE - Gallery */}
           <div className="w-full min-w-0 max-w-full overflow-hidden">
-            <div className="w-full max-w-full bg-white overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
-              <div className="aspect-square w-full max-w-full sm:aspect-square lg:max-h-[620px] lg:aspect-square">
+            <div className="w-full max-w-full bg-gray-100 overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
+              <div className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 sm:aspect-square lg:max-h-[620px] lg:aspect-square">
                 <img
                   src={mainImage}
                   alt={item.name}
-                  className="h-full w-full max-w-full object-cover object-center"
+                  className="absolute inset-0 h-full w-full object-contain object-center"
+                  decoding="async"
                 />
               </div>
             </div>
@@ -393,12 +407,13 @@ function ProductPage() {
                   key={idx}
                   type="button"
                   onClick={() => setSelectedImageIndex(idx)}
-                  className={`h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-white sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${selectedImageIndex === idx ? "border-black" : "border-transparent"}`}
+                  className={`relative h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-gray-100 sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${selectedImageIndex === idx ? "border-black" : "border-transparent"}`}
                 >
                   <img
                     src={url}
                     alt=""
-                    className="h-full w-full max-w-full max-h-full object-cover object-center"
+                    className="absolute inset-0 h-full w-full object-contain object-center"
+                    decoding="async"
                   />
                 </button>
               ))}
@@ -406,15 +421,32 @@ function ProductPage() {
           </div>
 
           {/* RIGHT SIDE - Details (compact 768–1024px) */}
-          <div className="bg-[#f5f5f5] px-0 sm:px-4 md:px-4 lg:px-10 xl:px-10 font-inter min-w-0 flex flex-col">
+          <div className="bg-gray-100 px-0 sm:px-4 md:px-4 lg:px-10 xl:px-10 font-inter min-w-0 flex flex-col">
             <div className="flex justify-between items-start gap-2 sm:gap-3 md:gap-3 lg:gap-4">
               <div className="min-w-0 flex-1">
                 <h1 className="text-base font-medium font-inter uppercase  text-black sm:text-lg sm:tracking-[4px] md:text-lg md:tracking-[4px] lg:text-2xl lg:tracking-[5px] xl:text-2xl xl:tracking-[4px] wrap-break-word">
                   {item.name}
                 </h1>
-                <p className="font-inter mt-1 sm:mt-1.5 font-normal capitalize text-[#646464] wrap-break-word text-xs sm:text-sm md:text-sm lg:text-lg xl:text-xl">
-                  {item.shortDescription || ""}
-                </p>
+                <div className="mt-1 sm:mt-1.5 min-w-0">
+                  <p
+                    className={`font-inter font-normal capitalize text-[#646464] wrap-break-word text-xs sm:text-sm md:text-sm lg:text-lg xl:text-xl ${
+                      shortDescNeedsMore && !shortDescExpanded
+                        ? "product-desc-clamp-short"
+                        : ""
+                    }`}
+                  >
+                    {shortDescText}
+                  </p>
+                  {shortDescNeedsMore && (
+                    <button
+                      type="button"
+                      onClick={() => setShortDescExpanded((v) => !v)}
+                      className="mt-1 flex min-h-11 w-full max-w-full touch-manipulation items-center text-left text-xs font-medium uppercase tracking-wide text-black underline decoration-black/40 underline-offset-2 active:bg-black/5 sm:mt-1.5 sm:min-h-0 sm:w-auto sm:text-sm sm:active:bg-transparent hover:decoration-black"
+                    >
+                      {shortDescExpanded ? "See less" : "See more"}
+                    </button>
+                  )}
+                </div>
                 <div className="mt-1.5 sm:mt-2 flex items-center justify-between flex-wrap gap-2">
                   {/* LEFT : PRICE */}
                   <div className="flex items-center gap-2 flex-wrap">
@@ -448,9 +480,21 @@ function ProductPage() {
                   inWishlist ? "Remove from wishlist" : "Add to wishlist"
                 }
               >
-                <HeartIcon
-                  className={`h-5 w-5 sm:h-6 sm:w-6 md:h-6 md:w-6 lg:h-7 lg:w-7 ${inWishlist ? "fill-black text-black" : "text-black"}`}
-                />
+                {/* Same heart as ProductCard: outline when off, filled when in wishlist */}
+                <svg
+                  className={`h-5 w-5 sm:h-6 sm:w-6 md:h-6 md:w-6 lg:h-7 lg:w-7 ${inWishlist ? "text-black fill-black" : "text-gray-700"}`}
+                  fill={inWishlist ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  />
+                </svg>
               </button>
             </div>
 
@@ -585,9 +629,24 @@ function ProductPage() {
               >
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 sm:pb-4 md:pb-3 pt-0 lg:pb-4">
-                    <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-700 wrap-break-word">
-                      {item.longDescription || ""}
+                    <p
+                      className={`text-xs sm:text-sm md:text-sm lg:text-base text-gray-700 wrap-break-word ${
+                        longDescNeedsMore && !longDescExpanded
+                          ? "product-desc-clamp-long whitespace-normal"
+                          : "whitespace-pre-wrap"
+                      }`}
+                    >
+                      {longDescText}
                     </p>
+                    {longDescNeedsMore && (
+                      <button
+                        type="button"
+                        onClick={() => setLongDescExpanded((v) => !v)}
+                        className="mt-2 flex min-h-11 w-full max-w-full touch-manipulation items-center text-left text-xs font-medium uppercase tracking-wide text-black underline decoration-black/40 underline-offset-2 active:bg-black/5 sm:min-h-0 sm:w-auto sm:text-sm sm:active:bg-transparent hover:decoration-black"
+                      >
+                        {longDescExpanded ? "See less" : "See more"}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

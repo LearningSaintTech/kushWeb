@@ -10,6 +10,9 @@ import { orderService } from '../../services/order.service.js'
 import { paymentService } from '../../services/payment.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
 
+/** Delivery is India-only; API still expects countryCode. */
+const INDIA_PHONE_CODE = '+91'
+
 const POLL_INTERVAL_MS = 2500
 const POLL_MAX_ATTEMPTS = 40
 
@@ -77,6 +80,20 @@ function isCouponApplicable(coupon, cartSubTotal) {
   return true
 }
 
+function isCouponAppliedInSummary(summaryData, expectedCode) {
+  if (!summaryData) return false
+  const summary = summaryData?.cartSummary?.summary ?? summaryData?.summary ?? summaryData ?? {}
+  const summaryCouponCode = String(summary?.coupon?.code ?? '').trim().toUpperCase()
+  const normalizedExpectedCode = String(expectedCode ?? '').trim().toUpperCase()
+  const summaryDiscount = Number(summary?.coupon?.discountAmount ?? 0)
+  const inferredDiscount = Math.max(
+    0,
+    Number(summary?.subTotal ?? 0) - Number(summary?.subTotalAfterDiscount ?? summary?.subTotal ?? 0),
+  )
+  if (normalizedExpectedCode && summaryCouponCode === normalizedExpectedCode) return true
+  return summaryDiscount > 0 || inferredDiscount > 0
+}
+
 function CheckoutPage() {
   const location = useLocation();
   const { isAuthenticated } = useAuth()
@@ -95,7 +112,11 @@ function CheckoutPage() {
   const [appliedCouponCode, setAppliedCouponCode] = useState(couponCodeFromCart)
   const [couponModalOpen, setCouponModalOpen] = useState(false)
   const [availableCoupons, setAvailableCoupons] = useState([])
+  const [appliedCouponMeta, setAppliedCouponMeta] = useState(null)
   const [loadingCoupons, setLoadingCoupons] = useState(false)
+  const [autoCouponReconciling, setAutoCouponReconciling] = useState(false)
+  const [autoIncludedCouponCode, setAutoIncludedCouponCode] = useState(null)
+  const [autoCouponDismissed, setAutoCouponDismissed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [couponError, setCouponError] = useState(null)
@@ -105,7 +126,6 @@ function CheckoutPage() {
   const [addressForm, setAddressForm] = useState({
     name: '',
     phoneNumber: '',
-    countryCode: '+91',
     addressLine: '',
     city: '',
     state: '',
@@ -123,6 +143,8 @@ function CheckoutPage() {
 
   const paymentSuccessHandledRef = useRef(false)
   const pollingIntervalRef = useRef(null)
+  const priceSummaryRequestRef = useRef(0)
+  const autoCouponReconcileAttemptedRef = useRef(false)
 
   const navigate = useNavigate()
   const addressId = selectedAddress?._id
@@ -154,6 +176,7 @@ function CheckoutPage() {
   }, [addressId, pincode])
 
   const fetchPriceSummary = useCallback(async (couponCode = null, paymentModeParam = paymentMode) => {
+    const requestId = ++priceSummaryRequestRef.current
     try {
       const params = {}
       if (couponCode) params.couponCode = couponCode
@@ -162,17 +185,35 @@ function CheckoutPage() {
       const res = await cartService.getPriceSummary(params)
       console.log('[Checkout] RES cartService.getPriceSummary:', res?.data)
       const data = res?.data?.data ?? res?.data
+      if (requestId !== priceSummaryRequestRef.current) {
+        console.log('[Checkout] IGNORE stale getPriceSummary success response', { requestId, latest: priceSummaryRequestRef.current })
+        return data
+      }
       setPriceSummary(data?.cartSummary ?? data)
       setCouponError(null)
       return data
     } catch (err) {
       console.log('[Checkout] ERR cartService.getPriceSummary:', err?.response?.data ?? err?.message)
+      if (requestId !== priceSummaryRequestRef.current) {
+        console.log('[Checkout] IGNORE stale getPriceSummary error response', { requestId, latest: priceSummaryRequestRef.current })
+        return null
+      }
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to get price summary'
       setCouponError(msg)
       setPriceSummary(null)
       return null
     }
   }, [paymentMode])
+
+  const fetchAvailableCoupons = useCallback(async () => {
+    const req = { page: 1, limit: 50 }
+    console.log('[Checkout] REQ couponsService.getAvailable:', req)
+    const res = await couponsService.getAvailable(req)
+    console.log('[Checkout] RES couponsService.getAvailable:', res?.data)
+    const data = res?.data?.data ?? res?.data
+    const list = Array.isArray(data) ? data : (data?.data ?? [])
+    return Array.isArray(list) ? list : []
+  }, [])
 
   useEffect(() => {
     console.log('[Checkout] init effect', { isAuthenticated })
@@ -274,6 +315,70 @@ function CheckoutPage() {
     fetchPriceSummary(appliedCouponCode || null, paymentMode)
   }, [cartData?.items?.length, appliedCouponCode, isAuthenticated, paymentMode])
 
+  const cartSubTotalForCoupon = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
+
+  useEffect(() => {
+    if (!isAuthenticated || !cartData?.items?.length) return
+    if (appliedCouponCode || autoCouponDismissed || paymentMode === 'COD') return
+    console.log('[Checkout][AutoCoupon] checking auto-included coupon', {
+      paymentMode,
+      cartSubTotalForCoupon,
+      appliedCouponCode,
+      autoCouponDismissed,
+    })
+    fetchAvailableCoupons()
+      .then((coupons) => {
+        console.log('[Checkout][AutoCoupon] available coupons count (raw):', coupons?.length ?? 0)
+        const autoCoupon = coupons.find(
+          (c) => c?.isAutoIncluded === true && isCouponApplicable(c, cartSubTotalForCoupon),
+        )
+        console.log('[Checkout][AutoCoupon] selected auto coupon:', autoCoupon?.code ?? null)
+        if (!autoCoupon?.code) return
+        const code = String(autoCoupon.code).trim()
+        if (!code) return
+        console.log('[Checkout][AutoCoupon] applying coupon:', code)
+        setAutoIncludedCouponCode(code)
+        setCouponInput(code)
+        setCouponError(null)
+        setAutoCouponReconciling(true)
+        fetchPriceSummary(code, paymentMode)
+          .then(() => fetchCart())
+          .then(() => fetchPriceSummary(code, paymentMode))
+          .then((latestSummaryData) => {
+            if (isCouponAppliedInSummary(latestSummaryData, code)) {
+              setAppliedCouponCode(code)
+              setCouponError(null)
+              return
+            }
+            // Avoid showing "applied" UI if backend did not apply it.
+            setAppliedCouponCode(null)
+            setAppliedCouponMeta(null)
+            setCouponInput('')
+            setAutoCouponDismissed(true)
+          })
+          .catch(() => {
+            setAppliedCouponCode(null)
+            setAppliedCouponMeta(null)
+            setCouponInput('')
+            setAutoCouponDismissed(true)
+          })
+          .finally(() => {
+            setAutoCouponReconciling(false)
+          })
+      })
+      .catch(() => {})
+  }, [
+    isAuthenticated,
+    cartData?.items?.length,
+    appliedCouponCode,
+    autoCouponDismissed,
+    paymentMode,
+    cartSubTotalForCoupon,
+    fetchAvailableCoupons,
+    fetchCart,
+    fetchPriceSummary,
+  ])
+
   // Preload Razorpay script when user selects Online payment
   useEffect(() => {
     if (paymentMode === 'RAZORPAY') {
@@ -296,32 +401,55 @@ function CheckoutPage() {
   const handleApplyCoupon = () => {
     const code = couponInput?.trim()
     if (!code) return
+    if (autoIncludedCouponCode && code.toUpperCase() !== autoIncludedCouponCode.toUpperCase()) {
+      setAutoCouponDismissed(true)
+    }
     setAppliedCouponCode(code)
+    setAppliedCouponMeta(null)
     setCouponError(null)
     fetchPriceSummary(code, paymentMode)
+      .then(() => fetchCart())
+      .then(() => fetchPriceSummary(code, paymentMode))
+      .catch(() => {})
   }
 
   const handleRemoveCoupon = () => {
+    console.log('[Checkout][Coupon] remove clicked', {
+      appliedCouponCode,
+      autoIncludedCouponCode,
+    })
+    if (
+      appliedCouponCode &&
+      autoIncludedCouponCode &&
+      String(appliedCouponCode).toUpperCase() === String(autoIncludedCouponCode).toUpperCase()
+    ) {
+      console.log('[Checkout][AutoCoupon] user dismissed auto-included coupon')
+      setAutoCouponDismissed(true)
+    }
     setAppliedCouponCode(null)
+    setAppliedCouponMeta(null)
     setCouponInput('')
     setCouponError(null)
     fetchPriceSummary(null, paymentMode)
+      .then(() => fetchCart())
+      .then(() => fetchPriceSummary(null, paymentMode))
+      .catch(() => {})
   }
 
   const openCouponModal = () => {
     setCouponModalOpen(true)
     setLoadingCoupons(true)
     setAvailableCoupons([])
-    const req = { page: 1, limit: 50 }
-    console.log('[Checkout] REQ couponsService.getAvailable:', req)
-    couponsService
-      .getAvailable(req)
-      .then((res) => {
-        console.log('[Checkout] RES couponsService.getAvailable:', res?.data)
-        const data = res?.data?.data ?? res?.data
-        const list = Array.isArray(data) ? data : (data?.data ?? [])
-        const normalCoupons = (Array.isArray(list) ? list : []).filter((c) => !c?.isInfluencer)
+    fetchAvailableCoupons()
+      .then((list) => {
+        const normalCoupons = list.filter((c) => {
+          if (c?.isInfluencer) return false
+          if (paymentMode === 'COD' && c?.isAutoIncluded === true) return false
+          return true
+        })
         setAvailableCoupons(normalCoupons)
+        const autoCoupon = list.find((c) => c?.isAutoIncluded === true && c?.code)
+        setAutoIncludedCouponCode(autoCoupon?.code ?? null)
       })
       .catch(() => setAvailableCoupons([]))
       .finally(() => setLoadingCoupons(false))
@@ -329,12 +457,36 @@ function CheckoutPage() {
 
   const handleApplyCouponFromModal = (code) => {
     if (!code) return
+    if (autoIncludedCouponCode && code.toUpperCase() !== autoIncludedCouponCode.toUpperCase()) {
+      setAutoCouponDismissed(true)
+    }
     setCouponInput(code)
     setAppliedCouponCode(code)
+    const selected = availableCoupons.find(
+      (c) => String(c?.code ?? '').toUpperCase() === String(code).toUpperCase(),
+    )
+    setAppliedCouponMeta(selected ?? null)
     setCouponError(null)
     fetchPriceSummary(code, paymentMode)
+      .then(() => fetchCart())
+      .then(() => fetchPriceSummary(code, paymentMode))
+      .catch(() => {})
     setCouponModalOpen(false)
   }
+
+  useEffect(() => {
+    if (!appliedCouponCode || appliedCouponMeta) return
+    fetchAvailableCoupons()
+      .then((list) => {
+        const matched = list.find(
+          (c) =>
+            String(c?.code ?? '').trim().toUpperCase() ===
+            String(appliedCouponCode).trim().toUpperCase(),
+        )
+        if (matched) setAppliedCouponMeta(matched)
+      })
+      .catch(() => {})
+  }, [appliedCouponCode, appliedCouponMeta, fetchAvailableCoupons])
 
   const openAddressForm = () => {
     console.log('[Checkout] openAddressForm')
@@ -342,7 +494,6 @@ function CheckoutPage() {
     setAddressForm({
       name: '',
       phoneNumber: '',
-      countryCode: '+91',
       addressLine: '',
       city: '',
       state: '',
@@ -372,7 +523,7 @@ function CheckoutPage() {
       const payload = {
         name: addressForm.name.trim(),
         phoneNumber: (addressForm.phoneNumber || '').trim() || undefined,
-        countryCode: (addressForm.countryCode || '+91').trim(),
+        countryCode: INDIA_PHONE_CODE,
         addressLine: addressForm.addressLine.trim(),
         city: addressForm.city.trim(),
         state: addressForm.state.trim(),
@@ -602,6 +753,25 @@ function CheckoutPage() {
   const subTotal = cartData?.summary?.subTotal ?? summary.subTotal ?? 0
   const finalPayable = summary.finalPayable ?? subTotal
   const coupon = summary.coupon
+  const couponDiscountFromSummary = Number(coupon?.discountAmount ?? 0)
+  const inferredDiscountFromTotals = Math.max(
+    0,
+    Number(summary.subTotal ?? 0) - Number(summary.subTotalAfterDiscount ?? summary.subTotal ?? 0),
+  )
+  const codCouponDiscountValue = Math.max(couponDiscountFromSummary, inferredDiscountFromTotals)
+  const codCouponOfferLabel =
+    appliedCouponMeta?.discountType === 'PERCENT'
+      ? `${Number(appliedCouponMeta?.discountValue ?? 0)}%`
+      : appliedCouponMeta?.discountValue != null
+        ? formatRs(Number(appliedCouponMeta.discountValue))
+        : null
+  const appliedCouponDisplayText =
+    codCouponDiscountValue > 0
+      ? `Discount: -${formatRs(codCouponDiscountValue)}`
+      : codCouponOfferLabel
+        ? `Offer: ${codCouponOfferLabel}`
+        : null
+  const hasAnyAppliedCoupon = Boolean(appliedCouponCode)
   const deliverySummary = summary.delivery
   const otherChargesTotal = summary.otherChargesTotal ?? 0
   const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0
@@ -609,6 +779,57 @@ function CheckoutPage() {
   const taxableAmount = summary.taxableAmount ?? 0
   const subTotalAfterDiscount = summary.subTotalAfterDiscount ?? summary.subTotal ?? 0
   const hasSummaryFromApi = Boolean(priceSummary?.cartSummary ?? priceSummary?.summary)
+
+  useEffect(() => {
+    if (paymentMode !== 'RAZORPAY') {
+      autoCouponReconcileAttemptedRef.current = false
+      return
+    }
+    if (!appliedCouponCode || !autoIncludedCouponCode || autoCouponDismissed) {
+      autoCouponReconcileAttemptedRef.current = false
+      return
+    }
+    const appliedCode = String(appliedCouponCode).trim().toUpperCase()
+    const autoCode = String(autoIncludedCouponCode).trim().toUpperCase()
+    if (!appliedCode || appliedCode !== autoCode) {
+      autoCouponReconcileAttemptedRef.current = false
+      return
+    }
+    if (!hasSummaryFromApi) return
+
+    const summaryCouponCode = String(coupon?.code ?? '').trim().toUpperCase()
+    const summaryDiscount = Number(coupon?.discountAmount ?? 0)
+    const inferredDiscount = Math.max(
+      0,
+      Number(summary.subTotal ?? 0) - Number(summary.subTotalAfterDiscount ?? summary.subTotal ?? 0),
+    )
+    const hasDiscountApplied = summaryDiscount > 0 || inferredDiscount > 0
+    const summaryHasAppliedCoupon = summaryCouponCode === appliedCode || hasDiscountApplied
+
+    if (summaryHasAppliedCoupon) {
+      autoCouponReconcileAttemptedRef.current = false
+      return
+    }
+
+    if (autoCouponReconcileAttemptedRef.current) return
+    autoCouponReconcileAttemptedRef.current = true
+    console.log('[Checkout][AutoCoupon] reconciling missing initial summary discount for auto coupon:', appliedCouponCode)
+    setAutoCouponReconciling(true)
+    fetchPriceSummary(appliedCouponCode, 'RAZORPAY').finally(() => {
+      setAutoCouponReconciling(false)
+    })
+  }, [
+    paymentMode,
+    appliedCouponCode,
+    autoIncludedCouponCode,
+    autoCouponDismissed,
+    hasSummaryFromApi,
+    coupon?.code,
+    coupon?.discountAmount,
+    summary.subTotal,
+    summary.subTotalAfterDiscount,
+    fetchPriceSummary,
+  ])
 
   if (!isAuthenticated) {
     console.log('[Checkout] render: not authenticated, show sign-in')
@@ -693,7 +914,90 @@ function CheckoutPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           {/* Left column: Order items (read-only, same table as cart) */}
           <div className="lg:col-span-2">
-            <div className="overflow-x-auto">
+            <div className="md:hidden space-y-3">
+              {items.map((row) => {
+                const item = row.itemId
+                const name = item?.name ?? 'Product'
+                const shortDesc = item?.shortDescription ?? ''
+                const color = row.variant?.color ?? ''
+                const colorHex = row.variant?.hex ?? ''
+                const size = row.variant?.size ?? row.variant?.sizeLabel ?? ''
+                const imageUrl = row.variant?.imageUrl ?? ''
+                const sku = row.variant?.sku
+                const qty = row.quantity ?? 1
+                const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
+                const itemTotal = row.itemTotal ?? unitPrice * qty
+                const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
+                const selectedOpt = deliveryOptions.find((d) => (d._id?.toString?.() ?? d._id) === selectedDeliveryId)
+                const deliveryLabel = selectedOpt?.deliveryType === '90_MIN' ? '90 MIN DELIVERY' : selectedOpt?.deliveryType === 'ONE_DAY' ? '1 DAY DELIVERY' : selectedOpt?.deliveryType || 'Standard'
+                const productId = item?._id
+                const productPath = productId ? getProductPath(productId, name, shortDesc) : null
+
+                return (
+                  <div key={row._id ?? sku} className="border border-gray-200 p-3 bg-white">
+                    <div className="flex items-start gap-3">
+                      <div className="w-[72px] h-[96px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
+                        {productPath ? (
+                          <Link to={productPath} className="block w-full h-full">
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                            )}
+                          </Link>
+                        ) : imageUrl ? (
+                          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {productPath ? (
+                          <Link to={productPath} className="block hover:underline">
+                            <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                          </Link>
+                        ) : (
+                          <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                        )}
+                        {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case line-clamp-2">{shortDesc}</p>}
+                        {(color || size) && (
+                          <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
+                            {color && (
+                              <span className="inline-flex items-center gap-1.5">
+                                <span
+                                  className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
+                                  style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                  title={color}
+                                  aria-hidden
+                                />
+                                <span>{color}</span>
+                              </span>
+                            )}
+                            {color && size && <span className="text-gray-400">|</span>}
+                            {size && <span>Size: {size}</span>}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-md overflow-hidden">
+                        <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">{qty}</span>
+                      </div>
+                      <p className="text-sm font-semibold whitespace-nowrap">
+                        Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+
+                    <p className="mt-3 text-xs uppercase tracking-wide text-gray-600">
+                      Delivery: <span className="text-gray-800">{deliveryLabel}</span>
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
                 <thead>
                   <tr className="bg-gray-100">
@@ -878,14 +1182,26 @@ function CheckoutPage() {
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Name</label>
                       <input type="text" value={addressForm.name} onChange={(e) => handleAddressFormChange('name', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Full name" required />
                     </div>
-                    <div className="grid grid-cols-[auto_1fr] gap-2">
-                      <div>
-                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Code</label>
-                        <input type="text" value={addressForm.countryCode} onChange={(e) => handleAddressFormChange('countryCode', e.target.value)} className="w-full border border-gray-300 py-2 px-2 text-sm" placeholder="+91" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
-                        <input type="text" value={addressForm.phoneNumber} onChange={(e) => handleAddressFormChange('phoneNumber', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Phone number" />
+                    <div>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
+                      <div className="flex border border-gray-300 overflow-hidden rounded-none">
+                        <span className="shrink-0 flex items-center border-r border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600" aria-hidden>
+                          {INDIA_PHONE_CODE}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="tel-national"
+                          value={addressForm.phoneNumber}
+                          onChange={(e) =>
+                            handleAddressFormChange(
+                              'phoneNumber',
+                              e.target.value.replace(/\D/g, '').slice(0, 10),
+                            )
+                          }
+                          className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
+                          placeholder="10-digit mobile number"
+                        />
                       </div>
                     </div>
                     <div>
@@ -943,7 +1259,15 @@ function CheckoutPage() {
               </div>
               {appliedCouponCode ? (
                 <div className="flex items-center justify-between gap-2 p-3 border border-green-600 bg-green-50/80">
-                  <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
+                    {appliedCouponDisplayText && (
+                      <p className="text-xs text-green-700 mt-0.5 normal-case">{appliedCouponDisplayText}</p>
+                    )}
+                    {autoCouponReconciling && (
+                      <p className="text-xs text-green-700 mt-0.5 normal-case">Updating coupon...</p>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={handleRemoveCoupon}
@@ -1097,7 +1421,9 @@ function CheckoutPage() {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-700">Discount</span>
                     <span className="font-medium">
-                      {coupon?.discountAmount > 0 ? (
+                      {autoCouponReconciling ? (
+                        <span className="text-gray-500">Updating...</span>
+                      ) : coupon?.discountAmount > 0 ? (
                         <>−{formatRs(coupon.discountAmount)}</>
                       ) : (
                         <span className="text-green-700 font-medium">Free</span>
@@ -1186,8 +1512,11 @@ function CheckoutPage() {
                     </h3>
                   </div>
                   <div className="px-5 py-4 text-sm text-gray-700">
-                    If you choose COD, there will be extra charges.
-                    Choose online payment for less price.
+                    {codCouponDiscountValue > 0
+                      ? `If you choose COD, your coupon discount of ${formatRs(codCouponDiscountValue)} will be removed and extra COD charges may apply.`
+                      : hasAnyAppliedCoupon
+                        ? `If you choose COD, your applied coupon${codCouponOfferLabel ? ` (${codCouponOfferLabel})` : ''} will be removed and extra COD charges may apply.`
+                        : 'If you choose COD, extra COD charges may apply. Choose online payment for lower price.'}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 flex gap-2 justify-end">
                     <button
@@ -1200,6 +1529,19 @@ function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        console.log('[Checkout][Payment] COD selected from warning modal', {
+                          appliedCouponCode,
+                          autoIncludedCouponCode,
+                        })
+                        // COD should never keep any coupon discount.
+                        if (appliedCouponCode) {
+                          console.log('[Checkout][Coupon] removing coupon due to COD selection')
+                        }
+                        setAppliedCouponCode(null)
+                        setAppliedCouponMeta(null)
+                        setCouponInput('')
+                        setCouponError(null)
+                        setCouponModalOpen(false)
                         setCodWarningOpen(false)
                         setPaymentMode('COD')
                       }}

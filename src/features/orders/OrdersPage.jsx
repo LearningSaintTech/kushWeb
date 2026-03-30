@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
 import { ROUTES, getOrderTrackPath } from '../../utils/constants'
+
+const LOG = (...args) => {
+  if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
+}
 
 function formatPrice(num) {
   if (num == null || Number.isNaN(num)) return 'Rs. 0.00'
@@ -43,6 +47,35 @@ function getPaymentModeLabel(oi) {
   return mode || '—'
 }
 
+/** Normalize API line status (e.g. Shiprocket "PICKED UP" → PICKED_UP) for comparisons */
+function normalizeLineStatus(raw) {
+  return String(raw ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+}
+
+/** Line-item statuses where we still show "Track order" (in transit, not yet delivered). */
+const TRACKABLE_LINE_STATUSES = new Set([
+  'CREATED',
+  'CONFIRMED',
+  'PROCESSING',
+  'SHIPPED',
+  'OUT_FOR_DELIVERY',
+  // Shiprocket / courier granular states (often on `status` while order is in transit)
+  'PICKED_UP',
+  'IN_TRANSIT',
+  'DISPATCHED',
+  'MANIFESTED',
+  'AWB_ASSIGNED',
+  'BOOKED',
+  'SHIPMENT_BOOKED',
+  'PENDING_PICKUP',
+  'PICKUP_SCHEDULED',
+  'REACHED_DESTINATION_HUB',
+  'OUT_FOR_PICKUP',
+])
+
 function OrdersPage() {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
@@ -55,36 +88,94 @@ function OrdersPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    LOG('mount / deps', {
+      isAuthenticated,
+      pathname: location.pathname,
+      state: location.state,
+      orderSuccessFromState,
+      orderIdFromState,
+    })
+  }, [isAuthenticated, location.pathname, location.state, orderSuccessFromState, orderIdFromState])
+
+  useEffect(() => {
     if (!isAuthenticated) {
+      LOG('fetch skipped: not authenticated')
       setLoading(false)
       return
     }
     const params = { page: 1, limit: 20 }
+    LOG('getOrderItems request', params)
     orderService
       .getOrderItems(params)
       .then((res) => {
-        console.log("res",res)
+        LOG('getOrderItems raw response', res)
+        LOG('getOrderItems res.data', res?.data)
         const data = res?.data?.data ?? res?.data
+        LOG('getOrderItems parsed `data`', data)
         const items = data?.items ?? data ?? []
         const pag = data?.pagination ?? null
-        setOrderItems(Array.isArray(items) ? items : [])
+        LOG('getOrderItems items (before array check)', items, 'isArray:', Array.isArray(items))
+        const list = Array.isArray(items) ? items : []
+        LOG('getOrderItems order line count', list.length, 'pagination:', pag)
+        if (list.length > 0) {
+          list.forEach((oi, i) => {
+            LOG(`row[${i}] keys`, oi && typeof oi === 'object' ? Object.keys(oi) : oi)
+            LOG(`row[${i}] summary`, {
+              orderId: oi?.orderId,
+              itemId: oi?.itemId,
+              productItemId: oi?.productItemId,
+              status: oi?.status ?? oi?.itemStatus,
+              orderCreatedAt: oi?.orderCreatedAt,
+              itemKeys: oi?.item && typeof oi.item === 'object' ? Object.keys(oi.item) : null,
+              itemName: oi?.item?.name,
+              payment: oi?.payment,
+            })
+          })
+        }
+        setOrderItems(list)
         setPagination(pag)
       })
       .catch((err) => {
+        LOG('getOrderItems error', err)
+        LOG('getOrderItems error.response', err?.response)
+        LOG('getOrderItems error.response?.data', err?.response?.data)
+        LOG('getOrderItems error.response?.status', err?.response?.status)
         setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load orders')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        LOG('getOrderItems finished (loading false)')
+        setLoading(false)
+      })
   }, [isAuthenticated])
 
-  /** Map backend status to display label (lifecycle order) */
+  useEffect(() => {
+    LOG('state snapshot', {
+      loading,
+      error,
+      orderItemsLength: orderItems.length,
+      pagination,
+    })
+  }, [loading, error, orderItems, pagination])
+
+  /** Map backend status to displfay label (lifecycle order) */
   const getStatusLabel = (status) => {
-    const s = (status ?? '').toUpperCase()
+    const s = normalizeLineStatus(status)
     const map = {
       CREATED: 'Order placed',
       CONFIRMED: 'Confirmed',
       PROCESSING: 'Processing',
       SHIPPED: 'Shipped',
       OUT_FOR_DELIVERY: 'Out for delivery',
+      PICKED_UP: 'Picked up',
+      IN_TRANSIT: 'In transit',
+      DISPATCHED: 'Dispatched',
+      MANIFESTED: 'Manifested',
+      AWB_ASSIGNED: 'AWB assigned',
+      BOOKED: 'Booked',
+      SHIPMENT_BOOKED: 'Shipment booked',
+      PENDING_PICKUP: 'Pending pickup',
+      PICKUP_SCHEDULED: 'Pickup scheduled',
+      REACHED_DESTINATION_HUB: 'Reached hub',
       DELIVERED: 'Delivered',
       EXCHANGE_DELIVERED: 'Exchange Delivered',
       EXCHANGE_REQUESTED: 'Exchange requested',
@@ -99,12 +190,13 @@ function OrdersPage() {
       EXCHANGE_OUT_FOR_DELIVERY: 'Out for delivery',
       EXCHANGE_COMPLETED: 'Exchanged',
       CANCELLED: 'Cancelled',
+      CANCELED: 'Cancelled',
     }
-    return map[s] || s || '—'
+    return map[s] || (s ? s.replace(/_/g, ' ') : '—')
   }
 
   const getStatusDisplay = (oi) => {
-    const status = (oi.status ?? oi.itemStatus ?? '').toUpperCase()
+    const status = normalizeLineStatus(oi.status ?? oi.itemStatus)
     const address = oi.address ?? {}
     const name = address?.name ?? '—'
     const fullAddress = address?.fullAddress ?? address?.addressLine ?? '—'
@@ -112,7 +204,7 @@ function OrdersPage() {
     const dateStr = formatStatusDate(deliveredAt || oi.orderCreatedAt)
     const statusLabel = getStatusLabel(status)
 
-    if (['CONFIRMED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(status)) {
+    if (TRACKABLE_LINE_STATUSES.has(status)) {
       return {
         type: 'track',
         label: 'TRACK ORDER',
@@ -131,18 +223,48 @@ function OrdersPage() {
     if (status === 'EXCHANGE_COMPLETED') {
       return { type: 'exchanged', label: 'EXCHANGED', statusLabel, dateStr, name, fullAddress }
     }
-    if (status === 'CANCELLED') {
+    if (status === 'CANCELLED' || status === 'CANCELED') {
       return { type: 'cancelled', label: 'CANCELLED', statusLabel, dateStr, name, fullAddress }
     }
     return { type: 'other', label: statusLabel, statusLabel, dateStr, name, fullAddress }
   }
 
   /** Latest orders first */
-  const sortedOrderItems = [...orderItems].sort((a, b) => {
-    const dateA = a.orderCreatedAt ? new Date(a.orderCreatedAt).getTime() : 0
-    const dateB = b.orderCreatedAt ? new Date(b.orderCreatedAt).getTime() : 0
-    return dateB - dateA
-  })
+  const sortedOrderItems = useMemo(
+    () =>
+      [...orderItems].sort((a, b) => {
+        const dateA = a.orderCreatedAt ? new Date(a.orderCreatedAt).getTime() : 0
+        const dateB = b.orderCreatedAt ? new Date(b.orderCreatedAt).getTime() : 0
+        return dateB - dateA
+      }),
+    [orderItems]
+  )
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !sortedOrderItems.length) return
+    const table = sortedOrderItems.map((oi, idx) => {
+      const item = oi.item ?? {}
+      const sd = getStatusDisplay(oi)
+      return {
+        idx,
+        orderId: oi.orderId,
+        itemId: oi.itemId,
+        productItemId: oi.productItemId,
+        rawStatus: oi.status ?? oi.itemStatus,
+        statusDisplay: sd,
+        trackPath: getOrderTrackPath(oi.orderId, oi.itemId),
+        name: item?.name,
+        quantity: item?.quantity,
+        imageUrl: item?.variant?.imageUrl,
+        priceFields: {
+          finalPayable: item?.finalPayable,
+          itemSubtotal: item?.itemSubtotal,
+          unitPrice: item?.unitPrice,
+        },
+      }
+    })
+    LOG('sorted rows (full debug table)', table)
+  }, [sortedOrderItems])
 
   if (!isAuthenticated) {
     return (
@@ -159,7 +281,7 @@ function OrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black pt-24 pb-12 font-sans">
+    <div className="min-h-screen bg-white text-black pt-30 pb-12 font-sans">
       <div className=" px-4 sm:px-6 md:px-8 ">
         <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-wider text-gray-800 mb-6 sm:mb-8">My orders</h1>
 
@@ -217,15 +339,19 @@ function OrdersPage() {
                 >
                   {/* Product */}
                   <div className="flex gap-3 sm:gap-4 min-w-0 md:col-span-6">
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 overflow-hidden bg-gray-100 rounded">
+                    <div className="w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden p-2">
                       {imageUrl ? (
-                        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                        <img
+                          src={imageUrl}
+                          alt={name}
+                          className="max-h-full max-w-full object-contain object-center"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-bold text-gray-900 uppercase text-xs sm:text-sm truncate">{brand}</p>
+                      {/* <p className="font-bold text-gray-900 uppercase text-xs sm:text-sm truncate">{brand}</p> */}
                       <p className="text-gray-700 text-xs sm:text-sm mt-0.5 normal-case line-clamp-2">{name}{color ? ` ${color}` : ''}</p>
                       {trackingId && (
                         <p className="text-gray-500 text-[11px] sm:text-xs mt-1">Tracking ID: #{trackingId}</p>

@@ -83,6 +83,20 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
   }, [open])
 
   useEffect(() => {
+    if (!open) return
+    const mq = window.matchMedia('(max-width: 767px)')
+    if (!mq.matches) return
+    const prevHtml = document.documentElement.style.overflow
+    const prevBody = document.body.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.documentElement.style.overflow = prevHtml
+      document.body.style.overflow = prevBody
+    }
+  }, [open])
+
+  useEffect(() => {
     if (!open || !isAuthenticated) {
       setSavedAddresses([])
       return
@@ -142,61 +156,148 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
       </button>
 
       {open && (
-        <div
-          id="location-listbox"
-          className={`absolute left-0 top-full z-[60] mt-1 min-w-[240px] max-w-[min(320px,90vw)] rounded-xl border border-gray-200 bg-white py-2 shadow-lg transition-all duration-200 ease-out origin-top-left ${
-            panelAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
-          }`}
-          role="listbox"
-        >
+        <>
+          {/* Phone: dim background + bottom sheet (avoids narrow in-row popover) */}
           <button
             type="button"
-            onClick={handleUseCurrentLocation}
-            disabled={isLoading || usingCurrent}
-            className="font-inter flex w-full items-center gap-2 rounded-lg px-4 py-3 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+            className={`fixed inset-0 z-55 bg-black/45 backdrop-blur-[3px] transition-opacity duration-200 md:hidden ${
+              panelAnimateOpen ? 'opacity-100' : 'opacity-0'
+            }`}
+            aria-label="Close delivery location"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            id="location-listbox"
+            className={`z-60 flex flex-col overflow-hidden overscroll-contain border border-neutral-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.04)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:duration-200 md:ease-[cubic-bezier(0.16,1,0.3,1)]
+              fixed inset-x-0 bottom-0 max-h-[min(88dvh,calc(100dvh-4.5rem))] rounded-t-3xl pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]
+              md:absolute md:inset-x-auto md:bottom-auto md:left-0 md:top-full md:mt-2 md:max-h-none md:w-[min(100%,18rem)] md:rounded-2xl md:pb-0 md:min-w-[20rem] md:max-w-88
+              ${panelAnimateOpen ? 'translate-y-0 opacity-100 md:translate-y-0 md:scale-100' : 'translate-y-full opacity-100 md:-translate-y-1 md:scale-[0.98] md:opacity-0'}
+            `}
+            role="listbox"
           >
-            <LocationIcon className="h-4 w-4 shrink-0 text-gray-500" />
-            Use current location
-          </button>
+          <div className="mx-auto mt-2.5 h-1 w-11 shrink-0 rounded-full bg-neutral-200/90 md:hidden" aria-hidden />
+          <div className="relative shrink-0 px-4 pt-2 pb-3 border-b border-neutral-100 bg-linear-to-b from-neutral-50/90 to-white md:pt-4">
+            <p className="font-inter text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-neutral-400">
+              Delivery location
+            </p>
+            {resolvedLabel ? (
+              <p
+                className="font-inter mt-1.5 text-sm font-medium leading-snug text-neutral-900 line-clamp-2"
+                title={resolvedLabel}
+              >
+                {resolvedLabel}
+              </p>
+            ) : (
+              <p className="font-inter mt-1.5 text-sm text-neutral-500">
+                Choose where we should deliver your order
+              </p>
+            )}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-0 md:flex-none md:overflow-visible">
+          <div className="p-2 md:p-2">
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={isLoading || usingCurrent}
+              className="font-inter group flex w-full items-center gap-3 rounded-xl bg-neutral-900 px-3.5 py-3 text-left text-sm font-medium text-white shadow-sm transition-all hover:bg-neutral-800 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-55"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10 transition-colors group-hover:bg-white/15">
+                <LocationIcon className="h-5 w-5 text-white" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block">Use current location</span>
+                <span className="mt-0.5 block text-xs font-normal text-white/65">
+                  {isLoading || usingCurrent ? 'Getting your pin…' : 'GPS & pincode'}
+                </span>
+              </span>
+            </button>
+          </div>
+
           {isAuthenticated && (
             <>
               {savedAddressesLoading ? (
-                <p className="font-inter px-4 py-2 text-xs text-gray-500">Loading saved addresses…</p>
+                <div className="px-4 pb-3">
+                  <div className="flex items-center gap-2 rounded-xl bg-neutral-50 px-3 py-2.5">
+                    <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-neutral-300" />
+                    <p className="font-inter text-xs text-neutral-500">Loading your saved addresses…</p>
+                  </div>
+                </div>
               ) : savedAddresses.length > 0 ? (
-                <div className="border-t border-gray-100 pt-2">
-                  <p className="font-inter px-4 py-1 text-[10px] uppercase tracking-wider text-gray-400">Saved addresses</p>
-                  {savedAddresses.slice(0, 5).map((addr) => {
-                    const label = formatAddressLabel(addr)
-                    const pinStr = addr.pinCode != null ? String(addr.pinCode) : ''
-                    return (
-                      <button
-                        key={addr._id}
-                        type="button"
-                        onClick={() => handleUseSavedAddress(addr)}
-                        className="font-inter flex w-full items-center gap-2 rounded-lg px-4 py-2.5 text-left text-sm text-gray-800 hover:bg-gray-50"
-                      >
-                        <LocationIcon className="h-4 w-4 shrink-0 text-gray-400" />
-                        <span className="min-w-0 truncate" title={label}>{label || `Pin ${pinStr}`}</span>
-                      </button>
-                    )
-                  })}
+                <div className="border-t border-neutral-100 px-2 pb-2">
+                  <p className="font-inter px-2 pt-3 pb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-neutral-400">
+                    Saved addresses
+                  </p>
+                  <ul className="max-h-[40vh] space-y-0.5 overflow-y-auto overscroll-contain pr-0.5 md:max-h-46">
+                    {savedAddresses.slice(0, 5).map((addr) => {
+                      const label = formatAddressLabel(addr)
+                      const pinStr = addr.pinCode != null ? String(addr.pinCode) : ''
+                      return (
+                        <li key={addr._id}>
+                          <button
+                            type="button"
+                            onClick={() => handleUseSavedAddress(addr)}
+                            className="font-inter flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-neutral-50 active:bg-neutral-100/80"
+                          >
+                            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                              <LocationIcon className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1 pt-0.5">
+                              <span
+                                className="block text-sm font-medium leading-snug text-neutral-800 line-clamp-2"
+                                title={label}
+                              >
+                                {label || `Pin ${pinStr}`}
+                              </span>
+                              {pinStr ? (
+                                <span className="mt-0.5 block text-[11px] text-neutral-400 tabular-nums">
+                                  PIN {pinStr}
+                                </span>
+                              ) : null}
+                            </span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
               ) : null}
             </>
           )}
-          <button
-            type="button"
-            onClick={handleGoToAddress}
-            className="font-inter flex w-full items-center gap-2 rounded-lg px-4 py-3 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 border-t border-gray-100"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-              <LocationIcon className="h-4 w-4" />
-            </span>
-            <span>Go to address</span>
-            <span className="ml-auto text-xs text-gray-400">Manage addresses</span>
-          </button>
-          {error && <p className="font-inter px-4 py-2 text-xs text-red-600">{error}</p>}
+          </div>
+
+          <div className="shrink-0 border-t border-neutral-100 bg-neutral-50/60 p-2">
+            <button
+              type="button"
+              onClick={handleGoToAddress}
+              className="font-inter flex w-full items-center justify-between gap-3 rounded-xl border border-neutral-200/80 bg-white px-3.5 py-3 text-left text-sm font-medium text-neutral-800 shadow-sm transition-all hover:border-neutral-300 hover:bg-neutral-50/80 active:scale-[0.99]"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
+                  <LocationIcon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block">Manage addresses</span>
+                  <span className="mt-0.5 block text-xs font-normal text-neutral-500">
+                    Add or edit saved locations
+                  </span>
+                </span>
+              </span>
+              <span className="shrink-0 text-neutral-300" aria-hidden>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </span>
+            </button>
+          </div>
+
+          {error ? (
+            <div className="shrink-0 border-t border-red-100 bg-red-50/90 px-4 py-3">
+              <p className="font-inter text-xs font-medium leading-relaxed text-red-800">{error}</p>
+            </div>
+          ) : null}
         </div>
+        </>
       )}
     </div>
   )

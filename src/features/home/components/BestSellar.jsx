@@ -217,7 +217,7 @@ function BestSellar({ section }) {
   }, [handleMouseMove, handleMouseUp])
 
   return (
-    <section className="mt-5">
+    <section className="mt-50">
       <div className="w-full">
 
         {/* ========================= */}

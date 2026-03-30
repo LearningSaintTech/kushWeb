@@ -134,7 +134,7 @@ export default function ProfileModal({ open, onClose }) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 pt-8 pb-6">
           {/* User card */}
           <div className="rounded-xl bg-black p-4 flex items-center gap-4 mb-6">
             <div className="shrink-0 w-14 h-14 rounded-full overflow-hidden border-2 border-white bg-gray-700">

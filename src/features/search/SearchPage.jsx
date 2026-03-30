@@ -2,12 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { IoChevronForwardOutline } from 'react-icons/io5'
-import { FaChevronDown, FaChevronUp } from 'react-icons/fa'
 import { useSearchParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { ACCESS_TOKEN_KEY } from '../../services/axiosClient.js'
 import { addRecentKeyword } from '../../app/store/slices/searchSlice.js'
-import collectionBanner from '../../assets/temporary/Banner_Men.svg'
+import collectionBanner from '../../assets/temporary/websitebanner.svg'
 import { ROUTES, getProductPath } from '../../utils/constants'
 import ProductCard from '../../shared/components/ProductCard'
 import { itemsService } from '../../services/items.service.js'
@@ -16,6 +15,33 @@ import { sectionsService } from '../../services/content.service.js'
 import { filtersService } from '../../services/filters.service.js'
 import Filter from "../../assets/temporary/filtericon.svg"
 const DEFAULT_LIMIT = 12
+
+/** Same chevron for category dropdowns and styled selects (outline, matches breadcrumb weight). */
+function DropdownChevron({ open, className = '' }) {
+  return (
+    <svg
+      className={`h-3.5 w-3.5 shrink-0 text-current transition-transform duration-200 ease-out md:h-4 md:w-4 ${open ? 'rotate-180' : ''} ${className}`.trim()}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
+
+function totalPagesFromPagination(pag) {
+  if (!pag) return 1
+  if (pag.totalPages != null && pag.totalPages !== '') {
+    return Math.max(1, Number(pag.totalPages))
+  }
+  if (pag.total != null && pag.limit) {
+    return Math.max(1, Math.ceil(Number(pag.total) / Number(pag.limit)))
+  }
+  return 1
+}
 
 /** Section has only categoryId (no subcategoryId) → Our Product: category dropdown only */
 function isSectionOurProduct(section) {
@@ -42,6 +68,14 @@ function parseFiltersFromUrl(str) {
   } catch {
     return {}
   }
+}
+
+/** Filter value like "500-1500" → { min, max } for price quick picks */
+function parsePriceRangeBucketValue(raw) {
+  const s = String(raw ?? '').trim()
+  const m = s.match(/^(\d+)-(\d+)$/)
+  if (!m) return null
+  return { min: Number(m[1]), max: Number(m[2]) }
 }
 
 /** True if item has at least one variant/size with available stock */
@@ -112,7 +146,6 @@ function SearchPage() {
   const categoryFromUrl = searchParams.get('categoryId') || searchParams.get('category') || ''
   const subcategoryFromUrl = searchParams.get('subcategoryId') || searchParams.get('subcategory') || ''
   const qFromUrl = searchParams.get('q') || ''
-  const pageFromUrl = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
   const filtersParam = searchParams.get('filters') || ''
   const filtersFromUrl = parseFiltersFromUrl(filtersParam)
 
@@ -133,11 +166,16 @@ function SearchPage() {
   const [selectedFilters, setSelectedFilters] = useState(filtersFromUrl)
   const [products, setProducts] = useState([])
   const [pagination, setPagination] = useState(null)
+  const [listPage, setListPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [lastAppendedCount, setLastAppendedCount] = useState(0)
   const searchKeyRef = useRef('')
   const loadedPagesRef = useRef(new Set())
+  const inFlightPagesRef = useRef(new Set())
+  const loadMoreSentinelRef = useRef(null)
+  const paginationRef = useRef(null)
+  paginationRef.current = pagination
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [subcategoriesLoading, setSubcategoriesLoading] = useState(false)
   const [filtersLoading, setFiltersLoading] = useState(false)
@@ -146,7 +184,6 @@ function SearchPage() {
   const priceSliderRef = useRef(null)
   const [expandedFilterKeys, setExpandedFilterKeys] = useState(() => new Set())
   const [dropdownAnimateOpen, setDropdownAnimateOpen] = useState(false)
-  const [jumpToPageInput, setJumpToPageInput] = useState('')
 
   const toggleFilterExpanded = (filterKey) => {
     setExpandedFilterKeys((prev) => {
@@ -212,7 +249,7 @@ function SearchPage() {
     const next = new URLSearchParams(searchParams)
     next.set('sectionId', sectionIdFromUrl)
     next.set('categoryId', String(firstCatId))
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
   }, [sectionIdFromUrl, section?.type, section?.categoryId, section?.subcategoryId, sectionCategories.length, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl])
 
@@ -400,19 +437,24 @@ function SearchPage() {
     [sectionIdFromUrl, itemsOnlyFromUrl, qFromUrl, categoryFromUrl, subcategoryFromUrl, filtersParam, pincode]
   )
 
-  // Search API: page 1 = replace; page > 1 = append (no full reload). Track loaded pages to avoid duplicate append.
+  // Search API: page 1 = replace; page > 1 = append. listPage is internal (no URL page). Infinite scroll increments listPage.
   const runSearch = useCallback(async () => {
     const key = buildSearchKey()
     const isNewSearch = key !== searchKeyRef.current
-    const isPageOne = pageFromUrl <= 1
-    const alreadyLoaded = loadedPagesRef.current.has(pageFromUrl)
+    const requestPage = isNewSearch ? 1 : listPage
+    const isPageOne = requestPage <= 1
+    const alreadyLoaded = loadedPagesRef.current.has(requestPage)
 
     if (isNewSearch) {
       searchKeyRef.current = key
       loadedPagesRef.current = new Set()
+      inFlightPagesRef.current = new Set()
+      setListPage(1)
     }
 
     if (alreadyLoaded && !isNewSearch) return
+    if (inFlightPagesRef.current.has(requestPage)) return
+    inFlightPagesRef.current.add(requestPage)
 
     if (isPageOne || isNewSearch) {
       setLoading(true)
@@ -422,7 +464,7 @@ function SearchPage() {
 
     try {
       const params = {
-        page: pageFromUrl,
+        page: requestPage,
         limit: DEFAULT_LIMIT,
       }
       if (qFromUrl.trim()) params.keyword = qFromUrl.trim()
@@ -492,7 +534,7 @@ function SearchPage() {
         setProducts(items)
         setLastAppendedCount(0)
       } else {
-        loadedPagesRef.current.add(pageFromUrl)
+        loadedPagesRef.current.add(requestPage)
         setProducts((prev) => [...prev, ...items])
         setLastAppendedCount(items.length)
         setTimeout(() => setLastAppendedCount(0), 600)
@@ -503,30 +545,40 @@ function SearchPage() {
       if (isPageOne || isNewSearch) setProducts([])
       setPagination(null)
     } finally {
+      inFlightPagesRef.current.delete(requestPage)
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [sectionIdFromUrl, qFromUrl, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl, pageFromUrl, filtersParam, pincode, buildSearchKey])
+  }, [sectionIdFromUrl, qFromUrl, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl, listPage, filtersParam, pincode, buildSearchKey])
 
   useEffect(() => {
     runSearch()
   }, [runSearch])
 
-  // Keep jump-to input in sync with current page when pagination changes
-  useEffect(() => {
-    if (pagination?.page != null) setJumpToPageInput('')
-  }, [pagination?.page])
+  const totalPagesForList = totalPagesFromPagination(pagination)
+  const hasMoreToLoad = pagination != null && listPage < totalPagesForList
 
-  const handleJumpToPage = () => {
-    const num = parseInt(jumpToPageInput.trim(), 10)
-    if (Number.isNaN(num) || !pagination) return
-    const totalPages = Math.max(1, pagination.totalPages ?? 1)
-    const page = Math.max(1, Math.min(totalPages, num))
-    const next = new URLSearchParams(searchParams)
-    next.set('page', String(page))
-    setSearchParams(next)
-    setJumpToPageInput('')
-  }
+  useEffect(() => {
+    const el = loadMoreSentinelRef.current
+    if (!el || loading || loadingMore || !hasMoreToLoad) return
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        setListPage((p) => {
+          const pag = paginationRef.current
+          const tp = totalPagesFromPagination(pag)
+          if (pag == null || p >= tp) return p
+          const nextP = p + 1
+          if (loadedPagesRef.current.has(nextP)) return p
+          return nextP
+        })
+      },
+      { root: null, rootMargin: '320px 0px', threshold: 0 },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [loading, loadingMore, hasMoreToLoad, listPage, products.length])
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -547,7 +599,7 @@ function SearchPage() {
     }
     next.delete('category')
     next.delete('subcategory')
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
   }
 
@@ -563,7 +615,7 @@ function SearchPage() {
     next.delete('category')
     next.delete('subcategoryId')
     next.delete('subcategory')
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
   }
 
@@ -577,7 +629,7 @@ function SearchPage() {
     if (subId) next.set('subcategoryId', subId)
     else next.delete('subcategoryId')
     next.delete('subcategory')
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
   }
 
@@ -610,7 +662,7 @@ function SearchPage() {
         setSubcategory('')
       }
     }
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
   }
 
@@ -667,7 +719,7 @@ function SearchPage() {
 
     if (Object.keys(nextFilters).length) next.set('filters', JSON.stringify(nextFilters))
     else next.delete('filters')
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
     setFiltersPanelOpen(false)
   }
@@ -677,7 +729,7 @@ function SearchPage() {
     setPriceRange({ min: 0, max: 50000 })
     const next = new URLSearchParams(searchParams)
     next.delete('filters')
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
     setFiltersPanelOpen(false)
   }
@@ -698,7 +750,7 @@ function SearchPage() {
     const next = new URLSearchParams(searchParams)
     if (Object.keys(nextFilters).length) next.set('filters', JSON.stringify(nextFilters))
     else next.delete('filters')
-    next.set('page', '1')
+    next.delete('page')
     setSearchParams(next)
   }
 
@@ -726,13 +778,13 @@ function SearchPage() {
   const categoryLabel =
     showOurProductDropdown || showOurCategoryDropdown
       ? sectionCategories.find(matchCategoryId)?.name ??
-        sectionSubcategories.find(matchSubcategoryId)?.name ??
-        (categoryFromUrl || subcategoryFromUrl ? 'Collection' : 'Category')
+      sectionSubcategories.find(matchSubcategoryId)?.name ??
+      (categoryFromUrl || subcategoryFromUrl ? 'Collection' : 'Category')
       : categories.find(matchCategoryId)?.name ??
-        (subcategoryFromUrl && subcategories.length
-          ? subcategories.find((s) => (s._id ?? s.id) === subcategoryFromUrl)?.name
-          : null) ??
-        (categoryFromUrl || subcategoryFromUrl ? 'Collection' : '')
+      (subcategoryFromUrl && subcategories.length
+        ? subcategories.find((s) => (s._id ?? s.id) === subcategoryFromUrl)?.name
+        : null) ??
+      (categoryFromUrl || subcategoryFromUrl ? 'Collection' : '')
   const bannerTitle = isFromCollection && categoryLabel
     ? categoryLabel
     : section?.title ?? 'Search'
@@ -787,40 +839,43 @@ function SearchPage() {
 
   const isLastSegment = (i) => i === breadcrumbSegments.length - 1
   const breadcrumbPillClass = (i) =>
-    `inline-flex items-center justify-center rounded-[22px] px-5 py-1.5 font-medium tracking-[0.36px] transition-colors ${
-      isLastSegment(i)
-        ? 'bg-[#F5F5F5] text-gray-700'
-        : 'bg-[#F5F5F5] text-[#BDBDBD] hover:bg-neutral-200 hover:text-gray-600'
+    `inline-flex max-w-[min(100%,14rem)] items-center justify-center truncate rounded-full px-3 py-1 text-xs font-medium tracking-wide transition-colors sm:max-w-none sm:rounded-[22px] sm:px-4 sm:py-1.5 sm:text-sm md:px-5 md:text-base ${isLastSegment(i)
+      ? 'bg-neutral-100 text-neutral-800 ring-1 ring-neutral-200/80'
+      : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200/90 hover:text-neutral-600'
     }`
 
-  const filterBtnClass = 'font-inter flex items-center gap-2 rounded-full border border-black bg-white px-4 py-2.5 text-black uppercase hover:bg-gray-50 transition-colors'
+  const filterBtnClass =
+    'font-inter flex items-center gap-1.5 rounded-full border border-black bg-white px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-wide text-black transition-colors hover:bg-gray-50 md:gap-2 md:px-4 md:py-2.5 md:text-sm md:tracking-normal'
 
   const breadcrumb = (
-    <div className="bg-white  my-4">
-      <div className=" mx-10 py-4">
-        <nav className="flex flex-wrap items-center justify-between gap-3 font-inter text-sm" aria-label="Breadcrumb">
-          <div className="flex flex-wrap items-center gap-2 ">
+    <div className="bg-white my-3 sm:my-4">
+      <div className="mx-4 py-3 sm:mx-6 sm:py-4 md:mx-10">
+        <nav
+          className="flex flex-col gap-3 font-inter md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-3"
+          aria-label="Breadcrumb"
+        >
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto overflow-y-visible pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-1.5 md:flex-wrap md:overflow-x-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
             {breadcrumbSegments.map((seg, i) => (
-              <span key={i} className="flex items-center gap-2 ">
+              <span key={i} className="flex shrink-0 items-center gap-1 sm:gap-2">
                 {i > 0 && (
                   <IoChevronForwardOutline
-                    className="h-5 w-5 shrink-0 text-[#5A5A5A]"
+                    className="h-3.5 w-3.5 shrink-0 text-neutral-400 sm:h-4 sm:w-4 md:h-5 md:w-5"
                     aria-hidden
                   />
                 )}
                 {seg.to ? (
-                  <Link to={seg.to} className={breadcrumbPillClass(i) + ' text-base sm:text-lg'}>
+                  <Link to={seg.to} className={breadcrumbPillClass(i)} title={seg.label}>
                     {seg.label}
                   </Link>
                 ) : (
-                  <span className={breadcrumbPillClass(i) + ' text-base sm:text-lg ' }>
+                  <span className={breadcrumbPillClass(i)} title={seg.label}>
                     {seg.label}
                   </span>
                 )}
               </span>
             ))}
           </div>
-          <div className="flex flex-wrap  items-center gap-2">
+          <div className="flex w-full min-w-0 flex-wrap items-stretch gap-2 sm:items-center sm:justify-end md:w-auto">
             {/* Category dropdown (Our Product) */}
             {showOurProductDropdown && (
               <div className="relative shrink-0">
@@ -830,12 +885,9 @@ function SearchPage() {
                   onClick={() => { setFilterOpen((o) => !o); setSortOpen(false) }}
                   className={filterBtnClass}
                 >
-                  /* <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg> *
                   <span>{categoryLabel || (collectionFromUrl ? 'Collection' : 'Category')}</span>
-                  <span className="inline-flex shrink-0 transition-transform duration-200 ease-out">
-                    {filterOpen ? <FaChevronUp className="w-4 h-4" /> : <FaChevronDown className="w-4 h-4" />}
+                  <span className="inline-flex shrink-0 items-center">
+                    <DropdownChevron open={filterOpen} />
                   </span>
                 </button>
               </div>
@@ -850,22 +902,28 @@ function SearchPage() {
                     onClick={() => { setFilterOpen((o) => !o); setSortOpen(false) }}
                     className={filterBtnClass}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
                     <span>{categoryLabel || 'Category'}</span>
-                    <span className="inline-flex shrink-0 transition-transform duration-200 ease-out">
-                      {filterOpen ? <FaChevronUp className="w-4 h-4" /> : <FaChevronDown className="w-4 h-4" />}
+                    <span className="inline-flex shrink-0 items-center">
+                      <DropdownChevron open={filterOpen} />
                     </span>
                   </button>
                 </div>
                 {categoryFromUrl && (
-                  <select value={subcategoryFromUrl} onChange={(e) => handleSubcategorySelect(e.target.value || '')} className={filterBtnClass + ' min-w-[160px] focus:outline-none focus:ring-2 focus:ring-black/20 cursor-pointer'}>
-                    <option value="">All subcategories</option>
-                    {sectionSubcategories.filter((s) => String(s.categoryId ?? s.category ?? '') === String(categoryFromUrl)).map((s) => (
-                      <option key={s._id ?? s.id} value={s._id ?? s.id}>{s.name ?? s._id}</option>
-                    ))}
-                  </select>
+                  <div className="relative min-w-[200px] shrink-0 sm:min-w-[220px]">
+                    <select
+                      value={subcategoryFromUrl}
+                      onChange={(e) => handleSubcategorySelect(e.target.value || '')}
+                      className={`${filterBtnClass} w-full min-w-0 cursor-pointer appearance-none pl-3 pr-12 sm:pr-14 focus:outline-none focus:ring-2 focus:ring-black/20`}
+                    >
+                      <option value="">All subcategories</option>
+                      {sectionSubcategories.filter((s) => String(s.categoryId ?? s.category ?? '') === String(categoryFromUrl)).map((s) => (
+                        <option key={s._id ?? s.id} value={s._id ?? s.id}>{s.name ?? s._id}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex shrink-0 items-center sm:right-4">
+                      <DropdownChevron open={false} />
+                    </span>
+                  </div>
                 )}
               </>
             )}
@@ -879,20 +937,28 @@ function SearchPage() {
                     onClick={() => { setFilterOpen((o) => !o); setSortOpen(false) }}
                     className={filterBtnClass}
                   >
-                    {/* c:\Users\Prachi_PP41\Music\filtericon.svg */}
                     <span>{categoryLabel || 'All categories'}</span>
-                    <span className="inline-flex shrink-0 transition-transform duration-200 ease-out">
-                      {filterOpen ? <FaChevronUp className="w-4 h-4" /> : <FaChevronDown className="w-4 h-4" />}
+                    <span className="inline-flex shrink-0 items-center">
+                      <DropdownChevron open={filterOpen} />
                     </span>
                   </button>
                 </div>
                 {categoryFromUrl && (subcategories.length > 0 || subcategoriesLoading) && (
-                  <select value={subcategoryFromUrl} onChange={(e) => handleSubcategorySelect(e.target.value || '')} className={filterBtnClass + ' min-w-[140px] focus:outline-none focus:ring-2 focus:ring-black/20 cursor-pointer'}>
-                    <option value="">All subcategories</option>
-                    {subcategories.map((s) => (
-                      <option key={s._id ?? s.id} value={s._id ?? s.id}>{s.name ?? s._id}</option>
-                    ))}
-                  </select>
+                  <div className="relative min-w-[200px] shrink-0 sm:min-w-[220px]">
+                    <select
+                      value={subcategoryFromUrl}
+                      onChange={(e) => handleSubcategorySelect(e.target.value || '')}
+                      className={`${filterBtnClass} w-full min-w-0 cursor-pointer appearance-none pl-3 pr-12 sm:pr-14 focus:outline-none focus:ring-2 focus:ring-black/20`}
+                    >
+                      <option value="">All subcategories</option>
+                      {subcategories.map((s) => (
+                        <option key={s._id ?? s.id} value={s._id ?? s.id}>{s.name ?? s._id}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex shrink-0 items-center sm:right-4">
+                      <DropdownChevron open={false} />
+                    </span>
+                  </div>
                 )}
               </>
             )}
@@ -903,9 +969,11 @@ function SearchPage() {
               </svg> */}
               {/* <img src ={Filter}/> */}
               <span>Filter</span>
-               <img src ={Filter}/>
+              <img src={Filter} alt="" className="h-3 w-3 shrink-0 object-contain md:h-4 md:w-4" />
               {Object.keys(selectedFilters).some((k) => (selectedFilters[k]?.length ?? 0) > 0) && (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-black px-1.5 text-xs font-medium text-white">{Object.values(selectedFilters).flat().length}</span>
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[10px] font-semibold text-white md:h-5 md:min-w-[20px] md:px-1.5 md:text-xs md:font-medium">
+                  {Object.values(selectedFilters).flat().length}
+                </span>
               )}
             </button>
           </div>
@@ -940,9 +1008,8 @@ function SearchPage() {
     <>
       <div className="fixed inset-0 z-[100]" onClick={() => setFilterOpen(false)} aria-hidden />
       <div
-        className={`fixed z-[101] w-48 max-h-64 overflow-y-auto py-1 rounded-lg border border-gray-300 bg-white shadow-lg transition-all duration-200 ease-out origin-top-right ${
-          dropdownAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
-        }`}
+        className={`fixed z-[101] w-48 max-h-64 overflow-y-auto py-1 rounded-lg border border-gray-300 bg-white shadow-lg transition-all duration-200 ease-out origin-top-right ${dropdownAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
+          }`}
         style={{
           top: categoryDropdownRect.bottom + 4,
           right: typeof window !== 'undefined' ? window.innerWidth - categoryDropdownRect.right : 0,
@@ -993,21 +1060,29 @@ function SearchPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Banner */}
-      <div className="relative w-full h-screen overflow-hidden">
+      {/* <div className="relative w-full mt-100  overflow-hidden">
         <img
           src={bannerImage}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover object-center"
+          className="block w-full h-full object-cover object-center"
         />
-        <div className="absolute inset-0 bg-black/40" />
         <div className="absolute inset-0 flex items-center justify-center">
           <h1 className="font-raleway text-3xl sm:text-4xl md:text-5xl font-bold text-white uppercase tracking-wide">
             {bannerTitle}
           </h1>
         </div>
-      </div>
-
+      </div> */}
+<div className='mb-30'></div>
       {breadcrumb}
+      {pagination?.total != null && !loading && (
+        <div className="font-inter border-b border-neutral-100 bg-neutral-50/60 px-4 py-2.5 text-sm text-neutral-600 sm:px-6 md:mx-10">
+          <span className="font-semibold tabular-nums text-neutral-900">
+            {Number(pagination.total).toLocaleString()}
+          </span>
+          {' '}
+          {pagination.total === 1 ? 'item' : 'items'}
+        </div>
+      )}
       {categoryDropdownPortal}
 
       {/* Filters panel - styled like reference: checkboxes, color hex swatches, price slider, discount radio, red accent */}
@@ -1123,6 +1198,43 @@ function SearchPage() {
                             <p className="font-inter text-sm font-semibold text-gray-800">
                               ₹{Math.min(priceRange.min, priceRange.max).toLocaleString('en-IN')} - ₹{Math.max(priceRange.min, priceRange.max).toLocaleString('en-IN')}+
                             </p>
+                            {(() => {
+                              const buckets = (values || [])
+                                .map((v) => {
+                                  const parsed = parsePriceRangeBucketValue(v.value)
+                                  if (!parsed) return null
+                                  return {
+                                    label: v.label ?? v.value,
+                                    min: parsed.min,
+                                    max: parsed.max,
+                                  }
+                                })
+                                .filter(Boolean)
+                              if (buckets.length === 0) return null
+                              const curMin = Math.min(priceRange.min, priceRange.max)
+                              const curMax = Math.max(priceRange.min, priceRange.max)
+                              return (
+                                <ul className="space-y-2 pt-3 mt-3 border-t border-gray-100">
+                                  <li className="font-inter text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                                    Quick ranges
+                                  </li>
+                                  {buckets.map((b) => (
+                                    <li key={`${b.min}-${b.max}`}>
+                                      <label className="font-inter flex items-center gap-3 cursor-pointer py-0.5">
+                                        <input
+                                          type="radio"
+                                          name="filter-price-range-bucket"
+                                          checked={curMin === b.min && curMax === b.max}
+                                          onChange={() => setPriceRange({ min: b.min, max: b.max })}
+                                          className="border-gray-300 text-[#e53935] focus:ring-[#e53935]"
+                                        />
+                                        <span className="text-sm text-gray-700">{b.label}</span>
+                                      </label>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )
+                            })()}
                           </div>
                         )}
 
@@ -1243,12 +1355,12 @@ function SearchPage() {
 
       {/* Results from search API with filters */}
       <div className=" pb-20">
-     
+
         {loading ? (
           <div className="font-inter text-gray-500 py-12 text-center">Loading results…</div>
         ) : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ">
+            <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-2 sm:gap-y-5 md:grid-cols-3 md:gap-y-6 lg:grid-cols-4 lg:gap-y-7">
               {products.map((product, index) => {
                 const isNew = lastAppendedCount > 0 && index >= products.length - lastAppendedCount
                 return (
@@ -1259,9 +1371,8 @@ function SearchPage() {
                       product.title,
                       product.shortDescription,
                     )}
-                    className={`block transition-all duration-500 ease-out ${
-                      isNew ? 'animate-search-card-in' : ''
-                    }`}
+                    className={`block transition-all duration-500 ease-out ${isNew ? 'animate-search-card-in' : ''
+                      }`}
                     style={isNew ? { animationFillMode: 'backwards' } : undefined}
                   >
                     <ProductCard {...product} rounded="none" />
@@ -1269,6 +1380,13 @@ function SearchPage() {
                 )
               })}
             </div>
+            {products.length > 0 && hasMoreToLoad && (
+              <div
+                ref={loadMoreSentinelRef}
+                className="h-8 w-full shrink-0"
+                aria-hidden
+              />
+            )}
             {loadingMore && (
               <div className="font-inter text-sm text-gray-500 py-4 text-center">Loading more…</div>
             )}
@@ -1277,98 +1395,6 @@ function SearchPage() {
                 No products found. Try a different search or category.
               </p>
             )}
-            {pagination && pagination.totalPages >= 1 && (() => {
-              const totalPages = Math.max(1, pagination.totalPages)
-              const currentPage = Math.min(totalPages, Math.max(1, pagination.page ?? 1))
-              const totalItems = pagination.total ?? (totalPages * (pagination.limit ?? DEFAULT_LIMIT))
-              let start = Math.max(1, currentPage - 2)
-              let end = Math.min(totalPages, start + 4)
-              if (end - start + 1 < 5) start = Math.max(1, end - 4)
-              const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i)
-              return (
-                <div className="font-inter mt-8 space-y-4">
-                  <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
-                    <span>{totalItems.toLocaleString()} item{totalItems !== 1 ? 's' : ''}</span>
-                    <span>Page {currentPage} of {totalPages}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      disabled={currentPage <= 1}
-                      onClick={() => {
-                        const next = new URLSearchParams(searchParams)
-                        next.set('page', String(currentPage - 1))
-                        setSearchParams(next)
-                      }}
-                      className="min-w-9 px-2.5 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      aria-label="Previous page"
-                    >
-                      <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </button>
-                    {pageNumbers.map((pageNum) => {
-                      const isActive = currentPage === pageNum
-                      return (
-                        <button
-                          key={pageNum}
-                          type="button"
-                          onClick={() => {
-                            const next = new URLSearchParams(searchParams)
-                            next.set('page', String(pageNum))
-                            setSearchParams(next)
-                          }}
-                          className={`min-w-9 px-2.5 py-1.5 rounded text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-gray-800 text-white border border-gray-800'
-                              : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      )
-                    })}
-                    <button
-                      type="button"
-                      disabled={currentPage >= totalPages}
-                      onClick={() => {
-                        const next = new URLSearchParams(searchParams)
-                        next.set('page', String(currentPage + 1))
-                        setSearchParams(next)
-                      }}
-                      className="min-w-9 px-2.5 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      aria-label="Next page"
-                    >
-                      <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                    <span className="inline-flex items-center gap-1.5 ml-2 sm:ml-4">
-                      <label htmlFor="search-jump-page" className="text-sm text-gray-600 whitespace-nowrap">Go to</label>
-                      <input
-                        id="search-jump-page"
-                        type="number"
-                        min={1}
-                        max={totalPages}
-                        value={jumpToPageInput}
-                        onChange={(e) => setJumpToPageInput(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                        onKeyDown={(e) => e.key === 'Enter' && handleJumpToPage()}
-                        placeholder={String(currentPage)}
-                        className="w-14 px-2 py-1.5 rounded border border-gray-300 text-sm text-center focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-                        aria-label="Page number"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleJumpToPage}
-                        className="px-3 py-1.5 rounded border border-gray-300 bg-gray-100 text-gray-800 text-sm font-medium hover:bg-gray-200 transition-colors"
-                      >
-                        Go
-                      </button>
-                    </span>
-                  </div>
-                </div>
-              )
-            })()}
           </>
         )}
       </div>
