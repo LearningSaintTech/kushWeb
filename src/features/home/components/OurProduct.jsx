@@ -7,8 +7,9 @@ import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
+const ALL_CATEGORY_KEY = "__ALL__";
 const CATEGORY_PRODUCT_LIMIT = 8;
-const FIRST_LOAD_MORE_DELAY_MS = 1500;
+const FIRST_LOAD_MORE_DELAY_MS = 1000;
 
 const PRODUCTS_STATIC = Array.from({ length: 8 }, (_, i) => ({
   id: i + 1,
@@ -113,7 +114,7 @@ function OurProduct({ section }) {
       : CATEGORIES.map((label) => ({ id: null, label }));
 
   const [activeCategoryId, setActiveCategoryId] = useState(
-    categoriesWithId[0]?.id ?? null,
+    ALL_CATEGORY_KEY,
   );
   const [categoryProducts, setCategoryProducts] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(false);
@@ -123,6 +124,7 @@ function OurProduct({ section }) {
   const loadMoreRef = useRef(null);
   const firstLoadDelayAppliedRef = useRef(false);
   const firstLoadDelayTimerRef = useRef(null);
+  const loadingMoreLockRef = useRef(false);
 
   const sectionTitle = section?.title || "OUR PRODUCTS";
 
@@ -168,14 +170,75 @@ function OurProduct({ section }) {
     [pincode],
   );
 
+  const fetchAllVersion2 = useCallback(async (page = 1) => {
+    if (page === 1) setLoadingInitial(true);
+    else setLoadingMore(true);
+    try {
+      const params = {
+        isActive: true,
+        page,
+        limit: CATEGORY_PRODUCT_LIMIT,
+      };
+      if (pincode) params.pinCode = String(pincode);
+      const res = await itemsService.getAllVersion2({
+        ...params,
+      });
+      const data = res?.data?.data ?? res?.data;
+      const items = (data?.items ?? []).map((item, i) =>
+        itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i),
+      );
+      const totalPages = Number(data?.pagination?.totalPages || 0);
+
+      setCategoryProducts((prev) => (page === 1 ? items : [...prev, ...items]));
+      setCurrentPage(page);
+      if (totalPages > 0) {
+        setHasMore(page < totalPages);
+      } else {
+        setHasMore(items.length === CATEGORY_PRODUCT_LIMIT);
+      }
+    } catch {
+      if (page === 1) setCategoryProducts([]);
+      setHasMore(false);
+    } finally {
+      if (page === 1) setLoadingInitial(false);
+      else setLoadingMore(false);
+    }
+  }, [pincode]);
+
+  const loadMoreByActiveTab = useCallback(
+    async (nextPage) => {
+      if (loadingMoreLockRef.current) return;
+      loadingMoreLockRef.current = true;
+      try {
+        if (nextPage === 2 && !firstLoadDelayAppliedRef.current) {
+          firstLoadDelayAppliedRef.current = true;
+          await new Promise((resolve) => {
+            firstLoadDelayTimerRef.current = setTimeout(() => {
+              firstLoadDelayTimerRef.current = null;
+              resolve();
+            }, FIRST_LOAD_MORE_DELAY_MS);
+          });
+        }
+
+        if (activeCategoryId === ALL_CATEGORY_KEY) {
+          await fetchAllVersion2(nextPage);
+          return;
+        }
+
+        await fetchByCategory(activeCategoryId, nextPage);
+      } finally {
+        loadingMoreLockRef.current = false;
+      }
+    },
+    [activeCategoryId, fetchByCategory, fetchAllVersion2],
+  );
+
   useEffect(() => {
-    const firstId =
-      section?.categories?.[0]?._id ?? section?.categories?.[0]?.id;
-    if (firstId != null) setActiveCategoryId(firstId);
+    setActiveCategoryId(ALL_CATEGORY_KEY);
   }, [section]);
 
   useEffect(() => {
-    if (listFromSection.length > 0) {
+    if (listFromSection.length > 0 && activeCategoryId !== ALL_CATEGORY_KEY) {
       setCategoryProducts([]);
       setCurrentPage(1);
       setHasMore(false);
@@ -184,9 +247,20 @@ function OurProduct({ section }) {
         clearTimeout(firstLoadDelayTimerRef.current);
         firstLoadDelayTimerRef.current = null;
       }
+      loadingMoreLockRef.current = false;
       return;
     }
-    if (activeCategoryId) {
+    if (activeCategoryId === ALL_CATEGORY_KEY) {
+      setCurrentPage(1);
+      setHasMore(false);
+      firstLoadDelayAppliedRef.current = false;
+      if (firstLoadDelayTimerRef.current) {
+        clearTimeout(firstLoadDelayTimerRef.current);
+        firstLoadDelayTimerRef.current = null;
+      }
+      loadingMoreLockRef.current = false;
+      fetchAllVersion2();
+    } else if (activeCategoryId) {
       setCurrentPage(1);
       setHasMore(true);
       firstLoadDelayAppliedRef.current = false;
@@ -194,6 +268,7 @@ function OurProduct({ section }) {
         clearTimeout(firstLoadDelayTimerRef.current);
         firstLoadDelayTimerRef.current = null;
       }
+      loadingMoreLockRef.current = false;
       fetchByCategory(activeCategoryId, 1);
     } else {
       setCategoryProducts([]);
@@ -204,11 +279,17 @@ function OurProduct({ section }) {
         clearTimeout(firstLoadDelayTimerRef.current);
         firstLoadDelayTimerRef.current = null;
       }
+      loadingMoreLockRef.current = false;
     }
-  }, [activeCategoryId, listFromSection.length, fetchByCategory]);
+  }, [activeCategoryId, listFromSection.length, fetchByCategory, fetchAllVersion2]);
 
   useEffect(() => {
-    if (listFromSection.length > 0 || !activeCategoryId) return;
+    if (
+      (listFromSection.length > 0 && activeCategoryId !== ALL_CATEGORY_KEY) ||
+      !activeCategoryId
+    ) {
+      return;
+    }
     const el = loadMoreRef.current;
     if (!el) return;
 
@@ -219,20 +300,11 @@ function OurProduct({ section }) {
           first.isIntersecting &&
           hasMore &&
           !loadingInitial &&
-          !loadingMore
+          !loadingMore &&
+          !loadingMoreLockRef.current
         ) {
           const nextPage = currentPage + 1;
-          if (nextPage === 2 && !firstLoadDelayAppliedRef.current) {
-            firstLoadDelayAppliedRef.current = true;
-            if (!firstLoadDelayTimerRef.current) {
-              firstLoadDelayTimerRef.current = setTimeout(() => {
-                firstLoadDelayTimerRef.current = null;
-                fetchByCategory(activeCategoryId, nextPage);
-              }, FIRST_LOAD_MORE_DELAY_MS);
-            }
-            return;
-          }
-          fetchByCategory(activeCategoryId, nextPage);
+          loadMoreByActiveTab(nextPage);
         }
       },
       { root: null, rootMargin: "120px", threshold: 0.1 },
@@ -245,6 +317,7 @@ function OurProduct({ section }) {
         clearTimeout(firstLoadDelayTimerRef.current);
         firstLoadDelayTimerRef.current = null;
       }
+      loadingMoreLockRef.current = false;
     };
   }, [
     activeCategoryId,
@@ -252,18 +325,24 @@ function OurProduct({ section }) {
     hasMore,
     loadingInitial,
     loadingMore,
-    fetchByCategory,
+    loadMoreByActiveTab,
     listFromSection.length,
   ]);
 
   const productsToShow =
-    listFromSection.length > 0
-      ? listFromSection
-      : categoryProducts.length > 0
-        ? categoryProducts
-        : PRODUCTS_STATIC;
+    activeCategoryId === ALL_CATEGORY_KEY
+      ? categoryProducts
+      : listFromSection.length > 0
+        ? listFromSection
+        : categoryProducts.length > 0
+          ? categoryProducts
+          : PRODUCTS_STATIC;
 
   const handleTabClick = (cat) => {
+    if (cat.id === ALL_CATEGORY_KEY) {
+      setActiveCategoryId(ALL_CATEGORY_KEY);
+      return;
+    }
     if (cat.id != null) setActiveCategoryId(cat.id);
   };
 
@@ -281,12 +360,24 @@ function OurProduct({ section }) {
 
             {/* CATEGORY TABS */}
             <div className="font-inter flex gap-6 mt-6 overflow-x-auto scrollbar-hide">
+              <button
+                key={ALL_CATEGORY_KEY}
+                type="button"
+                onClick={() => setActiveCategoryId(ALL_CATEGORY_KEY)}
+                className={`uppercase text-xs sm:text-sm tracking-widest pb-2 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                  activeCategoryId === ALL_CATEGORY_KEY
+                    ? "text-black border-b border-black"
+                    : "text-gray-400 hover:text-black"
+                }`}
+              >
+                ALL
+              </button>
               {categoriesWithId.map((cat) => (
                 <button
                   key={cat.id ?? cat.label}
                   type="button"
                   onClick={() => handleTabClick(cat)}
-                  className={`uppercase text-xs sm:text-sm tracking-widest pb-2 transition-all whitespace-nowrap cursor-pointer ${
+                  className={`uppercase text-xs sm:text-sm tracking-widest pb-2 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                     activeCategoryId === cat.id
                       ? "text-black border-b border-black"
                       : "text-gray-400 hover:text-black"
@@ -316,10 +407,13 @@ function OurProduct({ section }) {
               />
             ))}
         </div>
-        {listFromSection.length === 0 && activeCategoryId && hasMore && (
+        {(activeCategoryId === ALL_CATEGORY_KEY || listFromSection.length === 0) &&
+          activeCategoryId &&
+          hasMore && (
           <div ref={loadMoreRef} className="h-2 w-full" />
         )}
-        {listFromSection.length === 0 && loadingMore && (
+        {(activeCategoryId === ALL_CATEGORY_KEY || listFromSection.length === 0) &&
+          loadingMore && (
           <div className="text-center py-6 text-gray-500 text-sm">
             Loading more products...
           </div>

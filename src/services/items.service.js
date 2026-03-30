@@ -40,7 +40,17 @@ export function getById(itemId, params = {}) {
   return client.get(`${ITEMS}/single/${itemId}`, { params });
 }
 
+/**
+ * Get all items in random order (v2 endpoint).
+ * @param {Object} [params]
+ * @param {boolean|string} [params.isActive=true]
+ */
+export function getAllVersion2(params = {}) {
+  return client.get(`${ITEMS}/getAllVersion2`, { params });
+}
+
 export const itemsService = {
   search,
   getById,
+  getAllVersion2,
 };

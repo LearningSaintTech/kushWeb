@@ -340,6 +340,14 @@ export default function Header() {
 
   const headerRef = useRef(null);
   const isHome = location.pathname === "/" || location.pathname === "";
+  const handleLogoClick = useCallback(
+    (e) => {
+      if (!isHome) return;
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [isHome],
+  );
   const [scrolled, setScrolled] = useState(false);
   const [searchDropdownTop, setSearchDropdownTop] = useState(0);
   // On non-home pages always use white header; on home use white only when scrolled
@@ -435,6 +443,7 @@ export default function Header() {
             </button>
             <NavLink
               to={ROUTES.HOME}
+              onClick={handleLogoClick}
               className="pointer-events-auto absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 cursor-pointer flex max-w-[calc(100%-8.5rem)] items-center justify-center"
             >
               <img
@@ -545,6 +554,7 @@ export default function Header() {
           <div className="flex flex-1 items-center justify-center">
             <NavLink
               to={ROUTES.HOME}
+              onClick={handleLogoClick}
               className="cursor-pointer flex flex-col items-center justify-center gap-[0.26vw]"
             >
               <img
