@@ -11,7 +11,7 @@ import NewArrivals from './components/NewArrivals'
 import HomePageLoader from './components/HomePageLoader'
 import { sectionsService } from '../../services/content.service.js'
 
-// API webOrder 1,2,3... maps to these components. WearYour is static (not in API order).
+// API webOrder 1,2,3zz... maps to these components. WearYour is static (not in API order).
 const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
   // 2: Couples,
