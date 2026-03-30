@@ -95,6 +95,7 @@ function OurCategory({ section }) {
     useState([]);
   const [subcategoriesForActiveLoading, setSubcategoriesForActiveLoading] =
     useState(false);
+  const [activeHoverCardId, setActiveHoverCardId] = useState(null);
 
   const hasPopulatedCategories = (section?.categories?.length ?? 0) > 0;
   const hasPopulatedSubcategories = (section?.subcategories?.length ?? 0) > 0;
@@ -332,30 +333,40 @@ function OurCategory({ section }) {
               <Wrapper
                 key={card.id}
                 {...wrapperProps}
+                tabIndex={card.to ? undefined : 0}
                 className={
                   card.to
                     ? "group relative overflow-hidden bg-gray-100  transition-all duration-500 hover:shadow-xl block"
                     : "group relative overflow-hidden bg-gray-100 rounded-xl transition-all duration-500 hover:shadow-xl"
                 }
+                onMouseEnter={() => setActiveHoverCardId(card.id)}
+                onMouseLeave={() => setActiveHoverCardId(null)}
+                onFocus={() => setActiveHoverCardId(card.id)}
+                onBlur={() => setActiveHoverCardId(null)}
               >
-                <div className="relative aspect-[3/4]">
+                <div className="relative aspect-3/4">
                   {/* Default image */}
                   <img
                     src={card.image}
                     alt={card.title}
                     className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 group-hover:opacity-0"
+                    decoding="async"
+                    loading="eager"
                   />
 
                   {/* Hover image */}
-                  <img
-                    src={card.hoverImage}
-                    alt=""
-                    aria-hidden
-                    className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-700 group-hover:opacity-100"
-                  />
+                  {card.hoverImage && activeHoverCardId === card.id ? (
+                    <img
+                      src={card.hoverImage}
+                      alt=""
+                      aria-hidden
+                      className="absolute inset-0 w-full h-full object-cover opacity-100 transition-opacity duration-700"
+                      decoding="async"
+                    />
+                  ) : null}
 
                   {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-700" />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-700" />
 
                   {/* Title */}
                   <div className="absolute bottom-4 left-0 right-0 flex justify-center">

@@ -344,6 +344,8 @@ function OrdersPage() {
                         <img
                           src={imageUrl}
                           alt={name}
+                          loading="eager"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain object-center"
                         />
                       ) : (
@@ -431,7 +433,7 @@ function OrdersPage() {
                               <p className="text-gray-600 text-[11px] sm:text-xs mt-1">{statusDisplay.name}</p>
                             )}
                             {statusDisplay.fullAddress && statusDisplay.fullAddress !== '—' && (
-                              <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 break-words">{statusDisplay.fullAddress}</p>
+                              <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 wrap-break-word">{statusDisplay.fullAddress}</p>
                             )}
                           </>
                         )}

@@ -51,12 +51,15 @@ const ProductCard = React.memo(function ProductCard({
   roundedTop,
   roundedBottom,
   outOfStock = false,
+  shouldRenderImage = true,
+  imageLoading = "eager",
 }) {
   const { isAuthenticated, openAuthModal } = useAuth();
   const { addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const inWishlist = id != null && isInWishlist(id);
   const [cartError, setCartError] = useState(null);
   const cartErrorTimeoutRef = useRef(null);
+  const [hoverImageLoaded, setHoverImageLoaded] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -146,9 +149,19 @@ const ProductCard = React.memo(function ProductCard({
   const wrapperProps =
     id != null ? { to: getProductPath(id, title, shortDescription) } : {};
 
+  const showHoverImage = Boolean(
+    hoverImage && hoverImageLoaded && hoverImage !== image,
+  );
+
   return (
     <CardWrapper
       {...wrapperProps}
+      onMouseEnter={() => {
+        if (hoverImage && !hoverImageLoaded) setHoverImageLoaded(true);
+      }}
+      onFocus={() => {
+        if (hoverImage && !hoverImageLoaded) setHoverImageLoaded(true);
+      }}
       className={`${id != null ? "block " : ""}${cardClassName} relative ${outOfStock ? "pointer-events-none" : ""}`}
       style={cardStyle}
     >
@@ -158,18 +171,33 @@ const ProductCard = React.memo(function ProductCard({
           className={`relative overflow-hidden ${imageRoundedClass}`}
           style={{ ...imageTopStyle, ...imageBottomStyle }}
         >
-          <img
-            src={image}
-            alt={title}
-            className="w-full h-[520px] object-cover object-center"
-          />
+          {shouldRenderImage ? (
+            <img
+              src={image}
+              alt={title}
+              width={400}
+              height={520}
+              className="w-full h-[520px] object-cover object-center"
+              decoding="async"
+              loading={imageLoading}
+              fetchPriority={imageLoading === "eager" ? "high" : "auto"}
+            />
+          ) : (
+            // Keep card layout stable, but avoid remote image fetch/decoding.
+            <div className="w-full h-[520px] bg-gray-100 object-cover object-center" />
+          )}
 
-          {hoverImage && (
+          {shouldRenderImage && showHoverImage && (
             <img
               src={hoverImage}
               alt=""
               aria-hidden
+              width={400}
+              height={520}
               className="absolute inset-0 w-full h-full object-cover object-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-in-out"
+              decoding="async"
+              loading="eager"
+              fetchPriority="low"
             />
           )}
 
@@ -298,7 +326,7 @@ const ProductCard = React.memo(function ProductCard({
           style={infoBottomStyle}
         >
           <h3
-            className=" uppercase tracking-[0.2em] sm:tracking-[0.1em] text-sm sm:text-base md:text-lg text-black"
+            className=" uppercase tracking-[0.2em] sm:tracking-widest text-sm sm:text-base md:text-lg text-black"
             style={{ fontFamily: "'Tenor Sans', sans-serif" }}
           >
             {title}

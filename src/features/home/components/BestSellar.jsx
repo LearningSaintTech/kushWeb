@@ -100,6 +100,16 @@ function BestSellar({ section }) {
   const n = products.length
   const maxIndex = Math.max(0, n - 1)
 
+  // Render images only for the active slide + a couple neighbors.
+  // This prevents the browser from decoding/downloading dozens of images at once.
+  const shouldRenderProduct = (idx, neighborDist = 2) => {
+    if (!n) return false
+    const a = (idx - slideIndex + n) % n
+    const b = (slideIndex - idx + n) % n
+    const dist = Math.min(a, b)
+    return dist <= neighborDist
+  }
+
   const fetchSectionPage = useCallback(async (page) => {
     if (!section?._id) return
     const isFirst = page === 1
@@ -265,7 +275,11 @@ function BestSellar({ section }) {
                     className="shrink-0 w-[280px]"
                     ref={idx === 0 ? mobileCardRef : undefined}
                   >
-                    <ProductCard {...product} roundedTop="3xl" />
+                    <ProductCard
+                      {...product}
+                      roundedTop="3xl"
+                      shouldRenderImage={shouldRenderProduct(idx)}
+                    />
                   </div>
                 ))}
               </div>
@@ -363,7 +377,11 @@ function BestSellar({ section }) {
                       className="shrink-0 w-[280px] sm:w-[320px]"
                       ref={idx === 0 ? desktopCardRef : undefined}
                     >
-                      <ProductCard {...product} roundedTop="3xl" />
+                      <ProductCard
+                        {...product}
+                        roundedTop="3xl"
+                        shouldRenderImage={shouldRenderProduct(idx)}
+                      />
                     </div>
                   ))}
                 </div>
