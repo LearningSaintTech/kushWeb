@@ -20,6 +20,7 @@ import {
   ContactUsPage,
   TermsConditionsPage,
   PrivacyPolicyPage,
+  DeleteAccountPage,
 } from '../../features/policy'
 import Address from '../../shared/address/Address'
 import ProfileUpdatePage from '../../features/account/ProfileUpdatePage'
@@ -49,6 +50,7 @@ const router = createBrowserRouter([
       { path: 'contact-us', element: <ContactUsPage /> },
       { path: 'terms-conditions', element: <TermsConditionsPage /> },
       { path: 'privacy-policy', element: <PrivacyPolicyPage /> },
+      { path: 'delete-account', element: <DeleteAccountPage /> },
       { path: 'address', element: <Address /> },
       { path: 'coupons', element: <CouponsPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },

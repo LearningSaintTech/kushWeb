@@ -9,12 +9,19 @@ const Banner = () => {
   useEffect(() => {
     let cancelled = false
     bannerService
-      .getAll({ isActive: true, limit: 1, page: 1 })
+      // We need more than 1 banner because some banners may have empty desktop assets.
+      // (Your API can return desktopBanner.items: [] for the first banner, while later banners have desktop video.)
+      .getAll({ isActive: true, limit: 10, page: 1 })
       .then((res) => {
         if (cancelled) return
         const list = res?.data?.data?.banners || []
-        const banner = list[0]
+        const banner = list.find((b) => {
+          const db = b?.desktopBanner
+          return !!(db?.items?.length || (db?.url && db?.key))
+        })
+
         if (!banner?.desktopBanner) return
+
         const db = banner.desktopBanner
         if (db.items?.length) {
           setDesktopBanner({ type: db.type, items: db.items })
