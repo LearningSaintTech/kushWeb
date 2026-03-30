@@ -218,11 +218,11 @@ function Footer() {
     <footer className="mt-auto bg-black text-white font-inter">
       {/* ================= TOP SECTION ================= */}
       <div className="border-b border-white/20">
-        <div className="px-4 sm:px-6 lg:px-12 py-10">
-          <div className="max-w-[1600px] mx-auto">
-            <div className="flex flex-col xl:flex-row gap-10">
+        {/* <div className="px-4 sm:px-6 lg:px-12 py-10"> */}
+          {/* <div className="max-w-[1600px] mx-auto"> */}
+            {/* <div className="flex flex-col xl:flex-row gap-10"> */}
               {/* COLLECTION GRID – from API (isFooter) or fallback */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 flex-1">
+              {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 flex-1">
                 {sectionsToRender.map((section, index) => (
                   <div key={section.categoryId || index}>
                     <h3 className="mb-4 text-lg sm:text-xl font-semibold uppercase tracking-wider">
@@ -247,19 +247,19 @@ function Footer() {
                     </ul>
                   </div>
                 ))}
-              </div>
+              </div> */}
 
               {/* PROMO IMAGE */}
-              <div className="w-full xl:w-[420px]">
+              {/* <div className="w-full xl:w-[420px]">
                 <img
                   src={khushDressImg}
                   alt="KHUSH dress"
                   className="w-full h-full object-cover rounded-2xl"
                 />
-              </div>
-            </div>
-          </div>
-        </div>
+              </div> */}
+            {/* </div> */}
+          {/* </div> */}
+        {/* </div> */}
       </div>
 
       {/* ================= MIDDLE SECTION ================= */}
@@ -336,7 +336,7 @@ function Footer() {
                       <Link to="#">Exchange & Returns</Link>
                     </li>
                     <li>
-                      <Link to="#">Delete Account</Link>
+                      <Link to={ROUTES.DELETE_ACCOUNT}>Delete Account</Link>
                     </li>
                   </ul>
                 </div>

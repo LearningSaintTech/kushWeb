@@ -24,6 +24,7 @@ export const ROUTES = {
   CONTACT_US: '/contact-us',
   TERMS_CONDITIONS: '/terms-conditions',
   PRIVACY_POLICY: '/privacy-policy',
+  DELETE_ACCOUNT: '/delete-account',
 }
 
 function slugifyPart(value) {
