@@ -372,9 +372,28 @@ function NewArrivals({ section }) {
                   ...getStyles(i)
                 }}
               >
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                {(
+                  isMobile
+                    ? i === activeSlide || i === activeSlide - 1 || i === activeSlide + 1
+                    : i === activeSlide ||
+                      i === activeSlide - 1 ||
+                      i === activeSlide + 1 ||
+                      i === activeSlide - 2 ||
+                      i === activeSlide + 2
+                ) ? (
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                    decoding="async"
+                    loading="eager"
+                  />
+                ) : (
+                  // Keep the card size stable while skipping remote image fetch for offscreen cards.
+                  <div className="w-full h-full bg-gray-100" aria-hidden />
+                )}
 
-                <div className="absolute bottom-0 left-0 right-0 h-2/5 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
+                <div className="absolute bottom-0 left-0 right-0 h-2/5 bg-linear-to-t from-black/85 to-transparent pointer-events-none" />
 
                 <div className="absolute bottom-0 left-0 right-0 px-5 py-4 text-white flex flex-col gap-2">
                   <div className="flex justify-between items-start gap-2">

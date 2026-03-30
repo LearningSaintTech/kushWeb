@@ -184,6 +184,8 @@ function SearchPage() {
   const priceSliderRef = useRef(null)
   const [expandedFilterKeys, setExpandedFilterKeys] = useState(() => new Set())
   const [dropdownAnimateOpen, setDropdownAnimateOpen] = useState(false)
+  // Keep initial image loading light; lazy-load most product thumbnails.
+  const [eagerCardsCount, setEagerCardsCount] = useState(4)
 
   const toggleFilterExpanded = (filterKey) => {
     setExpandedFilterKeys((prev) => {
@@ -223,6 +225,22 @@ function SearchPage() {
       setDropdownAnimateOpen(false)
     }
   }, [filterOpen])
+
+  // Estimate "above the fold" cards based on viewport width.
+  // This prevents loading `DEFAULT_LIMIT` thumbnails eagerly on mobile.
+  useEffect(() => {
+    const calc = () => {
+      const w = typeof window !== 'undefined' ? window.innerWidth : 1024
+      const cols = w >= 1024 ? 4 : w >= 640 ? 2 : 1
+      const rows = 2
+      const count = cols * rows
+      setEagerCardsCount(Math.max(2, Math.min(DEFAULT_LIMIT, count)))
+    }
+    calc()
+    if (typeof window === 'undefined') return
+    window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
+  }, [])
 
   useEffect(() => {
     if (!filterOpen || !categoryDropdownRect) return
@@ -1006,9 +1024,9 @@ function SearchPage() {
 
   const categoryDropdownPortal = filterOpen && (showOurProductDropdown || showOurCategoryDropdown || showGlobalCategoryDropdown) && categoryDropdownRect && typeof document !== 'undefined' && createPortal(
     <>
-      <div className="fixed inset-0 z-[100]" onClick={() => setFilterOpen(false)} aria-hidden />
+      <div className="fixed inset-0 z-100" onClick={() => setFilterOpen(false)} aria-hidden />
       <div
-        className={`fixed z-[101] w-48 max-h-64 overflow-y-auto py-1 rounded-lg border border-gray-300 bg-white shadow-lg transition-all duration-200 ease-out origin-top-right ${dropdownAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
+        className={`fixed z-101 w-48 max-h-64 overflow-y-auto py-1 rounded-lg border border-gray-300 bg-white shadow-lg transition-all duration-200 ease-out origin-top-right ${dropdownAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
           }`}
         style={{
           top: categoryDropdownRect.bottom + 4,
@@ -1089,12 +1107,12 @@ function SearchPage() {
       {filtersPanelOpen && (
         <>
           <div
-            className="fixed inset-0 z-[100] bg-black/40"
+            className="fixed inset-0 z-100 bg-black/40"
             onClick={() => setFiltersPanelOpen(false)}
             aria-hidden
           />
           <div
-            className="fixed right-0 top-0 bottom-0 z-[101] w-full max-w-sm bg-white shadow-2xl flex flex-col"
+            className="fixed right-0 top-0 bottom-0 z-101 w-full max-w-sm bg-white shadow-2xl flex flex-col"
             role="dialog"
             aria-modal="true"
             aria-label="Filter by attributes"
@@ -1361,24 +1379,37 @@ function SearchPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-2 sm:gap-y-5 md:grid-cols-3 md:gap-y-6 lg:grid-cols-4 lg:gap-y-7">
-              {products.map((product, index) => {
-                const isNew = lastAppendedCount > 0 && index >= products.length - lastAppendedCount
-                return (
-                  <Link
-                    key={`${product.id}-${index}`}
-                    to={getProductPath(
-                      product.id,
-                      product.title,
-                      product.shortDescription,
-                    )}
-                    className={`block transition-all duration-500 ease-out ${isNew ? 'animate-search-card-in' : ''
+              {/**
+               * Prevent the browser from eagerly downloading/decoding images for every search result.
+               * Only load the first few cards eagerly; the rest load lazily.
+               */}
+              {(() => {
+                const EAGER_CARDS = eagerCardsCount
+                return products.map((product, index) => {
+                  const isNew =
+                    lastAppendedCount > 0 &&
+                    index >= products.length - lastAppendedCount
+                  const imageLoading =
+                    index < EAGER_CARDS ? "eager" : "lazy"
+                  return (
+                    <div
+                      key={product.id ?? index}
+                      className={`block transition-all duration-500 ease-out ${
+                        isNew ? "animate-search-card-in" : ""
                       }`}
-                    style={isNew ? { animationFillMode: 'backwards' } : undefined}
-                  >
-                    <ProductCard {...product} rounded="none" />
-                  </Link>
-                )
-              })}
+                      style={
+                        isNew ? { animationFillMode: "backwards" } : undefined
+                      }
+                    >
+                      <ProductCard
+                        {...product}
+                        rounded="none"
+                        imageLoading={imageLoading}
+                      />
+                    </div>
+                  )
+                })
+              })()}
             </div>
             {products.length > 0 && hasMoreToLoad && (
               <div
