@@ -162,7 +162,7 @@ const ProductCard = React.memo(function ProductCard({
       onFocus={() => {
         if (hoverImage && !hoverImageLoaded) setHoverImageLoaded(true);
       }}
-      className={`${id != null ? "block " : ""}${cardClassName} relative ${outOfStock ? "pointer-events-none" : ""}`}
+      className={`${id != null ? "block " : ""}${cardClassName} relative`}
       style={cardStyle}
     >
       <div className={outOfStock ? "select-none" : ""}>
@@ -352,7 +352,7 @@ const ProductCard = React.memo(function ProductCard({
                 className="flex items-center gap-1 sm:gap-2 text-black font-bold text-xs sm:text-sm"
                 style={{ fontFamily: "'Baloo 2', sans-serif" }}
               >
-                <svg
+                {/* <svg
                   className="w-3 h-3 sm:w-4 sm:h-4 shrink-0"
                   fill="none"
                   stroke="currentColor"
@@ -364,8 +364,8 @@ const ProductCard = React.memo(function ProductCard({
                     strokeLinejoin="round"
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
-                </svg>
-                <span className="truncate">{delivery}</span>
+                </svg> */}
+                {/* <span className="truncate">{delivery}</span> */}
               </span>
 
               {rating != null && rating !== "" && Number(rating) > 0 && (

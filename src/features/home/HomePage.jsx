@@ -71,28 +71,30 @@ function HomePage() {
         </div>
       )}
       {!loading && !error && (
-        <div className="pt-8 md:pt-12 lg:pt-16 space-y-8 md:space-y-12 lg:space-y-16">
-          {[1, 2, 3, 4, 5, 6].map((order) => {
-            const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
-            const section = sectionsByOrder[order]
-            return (
-              <React.Fragment key={order}>
-                {/* {order === 2 && <WearYour key="wear-your-static" />} */}
-                {SectionComponent ? <SectionComponent key={`section-${order}`} section={section} /> : null}
-              </React.Fragment>
-            )
-          })}
-          {Object.keys(sectionsByOrder).length === 0 && (
-            <>
-              <NewArrivals />
-              {/* <WearYour /> */}
-              {/* <Couples /> */}
-              {/* <OurCategory /> */}
-              {/* <Collection /> */}
-              {/* <BestSellar /> */}
-              <OurProduct />
-            </>
-          )}
+        <div className="bg-white">
+          <div className="pt-8 md:pt-12 lg:pt-16 space-y-8 md:space-y-12 lg:space-y-16">
+            {[1, 6].map((order) => {
+              const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
+              const section = sectionsByOrder[order]
+              return (
+                <React.Fragment key={order}>
+                  {/* {order === 2 && <WearYour key="wear-your-static" />} */}
+                  {SectionComponent ? <SectionComponent key={`section-${order}`} section={section} /> : null}
+                </React.Fragment>
+              )
+            })}
+            {Object.keys(sectionsByOrder).length === 0 && (
+              <>
+                <NewArrivals />
+                {/* <WearYour /> */}
+                {/* <Couples /> */}
+                {/* <OurCategory /> */}
+                {/* <Collection /> */}
+                {/* <BestSellar /> */}
+                <OurProduct />
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

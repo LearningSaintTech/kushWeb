@@ -680,19 +680,19 @@ function ProductPage() {
                 <div className="overflow-hidden">
                   <div className="mt-3 sm:mt-4 flex gap-2 sm:gap-3 md:mt-3 md:gap-2 lg:mt-5 lg:gap-[12px]">
                     <div className="shrink-0 text-gray-500">
-                      <RiTruckLine
+                      {/* <RiTruckLine
                         className="h-4 w-4 sm:h-5 sm:w-5 md:h-4 md:w-4 lg:h-6 lg:w-6"
                         aria-hidden
-                      />
+                      /> */}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm md:text-sm lg:text-base xl:text-[16px] text-gray-800">
+                      {/* <p className="text-xs sm:text-sm md:text-sm lg:text-base xl:text-[16px] text-gray-800">
                         {item.shipping?.title || "Free Flat Rate Shipping"}
-                      </p>
-                      <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs md:text-xs lg:text-sm xl:text-[15px] text-gray-500">
+                      </p> */}
+                      {/* <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs md:text-xs lg:text-sm xl:text-[15px] text-gray-500">
                         {item.shipping?.estimatedDelivery ||
                           "Estimated delivery based on your pincode."}
-                      </p>
+                      </p> */}
                       {item.care?.description && (
                         <p className="mt-2 text-sm text-gray-600">
                           {item.care.description}

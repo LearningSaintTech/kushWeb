@@ -801,7 +801,7 @@ function CartPage() {
                   })()}
                 </>
               ) : (
-                <p className="text-sm text-gray-500 mb-3">No address added. Add one to deliver.</p>
+                <p className="text-sm text-gray-500 mb-3">Please enter a delivery address to continue.</p>
               )}
               <button
                 type="button"
