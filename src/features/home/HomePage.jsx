@@ -15,9 +15,9 @@ import { sectionsService } from '../../services/content.service.js'
 const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
   // 2: Couples,
-  3: OurCategory,
-  4: Collection,
-  5: BestSellar,
+  // 3: OurCategory,
+  // 4: Collection,
+  // 5: BestSellar,
   6: OurProduct,
 }
 
@@ -87,9 +87,9 @@ function HomePage() {
               <NewArrivals />
               {/* <WearYour /> */}
               {/* <Couples /> */}
-              <OurCategory />
-              <Collection />
-              <BestSellar />
+              {/* <OurCategory /> */}
+              {/* <Collection /> */}
+              {/* <BestSellar /> */}
               <OurProduct />
             </>
           )}
