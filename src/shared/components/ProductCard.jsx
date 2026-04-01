@@ -337,11 +337,11 @@ const ProductCard = React.memo(function ProductCard({
               className="flex items-center gap-2 flex-nowrap min-w-0"
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
-              <span className="text-gray-600 font-medium text-xs sm:text-sm md:text-base shrink-0">
+              <span className="text-gray-900 font-semibold text-xs sm:text-sm md:text-base shrink-0">
                 {price}
               </span>
               {originalPrice && (
-                <span className="text-gray-500 line-through text-xs sm:text-sm md:text-base shrink-0">
+                <span className="text-gray-400 line-through text-xs sm:text-sm md:text-base shrink-0">
                   {originalPrice}
                 </span>
               )}
