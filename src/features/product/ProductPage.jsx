@@ -11,7 +11,7 @@ import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { ROUTES } from "../../utils/constants";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
-
+import { FaShareSquare } from "react-icons/fa";
 function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ function ProductPage() {
   const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const [addedToCart, setAddedToCart] = useState(false);
   const [cartError, setCartError] = useState(null);
-
+  const [copyMsg, setCopyMsg] = useState("");
   const [itemData, setItemData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -336,6 +336,20 @@ function ProductPage() {
     });
   };
 
+  const handleShare = async () => {
+    if (!item?._id) return;
+
+    try {
+      const url = `${window.location.origin}/product/${item._id}`;
+      await navigator.clipboard.writeText(url);
+
+      setCopyMsg("Link copied");
+      setTimeout(() => setCopyMsg(""), 2000);
+    } catch (err) {
+      console.error("Error copying link:", err);
+    }
+  };
+
   const handleBuyNow = async () => {
     if (!isAuthenticated) {
       openAuthModal();
@@ -422,7 +436,8 @@ function ProductPage() {
 
           {/* RIGHT SIDE - Details (compact 768–1024px) */}
           <div className="bg-gray-100 px-0 sm:px-4 md:px-4 lg:px-10 xl:px-10 font-inter min-w-0 flex flex-col">
-            <div className="flex justify-between items-start gap-2 sm:gap-3 md:gap-3 lg:gap-4">
+            <div className="flex justify-between items-start gap-2 sm:gap-3 md:gap-3 lg:gap-4 relative">
+              {" "}
               <div className="min-w-0 flex-1">
                 <h1 className="text-base font-medium font-inter uppercase  text-black sm:text-lg sm:tracking-[4px] md:text-lg md:tracking-[4px] lg:text-2xl lg:tracking-[5px] xl:text-2xl xl:tracking-[4px] wrap-break-word">
                   {item.name}
@@ -466,8 +481,7 @@ function ProductPage() {
                   {/* RIGHT : RATING - only show when there is a rating > 0 */}
                   {item.avgRating != null && Number(item.avgRating) > 0 && (
                     <div className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px]">
-                      ★{" "}
-                      {Number(item.avgRating).toFixed(1)}
+                      ★ {Number(item.avgRating).toFixed(1)}
                     </div>
                   )}
                 </div>
@@ -495,6 +509,19 @@ function ProductPage() {
                     d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
                   />
                 </svg>
+              </button>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="shrink-0 rounded p-1.5 sm:p-2 hover:bg-black/5 cursor-pointer"
+                aria-label="Share product"
+              >
+                <FaShareSquare className="h-5 w-5 sm:h-6 sm:w-6 text-gray-900" />{" "}
+                {copyMsg && (
+                  <span className="absolute top-10 right-2 text-xs bg-black text-white px-2 py-1 rounded shadow">
+                    {copyMsg}
+                  </span>
+                )}
               </button>
             </div>
 

@@ -426,7 +426,7 @@ function Footer() {
                   <div className="flex flex-col gap-4">
                     {/* APP STORE */}
                     <a
-                      href="#"
+                      href="https://apps.apple.com/in/app/khush/id6761365897"
                       className="flex items-center gap-3 border-1 border-[#A6A6A6] rounded-xl px-4 py-3   transition"
                     >
                       <FaApple size={26} />
