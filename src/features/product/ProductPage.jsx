@@ -12,6 +12,7 @@ import { ROUTES } from "../../utils/constants";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import { FaShareSquare } from "react-icons/fa";
+import SizeChart from "./components/Sizechart.jsx";
 function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ function ProductPage() {
   const [expandedSection, setExpandedSection] = useState("");
   const [shortDescExpanded, setShortDescExpanded] = useState(false);
   const [longDescExpanded, setLongDescExpanded] = useState(false);
+  const [showSizeChart, setShowSizeChart] = useState(false);
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
   );
@@ -547,10 +549,13 @@ function ProductPage() {
                   </div>
                 )}
                 {sizes.length > 0 && (
-                  <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2 lg:gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 md:gap-3 lg:gap-3">
+                    {/* SIZE LABEL */}
                     <span className="text-[11px] sm:text-xs md:text-xs lg:text-[15px] text-gray-700">
                       Size
                     </span>
+
+                    {/* SIZE OPTIONS */}
                     <div className="flex flex-wrap gap-1.5 sm:gap-2 md:gap-2 lg:gap-[10px]">
                       {sizes.map((s) => (
                         <button
@@ -558,25 +563,26 @@ function ProductPage() {
                           type="button"
                           onClick={() => s.inStock && setSelectedSize(s.size)}
                           disabled={!s.inStock}
-                          title={
-                            s.inStock
-                              ? `Size ${s.size} - Available`
-                              : `Size ${s.size} - Out of stock`
-                          }
-                          className={`flex h-7 w-7 min-w-7 items-center justify-center rounded-full border text-[11px] sm:h-8 sm:w-8 sm:min-w-8 sm:text-xs md:h-8 md:w-8 md:min-w-8 md:text-xs lg:h-9 lg:w-9 lg:min-w-9 lg:text-sm xl:h-[36px] xl:w-[36px] xl:min-w-[36px] xl:text-[14px] touch-manipulation ${
-                            selectedSize === s.size
-                              ? s.inStock
-                                ? "border-black bg-black text-white cursor-pointer"
-                                : "border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed line-through"
-                              : s.inStock
-                                ? "border-gray-400 bg-white text-gray-700 cursor-pointer hover:border-gray-600"
-                                : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 opacity-60 line-through"
-                          }`}
+                          className={`flex h-7 w-7 items-center justify-center rounded-full border text-[11px]
+        ${
+          selectedSize === s.size
+            ? "border-black bg-black text-white"
+            : "border-gray-400 bg-white text-gray-700"
+        }
+        ${!s.inStock ? "opacity-40 line-through cursor-not-allowed" : ""}`}
                         >
                           {s.size}
                         </button>
                       ))}
                     </div>
+
+                    {/* SIZE CHART LINK */}
+                    <button
+                      onClick={() => setShowSizeChart(true)}
+                      className="text-xs sm:text-sm underline underline-offset-2 text-black ml-2"
+                    >
+                      Size Chart
+                    </button>
                   </div>
                 )}
               </div>
@@ -863,6 +869,47 @@ function ProductPage() {
         </div>
 
         <ReviewRating itemId={item._id} />
+
+        {/* 🔥 SIZE CHART SLIDER */}
+<div
+  className={`fixed inset-0 z-50 ${
+    showSizeChart ? "visible" : "invisible"
+  }`}
+>
+  {/* BACKDROP */}
+  <div
+    onClick={() => setShowSizeChart(false)}
+    className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+      showSizeChart ? "opacity-100" : "opacity-0"
+    }`}
+  />
+
+  {/* RIGHT SLIDER */}
+  <div
+    className={`absolute right-0 top-0 h-full w-[90%] sm:w-[420px] bg-white shadow-xl transform transition-transform duration-300 ${
+      showSizeChart ? "translate-x-0" : "translate-x-full"
+    }`}
+  >
+    {/* HEADER */}
+    <div className="flex justify-between items-center p-4 border-b">
+      <h2 className="text-lg font-inter font-bold">SIZE CHART</h2>
+      <button
+        onClick={() => setShowSizeChart(false)}
+        className="text-xl font-bold"
+      >
+        ✕
+      </button>
+    </div>
+
+    {/* CONTENT */}
+    <div className="p-4 overflow-y-auto h-[calc(100%-60px)]">
+
+      {/* ✅ YOUR DYNAMIC COMPONENT */}
+      <SizeChart data={item?.sizeChart} />
+
+    </div>
+  </div>
+</div>
       </div>
     </div>
   );
