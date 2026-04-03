@@ -36,4 +36,12 @@ export const notificationService = {
   /** POST /notification/push-unsubscribe – Body: { endpoint } */
   pushUnsubscribe: (endpoint) =>
     client.post(`${BASE}/push-unsubscribe`, { endpoint }).then((res) => getData(res)),
+
+  /** POST /notification/mobile-push/register – FCM token (Android / iOS) */
+  mobilePushRegister: (body) =>
+    client.post(`${BASE}/mobile-push/register`, body).then((res) => getData(res)),
+
+  /** POST /notification/mobile-push/unregister – Body: { token } */
+  mobilePushUnregister: (token) =>
+    client.post(`${BASE}/mobile-push/unregister`, { token }).then((res) => getData(res)),
 };
