@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { getProductPath } from "../../utils/constants";
@@ -53,7 +53,10 @@ const ProductCard = React.memo(function ProductCard({
   outOfStock = false,
   shouldRenderImage = true,
   imageLoading = "eager",
+  /** Bottom “Buy It Now” bar on image hover (e.g. home Our Products). */
+  showBuyNowOnHover = false,
 }) {
+  const navigate = useNavigate();
   const { isAuthenticated, openAuthModal } = useAuth();
   const { addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const inWishlist = id != null && isInWishlist(id);
@@ -316,6 +319,22 @@ const ProductCard = React.memo(function ProductCard({
                   {cartError}
                 </div>
               )}
+            </div>
+          )}
+
+          {id != null && showBuyNowOnHover && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-3 pb-3 pt-0 sm:px-4 sm:pb-4 group-hover:pointer-events-auto">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate(getProductPath(id, title, shortDescription));
+                }}
+                className="pointer-events-auto flex h-10 w-[88%] max-w-[240px] translate-y-full items-center justify-center rounded-full bg-black px-4 text-xs font-medium uppercase tracking-wider text-white opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 sm:h-11 sm:px-6 sm:text-sm md:h-11 md:px-8 lg:h-14 lg:px-10 xl:h-[52px] md:text-sm lg:text-[16px] lg:tracking-[2px] cursor-pointer touch-manipulation hover:bg-neutral-900"
+              >
+                Buy It Now
+              </button>
             </div>
           )}
         </div>

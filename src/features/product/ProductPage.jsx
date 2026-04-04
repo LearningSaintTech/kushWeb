@@ -359,11 +359,14 @@ function ProductPage() {
     }
     if (!productForCart || !selectedSizeObj?.inStock) return;
     setCartError(null);
-    const result = await addToCart(productForCart, pincode);
-    if (result?.success === false && result?.message) {
-      setCartError(result.message);
-      setTimeout(() => setCartError(null), 4000);
-      return;
+    /** Same SKU already in cart — go to cart without calling add again */
+    if (!inCart) {
+      const result = await addToCart(productForCart, pincode);
+      if (result?.success === false && result?.message) {
+        setCartError(result.message);
+        setTimeout(() => setCartError(null), 4000);
+        return;
+      }
     }
     navigate(ROUTES.CART);
   };
@@ -813,7 +816,7 @@ function ProductPage() {
               </div>
             </div>
 
-            <div className="mt-4 sm:mt-6 md:mt-6 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
+            <div className="mt-4 sm:mt-6 md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
               {inCart || addedToCart ? (
                 <>
                   <p className="h-10 w-full flex items-center justify-center border border-black text-xs font-medium uppercase tracking-wider text-black sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px]">
@@ -886,27 +889,24 @@ function ProductPage() {
 
   {/* RIGHT SLIDER */}
   <div
-    className={`absolute right-0 top-0 h-full w-[90%] sm:w-[420px] bg-white shadow-xl transform transition-transform duration-300 ${
+    className={`absolute right-0 top-0 h-full w-[94%] sm:w-[min(720px,94vw)] lg:w-[min(820px,95vw)] xl:w-[min(920px,96vw)] bg-white shadow-xl transform transition-transform duration-300 ${
       showSizeChart ? "translate-x-0" : "translate-x-full"
     }`}
   >
-    {/* HEADER */}
-    <div className="flex justify-between items-center p-4 border-b">
-      <h2 className="text-lg font-inter font-bold">SIZE CHART</h2>
+    {/* HEADER — main title is inside SizeChart */}
+    <div className="flex justify-end items-center px-3 py-2 border-b border-neutral-200">
       <button
+        type="button"
         onClick={() => setShowSizeChart(false)}
-        className="text-xl font-bold"
+        className="flex h-10 w-10 items-center justify-center text-xl font-bold text-black hover:bg-neutral-100"
+        aria-label="Close size chart"
       >
         ✕
       </button>
     </div>
 
-    {/* CONTENT */}
-    <div className="p-4 overflow-y-auto h-[calc(100%-60px)]">
-
-      {/* ✅ YOUR DYNAMIC COMPONENT */}
-      <SizeChart data={item?.sizeChart} />
-
+    <div className="overflow-y-auto h-[calc(100%-52px)] p-4 sm:p-5">
+      <SizeChart item={item} />
     </div>
   </div>
 </div>

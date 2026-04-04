@@ -132,15 +132,15 @@ export function CartWishlistProvider({ children }) {
   }, [isAuthenticated, pincode])
 
   const refetchCart = useCallback((params = {}) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) return Promise.resolve()
     setCartLoading(true)
     const query = { limit: 100, ...params }
     if (pincode) query.pincode = String(pincode)
-    cartService.my(query).then((res) => {
+    return cartService.my(query).then((res) => {
       const data = res?.data?.data ?? res?.data
       const items = data?.items ?? []
-      const count = items.reduce((sum, i) => sum + (Number(i?.quantity) || 1), 0)
-      setCartCountFromApi(count)
+      /** Badge = number of cart lines, not sum of quantities */
+      setCartCountFromApi(items.length)
       const mapped = items.map((i) => {
         const id = i?.itemId?._id ?? i?.itemId ?? i?.productId
         const sku = i?.variant?.sku ?? i?.sku
@@ -160,7 +160,9 @@ export function CartWishlistProvider({ children }) {
     }).catch(() => {
       setCartCountFromApi(0)
       setCart([])
-    }).finally(() => setCartLoading(false))
+    }).finally(() => {
+      setCartLoading(false)
+    })
   }, [isAuthenticated, pincode])
 
   useEffect(() => {
@@ -243,7 +245,7 @@ export function CartWishlistProvider({ children }) {
         }
         try {
           await cartService.add(payload)
-          refetchCart()
+          await refetchCart()
           return { success: true }
         } catch (err) {
           const message = err?.response?.data?.message || err?.message || 'Could not add to cart.'
@@ -380,7 +382,9 @@ export function CartWishlistProvider({ children }) {
     [isAuthenticated, wishlistIds, wishlist]
   )
 
-  const effectiveCartCount = isAuthenticated ? cartCountFromApi : cart.reduce((sum, item) => sum + (item.quantity || 1), 0)
+  const effectiveCartCount = isAuthenticated
+    ? cartCountFromApi
+    : cart.length
   const effectiveWishlistCount = isAuthenticated ? wishlistIds.length : wishlist.length
 
   const value = useMemo(

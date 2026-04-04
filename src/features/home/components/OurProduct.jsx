@@ -9,7 +9,14 @@ import { categoriesService } from "../../../services/categories.service.js";
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const ALL_CATEGORY_KEY = "__ALL__";
 const CATEGORY_PRODUCT_LIMIT = 8;
-const FIRST_LOAD_MORE_DELAY_MS = 1000;
+/** Artificial pause before each infinite-scroll fetch (page 2+). */
+const LOAD_MORE_BATCH_DELAY_MS = 1700;
+
+function delayMs(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 const PRODUCTS_STATIC = Array.from({ length: 8 }, (_, i) => ({
   id: i + 1,
@@ -122,8 +129,6 @@ function OurProduct({ section }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef(null);
-  const firstLoadDelayAppliedRef = useRef(false);
-  const firstLoadDelayTimerRef = useRef(null);
   const loadingMoreLockRef = useRef(false);
 
   const sectionTitle = section?.title || "OUR PRODUCTS";
@@ -210,14 +215,9 @@ function OurProduct({ section }) {
       if (loadingMoreLockRef.current) return;
       loadingMoreLockRef.current = true;
       try {
-        if (nextPage === 2 && !firstLoadDelayAppliedRef.current) {
-          firstLoadDelayAppliedRef.current = true;
-          await new Promise((resolve) => {
-            firstLoadDelayTimerRef.current = setTimeout(() => {
-              firstLoadDelayTimerRef.current = null;
-              resolve();
-            }, FIRST_LOAD_MORE_DELAY_MS);
-          });
+        if (nextPage > 1) {
+          setLoadingMore(true);
+          await delayMs(LOAD_MORE_BATCH_DELAY_MS);
         }
 
         if (activeCategoryId === ALL_CATEGORY_KEY) {
@@ -242,43 +242,23 @@ function OurProduct({ section }) {
       setCategoryProducts([]);
       setCurrentPage(1);
       setHasMore(false);
-      firstLoadDelayAppliedRef.current = false;
-      if (firstLoadDelayTimerRef.current) {
-        clearTimeout(firstLoadDelayTimerRef.current);
-        firstLoadDelayTimerRef.current = null;
-      }
       loadingMoreLockRef.current = false;
       return;
     }
     if (activeCategoryId === ALL_CATEGORY_KEY) {
       setCurrentPage(1);
       setHasMore(false);
-      firstLoadDelayAppliedRef.current = false;
-      if (firstLoadDelayTimerRef.current) {
-        clearTimeout(firstLoadDelayTimerRef.current);
-        firstLoadDelayTimerRef.current = null;
-      }
       loadingMoreLockRef.current = false;
       fetchAllVersion2();
     } else if (activeCategoryId) {
       setCurrentPage(1);
       setHasMore(true);
-      firstLoadDelayAppliedRef.current = false;
-      if (firstLoadDelayTimerRef.current) {
-        clearTimeout(firstLoadDelayTimerRef.current);
-        firstLoadDelayTimerRef.current = null;
-      }
       loadingMoreLockRef.current = false;
       fetchByCategory(activeCategoryId, 1);
     } else {
       setCategoryProducts([]);
       setCurrentPage(1);
       setHasMore(false);
-      firstLoadDelayAppliedRef.current = false;
-      if (firstLoadDelayTimerRef.current) {
-        clearTimeout(firstLoadDelayTimerRef.current);
-        firstLoadDelayTimerRef.current = null;
-      }
       loadingMoreLockRef.current = false;
     }
   }, [activeCategoryId, listFromSection.length, fetchByCategory, fetchAllVersion2]);
@@ -313,10 +293,6 @@ function OurProduct({ section }) {
     observer.observe(el);
     return () => {
       observer.disconnect();
-      if (firstLoadDelayTimerRef.current) {
-        clearTimeout(firstLoadDelayTimerRef.current);
-        firstLoadDelayTimerRef.current = null;
-      }
       loadingMoreLockRef.current = false;
     };
   }, [
@@ -348,9 +324,9 @@ function OurProduct({ section }) {
 
   return (
     <section className="bg-white py-10 sm:py-14">
-      <div className="">
+      <div className="mx-auto max-w-9xl px-4 sm:px-8 md:px-8 lg:px-8">
         {/* ================= HEADER ================= */}
-        <div className="flex flex-col lg:ml-[6vw] lg:flex-row lg:items-end lg:justify-between gap-8 mb-10">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-10">
           {/* LEFT SIDE */}
           <div className="flex flex-col items-center lg:items-start text-center lg:text-left w-full">
             {/* TITLE */}
@@ -397,13 +373,13 @@ function OurProduct({ section }) {
             Loading...
           </div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-6">
-          {!loadingInitial &&
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">          {!loadingInitial &&
             productsToShow.map((product, idx) => (
               <ProductCard
                 key={product.id ?? idx}
                 {...product}
                 rounded="none"
+                showBuyNowOnHover
               />
             ))}
         </div>

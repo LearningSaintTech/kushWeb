@@ -35,25 +35,33 @@ export default function NotificationsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const loadPage = useCallback(
-    async (pageNum = 1, append = false) => {
+    async (pageNum = 1, { showFullPageLoading = false } = {}) => {
       if (!isAuthenticated) return;
-      setLoading(true);
+      if (showFullPageLoading) setLoading(true);
+      else setFetching(true);
       try {
         const data = await notificationService.getList({
           page: pageNum,
           limit: PAGE_SIZE,
         });
         const items = data?.list ?? [];
-        setList((prev) => (append ? [...prev, ...items] : items));
-        setTotal(data?.total ?? 0);
-        setPage(data?.page ?? pageNum);
+        setList(items);
+        setTotal(data?.total != null ? Number(data.total) : 0);
+        setPage(Number(data?.page) || pageNum);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       } catch {
-        if (!append) setList([]);
-        setTotal((t) => (append ? t : 0));
+        if (showFullPageLoading) {
+          setList([]);
+          setTotal(0);
+        }
       } finally {
         setLoading(false);
+        setFetching(false);
       }
     },
     [isAuthenticated],
@@ -64,7 +72,7 @@ export default function NotificationsPage() {
       navigate(ROUTES.AUTH, { replace: true });
       return;
     }
-    loadPage(1);
+    loadPage(1, { showFullPageLoading: true });
   }, [isAuthenticated, navigate, loadPage]);
 
   const handleMarkRead = async (id) => {
@@ -109,7 +117,9 @@ export default function NotificationsPage() {
       ) : list.length === 0 ? (
         <p className="text-gray-500 py-8">No notifications yet.</p>
       ) : (
-        <ul className="space-y-4">
+        <ul
+          className={`space-y-4 ${fetching ? "pointer-events-none opacity-60" : ""}`}
+        >
           {list.map((n) => (
             <li key={n._id}>
               <div
@@ -163,15 +173,37 @@ export default function NotificationsPage() {
         </ul>
       )}
 
-      {total > PAGE_SIZE && list.length < total && (
-        <button
-          type="button"
-          onClick={() => loadPage(page + 1, true)}
-          disabled={loading}
-          className="mt-4 w-full py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg disabled:opacity-50"
+      {!loading && total > 0 && totalPages > 1 && (
+        <nav
+          className="mt-8 flex flex-col items-center gap-3 border-t border-gray-200 pt-6 sm:flex-row sm:justify-center sm:gap-6"
+          aria-label="Notifications pagination"
         >
-          {loading ? "Loading..." : "Load more"}
-        </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => loadPage(page - 1)}
+              disabled={page <= 1 || fetching}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => loadPage(page + 1)}
+              disabled={page >= totalPages || fetching}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+          <p className="text-sm text-gray-600">
+            Page <span className="font-medium text-gray-900">{page}</span> of{" "}
+            <span className="font-medium text-gray-900">{totalPages}</span>
+            {fetching && (
+              <span className="ml-2 text-gray-500">· Loading…</span>
+            )}
+          </p>
+        </nav>
       )}
     </div>
   );
