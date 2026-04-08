@@ -58,6 +58,13 @@ const DELIVERY_STATUS_ORDER = [
   "DELIVERED",
 ];
 
+/** Only show "Cancel order" before shipment / courier pickup (backend may still send isCancellable). */
+const CANCEL_ORDER_UI_STATUSES = new Set([
+  "CREATED",
+  "CONFIRMED",
+  "PROCESSING",
+]);
+
 const STEPPER = [
   { key: "order_placed", label: "Order Placed", statuses: ["CREATED"] },
   { key: "confirmed", label: "Confirmed", statuses: ["CONFIRMED"] },
@@ -1018,6 +1025,10 @@ export default function TrackOrderPage() {
   );
   const showBookedItemsSection = otherBookedItemsForList.length > 0;
   const isCancellable = data.isCancellable === true;
+  const showCancelOrderButton =
+    isCancellable &&
+    CANCEL_ORDER_UI_STATUSES.has(currentStatus) &&
+    !EXCHANGE_STATUSES.includes(currentStatus);
   const isExchangeable = data.isExchangeable !== false;
   const exchangeInProgress = isExchangeInProgress(data.exchange);
   const showExchangeButton =
@@ -1659,7 +1670,7 @@ export default function TrackOrderPage() {
               <div />
             )}
             <div className="flex items-center gap-3">
-              {isCancellable && (
+              {showCancelOrderButton && (
                 <button
                   type="button"
                   onClick={openCancelModal}

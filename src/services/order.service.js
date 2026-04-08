@@ -22,22 +22,25 @@ export const orderService = {
   getOrderItemById: (orderId, itemId) => client.get(`${BASE}/items/${orderId}/${itemId}`),
 
   /**
-   * Download invoice PDF for an order item.
-   * Backend: GET /order/invoice/:orderId/:itemId (returns PDF binary)
-   * Triggers browser download; returns void.
+   * Open invoice PDF for an order item.
+   * Backend: GET /order/invoice/:orderId/:itemId — returns JSON with `invoice_url` (S3 PDF link).
    */
   downloadInvoice: async (orderId, itemId) => {
-    const res = await client.get(`${BASE}/invoice/${orderId}/${itemId}`, {
-      responseType: 'blob',
-    });
-    const blob = res.data;
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `invoice_${orderId}_${itemId || 'order'}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    a.remove();
+    const res = await client.get(`${BASE}/invoice/${orderId}/${itemId}`);
+    const payload = res.data?.data ?? res.data;
+    const invoiceUrl =
+      (typeof payload?.invoice_url === 'string' && payload.invoice_url.trim()) ||
+      (typeof payload?.invoiceUrl === 'string' && payload.invoiceUrl.trim()) ||
+      null;
+    const created = payload?.is_invoice_created ?? payload?.isInvoiceCreated;
+    if (created === false || !invoiceUrl) {
+      const message =
+        (typeof payload?.message === 'string' && payload.message.trim()) ||
+        'Invoice is not available yet.';
+      const err = new Error(message);
+      err.response = { data: { message } };
+      throw err;
+    }
+    window.open(invoiceUrl, '_blank', 'noopener,noreferrer');
   },
 };
