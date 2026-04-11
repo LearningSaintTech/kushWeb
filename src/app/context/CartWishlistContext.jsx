@@ -31,6 +31,19 @@ function loadWishlist() {
   }
 }
 
+/** True while guest cart/wishlist exists in localStorage but post-login merge has not finished for this token. */
+function isGuestMergePending(token) {
+  if (!token) return false
+  try {
+    const mergeKey = `khush_guest_merged_${token.slice(-24)}`
+    const mergeDone = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(mergeKey)
+    const guestPending = loadCart().length > 0 || loadWishlist().length > 0
+    return Boolean(guestPending && !mergeDone)
+  } catch {
+    return false
+  }
+}
+
 /** Format a delivery option from API for display (e.g. "1 day delivery - ₹50") */
 function formatDeliveryOption(d) {
   if (!d) return '—'
@@ -72,7 +85,7 @@ function mapWishlistItem(item, deliveryOptions = []) {
 }
 
 export function CartWishlistProvider({ children }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, token } = useAuth()
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
   const [cart, setCart] = useState(loadCart)
   const [wishlist, setWishlist] = useState(loadWishlist)
@@ -83,20 +96,16 @@ export function CartWishlistProvider({ children }) {
   const [cartLoading, setCartLoading] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      try {
-        localStorage.setItem(STORAGE_KEY_CART, JSON.stringify(cart))
-      } catch {}
-    }
-  }, [cart, isAuthenticated])
+    try {
+      localStorage.setItem(STORAGE_KEY_CART, JSON.stringify(cart))
+    } catch {}
+  }, [cart])
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      try {
-        localStorage.setItem(STORAGE_KEY_WISHLIST, JSON.stringify(wishlist))
-      } catch {}
-    }
-  }, [wishlist, isAuthenticated])
+    try {
+      localStorage.setItem(STORAGE_KEY_WISHLIST, JSON.stringify(wishlist))
+    } catch {}
+  }, [wishlist])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -105,6 +114,9 @@ export function CartWishlistProvider({ children }) {
       setCartCountFromApi(0)
       setCart(loadCart())
       setWishlist(loadWishlist())
+      return
+    }
+    if (isGuestMergePending(token)) {
       return
     }
     setWishlistLoading(true)
@@ -129,7 +141,7 @@ export function CartWishlistProvider({ children }) {
         setWishlist([])
       }),
     ]).finally(() => setWishlistLoading(false))
-  }, [isAuthenticated, pincode])
+  }, [isAuthenticated, pincode, token])
 
   const refetchCart = useCallback((params = {}) => {
     if (!isAuthenticated) return Promise.resolve()
@@ -167,8 +179,11 @@ export function CartWishlistProvider({ children }) {
 
   useEffect(() => {
     if (!isAuthenticated) return
+    if (isGuestMergePending(token)) {
+      return
+    }
     refetchCart()
-  }, [isAuthenticated, refetchCart])
+  }, [isAuthenticated, refetchCart, token])
 
   /** Build backend cart add payload: { itemId, variant: { color, size, sku, imageUrl }, quantity, pincode? } */
   const buildCartPayload = useCallback(async (product, pincode = null) => {
@@ -185,7 +200,7 @@ export function CartWishlistProvider({ children }) {
           sku: product.sku,
           imageUrl,
         },
-        quantity: Number(product.quantity) || 1,
+        quantity: Math.max(1, Number(product.quantity) || 1),
         ...(pincode ? { pincode } : {}),
       }
     }
@@ -217,6 +232,7 @@ export function CartWishlistProvider({ children }) {
       const rawImageUrl = v?.images?.[0]?.url ?? (Array.isArray(v?.images) && v.images[0]?.url) ?? item?.thumbnail ?? ''
       // Encode spaces so URL passes backend isURL() validation (e.g. "Couple Collection" -> "Couple%20Collection")
       const imageUrl = (rawImageUrl || product?.image || 'https://placehold.co/400').replace(/ /g, '%20')
+      const qty = Math.max(1, Number(product?.quantity) || 1)
       const payload = {
         itemId: item._id ?? itemId,
         variant: {
@@ -225,7 +241,7 @@ export function CartWishlistProvider({ children }) {
           sku: s.sku,
           imageUrl,
         },
-        quantity: 1,
+        quantity: qty,
         ...(pincode ? { pincode } : {}),
       }
       return payload
@@ -233,6 +249,140 @@ export function CartWishlistProvider({ children }) {
       return null
     }
   }, [])
+
+  /** After login, copy guest cart/wishlist from localStorage into the user account, then refresh. Runs once per token (sessionStorage). */
+  useEffect(() => {
+    if (!isAuthenticated || !token) return
+    const mergeKey = `khush_guest_merged_${token.slice(-24)}`
+    const markMerged = () => {
+      try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(mergeKey, '1')
+      } catch {}
+    }
+    try {
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(mergeKey)) return
+    } catch {
+      return
+    }
+
+    const guestCart = loadCart()
+    const guestWishlist = loadWishlist()
+    if (!guestCart.length && !guestWishlist.length) {
+      markMerged()
+      return
+    }
+
+    let cancelled = false
+    const reloadWishlistAfterMerge = async () => {
+      setWishlistLoading(true)
+      try {
+        const wishlistParams = { page: 1, limit: 100 }
+        if (pincode) wishlistParams.pincode = String(pincode)
+        await Promise.all([
+          wishlistService.getIds().then((res) => {
+            const d = res?.data?.data ?? res?.data
+            const ids = Array.isArray(d) ? d : (d?.ids ?? d?.itemIds ?? [])
+            const idList = ids.map((x) => x?.itemId ?? x?.id ?? x).filter(Boolean)
+            setWishlistIds(idList)
+          }),
+          wishlistService.getItems(wishlistParams).then((res) => {
+            const itemsData = res?.data?.data ?? res?.data
+            const items = itemsData?.items ?? (Array.isArray(itemsData) ? itemsData : [])
+            const deliveries = itemsData?.deliveries ?? []
+            setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
+            setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
+          }),
+        ])
+      } catch (_) {
+      } finally {
+        setWishlistLoading(false)
+      }
+    }
+
+    ;(async () => {
+      try {
+        const query = { limit: 100 }
+        if (pincode) query.pincode = String(pincode)
+        let cartRes
+        try {
+          cartRes = await cartService.my(query)
+        } catch {
+          if (!cancelled) {
+            await refetchCart().catch(() => {})
+            await reloadWishlistAfterMerge()
+            markMerged()
+          }
+          return
+        }
+        if (cancelled) return
+        const data = cartRes?.data?.data ?? cartRes?.data
+        const serverItems = data?.items ?? []
+        const serverIds = new Set(
+          serverItems
+            .map((i) => i?.itemId?._id ?? i?.itemId ?? i?.productId)
+            .filter(Boolean)
+            .map(String)
+        )
+
+        for (const line of guestCart) {
+          const id = line?.id
+          if (id == null) continue
+          if (serverIds.has(String(id))) continue
+          const payload = await buildCartPayload({ ...line, id }, pincode)
+          if (!payload) continue
+          try {
+            await cartService.add(payload)
+            serverIds.add(String(id))
+          } catch (_) {}
+          if (cancelled) return
+        }
+
+        let idsRes
+        try {
+          idsRes = await wishlistService.getIds()
+        } catch {
+          idsRes = null
+        }
+        if (cancelled) return
+        const idsData = idsRes?.data?.data ?? idsRes?.data
+        const rawIds = Array.isArray(idsData) ? idsData : (idsData?.ids ?? idsData?.itemIds ?? [])
+        const serverWishIds = new Set(
+          rawIds.map((x) => String(typeof x === 'object' ? (x?.itemId ?? x?.id ?? x) : x)).filter(Boolean)
+        )
+
+        for (const w of guestWishlist) {
+          const wid = w?.id
+          if (wid == null) continue
+          const ws = String(wid)
+          if (serverWishIds.has(ws)) continue
+          try {
+            await wishlistService.toggle({ itemId: wid })
+            serverWishIds.add(ws)
+          } catch (_) {}
+          if (cancelled) return
+        }
+
+        await refetchCart()
+        if (cancelled) return
+
+        await reloadWishlistAfterMerge()
+
+        if (!cancelled) markMerged()
+      } catch (_) {
+        if (!cancelled) {
+          try {
+            await refetchCart()
+          } catch {}
+          await reloadWishlistAfterMerge()
+          markMerged()
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, token, pincode, buildCartPayload, refetchCart])
 
   const addToCart = useCallback(
     async (product, pincodeParam = null) => {
@@ -282,6 +432,28 @@ export function CartWishlistProvider({ children }) {
     },
     [isAuthenticated, cart, refetchCart]
   )
+
+  const incrementGuestCartItem = useCallback((productId) => {
+    if (!productId) return
+    setCart((prev) =>
+      prev.map((item) =>
+        String(item.id) === String(productId)
+          ? { ...item, quantity: (item.quantity || 1) + 1 }
+          : item
+      )
+    )
+  }, [])
+
+  const decrementGuestCartItem = useCallback((productId) => {
+    if (!productId) return
+    setCart((prev) =>
+      prev.flatMap((item) => {
+        if (String(item.id) !== String(productId)) return [item]
+        const next = (item.quantity || 1) - 1
+        return next < 1 ? [] : [{ ...item, quantity: next }]
+      })
+    )
+  }, [])
 
   const addToWishlist = useCallback(
     async (product) => {
@@ -398,6 +570,8 @@ export function CartWishlistProvider({ children }) {
       cartLoading,
       addToCart,
       removeFromCart,
+      incrementGuestCartItem,
+      decrementGuestCartItem,
       addToWishlist,
       removeFromWishlist,
       toggleWishlist,
@@ -414,6 +588,8 @@ export function CartWishlistProvider({ children }) {
       cartLoading,
       addToCart,
       removeFromCart,
+      incrementGuestCartItem,
+      decrementGuestCartItem,
       addToWishlist,
       removeFromWishlist,
       toggleWishlist,

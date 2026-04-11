@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { getProductPath } from "../../utils/constants";
 
@@ -57,7 +56,6 @@ const ProductCard = React.memo(function ProductCard({
   showBuyNowOnHover = false,
 }) {
   const navigate = useNavigate();
-  const { isAuthenticated, openAuthModal } = useAuth();
   const { addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const inWishlist = id != null && isInWishlist(id);
   const [cartError, setCartError] = useState(null);
@@ -71,15 +69,6 @@ const ProductCard = React.memo(function ProductCard({
     };
   }, []);
 
-  const requireAuth = (fn) => (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isAuthenticated) {
-      openAuthModal(); // stay on same page after login
-      return;
-    }
-    fn?.(e);
-  };
   const imageRounded = roundedTop ?? rounded;
   const infoRounded = roundedBottom ?? rounded;
 
@@ -215,7 +204,9 @@ const ProductCard = React.memo(function ProductCard({
               {/* Wishlist */}
               <button
                 type="button"
-                onClick={requireAuth(() =>
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   toggleWishlist({
                     id,
                     image,
@@ -226,12 +217,12 @@ const ProductCard = React.memo(function ProductCard({
                     originalPrice,
                     delivery,
                     rating,
-                  }),
-                )}
+                  });
+                }}
                 className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${
                   inWishlist
                     ? "translate-x-0 opacity-100"
-                    : "translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100"
+                    : "translate-x-0 opacity-100 md:translate-x-12 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100"
                 }`}
                 aria-label={
                   inWishlist ? "Remove from wishlist" : "Add to wishlist"
@@ -253,7 +244,7 @@ const ProductCard = React.memo(function ProductCard({
               </button>
 
               {/* Compare */}
-              <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 ease-in-out delay-100">
+              <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-0 opacity-100 md:translate-x-12 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100 transition-all duration-500 ease-in-out md:delay-100">
                 <svg
                   className="w-5 h-5 text-gray-700"
                   fill="none"
@@ -272,7 +263,9 @@ const ProductCard = React.memo(function ProductCard({
               {/* Cart */}
               <button
                 type="button"
-                onClick={requireAuth(async () => {
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   setCartError(null);
                   if (cartErrorTimeoutRef.current) {
                     clearTimeout(cartErrorTimeoutRef.current);
@@ -296,8 +289,8 @@ const ProductCard = React.memo(function ProductCard({
                       4000,
                     );
                   }
-                })}
-                className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 ease-in-out delay-200 hover:scale-105 cursor-pointer"
+                }}
+                className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-0 opacity-100 md:translate-x-12 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100 transition-all duration-500 ease-in-out md:delay-200 hover:scale-105 cursor-pointer"
                 aria-label="Add to cart"
               >
                 <svg
@@ -323,7 +316,7 @@ const ProductCard = React.memo(function ProductCard({
           )}
 
           {id != null && showBuyNowOnHover && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-3 pb-3 pt-0 sm:px-4 sm:pb-4 group-hover:pointer-events-auto">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden justify-center px-3 pb-3 pt-0 sm:flex sm:px-4 sm:pb-4 max-md:pointer-events-auto md:group-hover:pointer-events-auto">
               <button
                 type="button"
                 onClick={(e) => {
@@ -331,7 +324,7 @@ const ProductCard = React.memo(function ProductCard({
                   e.stopPropagation();
                   navigate(getProductPath(id, title, shortDescription));
                 }}
-                className="pointer-events-auto flex h-10 w-[88%] max-w-[240px] translate-y-full items-center justify-center rounded-full bg-black px-4 text-xs font-medium uppercase tracking-wider text-white opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 sm:h-11 sm:px-6 sm:text-sm md:h-11 md:px-8 lg:h-14 lg:px-10 xl:h-[52px] md:text-sm lg:text-[16px] lg:tracking-[2px] cursor-pointer touch-manipulation hover:bg-neutral-900"
+                className="pointer-events-auto flex h-10 w-[88%] max-w-[240px] max-md:translate-y-0 max-md:opacity-100 items-center justify-center rounded-full bg-black px-4 text-xs font-medium uppercase tracking-wider text-white opacity-0 transition-all duration-300 ease-out md:translate-y-full md:group-hover:translate-y-0 md:group-hover:opacity-100 sm:h-11 sm:px-6 sm:text-sm md:h-11 md:px-8 lg:h-14 lg:px-10 xl:h-[52px] md:text-sm lg:text-[16px] lg:tracking-[2px] cursor-pointer touch-manipulation hover:bg-neutral-900"
               >
                 Buy It Now
               </button>
@@ -339,9 +332,11 @@ const ProductCard = React.memo(function ProductCard({
           )}
         </div>
 
-        {/* INFO STRIP */}
+        {/* INFO STRIP — on phone + Buy Now below, bottom radius moves to the button row */}
         <div
-          className={`px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${infoIsNumeric ? "" : infoRoundedBottomClass}`}
+          className={`px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${
+            showBuyNowOnHover ? "max-sm:rounded-b-none" : ""
+          } ${infoIsNumeric ? "" : infoRoundedBottomClass}`}
           style={infoBottomStyle}
         >
           <h3
@@ -404,6 +399,28 @@ const ProductCard = React.memo(function ProductCard({
             </div>
           </div>
         </div>
+
+        {/* Phone: full-width Buy It Now at bottom of card (below title/price) */}
+        {id != null && showBuyNowOnHover && (
+          <div
+            className={`sm:hidden border-t border-gray-100 bg-white px-3 pb-3 pt-3 ${
+              infoIsNumeric ? "" : infoRoundedBottomClass
+            }`}
+            style={infoBottomStyle}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(getProductPath(id, title, shortDescription));
+              }}
+              className="flex h-11 w-full max-w-full items-center justify-center rounded-full bg-black px-4 text-xs font-medium uppercase tracking-wider text-white cursor-pointer touch-manipulation hover:bg-neutral-900 active:bg-neutral-800"
+            >
+              Buy It Now
+            </button>
+          </div>
+        )}
       </div>
     {outOfStock && (
   <div className="absolute top-3 left-3 z-20 pointer-events-none">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
@@ -78,10 +78,52 @@ function cartRowToEcommerceItem(row) {
   }
 }
 
+function parseGuestPrice(priceStr) {
+  if (typeof priceStr === 'number' && !Number.isNaN(priceStr)) return priceStr
+  const n = Number(String(priceStr ?? '').replace(/[^0-9.]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+function guestCartToRows(guestCart) {
+  return (guestCart || []).map((g) => {
+    const unitPrice = parseGuestPrice(g.price)
+    const qty = g.quantity ?? 1
+    const id = g.id
+    return {
+      isGuest: true,
+      guestProductId: id,
+      _id: `guest-${id}`,
+      itemId: {
+        _id: id,
+        name: g.title || 'Product',
+        shortDescription: '',
+        discountedPrice: unitPrice,
+        price: unitPrice,
+      },
+      variant: {
+        sku: `guest-${id}`,
+        color: '',
+        size: '',
+        imageUrl: g.image || '',
+      },
+      quantity: qty,
+      unitPrice,
+      itemTotal: unitPrice * qty,
+      outOfStock: false,
+    }
+  })
+}
+
 function CartPage() {
   const dispatch = useDispatch()
   const { isAuthenticated } = useAuth()
-  const { removeFromCart, refetchCart } = useCartWishlist()
+  const {
+    removeFromCart,
+    refetchCart,
+    cart: guestCartFromContext,
+    incrementGuestCartItem,
+    decrementGuestCartItem,
+  } = useCartWishlist()
   const pincodeRedux = useSelector((s) => s?.location?.pincode) ?? null
   const selectedAddressIdFromRedux = useSelector((s) => s?.location?.selectedAddressId) ?? null
   const [cartData, setCartData] = useState(null)
@@ -94,7 +136,7 @@ function CartPage() {
   const [couponModalOpen, setCouponModalOpen] = useState(false)
   const [availableCoupons, setAvailableCoupons] = useState([])
   const [loadingCoupons, setLoadingCoupons] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => isAuthenticated)
   const [cartError, setCartError] = useState(null)
   const [couponError, setCouponError] = useState(null)
   const [addressFormOpen, setAddressFormOpen] = useState(false)
@@ -113,6 +155,19 @@ function CartPage() {
 
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? pincodeRedux
+
+  const lineItems = useMemo(() => {
+    if (isAuthenticated) return cartData?.items ?? []
+    return guestCartToRows(guestCartFromContext)
+  }, [isAuthenticated, cartData?.items, guestCartFromContext])
+
+  const guestSubTotal = useMemo(() => {
+    if (isAuthenticated) return 0
+    return (guestCartFromContext || []).reduce(
+      (sum, g) => sum + parseGuestPrice(g.price) * (g.quantity ?? 1),
+      0,
+    )
+  }, [isAuthenticated, guestCartFromContext])
 
   const refetchAddresses = useCallback(async () => {
     const res = await addressService.getAll({ page: 1, limit: 50 })
@@ -156,7 +211,8 @@ function CartPage() {
     const list = Array.isArray(data) ? data : (data?.data ?? [])
     return Array.isArray(list) ? list : []
   }, [])
-  const cartSubTotalForCoupon = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
+  const cartSubTotalForCoupon =
+    cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? guestSubTotal ?? 0
 
   // On mount / auth: load addresses, then cart with addressId, then price summary
   useEffect(() => {
@@ -249,6 +305,10 @@ function CartPage() {
   }, [cartData?.items?.length, appliedCouponCode, isAuthenticated])
 
   const handleIncreaseQty = async (sku, row) => {
+    if (row?.isGuest && row.guestProductId != null) {
+      incrementGuestCartItem(row.guestProductId)
+      return
+    }
     try {
       await cartService.increaseQty(sku)
       pushDataLayer({
@@ -266,6 +326,10 @@ function CartPage() {
   }
 
   const handleDecreaseQty = async (sku, row) => {
+    if (row?.isGuest && row.guestProductId != null) {
+      decrementGuestCartItem(row.guestProductId)
+      return
+    }
     try {
       await cartService.decreaseQty(sku)
       pushDataLayer({
@@ -282,6 +346,19 @@ function CartPage() {
   }
 
   const handleRemove = async (sku, row) => {
+    if (row?.isGuest && row.guestProductId != null) {
+      try {
+        await removeFromCart(row.guestProductId)
+        pushDataLayer({
+          event: 'remove_from_cart',
+          ecommerce: {
+            currency: 'INR',
+            items: [cartRowToEcommerceItem(row)],
+          },
+        })
+      } catch (_) {}
+      return
+    }
     try {
       await removeFromCart(sku)
       pushDataLayer({
@@ -405,32 +482,22 @@ function CartPage() {
     }
   }
 
-  const summary = priceSummary?.summary ?? {}
-  const subTotal = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
-  const finalPayable = summary.finalPayable ?? subTotal
+  const summary = isAuthenticated ? (priceSummary?.summary ?? {}) : {}
+  const subTotal = isAuthenticated
+    ? (cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0)
+    : guestSubTotal
+  const finalPayable = isAuthenticated ? (summary.finalPayable ?? subTotal) : guestSubTotal
   const coupon = summary.coupon
   const deliverySummary = summary.delivery
   const otherChargesTotal = summary.otherChargesTotal ?? 0
-  const chargesList = Array.isArray(summary.charges) ? summary.charges : []
+  const chargesList = isAuthenticated && Array.isArray(summary.charges) ? summary.charges : []
   const taxableAmount = summary.taxableAmount ?? 0
   const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0
-  const subTotalAfterDiscount = summary.subTotalAfterDiscount ?? summary.subTotal ?? 0
+  const subTotalAfterDiscount = isAuthenticated
+    ? (summary.subTotalAfterDiscount ?? summary.subTotal ?? 0)
+    : guestSubTotal
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-50 pt-24 pb-12">
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold text-black uppercase">Your cart</h1>
-          <p className="mt-2 text-gray-600">Please sign in to view your cart.</p>
-          <Link to={ROUTES.AUTH} className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors">
-            Sign in
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  if (loading && !cartData) {
+  if (loading && isAuthenticated && !cartData) {
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
@@ -440,7 +507,7 @@ function CartPage() {
     )
   }
 
-  const items = cartData?.items ?? []
+  const items = lineItems
   const hasOutOfStockItem = items.some((row) => row.outOfStock === true || (row.availableQuantity != null && Number(row.availableQuantity) === 0))
   const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : (cartData?.deliveryOptions ?? [])
 
@@ -532,7 +599,7 @@ function CartPage() {
                       <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-md overflow-hidden">
                         <button
                           type="button"
-                          onClick={() => handleDecreaseQty(sku)}
+                          onClick={() => handleDecreaseQty(sku, row)}
                           className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
                           aria-label="Decrease quantity"
                         >
@@ -541,7 +608,7 @@ function CartPage() {
                         <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">{qty}</span>
                         <button
                           type="button"
-                          onClick={() => handleIncreaseQty(sku)}
+                          onClick={() => handleIncreaseQty(sku, row)}
                           className="w-9 h-9 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
                           aria-label="Increase quantity"
                         >
@@ -554,6 +621,11 @@ function CartPage() {
                     </div>
 
                     <div className="mt-3 flex items-center gap-2">
+                      {row.isGuest ? (
+                        <p className="flex-1 text-xs text-gray-600 py-2">
+                          Delivery speed and charges are confirmed at checkout after you sign in.
+                        </p>
+                      ) : (
                       <select
                         value={selectedDeliveryId ?? ''}
                         onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
@@ -573,9 +645,10 @@ function CartPage() {
                           )
                         })}
                       </select>
+                      )}
                       <button
                         type="button"
-                        onClick={() => handleRemove(sku)}
+                        onClick={() => handleRemove(sku, row)}
                         className="p-2 text-gray-500 hover:text-black transition-colors border border-gray-200 rounded-md"
                         aria-label="Remove from cart"
                       >
@@ -711,6 +784,11 @@ function CartPage() {
                           Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="pl-4 py-4 align-middle">
+                          {row.isGuest ? (
+                            <p className="text-xs text-gray-600 max-w-[180px]">
+                              Confirmed at checkout after sign-in.
+                            </p>
+                          ) : (
                           <select
                             value={selectedDeliveryId ?? ''}
                             onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
@@ -730,6 +808,7 @@ function CartPage() {
                               )
                             })}
                           </select>
+                          )}
                         </td>
                         <td className="pl-2 py-4 align-middle">
                           <button
@@ -754,6 +833,20 @@ function CartPage() {
           {/* Right column: Delivery, Coupon, Bill Summary */}
           <div className="lg:col-span-1 space-y-6 border border-gray-300  p-5 bg-white">
             {/* Delivery To */}
+            {!isAuthenticated && (
+              <section className="rounded border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm text-gray-700">
+                  Sign in to add a delivery address, apply coupons, and complete checkout. You can still edit your bag here.
+                </p>
+                <Link
+                  to={ROUTES.AUTH}
+                  className="mt-3 inline-block px-5 py-2.5 bg-black text-white text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
+                >
+                  Sign in
+                </Link>
+              </section>
+            )}
+            {isAuthenticated && (
             <section>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">Delivery to:</h2>
               {addresses.length > 0 ? (
@@ -811,6 +904,7 @@ function CartPage() {
                 Add new address
               </button>
             </section>
+            )}
 
             {/* Add / Edit Address modal */}
             {addressFormOpen && (
@@ -890,6 +984,7 @@ function CartPage() {
             )}
 
             {/* Apply Coupon */}
+            {isAuthenticated && (
             <section>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <h2 className="text-sm font-semibold text-black">Apply Coupon</h2>
@@ -941,9 +1036,10 @@ function CartPage() {
                 </>
               )}
             </section>
+            )}
 
             {/* Coupons modal — larger, enhanced UI with Apply / Remove per coupon */}
-            {couponModalOpen && (
+            {isAuthenticated && couponModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setCouponModalOpen(false)}>
                 <div className="bg-white w-full max-w-xl max-h-[85vh] flex flex-col shadow-xl rounded-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gray-50">
@@ -1090,7 +1186,14 @@ function CartPage() {
             </section>
 
             <div className="pt-4 border-t border-gray-200">
-              {hasOutOfStockItem ? (
+              {!isAuthenticated ? (
+                <Link
+                  to={ROUTES.AUTH}
+                  className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"
+                >
+                  Sign in to check out
+                </Link>
+              ) : hasOutOfStockItem ? (
                 <span
                   className="block w-full bg-gray-300 text-gray-500 py-3 px-4 text-center font-semibold uppercase cursor-not-allowed"
                   title="Remove out of stock items to proceed"

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
@@ -17,7 +17,7 @@ function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const pincode = useSelector((s) => s?.location?.pincode) ?? null;
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const [addedToCart, setAddedToCart] = useState(false);
   const [cartError, setCartError] = useState(null);
@@ -35,6 +35,7 @@ function ProductPage() {
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
   );
+  const galleryTouchStartX = useRef(null);
 
   /** Chars above this show See more (lower so narrow / phone layouts get toggle sooner) */
   const SHORT_DESC_COLLAPSE_THRESHOLD = 100;
@@ -167,6 +168,16 @@ function ProductPage() {
     return sorted.map((img) => img.url).filter(Boolean);
   }, [selectedVariant, item?.thumbnail]);
 
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [selectedVariant]);
+
+  useEffect(() => {
+    setSelectedImageIndex((i) =>
+      Math.min(i, Math.max(0, images.length - 1)),
+    );
+  }, [images.length]);
+
   const sizes = useMemo(() => {
     if (!selectedVariant?.sizes?.length) return [];
     return selectedVariant.sizes.map((s) => {
@@ -193,7 +204,11 @@ function ProductPage() {
     }
   }, [sizes, selectedSize]);
 
-  const mainImage = images[selectedImageIndex] ?? images[0] ?? productImage;
+  const imageSlideIndex = Math.min(
+    selectedImageIndex,
+    Math.max(0, images.length - 1),
+  );
+  const mainImage = images[imageSlideIndex] ?? images[0] ?? productImage;
 
   const selectedSizeObj = sizes.find(
     (s) => String(s.size).trim() === String(selectedSize).trim(),
@@ -303,10 +318,10 @@ function ProductPage() {
   }, [cart, productForCart, isAuthenticated, itemIdStr]);
 
   const handleAddToCart = async () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
+    // if (!isAuthenticated) {
+    //   openAuthModal();
+    //   return;
+    // }
     if (!productForCart || !selectedSizeObj?.inStock) return;
     setCartError(null);
     const result = await addToCart(productForCart, pincode);
@@ -320,10 +335,6 @@ function ProductPage() {
   };
 
   const handleWishlist = () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
     if (!item) return;
     const imageUrl = selectedVariant?.images?.[0]?.url ?? item.thumbnail ?? "";
     const hoverUrl = selectedVariant?.images?.[1]?.url ?? imageUrl;
@@ -353,10 +364,6 @@ function ProductPage() {
   };
 
   const handleBuyNow = async () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
     if (!productForCart || !selectedSizeObj?.inStock) return;
     setCartError(null);
     /** Same SKU already in cart — go to cart without calling add again */
@@ -409,24 +416,91 @@ function ProductPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8  lg:gap-6  xl:gap-8">
           {/* LEFT SIDE - Gallery */}
           <div className="w-full min-w-0 max-w-full overflow-hidden">
-            <div className="w-full max-w-full bg-gray-100 overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
-              <div className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 sm:aspect-square lg:max-h-[620px] lg:aspect-square">
-                <img
-                  src={mainImage}
-                  alt={item.name}
-                  className="absolute inset-0 h-full w-full object-contain object-center"
-                  decoding="async"
-                />
+            {/* Phone only: swipe carousel + dots (sm+ keeps main image + thumbnails below) */}
+            <div className="sm:hidden w-full max-w-full bg-gray-100 overflow-hidden rounded-none">
+              <div
+                className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 touch-pan-y"
+                onTouchStart={(e) => {
+                  galleryTouchStartX.current = e.touches[0].clientX;
+                }}
+                onTouchEnd={(e) => {
+                  if (galleryTouchStartX.current == null || images.length < 2) {
+                    galleryTouchStartX.current = null;
+                    return;
+                  }
+                  const dx = e.changedTouches[0].clientX - galleryTouchStartX.current;
+                  galleryTouchStartX.current = null;
+                  if (Math.abs(dx) < 44) return;
+                  if (dx < 0) {
+                    setSelectedImageIndex((i) =>
+                      Math.min(images.length - 1, i + 1),
+                    );
+                  } else {
+                    setSelectedImageIndex((i) => Math.max(0, i - 1));
+                  }
+                }}
+              >
+                <div
+                  className="flex h-full w-full transition-transform duration-300 ease-out"
+                  style={{
+                    transform: `translateX(-${imageSlideIndex * 100}%)`,
+                  }}
+                >
+                  {images.map((url, idx) => (
+                    <div
+                      key={`${url}-${idx}`}
+                      className="relative h-full min-w-full shrink-0 bg-gray-100"
+                    >
+                      <img
+                        src={url}
+                        alt={idx === 0 ? item.name : ""}
+                        className="absolute inset-0 h-full w-full object-contain object-center"
+                        decoding="async"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {images.length > 1 && (
+                  <div className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 px-3">
+                    {images.map((_, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(idx)}
+                        className={`pointer-events-auto h-1.5 rounded-full transition-all ${
+                          imageSlideIndex === idx
+                            ? "w-5 bg-black"
+                            : "w-1.5 bg-black/35"
+                        }`}
+                        aria-label={`View image ${idx + 1} of ${images.length}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
+            <div className="hidden sm:block">
+              <div className="w-full max-w-full bg-gray-100 overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
+                <div className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 sm:aspect-square lg:max-h-[620px] lg:aspect-square">
+                  <img
+                    src={mainImage}
+                    alt={item.name}
+                    className="absolute inset-0 h-full w-full object-contain object-center"
+                    decoding="async"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Variant thumbnails: under carousel on phone, under main image on tablet/desktop */}
             <div className="mt-2 flex gap-1.5 overflow-x-auto scrollbar-hide sm:mt-3 sm:gap-2 md:mt-4 md:gap-4 lg:mt-5 lg:flex-wrap lg:overflow-visible pb-1 lg:pb-0 min-w-0 max-w-full">
               {images.map((url, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setSelectedImageIndex(idx)}
-                  className={`relative h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-gray-100 sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${selectedImageIndex === idx ? "border-black" : "border-transparent"}`}
+                  className={`relative h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-gray-100 sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${imageSlideIndex === idx ? "border-black" : "border-transparent"}`}
                 >
                   <img
                     src={url}
@@ -874,42 +948,42 @@ function ProductPage() {
         <ReviewRating itemId={item._id} />
 
         {/* 🔥 SIZE CHART SLIDER */}
-<div
-  className={`fixed inset-0 z-50 ${
-    showSizeChart ? "visible" : "invisible"
-  }`}
->
-  {/* BACKDROP */}
-  <div
-    onClick={() => setShowSizeChart(false)}
-    className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
-      showSizeChart ? "opacity-100" : "opacity-0"
-    }`}
-  />
+        <div
+          className={`fixed inset-0 z-50 ${
+            showSizeChart ? "visible" : "invisible"
+          }`}
+        >
+          {/* BACKDROP */}
+          <div
+            onClick={() => setShowSizeChart(false)}
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              showSizeChart ? "opacity-100" : "opacity-0"
+            }`}
+          />
 
-  {/* RIGHT SLIDER */}
-  <div
-    className={`absolute right-0 top-0 h-full w-[94%] sm:w-[min(720px,94vw)] lg:w-[min(820px,95vw)] xl:w-[min(920px,96vw)] bg-white shadow-xl transform transition-transform duration-300 ${
-      showSizeChart ? "translate-x-0" : "translate-x-full"
-    }`}
-  >
-    {/* HEADER — main title is inside SizeChart */}
-    <div className="flex justify-end items-center px-3 py-2 border-b border-neutral-200">
-      <button
-        type="button"
-        onClick={() => setShowSizeChart(false)}
-        className="flex h-10 w-10 items-center justify-center text-xl font-bold text-black hover:bg-neutral-100"
-        aria-label="Close size chart"
-      >
-        ✕
-      </button>
-    </div>
+          {/* RIGHT SLIDER */}
+          <div
+            className={`absolute right-0 top-0 h-full w-[94%] sm:w-[min(720px,94vw)] lg:w-[min(820px,95vw)] xl:w-[min(920px,96vw)] bg-white shadow-xl transform transition-transform duration-300 ${
+              showSizeChart ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            {/* HEADER — main title is inside SizeChart */}
+            <div className="flex justify-end items-center px-3 py-2 border-b border-neutral-200">
+              <button
+                type="button"
+                onClick={() => setShowSizeChart(false)}
+                className="flex h-10 w-10 items-center justify-center text-xl font-bold text-black hover:bg-neutral-100"
+                aria-label="Close size chart"
+              >
+                ✕
+              </button>
+            </div>
 
-    <div className="overflow-y-auto h-[calc(100%-52px)] p-4 sm:p-5">
-      <SizeChart item={item} />
-    </div>
-  </div>
-</div>
+            <div className="overflow-y-auto h-[calc(100%-52px)] p-4 sm:p-5">
+              <SizeChart item={item} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
