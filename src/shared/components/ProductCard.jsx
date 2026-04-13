@@ -1,4 +1,9 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { getProductPath } from "../../utils/constants";
@@ -36,6 +41,68 @@ const ROUNDED_BOTTOM_CLASSES = {
   "3xl": "rounded-b-3xl",
 };
 
+const STAR_PATH =
+  "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z";
+
+/** Five stars with partial fills + numeric score (e.g. 3.5 → stars + “3.5”). */
+function ProductCardStarRating({ value }) {
+  const r = Math.min(5, Math.max(0, Number(value) || 0));
+  const label =
+    r % 1 === 0 ? `${r} out of 5 stars` : `${r.toFixed(1)} out of 5 stars`;
+  const numberText = r % 1 === 0 ? String(r) : r.toFixed(1);
+
+  return (
+    <div
+      className="flex items-center gap-1 shrink-0"
+      role="img"
+      aria-label={label}
+    >
+      <span className="flex items-center gap-0.5" aria-hidden>
+        {[0, 1, 2, 3, 4].map((i) => {
+          const fillRatio = Math.min(1, Math.max(0, r - i));
+          return (
+            <span
+              key={i}
+              className="relative inline-block h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0"
+            >
+              <svg
+                className="absolute inset-0 h-full w-full text-gray-200"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path d={STAR_PATH} />
+              </svg>
+              {fillRatio > 0 && (
+                <span
+                  className="absolute left-0 top-0 h-full overflow-hidden"
+                  style={{ width: `${fillRatio * 100}%` }}
+                >
+                  <svg
+                    className="block h-3 w-3 sm:h-3.5 sm:w-3.5 text-black"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden
+                  >
+                    <path d={STAR_PATH} />
+                  </svg>
+                </span>
+              )}
+            </span>
+          );
+        })}
+      </span>
+      <span
+        className="min-w-[1.25rem] tabular-nums text-[10px] font-semibold text-black sm:text-xs"
+        style={{ fontFamily: "'Tenor Sans', sans-serif" }}
+        aria-hidden
+      >
+        {numberText}
+      </span>
+    </div>
+  );
+}
+
 const ProductCard = React.memo(function ProductCard({
   id,
   image,
@@ -61,6 +128,9 @@ const ProductCard = React.memo(function ProductCard({
   const [cartError, setCartError] = useState(null);
   const cartErrorTimeoutRef = useRef(null);
   const [hoverImageLoaded, setHoverImageLoaded] = useState(false);
+  const [titleExpanded, setTitleExpanded] = useState(false);
+  const [titleExceedsTwoLines, setTitleExceedsTwoLines] = useState(false);
+  const titleRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -68,6 +138,30 @@ const ProductCard = React.memo(function ProductCard({
         clearTimeout(cartErrorTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    setTitleExpanded(false);
+    setTitleExceedsTwoLines(false);
+  }, [title]);
+
+  /** "See more" only when title needs more than 2 lines at this width (not word count). */
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      if (titleExpanded) return;
+      const overflow = el.scrollHeight > el.clientHeight + 1;
+      setTitleExceedsTwoLines(overflow);
+    };
+
+    measure();
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(measure);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [title, titleExpanded]);
 
   const imageRounded = roundedTop ?? rounded;
   const infoRounded = roundedBottom ?? rounded;
@@ -339,39 +433,59 @@ const ProductCard = React.memo(function ProductCard({
           } ${infoIsNumeric ? "" : infoRoundedBottomClass}`}
           style={infoBottomStyle}
         >
-          <h3
-            className=" uppercase tracking-[0.2em] sm:tracking-widest text-sm sm:text-base md:text-lg text-black"
-            style={{ fontFamily: "'Tenor Sans', sans-serif" }}
-          >
-            {title}
-          </h3>
-
-          <div className="mt-0.5 sm:mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs sm:text-sm">
-            <div
-              className="flex items-center gap-2 flex-nowrap min-w-0"
+          <div className="min-w-0">
+            <h3
+              ref={titleRef}
+              className={`break-words uppercase tracking-[0.2em] sm:tracking-widest text-sm sm:text-base md:text-lg text-black leading-snug ${
+                !titleExpanded ? "line-clamp-2" : ""
+              }`}
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
-              <span className="text-gray-900 font-semibold text-xs sm:text-sm md:text-base shrink-0">
+              {title}
+            </h3>
+            {titleExceedsTwoLines && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTitleExpanded((v) => !v);
+                }}
+                className="mt-1 text-[10px] sm:text-xs font-medium uppercase tracking-wide text-gray-600 underline decoration-gray-400 underline-offset-2 hover:text-black"
+              >
+                {titleExpanded ? "See less" : "See more"}
+              </button>
+            )}
+          </div>
+
+          {/* One row: price (left) · delivery + clock (center) · 5 stars only (right) — matches product card reference */}
+          <div className="mt-1.5 flex w-full min-w-0 items-center gap-x-2 text-[11px] sm:mt-2 sm:text-xs md:text-sm">
+            <div
+              className="flex shrink-0 items-center gap-1.5"
+              style={{ fontFamily: "'Tenor Sans', sans-serif" }}
+            >
+              <span className="shrink-0 text-gray-700 font-semibold">
                 {price}
               </span>
               {originalPrice && (
-                <span className="text-gray-400 line-through text-xs sm:text-sm md:text-base shrink-0">
+                <span className="shrink-0 text-gray-400 line-through">
                   {originalPrice}
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4 md:gap-6">
-              <span
-                className="flex items-center gap-1 sm:gap-2 text-black font-bold text-xs sm:text-sm"
+            {delivery ? (
+              <div
+                className="flex min-h-[1.25rem] min-w-0 flex-1 items-center justify-center gap-1 px-0.5 text-black"
                 style={{ fontFamily: "'Baloo 2', sans-serif" }}
               >
                 {/* <svg
-                  className="w-3 h-3 sm:w-4 sm:h-4 shrink-0"
+                  className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
                   viewBox="0 0 24 24"
+                  aria-hidden
                 >
                   <path
                     strokeLinecap="round"
@@ -379,24 +493,19 @@ const ProductCard = React.memo(function ProductCard({
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg> */}
-                {/* <span className="truncate">{delivery}</span> */}
-              </span>
+                {/* <span className="truncate text-center text-[10px] font-bold uppercase leading-tight tracking-wide sm:text-xs">
+                  {delivery}
+                </span> */}
+              </div>
+            ) : (
+              <div className="min-w-0 flex-1" aria-hidden />
+            )}
 
-              {rating != null && rating !== "" && Number(rating) > 0 && (
-                <span
-                  className="flex items-center gap-0.5 sm:gap-1 shrink-0"
-                  style={{ fontFamily: "'Tenor Sans', sans-serif" }}
-                >
-                  <svg
-                    className="w-3 h-3 sm:w-4 sm:h-4 fill-current"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  {rating}
-                </span>
-              )}
-            </div>
+            {rating != null && rating !== "" && Number(rating) > 0 && (
+              <div className="shrink-0">
+                <ProductCardStarRating value={rating} />
+              </div>
+            )}
           </div>
         </div>
 
