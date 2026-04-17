@@ -74,14 +74,9 @@ body::-webkit-scrollbar {
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   text-overflow: clip;
   word-break: break-word;
-}
-@media (min-width: 640px) {
-  .product-desc-clamp-short {
-    -webkit-line-clamp: 4;
-  }
 }
 
 .product-desc-clamp-long {

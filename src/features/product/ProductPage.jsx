@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
@@ -38,9 +38,11 @@ function ProductPage() {
     [],
   );
   const galleryTouchStartX = useRef(null);
+  const shortDescRef = useRef(null);
+  const [shortDescExceedsTwoLines, setShortDescExceedsTwoLines] =
+    useState(false);
 
-  /** Chars above this show See more (lower so narrow / phone layouts get toggle sooner) */
-  const SHORT_DESC_COLLAPSE_THRESHOLD = 100;
+  /** Chars above this show See more for long description */
   const LONG_DESC_COLLAPSE_THRESHOLD = 260;
 
   // Fetch delivery options by pincode for dropdown
@@ -398,10 +400,31 @@ function ProductPage() {
   };
 
   const shortDescText = (item?.shortDescription ?? "").trim();
-  const shortDescNeedsMore =
-    shortDescText.length > SHORT_DESC_COLLAPSE_THRESHOLD;
   const longDescText = (item?.longDescription ?? "").trim();
   const longDescNeedsMore = longDescText.length > LONG_DESC_COLLAPSE_THRESHOLD;
+
+  const careBulletPoints = useMemo(() => {
+    const raw = item?.care?.description ?? "";
+    return String(raw)
+      .replace(/\r/g, "")
+      .split(/[\n•]+|(?<=\.)\s+/)
+      .map((x) => x.replace(/^[\-\s•]+|[\s.]+$/g, "").trim())
+      .filter(Boolean);
+  }, [item?.care?.description]);
+
+  useLayoutEffect(() => {
+    const el = shortDescRef.current;
+    if (!el || shortDescExpanded) return;
+
+    const measure = () => {
+      setShortDescExceedsTwoLines(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    measure();
+    const ro = new ResizeObserver(() => requestAnimationFrame(measure));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [shortDescText, shortDescExpanded]);
 
   if (loading) {
     return (
@@ -539,15 +562,14 @@ function ProductPage() {
                 </h1>
                 <div className="mt-1 sm:mt-1.5 min-w-0">
                   <p
-                    className={`font-inter font-normal capitalize text-[#646464] wrap-break-word text-xs sm:text-sm md:text-sm lg:text-lg xl:text-xl ${
-                      shortDescNeedsMore && !shortDescExpanded
-                        ? "product-desc-clamp-short"
-                        : ""
+                    ref={shortDescRef}
+                    className={`font-inter font-normal capitalize text-gray-500 wrap-break-word text-xs sm:text-sm md:text-sm lg:text-sm xl:text-lg ${
+                      !shortDescExpanded ? "product-desc-clamp-short" : ""
                     }`}
                   >
                     {shortDescText}
                   </p>
-                  {shortDescNeedsMore && (
+                  {shortDescExceedsTwoLines && (
                     <button
                       type="button"
                       onClick={() => setShortDescExpanded((v) => !v)}
@@ -789,7 +811,7 @@ function ProductPage() {
                   <RiTShirtAirLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Care</span>
                 </span>
-                <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
+                <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-[20px] sm:text-xl md:text-lg lg:text-[22px]">
                   {expandedSection === "care" ? (
                     <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
                   ) : (
@@ -804,7 +826,8 @@ function ProductPage() {
                 }}
               >
                 <div className="overflow-hidden">
-                  <div className="mt-3 sm:mt-4 flex gap-2 sm:gap-3 md:mt-3 md:gap-2 lg:mt-5 lg:gap-[12px]">
+                  <div className="pt-0 pb-3">
+                    {" "}
                     <div className="shrink-0 text-gray-500">
                       {/* <RiTruckLine
                         className="h-4 w-4 sm:h-5 sm:w-5 md:h-4 md:w-4 lg:h-6 lg:w-6"
@@ -819,10 +842,17 @@ function ProductPage() {
                         {item.shipping?.estimatedDelivery ||
                           "Estimated delivery based on your pincode."}
                       </p> */}
-                      {item.care?.description && (
-                        <p className="mt-2 text-sm text-gray-600">
-                          {item.care.description}
-                        </p>
+                      {careBulletPoints.length > 0 && (
+                        <ul
+                          className="mt-2 list-disc space-y-1 pl-5 text-lg
+                         text-gray-600"
+                        >
+                          {careBulletPoints.map((point, idx) => (
+                            <li key={`${point.slice(0, 20)}-${idx}`}>
+                              {point}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
                   </div>
@@ -830,8 +860,68 @@ function ProductPage() {
               </div>
             </div>
 
+            {/* POLICY */}
+<div className="border-b border-gray-300">
+  <button
+    type="button"
+    className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px]"
+    onClick={() => toggleSection("policy")}
+  >
+    <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] font-[Raleway]">
+      <RiTruckLine className="h-4 w-4 text-gray-500" />
+      Policy
+    </span>
+
+    {expandedSection === "policy" ? (
+      <FaChevronUp />
+    ) : (
+      <FaChevronDown />
+    )}
+  </button>
+
+  <div
+    className="grid transition-[grid-template-rows] duration-300 ease-out"
+    style={{
+      gridTemplateRows: expandedSection === "policy" ? "1fr" : "0fr",
+    }}
+  >
+    <div className="overflow-hidden">
+      <div className="pb-4 text-sm text-gray-600 space-y-3">
+
+        {/* SHIPPING */}
+        {/* {item?.shipping && (
+          <div>
+            <p className="font-medium text-black">Shipping</p>
+            <p>{item.shipping?.title || "Standard shipping available"}</p>
+            <p className="text-xs text-gray-500">
+              {item.shipping?.estimatedDelivery}
+            </p>
+          </div>
+        )} */}
+
+        {/* COD */}
+        {item?.codPolicy?.text && (
+          <div>
+            <p className="font-medium text-black">Cash on Delivery</p>
+            <p>{item.codPolicy.text}</p>
+          </div>
+        )}
+
+        {/* RETURN */}
+        {item?.returnPolicy?.text && (
+          <div>
+            <p className="font-medium text-black">Returns</p>
+            <p>{item.returnPolicy.text}</p>
+          </div>
+        )}
+
+      </div>
+    </div>
+  </div>
+</div>
+
             {/* COD POLICY */}
-            <div className="border-b border-gray-300">
+            {/* <div className="border-b border-gray-300">
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
@@ -866,10 +956,10 @@ function ProductPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* RETURN POLICY */}
-            <div className="border-b border-gray-300">
+            {/* <div className="border-b border-gray-300">
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
@@ -904,7 +994,7 @@ function ProductPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             <div className="mt-4 sm:mt-6 md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
               {inCart || addedToCart ? (
