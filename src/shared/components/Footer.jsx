@@ -329,9 +329,9 @@ function Footer() {
                         FAQs
                       </Link>
                     </li>
-                    <li>
+                    {/* <li>
                       <Link to="#">Track Order</Link>
-                    </li>
+                    </li> */}
                     <li>
                       <Link to="#">Exchange & Returns</Link>
                     </li>

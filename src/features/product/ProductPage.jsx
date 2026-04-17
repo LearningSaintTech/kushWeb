@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { FaTag } from "react-icons/fa6";
 import { RiFileList2Line, RiRefreshLine, RiTruckLine } from "react-icons/ri";
+import { FaHandHoldingHeart } from "react-icons/fa";
 import { itemsService } from "../../services/items.service.js";
 import { deliveryService } from "../../services/delivery.service.js";
 import { useAuth } from "../../app/context/AuthContext";
@@ -12,6 +13,7 @@ import { ROUTES } from "../../utils/constants";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import { FaShareSquare } from "react-icons/fa";
+import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
 function ProductPage() {
   const { id } = useParams();
@@ -173,9 +175,7 @@ function ProductPage() {
   }, [selectedVariant]);
 
   useEffect(() => {
-    setSelectedImageIndex((i) =>
-      Math.min(i, Math.max(0, images.length - 1)),
-    );
+    setSelectedImageIndex((i) => Math.min(i, Math.max(0, images.length - 1)));
   }, [images.length]);
 
   const sizes = useMemo(() => {
@@ -318,20 +318,35 @@ function ProductPage() {
   }, [cart, productForCart, isAuthenticated, itemIdStr]);
 
   const handleAddToCart = async () => {
-    // if (!isAuthenticated) {
-    //   openAuthModal();
-    //   return;
-    // }
+    console.log("Add to cart clicked", productForCart, selectedSizeObj);
     if (!productForCart || !selectedSizeObj?.inStock) return;
-    setCartError(null);
+
+    // 🔥 ADD THIS (IMPORTANT)
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: "add_to_cart",
+      ecommerce: {
+        currency: "INR",
+        value: Number(productForCart.price?.replace("₹", "")) || 0,
+        items: [
+          {
+            item_id: productForCart.id,
+            item_name: productForCart.title,
+            price: Number(productForCart.price?.replace("₹", "")) || 0,
+            quantity: 1,
+          },
+        ],
+      },
+    });
+
     const result = await addToCart(productForCart, pincode);
+
     if (result?.success === false && result?.message) {
       setCartError(result.message);
-      setTimeout(() => setCartError(null), 4000);
       return;
     }
+
     setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 4000);
   };
 
   const handleWishlist = () => {
@@ -428,7 +443,8 @@ function ProductPage() {
                     galleryTouchStartX.current = null;
                     return;
                   }
-                  const dx = e.changedTouches[0].clientX - galleryTouchStartX.current;
+                  const dx =
+                    e.changedTouches[0].clientX - galleryTouchStartX.current;
                   galleryTouchStartX.current = null;
                   if (Math.abs(dx) < 44) return;
                   if (dx < 0) {
@@ -770,7 +786,7 @@ function ProductPage() {
                 onClick={() => toggleSection("care")}
               >
                 <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
-                  <RiTruckLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
+                  <RiTShirtAirLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Care</span>
                 </span>
                 <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
