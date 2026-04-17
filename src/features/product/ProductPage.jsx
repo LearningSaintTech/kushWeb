@@ -30,7 +30,7 @@ function ProductPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
-  const [expandedSection, setExpandedSection] = useState("");
+  const [expandedSection, setExpandedSection] = useState("details");
   const [shortDescExpanded, setShortDescExpanded] = useState(false);
   const [longDescExpanded, setLongDescExpanded] = useState(false);
   const [showSizeChart, setShowSizeChart] = useState(false);
@@ -861,7 +861,7 @@ function ProductPage() {
             </div>
 
             {/* POLICY */}
-<div className="border-b border-gray-300">
+{/* <div className="border-b border-gray-300">
   <button
     type="button"
     className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px]"
@@ -900,25 +900,25 @@ function ProductPage() {
         )} */}
 
         {/* COD */}
-        {item?.codPolicy?.text && (
+        {/* {item?.codPolicy?.text && (
           <div>
             <p className="font-medium text-black">Cash on Delivery</p>
             <p>{item.codPolicy.text}</p>
           </div>
-        )}
+        )} */}
 
         {/* RETURN */}
-        {item?.returnPolicy?.text && (
+        {/* {item?.returnPolicy?.text && (
           <div>
             <p className="font-medium text-black">Returns</p>
             <p>{item.returnPolicy.text}</p>
           </div>
-        )}
+        )} */}
 
-      </div>
-    </div>
-  </div>
-</div>
+      {/* </div> */}
+    {/* </div> */}
+  {/* </div> */}
+{/* </div> */} 
 
             {/* COD POLICY */}
             {/* <div className="border-b border-gray-300">
