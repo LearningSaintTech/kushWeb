@@ -440,10 +440,10 @@ function NewArrivals({ section }) {
                         <span className="font-medium text-white/80 line-through">{item.originalPrice}</span>
                       )}
                     </div>
-                    <span className="flex items-center gap-1 font-medium shrink-0">
+                    {/* <span className="flex items-center gap-1 font-medium shrink-0">
                       <LuClock4 className="h-3.5 w-3.5 text-white" />
                       {item.delivery}
-                    </span>
+                    </span> */}
                   </div>
                 </div>
                 {item.outOfStock && (

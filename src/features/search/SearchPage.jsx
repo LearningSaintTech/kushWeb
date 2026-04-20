@@ -1372,13 +1372,12 @@ function SearchPage() {
       )}
 
       {/* Results from search API with filters */}
-      <div className=" pb-20">
-
+      <div className="mx-4 pb-20 sm:mx-6 md:mx-10">
         {loading ? (
           <div className="font-inter text-gray-500 py-12 text-center">Loading results…</div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-2 sm:gap-y-5 md:grid-cols-3 md:gap-y-6 lg:grid-cols-4 lg:gap-y-7">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-6 md:grid-cols-3 md:gap-x-5 md:gap-y-7 lg:grid-cols-4 lg:gap-x-3 lg:gap-y-8">
               {/**
                * Prevent the browser from eagerly downloading/decoding images for every search result.
                * Only load the first few cards eagerly; the rest load lazily.

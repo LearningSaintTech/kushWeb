@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { FaTag } from "react-icons/fa6";
 import { RiFileList2Line, RiRefreshLine, RiTruckLine } from "react-icons/ri";
+import { FaHandHoldingHeart } from "react-icons/fa";
 import { itemsService } from "../../services/items.service.js";
 import { deliveryService } from "../../services/delivery.service.js";
 import { useAuth } from "../../app/context/AuthContext";
@@ -12,12 +13,13 @@ import { ROUTES } from "../../utils/constants";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import { FaShareSquare } from "react-icons/fa";
+import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
 function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const pincode = useSelector((s) => s?.location?.pincode) ?? null;
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const [addedToCart, setAddedToCart] = useState(false);
   const [cartError, setCartError] = useState(null);
@@ -28,16 +30,19 @@ function ProductPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
-  const [expandedSection, setExpandedSection] = useState("");
+  const [expandedSection, setExpandedSection] = useState("details");
   const [shortDescExpanded, setShortDescExpanded] = useState(false);
   const [longDescExpanded, setLongDescExpanded] = useState(false);
   const [showSizeChart, setShowSizeChart] = useState(false);
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
   );
+  const galleryTouchStartX = useRef(null);
+  const shortDescRef = useRef(null);
+  const [shortDescExceedsTwoLines, setShortDescExceedsTwoLines] =
+    useState(false);
 
-  /** Chars above this show See more (lower so narrow / phone layouts get toggle sooner) */
-  const SHORT_DESC_COLLAPSE_THRESHOLD = 100;
+  /** Chars above this show See more for long description */
   const LONG_DESC_COLLAPSE_THRESHOLD = 260;
 
   // Fetch delivery options by pincode for dropdown
@@ -167,6 +172,14 @@ function ProductPage() {
     return sorted.map((img) => img.url).filter(Boolean);
   }, [selectedVariant, item?.thumbnail]);
 
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [selectedVariant]);
+
+  useEffect(() => {
+    setSelectedImageIndex((i) => Math.min(i, Math.max(0, images.length - 1)));
+  }, [images.length]);
+
   const sizes = useMemo(() => {
     if (!selectedVariant?.sizes?.length) return [];
     return selectedVariant.sizes.map((s) => {
@@ -193,7 +206,11 @@ function ProductPage() {
     }
   }, [sizes, selectedSize]);
 
-  const mainImage = images[selectedImageIndex] ?? images[0] ?? productImage;
+  const imageSlideIndex = Math.min(
+    selectedImageIndex,
+    Math.max(0, images.length - 1),
+  );
+  const mainImage = images[imageSlideIndex] ?? images[0] ?? productImage;
 
   const selectedSizeObj = sizes.find(
     (s) => String(s.size).trim() === String(selectedSize).trim(),
@@ -303,27 +320,38 @@ function ProductPage() {
   }, [cart, productForCart, isAuthenticated, itemIdStr]);
 
   const handleAddToCart = async () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
+    console.log("Add to cart clicked", productForCart, selectedSizeObj);
     if (!productForCart || !selectedSizeObj?.inStock) return;
-    setCartError(null);
+
+    // 🔥 ADD THIS (IMPORTANT)
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: "add_to_cart",
+      ecommerce: {
+        currency: "INR",
+        value: Number(productForCart.price?.replace("₹", "")) || 0,
+        items: [
+          {
+            item_id: productForCart.id,
+            item_name: productForCart.title,
+            price: Number(productForCart.price?.replace("₹", "")) || 0,
+            quantity: 1,
+          },
+        ],
+      },
+    });
+
     const result = await addToCart(productForCart, pincode);
+
     if (result?.success === false && result?.message) {
       setCartError(result.message);
-      setTimeout(() => setCartError(null), 4000);
       return;
     }
+
     setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 4000);
   };
 
   const handleWishlist = () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
     if (!item) return;
     const imageUrl = selectedVariant?.images?.[0]?.url ?? item.thumbnail ?? "";
     const hoverUrl = selectedVariant?.images?.[1]?.url ?? imageUrl;
@@ -353,10 +381,6 @@ function ProductPage() {
   };
 
   const handleBuyNow = async () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
     if (!productForCart || !selectedSizeObj?.inStock) return;
     setCartError(null);
     /** Same SKU already in cart — go to cart without calling add again */
@@ -376,10 +400,31 @@ function ProductPage() {
   };
 
   const shortDescText = (item?.shortDescription ?? "").trim();
-  const shortDescNeedsMore =
-    shortDescText.length > SHORT_DESC_COLLAPSE_THRESHOLD;
   const longDescText = (item?.longDescription ?? "").trim();
   const longDescNeedsMore = longDescText.length > LONG_DESC_COLLAPSE_THRESHOLD;
+
+  const careBulletPoints = useMemo(() => {
+    const raw = item?.care?.description ?? "";
+    return String(raw)
+      .replace(/\r/g, "")
+      .split(/[\n•]+|(?<=\.)\s+/)
+      .map((x) => x.replace(/^[\-\s•]+|[\s.]+$/g, "").trim())
+      .filter(Boolean);
+  }, [item?.care?.description]);
+
+  useLayoutEffect(() => {
+    const el = shortDescRef.current;
+    if (!el || shortDescExpanded) return;
+
+    const measure = () => {
+      setShortDescExceedsTwoLines(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    measure();
+    const ro = new ResizeObserver(() => requestAnimationFrame(measure));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [shortDescText, shortDescExpanded]);
 
   if (loading) {
     return (
@@ -409,24 +454,92 @@ function ProductPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8  lg:gap-6  xl:gap-8">
           {/* LEFT SIDE - Gallery */}
           <div className="w-full min-w-0 max-w-full overflow-hidden">
-            <div className="w-full max-w-full bg-gray-100 overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
-              <div className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 sm:aspect-square lg:max-h-[620px] lg:aspect-square">
-                <img
-                  src={mainImage}
-                  alt={item.name}
-                  className="absolute inset-0 h-full w-full object-contain object-center"
-                  decoding="async"
-                />
+            {/* Phone only: swipe carousel + dots (sm+ keeps main image + thumbnails below) */}
+            <div className="sm:hidden w-full max-w-full bg-gray-100 overflow-hidden rounded-none">
+              <div
+                className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 touch-pan-y"
+                onTouchStart={(e) => {
+                  galleryTouchStartX.current = e.touches[0].clientX;
+                }}
+                onTouchEnd={(e) => {
+                  if (galleryTouchStartX.current == null || images.length < 2) {
+                    galleryTouchStartX.current = null;
+                    return;
+                  }
+                  const dx =
+                    e.changedTouches[0].clientX - galleryTouchStartX.current;
+                  galleryTouchStartX.current = null;
+                  if (Math.abs(dx) < 44) return;
+                  if (dx < 0) {
+                    setSelectedImageIndex((i) =>
+                      Math.min(images.length - 1, i + 1),
+                    );
+                  } else {
+                    setSelectedImageIndex((i) => Math.max(0, i - 1));
+                  }
+                }}
+              >
+                <div
+                  className="flex h-full w-full transition-transform duration-300 ease-out"
+                  style={{
+                    transform: `translateX(-${imageSlideIndex * 100}%)`,
+                  }}
+                >
+                  {images.map((url, idx) => (
+                    <div
+                      key={`${url}-${idx}`}
+                      className="relative h-full min-w-full shrink-0 bg-gray-100"
+                    >
+                      <img
+                        src={url}
+                        alt={idx === 0 ? item.name : ""}
+                        className="absolute inset-0 h-full w-full object-contain object-center"
+                        decoding="async"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {images.length > 1 && (
+                  <div className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 px-3">
+                    {images.map((_, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(idx)}
+                        className={`pointer-events-auto h-1.5 rounded-full transition-all ${
+                          imageSlideIndex === idx
+                            ? "w-5 bg-black"
+                            : "w-1.5 bg-black/35"
+                        }`}
+                        aria-label={`View image ${idx + 1} of ${images.length}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
+            <div className="hidden sm:block">
+              <div className="w-full max-w-full bg-gray-100 overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
+                <div className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 sm:aspect-square lg:max-h-[620px] lg:aspect-square">
+                  <img
+                    src={mainImage}
+                    alt={item.name}
+                    className="absolute inset-0 h-full w-full object-contain object-center"
+                    decoding="async"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Variant thumbnails: under carousel on phone, under main image on tablet/desktop */}
             <div className="mt-2 flex gap-1.5 overflow-x-auto scrollbar-hide sm:mt-3 sm:gap-2 md:mt-4 md:gap-4 lg:mt-5 lg:flex-wrap lg:overflow-visible pb-1 lg:pb-0 min-w-0 max-w-full">
               {images.map((url, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setSelectedImageIndex(idx)}
-                  className={`relative h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-gray-100 sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${selectedImageIndex === idx ? "border-black" : "border-transparent"}`}
+                  className={`relative h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-gray-100 sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${imageSlideIndex === idx ? "border-black" : "border-transparent"}`}
                 >
                   <img
                     src={url}
@@ -449,15 +562,14 @@ function ProductPage() {
                 </h1>
                 <div className="mt-1 sm:mt-1.5 min-w-0">
                   <p
-                    className={`font-inter font-normal capitalize text-[#646464] wrap-break-word text-xs sm:text-sm md:text-sm lg:text-lg xl:text-xl ${
-                      shortDescNeedsMore && !shortDescExpanded
-                        ? "product-desc-clamp-short"
-                        : ""
+                    ref={shortDescRef}
+                    className={`font-inter font-normal capitalize text-gray-500 wrap-break-word text-xs sm:text-sm md:text-sm lg:text-sm xl:text-lg ${
+                      !shortDescExpanded ? "product-desc-clamp-short" : ""
                     }`}
                   >
                     {shortDescText}
                   </p>
-                  {shortDescNeedsMore && (
+                  {shortDescExceedsTwoLines && (
                     <button
                       type="button"
                       onClick={() => setShortDescExpanded((v) => !v)}
@@ -696,10 +808,10 @@ function ProductPage() {
                 onClick={() => toggleSection("care")}
               >
                 <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
-                  <RiTruckLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
+                  <RiTShirtAirLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Care</span>
                 </span>
-                <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
+                <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-[20px] sm:text-xl md:text-lg lg:text-[22px]">
                   {expandedSection === "care" ? (
                     <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
                   ) : (
@@ -714,7 +826,8 @@ function ProductPage() {
                 }}
               >
                 <div className="overflow-hidden">
-                  <div className="mt-3 sm:mt-4 flex gap-2 sm:gap-3 md:mt-3 md:gap-2 lg:mt-5 lg:gap-[12px]">
+                  <div className="pt-0 pb-3">
+                    {" "}
                     <div className="shrink-0 text-gray-500">
                       {/* <RiTruckLine
                         className="h-4 w-4 sm:h-5 sm:w-5 md:h-4 md:w-4 lg:h-6 lg:w-6"
@@ -729,10 +842,17 @@ function ProductPage() {
                         {item.shipping?.estimatedDelivery ||
                           "Estimated delivery based on your pincode."}
                       </p> */}
-                      {item.care?.description && (
-                        <p className="mt-2 text-sm text-gray-600">
-                          {item.care.description}
-                        </p>
+                      {careBulletPoints.length > 0 && (
+                        <ul
+                          className="mt-2 list-disc space-y-1 pl-5 text-lg
+                         text-gray-600"
+                        >
+                          {careBulletPoints.map((point, idx) => (
+                            <li key={`${point.slice(0, 20)}-${idx}`}>
+                              {point}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
                   </div>
@@ -740,8 +860,68 @@ function ProductPage() {
               </div>
             </div>
 
+            {/* POLICY */}
+{/* <div className="border-b border-gray-300">
+  <button
+    type="button"
+    className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px]"
+    onClick={() => toggleSection("policy")}
+  >
+    <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] font-[Raleway]">
+      <RiTruckLine className="h-4 w-4 text-gray-500" />
+      Policy
+    </span>
+
+    {expandedSection === "policy" ? (
+      <FaChevronUp />
+    ) : (
+      <FaChevronDown />
+    )}
+  </button>
+
+  <div
+    className="grid transition-[grid-template-rows] duration-300 ease-out"
+    style={{
+      gridTemplateRows: expandedSection === "policy" ? "1fr" : "0fr",
+    }}
+  >
+    <div className="overflow-hidden">
+      <div className="pb-4 text-sm text-gray-600 space-y-3">
+
+        {/* SHIPPING */}
+        {/* {item?.shipping && (
+          <div>
+            <p className="font-medium text-black">Shipping</p>
+            <p>{item.shipping?.title || "Standard shipping available"}</p>
+            <p className="text-xs text-gray-500">
+              {item.shipping?.estimatedDelivery}
+            </p>
+          </div>
+        )} */}
+
+        {/* COD */}
+        {/* {item?.codPolicy?.text && (
+          <div>
+            <p className="font-medium text-black">Cash on Delivery</p>
+            <p>{item.codPolicy.text}</p>
+          </div>
+        )} */}
+
+        {/* RETURN */}
+        {/* {item?.returnPolicy?.text && (
+          <div>
+            <p className="font-medium text-black">Returns</p>
+            <p>{item.returnPolicy.text}</p>
+          </div>
+        )} */}
+
+      {/* </div> */}
+    {/* </div> */}
+  {/* </div> */}
+{/* </div> */} 
+
             {/* COD POLICY */}
-            <div className="border-b border-gray-300">
+            {/* <div className="border-b border-gray-300">
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
@@ -776,10 +956,10 @@ function ProductPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* RETURN POLICY */}
-            <div className="border-b border-gray-300">
+            {/* <div className="border-b border-gray-300">
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
@@ -814,7 +994,7 @@ function ProductPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             <div className="mt-4 sm:mt-6 md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
               {inCart || addedToCart ? (
@@ -874,42 +1054,42 @@ function ProductPage() {
         <ReviewRating itemId={item._id} />
 
         {/* 🔥 SIZE CHART SLIDER */}
-<div
-  className={`fixed inset-0 z-50 ${
-    showSizeChart ? "visible" : "invisible"
-  }`}
->
-  {/* BACKDROP */}
-  <div
-    onClick={() => setShowSizeChart(false)}
-    className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
-      showSizeChart ? "opacity-100" : "opacity-0"
-    }`}
-  />
+        <div
+          className={`fixed inset-0 z-50 ${
+            showSizeChart ? "visible" : "invisible"
+          }`}
+        >
+          {/* BACKDROP */}
+          <div
+            onClick={() => setShowSizeChart(false)}
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              showSizeChart ? "opacity-100" : "opacity-0"
+            }`}
+          />
 
-  {/* RIGHT SLIDER */}
-  <div
-    className={`absolute right-0 top-0 h-full w-[94%] sm:w-[min(720px,94vw)] lg:w-[min(820px,95vw)] xl:w-[min(920px,96vw)] bg-white shadow-xl transform transition-transform duration-300 ${
-      showSizeChart ? "translate-x-0" : "translate-x-full"
-    }`}
-  >
-    {/* HEADER — main title is inside SizeChart */}
-    <div className="flex justify-end items-center px-3 py-2 border-b border-neutral-200">
-      <button
-        type="button"
-        onClick={() => setShowSizeChart(false)}
-        className="flex h-10 w-10 items-center justify-center text-xl font-bold text-black hover:bg-neutral-100"
-        aria-label="Close size chart"
-      >
-        ✕
-      </button>
-    </div>
+          {/* RIGHT SLIDER */}
+          <div
+            className={`absolute right-0 top-0 h-full w-[94%] sm:w-[min(720px,94vw)] lg:w-[min(820px,95vw)] xl:w-[min(920px,96vw)] bg-white shadow-xl transform transition-transform duration-300 ${
+              showSizeChart ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            {/* HEADER — main title is inside SizeChart */}
+            <div className="flex justify-end items-center px-3 py-2 border-b border-neutral-200">
+              <button
+                type="button"
+                onClick={() => setShowSizeChart(false)}
+                className="flex h-10 w-10 items-center justify-center text-xl font-bold text-black hover:bg-neutral-100"
+                aria-label="Close size chart"
+              >
+                ✕
+              </button>
+            </div>
 
-    <div className="overflow-y-auto h-[calc(100%-52px)] p-4 sm:p-5">
-      <SizeChart item={item} />
-    </div>
-  </div>
-</div>
+            <div className="overflow-y-auto h-[calc(100%-52px)] p-4 sm:p-5">
+              <SizeChart item={item} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

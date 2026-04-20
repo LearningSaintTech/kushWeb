@@ -58,6 +58,13 @@ const DELIVERY_STATUS_ORDER = [
   "DELIVERED",
 ];
 
+/** Only show "Cancel order" before shipment / courier pickup (backend may still send isCancellable). */
+const CANCEL_ORDER_UI_STATUSES = new Set([
+  "CREATED",
+  "CONFIRMED",
+  "PROCESSING",
+]);
+
 const STEPPER = [
   { key: "order_placed", label: "Order Placed", statuses: ["CREATED"] },
   { key: "confirmed", label: "Confirmed", statuses: ["CONFIRMED"] },
@@ -155,6 +162,15 @@ const IN_PROGRESS_EXCHANGE_STATUSES = [
 
 function isNormalDeliveryType(v) {
   return String(v || "").toUpperCase() === "NORMAL";
+}
+
+/** Local exchange stepper (black bar) only for quick delivery; NORMAL (Shiprocket) uses Shiprocket tracking only. */
+function isQuickDeliveryTypeForExchangeStepper(v) {
+  const u = String(v || "")
+    .trim()
+    .toUpperCase()
+    .replace(/-/g, "_");
+  return u === "ONE_DAY" || u === "90_MIN";
 }
 
 function getShiprocketFromOrderItem(data) {
@@ -827,21 +843,17 @@ export default function TrackOrderPage() {
         exchangeItemDetails?.discountedPrice ??
         exchangeItemDetails?.price ??
         data?.item?.unitPrice;
-      const fallbackSku =
-        data?.item?.variant?.sku ||
-        data?.item?.sku ||
-        "";
+      const fallbackSku = data?.item?.variant?.sku || data?.item?.sku || "";
       const fallbackColor =
-        data?.item?.variant?.color ||
-        exchangeDesiredColor.trim();
+        data?.item?.variant?.color || exchangeDesiredColor.trim();
       const fallbackSize =
-        data?.item?.variant?.size ||
-        exchangeDesiredSize.trim();
-      const fallbackHex =
-        data?.item?.variant?.hex ||
-        "#FFFFFF";
+        data?.item?.variant?.size || exchangeDesiredSize.trim();
+      const fallbackHex = data?.item?.variant?.hex || "#FFFFFF";
       const replacedItem = {
-        itemId: exchangeItemDetails?._id || exchangeItemDetails?.id || selectedExchangeItemId,
+        itemId:
+          exchangeItemDetails?._id ||
+          exchangeItemDetails?.id ||
+          selectedExchangeItemId,
         sku: selectedSizeObj?.sku || selectedVariant?.sku || fallbackSku,
         variant: {
           color: exchangeDesiredColor.trim() || fallbackColor,
@@ -861,7 +873,9 @@ export default function TrackOrderPage() {
         !replacedItem.variant.imageUrl ||
         !(replacedItem.unitPrice > 0)
       ) {
-        setExchangeError("Unable to prepare replaced item details. Please reselect color and size.");
+        setExchangeError(
+          "Unable to prepare replaced item details. Please reselect color and size.",
+        );
         setExchangeSubmitting(false);
         return;
       }
@@ -887,7 +901,6 @@ export default function TrackOrderPage() {
             replacedItem,
           },
           exchangeImages,
-         
         )
         .then(() => {
           setExchangeStep(5);
@@ -1018,6 +1031,10 @@ export default function TrackOrderPage() {
   );
   const showBookedItemsSection = otherBookedItemsForList.length > 0;
   const isCancellable = data.isCancellable === true;
+  const showCancelOrderButton =
+    isCancellable &&
+    CANCEL_ORDER_UI_STATUSES.has(currentStatus) &&
+    !EXCHANGE_STATUSES.includes(currentStatus);
   const isExchangeable = data.isExchangeable !== false;
   const exchangeInProgress = isExchangeInProgress(data.exchange);
   const showExchangeButton =
@@ -1027,7 +1044,8 @@ export default function TrackOrderPage() {
   const showExchangeStepper =
     currentStatus !== "CANCELLED" &&
     EXCHANGE_STATUSES.includes(currentStatus) &&
-    currentStatus !== "EXCHANGE_REJECTED";
+    currentStatus !== "EXCHANGE_REJECTED" &&
+    isQuickDeliveryTypeForExchangeStepper(deliveryType);
 
   console.log("[TrackOrder][TrackingDebug]", {
     orderId,
@@ -1659,7 +1677,7 @@ export default function TrackOrderPage() {
               <div />
             )}
             <div className="flex items-center gap-3">
-              {isCancellable && (
+              {showCancelOrderButton && (
                 <button
                   type="button"
                   onClick={openCancelModal}
@@ -2430,9 +2448,7 @@ export default function TrackOrderPage() {
                                   >
                                     {sizeVal}
                                     {disabled && anyInStock && (
-                                      <span className="ml-1 text-[9px] uppercase tracking-wide">
-                                        OOS
-                                      </span>
+                                      <span className="ml-1 text-[9px] uppercase tracking-wide"></span>
                                     )}
                                   </button>
                                 );

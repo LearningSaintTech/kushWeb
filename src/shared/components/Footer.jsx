@@ -329,9 +329,9 @@ function Footer() {
                         FAQs
                       </Link>
                     </li>
-                    <li>
+                    {/* <li>
                       <Link to="#">Track Order</Link>
-                    </li>
+                    </li> */}
                     <li>
                       <Link to="#">Exchange & Returns</Link>
                     </li>
@@ -440,7 +440,7 @@ function Footer() {
 
                     {/* GOOGLE PLAY */}
                     <a
-                      href="#"
+                      href="https://play.google.com/store/apps/details?id=com.khushpehno.app&pcampaignid=web_share"
                       className="flex items-center gap-3 border-1 border-[#A6A6A6] rounded-xl px-4 py-3   transition"
                     >
                       <FaGooglePlay size={22} />

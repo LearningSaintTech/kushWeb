@@ -508,6 +508,36 @@ export default function Header() {
               scrolled={useWhiteStyle}
               className="flex min-w-0 flex-1"
             />
+            <NavLink
+              to={ROUTES.WISHLIST}
+              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                useWhiteStyle
+                  ? "text-black hover:bg-gray-100"
+                  : "text-white hover:bg-white/10"
+              }`}
+              aria-label="Wishlist"
+            >
+              <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
+                <HeartIcon
+                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                />
+              </IconBadge>
+            </NavLink>
+            <NavLink
+              to={ROUTES.CART}
+              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                useWhiteStyle
+                  ? "text-black hover:bg-gray-100"
+                  : "text-white hover:bg-white/10"
+              }`}
+              aria-label="Cart"
+            >
+              <IconBadge count={cartCount} scrolled={useWhiteStyle}>
+                <CartIcon
+                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                />
+              </IconBadge>
+            </NavLink>
             <button
               type="button"
               onClick={openSearchModal}
@@ -601,59 +631,29 @@ export default function Header() {
             </form>
 
             <div className="flex items-center gap-[1.3vw]">
-              {isAuthenticated ? (
-                <NavLink
-                  to={ROUTES.WISHLIST}
-                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
-                  aria-label="Wishlist"
-                >
-                  <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
-                    <HeartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
-                    />
-                  </IconBadge>
-                </NavLink>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openAuthModal(ROUTES.WISHLIST)}
-                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
-                  aria-label="Wishlist – sign in"
-                >
-                  <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
-                    <HeartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
-                    />
-                  </IconBadge>
-                </button>
-              )}
+              <NavLink
+                to={ROUTES.WISHLIST}
+                className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                aria-label="Wishlist"
+              >
+                <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
+                  <HeartIcon
+                    className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
+                  />
+                </IconBadge>
+              </NavLink>
 
-              {isAuthenticated ? (
-                <NavLink
-                  to={ROUTES.CART}
-                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
-                  aria-label="Cart"
-                >
-                  <IconBadge count={cartCount} scrolled={useWhiteStyle}>
-                    <CartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
-                    />
-                  </IconBadge>
-                </NavLink>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openAuthModal(ROUTES.CART)}
-                  className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
-                  aria-label="Cart – sign in"
-                >
-                  <IconBadge count={cartCount} scrolled={useWhiteStyle}>
-                    <CartIcon
-                      className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
-                    />
-                  </IconBadge>
-                </button>
-              )}
+              <NavLink
+                to={ROUTES.CART}
+                className={`cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                aria-label="Cart"
+              >
+                <IconBadge count={cartCount} scrolled={useWhiteStyle}>
+                  <CartIcon
+                    className={`h-[1.87vw] w-[1.87vw] ${useWhiteStyle ? "text-black" : "text-white"}`}
+                  />
+                </IconBadge>
+              </NavLink>
 
               {isAuthenticated ? (
                 <>
