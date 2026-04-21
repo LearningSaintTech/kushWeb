@@ -15,6 +15,8 @@ export const ROUTES = {
   ORDER_TRACK: '/orders/track/:orderId/:itemId',
   NOTIFICATIONS: '/notifications',
   COUPONS: '/coupons',
+  WALLET: '/wallet',
+  REDEEM_COINS: '/redeem-coins',
   ADDRESS: '/address',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',
   PAYMENT_POLICY: '/payment-policy',

@@ -8,6 +8,7 @@ import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { orderService } from '../../services/order.service.js'
 import { paymentService } from '../../services/payment.service.js'
+import { walletService } from '../../services/wallet.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
 
 /** Delivery is India-only; API still expects countryCode. */
@@ -134,6 +135,9 @@ function CheckoutPage() {
     isDefault: true,
   })
   const [paymentMode, setPaymentMode] = useState('RAZORPAY')
+  const [useWalletForOnline, setUseWalletForOnline] = useState(false)
+  const [walletBalance, setWalletBalance] = useState(0)
+  const [walletBalanceLoading, setWalletBalanceLoading] = useState(false)
   const [codWarningOpen, setCodWarningOpen] = useState(false)
   const [placeOrderLoading, setPlaceOrderLoading] = useState(false)
   const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false)
@@ -149,6 +153,7 @@ function CheckoutPage() {
   const navigate = useNavigate()
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? null
+  const prepaidSelected = paymentMode === 'RAZORPAY'
 
   const refetchAddresses = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -175,12 +180,17 @@ function CheckoutPage() {
     return data
   }, [addressId, pincode])
 
-  const fetchPriceSummary = useCallback(async (couponCode = null, paymentModeParam = paymentMode) => {
+  const fetchPriceSummary = useCallback(
+    async (couponCode = null, paymentModeParam = paymentMode, useWalletParam = useWalletForOnline) => {
     const requestId = ++priceSummaryRequestRef.current
     try {
       const params = {}
       if (couponCode) params.couponCode = couponCode
       if (paymentModeParam) params.paymentMode = paymentModeParam
+      params.useWallet = useWalletParam ? 'true' : 'false'
+      if (useWalletParam) {
+        params.walletAmountToUse = Math.max(0, Number(walletBalance || 0))
+      }
       console.log('[Checkout] REQ cartService.getPriceSummary:', params)
       const res = await cartService.getPriceSummary(params)
       console.log('[Checkout] RES cartService.getPriceSummary:', res?.data)
@@ -203,7 +213,9 @@ function CheckoutPage() {
       setPriceSummary(null)
       return null
     }
-  }, [paymentMode])
+    },
+    [paymentMode, useWalletForOnline, walletBalance]
+  )
 
   const fetchAvailableCoupons = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -214,6 +226,23 @@ function CheckoutPage() {
     const list = Array.isArray(data) ? data : (data?.data ?? [])
     return Array.isArray(list) ? list : []
   }, [])
+
+  const fetchWalletBalance = useCallback(async () => {
+    if (!isAuthenticated) {
+      setWalletBalance(0)
+      return
+    }
+    setWalletBalanceLoading(true)
+    try {
+      const res = await walletService.getCashBalance()
+      const data = res?.data?.data ?? {}
+      setWalletBalance(Number(data?.balance || 0))
+    } catch {
+      setWalletBalance(0)
+    } finally {
+      setWalletBalanceLoading(false)
+    }
+  }, [isAuthenticated])
 
   useEffect(() => {
     console.log('[Checkout] init effect', { isAuthenticated })
@@ -273,6 +302,10 @@ function CheckoutPage() {
   }, [isAuthenticated])
 
   useEffect(() => {
+    fetchWalletBalance()
+  }, [fetchWalletBalance])
+
+  useEffect(() => {
     if (addresses.length === 0 || selectedAddress != null) return
     const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0]
     console.log('[Checkout] address sync: set default/first', defaultOrFirst?._id)
@@ -312,8 +345,8 @@ function CheckoutPage() {
 
   useEffect(() => {
     if (!cartData?.items?.length || !isAuthenticated) return
-    fetchPriceSummary(appliedCouponCode || null, paymentMode)
-  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated, paymentMode])
+    fetchPriceSummary(appliedCouponCode || null, paymentMode, useWalletForOnline)
+  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated, paymentMode, useWalletForOnline, fetchPriceSummary])
 
   const cartSubTotalForCoupon = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
 
@@ -379,13 +412,13 @@ function CheckoutPage() {
     fetchPriceSummary,
   ])
 
-  // Preload Razorpay script when user selects Online payment
+  // Preload Razorpay script for prepaid flows (online / wallet-assisted)
   useEffect(() => {
-    if (paymentMode === 'RAZORPAY') {
+    if (prepaidSelected) {
       console.log('[Checkout] preload Razorpay script (paymentMode=RAZORPAY)')
       loadRazorpayScript().catch(() => {})
     }
-  }, [paymentMode])
+  }, [prepaidSelected])
 
   // Clear polling on unmount
   useEffect(() => {
@@ -556,7 +589,7 @@ function CheckoutPage() {
   }
 
   const handlePlaceOrder = async () => {
-    console.log('[Checkout] handlePlaceOrder', { paymentMode, addressId: selectedAddress?._id })
+    console.log('[Checkout] handlePlaceOrder', { paymentMode, useWalletForOnline, addressId: selectedAddress?._id })
     if (!selectedAddress?._id) {
       console.log('[Checkout] handlePlaceOrder: no address selected')
       setError('Please select a delivery address.')
@@ -585,10 +618,17 @@ function CheckoutPage() {
       // RAZORPAY: create-order via payment API → open Razorpay → verify-payment on success;
       // on modal_close without success, poll order-status until SUCCESS/CONFIRMED or timeout.
       if (paymentMode === 'RAZORPAY') {
-        const createReq = { addressId, paymentMode: 'RAZORPAY', couponCode }
-        console.log('[Checkout] REQ paymentService.createOrder (RAZORPAY):', createReq)
+        const walletAmountToUse = useWalletForOnline ? Math.max(0, Number(walletBalance || 0)) : 0
+        const createReq = {
+          addressId,
+          paymentMode: 'RAZORPAY',
+          couponCode,
+          useWallet: useWalletForOnline,
+          walletAmountToUse: useWalletForOnline ? walletAmountToUse : undefined,
+        }
+        console.log('[Checkout] REQ paymentService.createOrder (PREPAID):', createReq)
         const res = await paymentService.createOrder(createReq)
-        console.log('[Checkout] RES paymentService.createOrder (RAZORPAY):', res?.data)
+        console.log('[Checkout] RES paymentService.createOrder (PREPAID):', res?.data)
         const data = res?.data?.data ?? res?.data
         const order = data?.order ?? data
         const razorpayPayload = data?.razorpay
@@ -773,6 +813,8 @@ function CheckoutPage() {
         : null
   const hasAnyAppliedCoupon = Boolean(appliedCouponCode)
   const deliverySummary = summary.delivery
+  const walletUsedFromSummary = Number(summary?.wallet?.usedAmount ?? 0)
+  const rewardPointsToEarn = Number(summary?.rewardPointsPreview?.pointsToEarn ?? 0)
   const otherChargesTotal = summary.otherChargesTotal ?? 0
   const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0
   const chargesList = Array.isArray(summary.charges) ? summary.charges : []
@@ -781,7 +823,7 @@ function CheckoutPage() {
   const hasSummaryFromApi = Boolean(priceSummary?.cartSummary ?? priceSummary?.summary)
 
   useEffect(() => {
-    if (paymentMode !== 'RAZORPAY') {
+    if (paymentMode === 'COD') {
       autoCouponReconcileAttemptedRef.current = false
       return
     }
@@ -1434,6 +1476,20 @@ function CheckoutPage() {
                     <span className="text-gray-700">Delivery</span>
                     <span className="font-medium">{deliverySummary?.totalCharge != null && deliverySummary.totalCharge > 0 ? formatRs(deliverySummary.totalCharge) : <span className="text-green-700 font-medium">Free</span>}</span>
                   </div>
+                  {walletUsedFromSummary > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">Wallet used</span>
+                      <span className="font-medium text-green-700">−{formatRs(walletUsedFromSummary)}</span>
+                    </div>
+                  )}
+                  {rewardPointsToEarn > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">Reward points earned</span>
+                      <span className="font-medium text-green-700">
+                        +{Number(rewardPointsToEarn).toLocaleString('en-IN')} pts
+                      </span>
+                    </div>
+                  )}
                   {taxableAmount > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-700">Taxable amount</span>
@@ -1461,43 +1517,69 @@ function CheckoutPage() {
 
             {/* Payment method */}
             <section>
-              <h2 className="text-sm font-semibold text-black mb-2">Payment method</h2>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="paymentMode"
-                    value="COD"
-                    checked={paymentMode === 'COD'}
-                    onChange={() => {
-                      if (paymentMode === 'COD') return
-                      setCodWarningOpen(true)
-                    }}
-                    className="border-gray-300"
-                  />
-                  <span className="text-sm uppercase">Cash on delivery (COD)</span>
-                </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="paymentMode"
-                    value="RAZORPAY"
-                    checked={paymentMode === 'RAZORPAY'}
-                    onChange={() => {
-                      console.log('[Checkout] paymentMode changed to RAZORPAY')
+              <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-widest text-black mb-2.5 sm:mb-3">Choose delivery mode</h2>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (paymentMode === 'COD') return
+                    setCodWarningOpen(true)
+                  }}
+                  className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
+                >
+                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">Cash on Delivery</span>
+                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === 'COD' ? 'border-black bg-black text-white' : 'border-black text-transparent'}`}>
+                    ✓
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('[Checkout] paymentMode changed to RAZORPAY')
+                    setPaymentMode('RAZORPAY')
+                  }}
+                  className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
+                >
+                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">Online Payment</span>
+                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === 'RAZORPAY' ? 'border-black bg-black text-white' : 'border-black text-transparent'}`}>
+                    ✓
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (paymentMode !== 'RAZORPAY') {
                       setPaymentMode('RAZORPAY')
-                    }}
-                    className="border-gray-300"
-                  />
-                  <span className="text-sm uppercase">Online payment</span>
-                </label>
+                      setUseWalletForOnline(true)
+                      return
+                    }
+                    setUseWalletForOnline((prev) => !prev)
+                  }}
+                  className={`w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left transition-opacity ${
+                    paymentMode === 'RAZORPAY' ? 'opacity-100' : 'opacity-50'
+                  }`}
+                >
+                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">
+                    Use Wallet
+                    <span className="ml-1.5 text-[10px] sm:text-[11px] normal-case tracking-normal text-[#666666]">
+                      {walletBalanceLoading ? '(Loading...)' : `(${formatRs(walletBalance)})`}
+                    </span>
+                  </span>
+                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${
+                    paymentMode === 'RAZORPAY' && useWalletForOnline ? 'border-black bg-black text-white' : 'border-black text-transparent'
+                  }`}>
+                    ✓
+                  </span>
+                </button>
               </div>
             </section>
 
             {/* COD warning popup */}
             {codWarningOpen && (
               <div
-                className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-gray-900/60"
+                className="fixed inset-0 z-120 flex items-center justify-center p-4 bg-gray-900/60"
                 onClick={() => setCodWarningOpen(false)}
                 role="dialog"
                 aria-modal="true"
@@ -1543,6 +1625,7 @@ function CheckoutPage() {
                         setCouponError(null)
                         setCouponModalOpen(false)
                         setCodWarningOpen(false)
+                        setUseWalletForOnline(false)
                         setPaymentMode('COD')
                       }}
                       className="px-4 py-2 text-sm font-semibold uppercase border border-black bg-black text-white hover:bg-gray-800 transition-colors"
@@ -1598,7 +1681,7 @@ function CheckoutPage() {
                 className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {placeOrderLoading
-                  ? (paymentMode === 'RAZORPAY' ? 'Opening payment…' : 'Placing order…')
+                  ? (paymentMode === 'COD' ? 'Placing order…' : 'Opening payment…')
                   : checkingPaymentStatus
                     ? 'Checking payment…'
                     : hasOutOfStockItem

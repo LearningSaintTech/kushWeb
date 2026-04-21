@@ -38,6 +38,25 @@ function TagIcon({ className }) {
   )
 }
 
+function WalletIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h14a2 2 0 012 2v2H3V7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 9H3v8a2 2 0 002 2h14a2 2 0 002-2V9z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 13h.01" />
+    </svg>
+  )
+}
+
+function CoinsIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="7" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v8m-3-4h6" />
+    </svg>
+  )
+}
+
 function PhoneIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -66,6 +85,8 @@ const NAV_ITEMS = [
   { label: 'Address', to: ROUTES.ADDRESS, icon: LocationPinIcon },
   { label: 'Orders', to: ROUTES.ORDERS, icon: PackageIcon },
   { label: 'Coupons', to: ROUTES.COUPONS, icon: TagIcon },
+  { label: 'Wallet', to: ROUTES.WALLET, icon: WalletIcon },
+  { label: 'Redeem Coins', to: ROUTES.REDEEM_COINS, icon: CoinsIcon },
   { label: 'Contact Us', to: ROUTES.CONTACT_US, icon: PhoneIcon },
   { label: 'Terms & Conditions', to: ROUTES.TERMS_CONDITIONS, icon: DocumentIcon },
 ]

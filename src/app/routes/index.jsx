@@ -11,6 +11,8 @@ import { NotificationsPage } from '../../features/notifications'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
 import { CouponsPage } from '../../features/coupons'
+import { WalletPage } from '../../features/wallet'
+import { CoinsPage } from '../../features/coins'
 import {
   RefundCancelPolicyPage,
   PaymentPolicyPage,
@@ -53,6 +55,8 @@ const router = createBrowserRouter([
       { path: 'delete-account', element: <DeleteAccountPage /> },
       { path: 'address', element: <Address /> },
       { path: 'coupons', element: <CouponsPage /> },
+      { path: 'wallet', element: <WalletPage /> },
+      { path: 'redeem-coins', element: <CoinsPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],
   },
