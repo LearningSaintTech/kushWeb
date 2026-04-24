@@ -1,0 +1,166 @@
+:root {
+  --kh-text: #111111;
+  --kh-muted: #666666;
+  --kh-bg: #ffffff;
+  --kh-border: #e9e9e9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  color: var(--kh-text);
+  background: var(--kh-bg);
+}
+
+.kh-home {
+  width: 100%;
+}
+
+.kh-container {
+  width: min(1240px, 100% - 2rem);
+  margin-inline: auto;
+}
+
+.kh-banner {
+  width: 100%;
+  height: min(90vh, 760px);
+  overflow: hidden;
+}
+
+.kh-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kh-section {
+  padding: 3.5rem 0;
+}
+
+.kh-title {
+  margin: 0 0 1.5rem;
+  text-align: center;
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+  letter-spacing: 0.06em;
+}
+
+.kh-cards-scroll {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(230px, 1fr));
+  gap: 1rem;
+}
+
+.kh-product-card {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  min-height: 360px;
+}
+
+.kh-product-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kh-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1rem;
+  color: #fff;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+}
+
+.kh-overlay h3,
+.kh-grid-card h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+}
+
+.kh-overlay p,
+.kh-grid-card p {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+}
+
+.kh-link {
+  display: inline-block;
+  margin-top: 1.2rem;
+  text-decoration: none;
+  color: #000;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+}
+
+.kh-tabs {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 1.4rem;
+}
+
+.kh-tabs span {
+  color: var(--kh-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding-bottom: 0.35rem;
+}
+
+.kh-tabs .active {
+  color: #000;
+  border-bottom: 1px solid #000;
+}
+
+.kh-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.kh-grid-card {
+  border: 1px solid var(--kh-border);
+  padding: 0.6rem;
+}
+
+.kh-grid-card img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  margin-bottom: 0.65rem;
+  display: block;
+}
+
+@media (max-width: 1000px) {
+  .kh-cards-scroll,
+  .kh-cards-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .kh-section {
+    padding: 2.3rem 0;
+  }
+
+  .kh-banner {
+    height: 54vh;
+  }
+
+  .kh-cards-scroll,
+  .kh-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}

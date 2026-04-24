@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Khush Header</title>
+    <style>
+      :root {
+        --kh-text: #111;
+        --kh-muted: #666;
+        --kh-border: #e6e6e6;
+        --kh-bg: #fff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+      }
+
+      .kh-header {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        width: 100%;
+        background: var(--kh-bg);
+        border-bottom: 1px solid var(--kh-border);
+      }
+
+      .kh-wrap {
+        width: min(1320px, calc(100% - 1.5rem));
+        margin-inline: auto;
+      }
+
+      .kh-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.85rem 0;
+      }
+
+      .kh-left,
+      .kh-right {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        flex: 1;
+      }
+
+      .kh-right {
+        justify-content: flex-end;
+      }
+
+      .kh-logo {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .kh-logo img {
+        width: 140px;
+        max-width: 32vw;
+        height: auto;
+        display: block;
+      }
+
+      .kh-menu-btn {
+        border: 1px solid var(--kh-border);
+        background: #fff;
+        color: var(--kh-text);
+        border-radius: 8px;
+        font-size: 0.9rem;
+        padding: 0.45rem 0.7rem;
+        cursor: pointer;
+      }
+
+      .kh-location {
+        color: var(--kh-muted);
+        font-size: 0.85rem;
+        white-space: nowrap;
+      }
+
+      .kh-search {
+        flex: 1;
+        max-width: 380px;
+        display: flex;
+        align-items: center;
+        border: 1px solid var(--kh-border);
+        border-radius: 999px;
+        padding: 0.35rem 0.7rem;
+        background: #fafafa;
+      }
+
+      .kh-search input {
+        border: 0;
+        outline: 0;
+        background: transparent;
+        width: 100%;
+        font-size: 0.9rem;
+      }
+
+      .kh-icons {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+      }
+
+      .kh-icon {
+        width: 36px;
+        height: 36px;
+        border: 1px solid var(--kh-border);
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        text-decoration: none;
+        color: var(--kh-text);
+        font-size: 0.9rem;
+        position: relative;
+      }
+
+      .kh-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 17px;
+        height: 17px;
+        border-radius: 999px;
+        background: #111;
+        color: #fff;
+        font-size: 10px;
+        line-height: 17px;
+        text-align: center;
+        padding: 0 4px;
+      }
+
+      .kh-nav {
+        border-top: 1px solid var(--kh-border);
+      }
+
+      .kh-nav ul {
+        margin: 0;
+        padding: 0.6rem 0;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1.1rem;
+      }
+
+      .kh-nav a {
+        text-decoration: none;
+        color: var(--kh-text);
+        font-size: 0.82rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .kh-mobile-row {
+        display: none;
+      }
+
+      @media (max-width: 900px) {
+        .kh-top {
+          display: none;
+        }
+
+        .kh-mobile-row {
+          display: flex;
+          flex-direction: column;
+          gap: 0.65rem;
+          padding: 0.65rem 0;
+        }
+
+        .kh-mobile-main {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.65rem;
+        }
+
+        .kh-mobile-icons {
+          display: flex;
+          gap: 0.45rem;
+        }
+
+        .kh-mobile-search-row {
+          display: flex;
+          align-items: center;
+          gap: 0.55rem;
+        }
+
+        .kh-mobile-search-row .kh-location {
+          font-size: 0.78rem;
+          white-space: nowrap;
+        }
+
+        .kh-mobile-search-row .kh-search {
+          max-width: none;
+        }
+
+        .kh-nav ul {
+          justify-content: flex-start;
+          overflow-x: auto;
+          white-space: nowrap;
+          flex-wrap: nowrap;
+          padding-inline: 0.2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="kh-header">
+      <div class="kh-wrap">
+        <div class="kh-top">
+          <div class="kh-left">
+            <button class="kh-menu-btn" type="button">☰ Menu</button>
+            <span class="kh-location">Deliver to: 560001</span>
+          </div>
+
+          <a class="kh-logo" href="#">
+            <img src="https://dummyimage.com/280x80/000/fff&text=KHUSH" alt="Khush" />
+          </a>
+
+          <div class="kh-right">
+            <form class="kh-search" action="#" method="get">
+              <input type="search" name="q" placeholder="Find Your Choice" />
+            </form>
+            <div class="kh-icons">
+              <a class="kh-icon" href="#" aria-label="Wishlist">♡<span class="kh-badge">2</span></a>
+              <a class="kh-icon" href="#" aria-label="Cart">🛒<span class="kh-badge">3</span></a>
+              <a class="kh-icon" href="#" aria-label="Notifications">🔔<span class="kh-badge">1</span></a>
+              <a class="kh-icon" href="#" aria-label="Profile">👤</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="kh-mobile-row">
+          <div class="kh-mobile-main">
+            <button class="kh-menu-btn" type="button">☰</button>
+            <a class="kh-logo" href="#">
+              <img src="https://dummyimage.com/240x70/000/fff&text=KHUSH" alt="Khush" />
+            </a>
+            <div class="kh-mobile-icons">
+              <a class="kh-icon" href="#" aria-label="Wishlist">♡</a>
+              <a class="kh-icon" href="#" aria-label="Cart">🛒</a>
+            </div>
+          </div>
+          <div class="kh-mobile-search-row">
+            <span class="kh-location">560001</span>
+            <form class="kh-search" action="#" method="get">
+              <input type="search" name="q" placeholder="Search products" />
+            </form>
+          </div>
+        </div>
+
+        <nav class="kh-nav" aria-label="Main navigation">
+          <ul>
+            <li><a href="#">Men</a></li>
+            <li><a href="#">Women</a></li>
+            <li><a href="#">Unisex</a></li>
+            <li><a href="#">Couples</a></li>
+            <li><a href="#">New Arrivals</a></li>
+            <li><a href="#">Our Products</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+  </body>
+</html>

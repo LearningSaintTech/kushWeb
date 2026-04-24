@@ -26,6 +26,7 @@ import {
 } from '../../features/policy'
 import Address from '../../shared/address/Address'
 import ProfileUpdatePage from '../../features/account/ProfileUpdatePage'
+import AppDownloadRedirectPage from '../../shared/components/AppDownloadRedirectPage'
 import { ROUTES } from '../../utils/constants'
 
 const router = createBrowserRouter([
@@ -61,6 +62,7 @@ const router = createBrowserRouter([
     ],
   },
   { path: 'auth', element: <AuthPage /> },
+  { path: 'app-download', element: <AppDownloadRedirectPage /> },
 ])
 
 export default function Routes() {
