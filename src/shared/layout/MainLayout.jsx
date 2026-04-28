@@ -32,7 +32,7 @@ function MainLayout() {
         aria-label="Open shopping assistant"
       >
         <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
-        Ask Khush
+        Ask Khushi
       </button>
       <ChatbotModal open={chatOpen} onClose={() => setChatOpen(false)} />
       <Footer />
