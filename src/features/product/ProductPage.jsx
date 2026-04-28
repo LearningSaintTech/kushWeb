@@ -39,6 +39,7 @@ function ProductPage() {
   );
   const galleryTouchStartX = useRef(null);
   const shortDescRef = useRef(null);
+  const reviewsSectionRef = useRef(null);
   const [shortDescExceedsTwoLines, setShortDescExceedsTwoLines] =
     useState(false);
 
@@ -399,6 +400,13 @@ function ProductPage() {
     setExpandedSection((prev) => (prev === key ? null : key));
   };
 
+  const handleOpenReviews = () => {
+    reviewsSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   const shortDescText = (item?.shortDescription ?? "").trim();
   const longDescText = (item?.longDescription ?? "").trim();
   const longDescNeedsMore = longDescText.length > LONG_DESC_COLLAPSE_THRESHOLD;
@@ -597,9 +605,14 @@ function ProductPage() {
 
                   {/* RIGHT : RATING - only show when there is a rating > 0 */}
                   {item.avgRating != null && Number(item.avgRating) > 0 && (
-                    <div className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px]">
+                    <button
+                      type="button"
+                      onClick={handleOpenReviews}
+                      className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px] cursor-pointer"
+                      aria-label="Open customer ratings and reviews"
+                    >
                       ★ {Number(item.avgRating).toFixed(1)}
-                    </div>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1051,7 +1064,9 @@ function ProductPage() {
           </div>
         </div>
 
-        <ReviewRating itemId={item._id} />
+        <div ref={reviewsSectionRef}>
+          <ReviewRating itemId={item._id} />
+        </div>
 
         {/* 🔥 SIZE CHART SLIDER */}
         <div

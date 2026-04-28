@@ -391,6 +391,10 @@ function Footer() {
                   <p className="text-sm sm:text-base text-[#808282] mb-4">
                     support@khushpehno.com
                   </p>
+                  <p className="text-sm sm:text-base text-[#808282] mb-4 leading-relaxed">
+                    <span className="text-white">Address: </span>
+                    B-127, B Block, Sector 69, Noida, Uttar Pradesh 201309
+                  </p>
 
                   {/* Social Icons */}
                   <div className="flex gap-3 mb-6">
@@ -461,7 +465,7 @@ function Footer() {
 
       {/* ================= COPYRIGHT ================= */}
       <div className="py-6 text-center text-xs sm:text-sm text-white/60 px-4">
-        © {currentYear} KHUSH. All rights reserved.
+        © {currentYear} KHUSH LIFESTYLE PRIVATE LIMITED. All rights reserved.
       </div>
 
       {/* ================= CONTACT US MODAL ================= */}
