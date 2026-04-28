@@ -10,6 +10,7 @@ import { orderService } from '../../services/order.service.js'
 import { paymentService } from '../../services/payment.service.js'
 import { walletService } from '../../services/wallet.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
+import { trackEvent } from '../../analytics'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -609,6 +610,13 @@ function CheckoutPage() {
         const data = res?.data?.data ?? res?.data
         const order = data?.order ?? data
         const orderId = order?.orderId
+        trackEvent({
+          eventType: 'order_placed',
+          orderId: orderId ? String(orderId) : undefined,
+          paymentMode: 'COD',
+          cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+          currency: 'INR',
+        })
         console.log('[Checkout] COD success, refetch cart and navigate to orders:', orderId)
         refetchCart()
         navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
@@ -633,6 +641,13 @@ function CheckoutPage() {
         const order = data?.order ?? data
         const razorpayPayload = data?.razorpay
         const businessOrderId = order?.orderId
+        trackEvent({
+          eventType: 'payment_initiated',
+          orderId: businessOrderId ? String(businessOrderId) : undefined,
+          paymentMode: 'RAZORPAY',
+          cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+          currency: 'INR',
+        })
         console.log('[Checkout] razorpayPayload (amount in rupees for frontend):', razorpayPayload)
         if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) {
           console.log('[Checkout] RAZORPAY: missing orderId or keyId in payload')
@@ -668,11 +683,35 @@ function CheckoutPage() {
           try {
             const verifyRes = await paymentService.verifyPayment(verifyReq)
             console.log('[Checkout] RES paymentService.verifyPayment:', verifyRes?.data)
+            trackEvent({
+              eventType: 'payment_success',
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: 'RAZORPAY',
+              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+              currency: 'INR',
+            })
+            trackEvent({
+              eventType: 'order_placed',
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: 'RAZORPAY',
+              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+              currency: 'INR',
+            })
             refetchCart()
             console.log('[Checkout] verifyPayment success, navigate to orders:', businessOrderId)
             navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
           } catch (verifyErr) {
             console.log('[Checkout] ERR paymentService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message)
+            trackEvent({
+              eventType: 'payment_failed',
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: 'RAZORPAY',
+              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+              currency: 'INR',
+              meta: {
+                reason: verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'verify_failed',
+              },
+            })
             const msg = verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'Payment verification failed.'
             setLastVerifyError(msg)
             setLastVerifyPayload(verifyReq)
@@ -772,6 +811,17 @@ function CheckoutPage() {
         const rzp = new window.Razorpay(options)
         rzp.on('payment.failed', (response) => {
           console.log('[Checkout] Razorpay payment.failed', response)
+          trackEvent({
+            eventType: 'payment_failed',
+            orderId: businessOrderId ? String(businessOrderId) : undefined,
+            paymentMode: 'RAZORPAY',
+            cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+            currency: 'INR',
+            meta: {
+              code: response?.error?.code,
+              reason: response?.error?.description || 'razorpay_failed',
+            },
+          })
           setError('Payment failed or was cancelled.')
           setPlaceOrderLoading(false)
         })
@@ -781,6 +831,17 @@ function CheckoutPage() {
       }
     } catch (err) {
       console.log('[Checkout] ERR place order:', err?.response?.data ?? err?.message)
+      if (paymentMode === 'RAZORPAY') {
+        trackEvent({
+          eventType: 'payment_failed',
+          paymentMode: 'RAZORPAY',
+          cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+          currency: 'INR',
+          meta: {
+            reason: err?.response?.data?.message ?? err?.message ?? 'create_order_failed',
+          },
+        })
+      }
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to place order.'
       setError(msg)
     } finally {

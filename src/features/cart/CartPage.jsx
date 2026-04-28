@@ -9,6 +9,7 @@ import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
+import { trackEvent } from '../../analytics'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -387,12 +388,37 @@ function CartPage() {
   const handleApplyCoupon = () => {
     const code = couponInput?.trim()
     if (!code) return
+    trackEvent({
+      eventType: 'coupon_apply_attempt',
+      couponCode: code,
+      cartValue: cartSubTotalForCoupon != null ? Number(cartSubTotalForCoupon) : undefined,
+      currency: 'INR',
+    })
     setAppliedCouponCode(code)
     setCouponError(null)
     fetchPriceSummary(code)
+      .then((data) => {
+        const summary = data?.cartSummary?.summary ?? data?.summary ?? {}
+        const discount = Number(summary?.coupon?.discountAmount ?? 0)
+        trackEvent({
+          eventType: discount > 0 ? 'coupon_applied' : 'coupon_apply_attempt',
+          couponCode: code,
+          discountValue: discount > 0 ? discount : undefined,
+          cartValue: cartSubTotalForCoupon != null ? Number(cartSubTotalForCoupon) : undefined,
+          currency: 'INR',
+        })
+      })
   }
 
   const handleRemoveCoupon = () => {
+    if (appliedCouponCode) {
+      trackEvent({
+        eventType: 'coupon_removed',
+        couponCode: appliedCouponCode,
+        cartValue: cartSubTotalForCoupon != null ? Number(cartSubTotalForCoupon) : undefined,
+        currency: 'INR',
+      })
+    }
     setAppliedCouponCode(null)
     setCouponInput('')
     setCouponError(null)
@@ -414,10 +440,27 @@ function CartPage() {
 
   const handleApplyCouponFromModal = (code) => {
     if (!code) return
+    trackEvent({
+      eventType: 'coupon_apply_attempt',
+      couponCode: code,
+      cartValue: cartSubTotalForCoupon != null ? Number(cartSubTotalForCoupon) : undefined,
+      currency: 'INR',
+    })
     setCouponInput(code)
     setAppliedCouponCode(code)
     setCouponError(null)
     fetchPriceSummary(code)
+      .then((data) => {
+        const summary = data?.cartSummary?.summary ?? data?.summary ?? {}
+        const discount = Number(summary?.coupon?.discountAmount ?? 0)
+        trackEvent({
+          eventType: discount > 0 ? 'coupon_applied' : 'coupon_apply_attempt',
+          couponCode: code,
+          discountValue: discount > 0 ? discount : undefined,
+          cartValue: cartSubTotalForCoupon != null ? Number(cartSubTotalForCoupon) : undefined,
+          currency: 'INR',
+        })
+      })
     setCouponModalOpen(false)
   }
 
@@ -1216,6 +1259,12 @@ function CartPage() {
                         value: finalPayable != null ? Number(finalPayable) : undefined,
                         items: items.map((row) => cartRowToEcommerceItem(row)),
                       },
+                    })
+                    trackEvent({
+                      eventType: 'checkout_started',
+                      cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+                      currency: 'INR',
+                      quantity: items.reduce((sum, row) => sum + Number(row?.quantity || 0), 0),
                     })
                   }}
                   className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"

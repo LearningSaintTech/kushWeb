@@ -4,6 +4,8 @@ import { CartWishlistProvider } from './app/context/CartWishlistContext'
 import { NotificationProvider, useNotificationSocket } from './app/context/NotificationContext'
 import { usePushSubscribe } from './app/hooks/usePushSubscribe'
 import { useLocationOnLoad } from './app/hooks/useLocationOnLoad'
+import { useEffect, useRef } from 'react'
+import { trackSessionStart } from './analytics'
 
 function NotificationSocketConnector() {
   const { token } = useAuth()
@@ -23,11 +25,25 @@ function LocationOnLoadConnector() {
   return null
 }
 
+function AnalyticsSessionConnector() {
+  const { isAuthenticated } = useAuth()
+  const sentRef = useRef(false)
+
+  useEffect(() => {
+    if (sentRef.current) return
+    sentRef.current = true
+    trackSessionStart({ isAuthenticated })
+  }, [isAuthenticated])
+
+  return null
+}
+
 function AppContent() {
   return (
     <AuthProvider>
       <CartWishlistProvider>
         <NotificationProvider>
+          <AnalyticsSessionConnector />
           <LocationOnLoadConnector />
           <NotificationSocketConnector />
           <PushSubscribeConnector />

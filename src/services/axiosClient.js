@@ -46,6 +46,7 @@ const client = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'x-client-channel': 'website',
   },
   timeout: 30000,
   withCredentials: true,
@@ -62,6 +63,8 @@ client.interceptors.request.use(
       const deviceId = typeof window !== 'undefined' ? window.localStorage?.getItem(DEVICE_ID_KEY) : null;
       if (deviceId) config.headers['x-device-id'] = deviceId;
     } catch {}
+    // Explicitly mark this client as website channel for backend analytics attribution.
+    config.headers['x-client-channel'] = 'website';
 
     // Let browser set Content-Type (with boundary) for FormData
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {

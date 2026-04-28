@@ -14,6 +14,7 @@ import { categoriesService, subcategoriesService } from '../../services/categori
 import { sectionsService } from '../../services/content.service.js'
 import { filtersService } from '../../services/filters.service.js'
 import Filter from "../../assets/temporary/filtericon.svg"
+import { trackEvent } from '../../analytics'
 const DEFAULT_LIMIT = 12
 
 /** Same chevron for category dropdowns and styled selects (outline, matches breadcrumb weight). */
@@ -184,6 +185,7 @@ function SearchPage() {
   const priceSliderRef = useRef(null)
   const [expandedFilterKeys, setExpandedFilterKeys] = useState(() => new Set())
   const [dropdownAnimateOpen, setDropdownAnimateOpen] = useState(false)
+  const lastTrackedSearchRef = useRef('')
   // Keep initial image loading light; lazy-load most product thumbnails.
   const [eagerCardsCount, setEagerCardsCount] = useState(4)
 
@@ -572,6 +574,21 @@ function SearchPage() {
   useEffect(() => {
     runSearch()
   }, [runSearch])
+
+  useEffect(() => {
+    const query = qFromUrl.trim()
+    if (!query || loading) return
+    const key = `${query}|${pagination?.total ?? 0}|${sectionIdFromUrl}|${categoryFromUrl}|${subcategoryFromUrl}`
+    if (lastTrackedSearchRef.current === key) return
+    lastTrackedSearchRef.current = key
+
+    const total = Number(pagination?.total ?? products.length ?? 0)
+    trackEvent({
+      eventType: total > 0 ? 'search' : 'search_no_results',
+      searchQuery: query,
+      searchResultCount: Number.isFinite(total) ? total : 0,
+    })
+  }, [qFromUrl, loading, pagination?.total, products.length, sectionIdFromUrl, categoryFromUrl, subcategoryFromUrl])
 
   const totalPagesForList = totalPagesFromPagination(pagination)
   const hasMoreToLoad = pagination != null && listPage < totalPagesForList

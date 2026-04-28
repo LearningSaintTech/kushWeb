@@ -15,6 +15,7 @@ import ReviewRating from "./components/ReviewRating";
 import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
+import { trackEvent } from "../../analytics";
 function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -341,6 +342,15 @@ function ProductPage() {
       },
     });
 
+    trackEvent({
+      eventType: "add_to_cart",
+      itemId: productForCart?.id ? String(productForCart.id) : undefined,
+      sku: productForCart?.sku ? String(productForCart.sku) : undefined,
+      quantity: 1,
+      price: Number(productForCart.price?.replace(/[^\d.]/g, "")) || 0,
+      currency: "INR",
+    });
+
     const result = await addToCart(productForCart, pincode);
 
     if (result?.success === false && result?.message) {
@@ -363,6 +373,17 @@ function ProductPage() {
       hoverImage: hoverUrl,
       delivery: deliveryText,
       rating: item.avgRating ?? 4,
+    });
+    trackEvent({
+      eventType: inWishlist ? "wishlist_remove" : "wishlist_add",
+      itemId: itemIdStr ?? (item?._id ? String(item._id) : undefined),
+      currency: "INR",
+      price:
+        item?.discountedPrice != null
+          ? Number(item.discountedPrice)
+          : item?.price != null
+            ? Number(item.price)
+            : undefined,
     });
   };
 
@@ -394,6 +415,21 @@ function ProductPage() {
     }
     navigate(ROUTES.CART);
   };
+
+  useEffect(() => {
+    if (!item?._id) return;
+    trackEvent({
+      eventType: "product_view",
+      itemId: String(item._id),
+      price:
+        item.discountedPrice != null
+          ? Number(item.discountedPrice)
+          : item.price != null
+            ? Number(item.price)
+            : undefined,
+      currency: "INR",
+    });
+  }, [item?._id]);
 
   const toggleSection = (key) => {
     setExpandedSection((prev) => (prev === key ? null : key));

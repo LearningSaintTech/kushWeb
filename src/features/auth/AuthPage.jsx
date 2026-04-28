@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { ROUTES } from '../../utils/constants'
+import { trackEvent } from '../../analytics'
 
 const DEFAULT_COUNTRY_CODE = '+91'
 
@@ -32,6 +33,10 @@ export default function AuthPage() {
     setLoading(true)
     try {
       const payload = { countryCode: countryCode || undefined, phoneNumber: phoneNumber.trim() }
+      trackEvent({
+        eventType: mode === 'register' ? 'auth_signup_started' : 'auth_login_started',
+        meta: { source: 'auth_page' },
+      })
       const data = mode === 'register'
         ? await register({ ...payload, name: name.trim(), role: 'user' })
         : await login(payload)
@@ -44,6 +49,10 @@ export default function AuthPage() {
         setError('Could not send OTP. Please try again.')
       }
     } catch (err) {
+      trackEvent({
+        eventType: 'auth_login_failed',
+        meta: { source: 'auth_page', reason: err?.response?.data?.message || err?.message || 'send_otp_failed' },
+      })
       setError(err?.response?.data?.message || err?.message || 'Something went wrong')
     } finally {
       setLoading(false)
@@ -60,8 +69,16 @@ export default function AuthPage() {
     setLoading(true)
     try {
       await verifyOtp({ userId, otp: otp.trim() })
+      trackEvent({
+        eventType: mode === 'register' ? 'auth_signup_success' : 'auth_login_success',
+        meta: { source: 'auth_page' },
+      })
       navigate(redirectTo, { replace: true })
     } catch (err) {
+      trackEvent({
+        eventType: 'auth_login_failed',
+        meta: { source: 'auth_page', reason: err?.response?.data?.message || err?.message || 'verify_failed' },
+      })
       setError(err?.response?.data?.message || err?.message || 'Invalid OTP')
     } finally {
       setLoading(false)
