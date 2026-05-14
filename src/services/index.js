@@ -38,5 +38,6 @@ export { filtersService } from './filters.service.js';
 export { contactUsService } from './contactUs.service.js';
 export { walletService } from './wallet.service.js';
 export { chatbotService } from './chatbot.service.js';
+export { referralService, unwrapReferralResponse } from './referral.service.js';
 
 export { getCurrentPosition, reverseGeocode, getCurrentLocationPincode } from './geo.service.js';

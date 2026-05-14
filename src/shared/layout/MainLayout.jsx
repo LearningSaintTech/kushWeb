@@ -7,6 +7,7 @@ import ScrollToTop from '../components/ScrollToTop'
 import AuthModal from '../../features/auth/AuthModal'
 import { trackPageView } from '../../analytics'
 import ChatbotModal from '../../features/chatbot/ChatbotModal'
+import chatFabImage from '../../assets/images/Component 3.svg'
 
 function MainLayout() {
   const location = useLocation()
@@ -28,11 +29,17 @@ function MainLayout() {
       <button
         type="button"
         onClick={() => setChatOpen(true)}
-        className="fixed bottom-5 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-black px-4 py-3 text-xs font-semibold text-white shadow-lg transition hover:bg-zinc-800 sm:bottom-6 sm:right-6 sm:text-sm"
+        className="fixed bottom-5 right-4 z-40 rounded-full p-0 shadow-lg transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:bottom-6 sm:right-6"
         aria-label="Open shopping assistant"
       >
-        <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
-        Ask Khushi
+        <img
+          src={chatFabImage}
+          alt=""
+          width={70}
+          height={70}
+          className="h-[62px] w-[62px] sm:h-[74px] sm:w-[74px]"
+          draggable={false}
+        />
       </button>
       <ChatbotModal open={chatOpen} onClose={() => setChatOpen(false)} />
       <Footer />
