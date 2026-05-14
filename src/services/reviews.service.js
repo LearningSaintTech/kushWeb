@@ -10,7 +10,7 @@ const BASE = '/reviews';
 export const reviewsService = {
   /**
    * Create a review for an item.
-   * Supports optional image files (sent as multipart/form-data).
+   * Supports optional image or video files (sent as multipart/form-data under `images`).
    * body: { itemId, rating, description?, files?: File[] }
    */
   create: (body) => {
@@ -38,7 +38,7 @@ export const reviewsService = {
 
   /**
    * Update an existing review.
-   * body: { rating?, description?, files?: File[] }
+   * body: { rating?, description?, files?: File[] } — files may be images or videos.
    */
   update: (reviewId, body) => {
     const formData = new FormData();

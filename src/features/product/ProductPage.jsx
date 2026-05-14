@@ -17,15 +17,15 @@ import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
 import { trackEvent } from "../../analytics";
+import {
+  getUrlFromMediaEntry,
+  isVideoMediaEntry,
+  isVideoUrlString,
+} from "../../utils/mediaUrl.js";
 
-const VIDEO_EXT_RE = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i;
-function isVideoUrl(url) {
-  if (!url || typeof url !== "string") return false;
-  return VIDEO_EXT_RE.test(url);
-}
 function getMediaType(entry) {
   if (entry?.type === "video" || entry?.type === "image") return entry.type;
-  return isVideoUrl(entry?.url) ? "video" : "image";
+  return isVideoUrlString(entry?.url) ? "video" : "image";
 }
 
 function ProductPage() {
@@ -184,7 +184,7 @@ function ProductPage() {
         return [
           {
             url: item.thumbnail,
-            type: isVideoUrl(item.thumbnail) ? "video" : "image",
+            type: isVideoUrlString(item.thumbnail) ? "video" : "image",
           },
         ];
       }
@@ -207,7 +207,7 @@ function ProductPage() {
       (m) => m?.url && getMediaType(m) === "image",
     );
     if (firstImg?.url) return firstImg.url;
-    if (item?.thumbnail && !isVideoUrl(item.thumbnail)) return item.thumbnail;
+    if (item?.thumbnail && !isVideoUrlString(item.thumbnail)) return item.thumbnail;
     return "";
   }, [selectedVariant, item?.thumbnail]);
 

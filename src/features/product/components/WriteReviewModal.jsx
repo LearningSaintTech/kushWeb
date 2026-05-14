@@ -2,12 +2,43 @@ import { useEffect, useId, useRef, useState } from "react";
 import { RiStarFill, RiStarLine } from "react-icons/ri";
 import { reviewsService } from "../../../services/reviews.service.js";
 
-const MAX_PHOTOS = 5;
+/** Max total attachments (photos + videos combined). */
+const MAX_MEDIA = 5;
 const MAX_REVIEW_LENGTH = 2000;
+
+/** Allowed MIME types (plus extension fallback when type is empty). */
+const ALLOWED_MIME =
+  /^(image\/(jpeg|jpg|png|gif|webp)|video\/(mp4|webm|quicktime|x-msvideo))$/i;
+const ALLOWED_EXT = /\.(jpe?g|png|gif|webp|mp4|webm|mov|m4v)$/i;
 
 function getUserIdFromReview(r) {
   const uid = r?.userId?._id ?? r?.userId?.id ?? r?.userId ?? r?.user;
   return uid != null ? String(uid) : null;
+}
+
+function isAllowedMediaFile(file) {
+  if (!file || typeof file !== "object") return false;
+  const base = (file.type || "").split(";")[0].trim();
+  if (base && ALLOWED_MIME.test(base)) return true;
+  if (!file.type && typeof file.name === "string" && ALLOWED_EXT.test(file.name))
+    return true;
+  return false;
+}
+
+function isVideoFile(file) {
+  if (!file) return false;
+  if (file.type && file.type.startsWith("video/")) return true;
+  return /\.(mp4|webm|mov|m4v)$/i.test(file.name || "");
+}
+
+function revokeItemUrls(items) {
+  items.forEach(({ url }) => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore */
+    }
+  });
 }
 
 function InteractiveStars({ value, onChange, disabled }) {
@@ -41,18 +72,8 @@ function InteractiveStars({ value, onChange, disabled }) {
   );
 }
 
-function revokeUrls(urls) {
-  urls.forEach((url) => {
-    try {
-      URL.revokeObjectURL(url);
-    } catch {
-      /* ignore */
-    }
-  });
-}
-
 /**
- * Modal to create or update a product review (rating + optional text + optional images).
+ * Modal to create or update a product review (rating + optional text + optional photos/videos).
  */
 export default function WriteReviewModal({
   open,
@@ -63,22 +84,32 @@ export default function WriteReviewModal({
   onSubmitted,
 }) {
   const titleId = useId();
-  const filePreviewsRef = useRef([]);
+  const photoInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+  const mediaUrlsRef = useRef([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [existingReview, setExistingReview] = useState(null);
   const [rating, setRating] = useState(5);
   const [description, setDescription] = useState("");
-  const [files, setFiles] = useState([]);
-  const [filePreviews, setFilePreviews] = useState([]);
+  /** @type {{ file: File; url: string }[]} */
+  const [mediaItems, setMediaItems] = useState([]);
 
   useEffect(() => {
-    filePreviewsRef.current = filePreviews;
-  }, [filePreviews]);
+    mediaUrlsRef.current = mediaItems.map((m) => m.url);
+  }, [mediaItems]);
 
   useEffect(() => {
-    return () => revokeUrls(filePreviewsRef.current);
+    return () => {
+      mediaUrlsRef.current.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* ignore */
+        }
+      });
+    };
   }, []);
 
   useEffect(() => {
@@ -91,13 +122,13 @@ export default function WriteReviewModal({
 
   useEffect(() => {
     if (open) return;
-    revokeUrls(filePreviewsRef.current);
-    filePreviewsRef.current = [];
+    setMediaItems((prev) => {
+      revokeItemUrls(prev);
+      return [];
+    });
     setExistingReview(null);
     setRating(5);
     setDescription("");
-    setFiles([]);
-    setFilePreviews([]);
     setError(null);
     setLoading(false);
     setSubmitting(false);
@@ -114,11 +145,10 @@ export default function WriteReviewModal({
     setLoading(true);
     setError(null);
 
-    setFilePreviews((prev) => {
-      revokeUrls(prev);
+    setMediaItems((prev) => {
+      revokeItemUrls(prev);
       return [];
     });
-    setFiles([]);
 
     reviewsService
       .getByItem(itemId, { page: 1, limit: 50 })
@@ -170,32 +200,54 @@ export default function WriteReviewModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const handleFilesChange = (e) => {
-    const picked = Array.from(e.target.files || []).slice(0, MAX_PHOTOS);
-    setFilePreviews((prev) => {
-      revokeUrls(prev);
-      const urls = picked.map((f) => URL.createObjectURL(f));
-      filePreviewsRef.current = urls;
-      return urls;
+  const appendMediaFiles = (picked) => {
+    if (!picked.length) return;
+    const valid = picked.filter(isAllowedMediaFile);
+    let fileError = null;
+    if (picked.length > valid.length) {
+      fileError =
+        "Some files were skipped. Use images (JPG, PNG, GIF, WebP) or video (MP4, WebM, MOV).";
+    }
+    if (valid.length === 0) {
+      if (fileError) setError(fileError);
+      return;
+    }
+
+    setMediaItems((prev) => {
+      const combined = [...prev.map((p) => p.file), ...valid];
+      if (combined.length > MAX_MEDIA) {
+        fileError = `You can attach up to ${MAX_MEDIA} photos or videos in total.`;
+      }
+      const nextFiles = combined.slice(0, MAX_MEDIA);
+      revokeItemUrls(prev);
+      return nextFiles.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      }));
     });
-    setFiles(picked);
+
+    if (fileError) setError(fileError);
+    else setError(null);
+  };
+
+  const handleFilesChange = (e) => {
+    const picked = Array.from(e.target.files || []);
+    appendMediaFiles(picked);
     e.target.value = "";
   };
 
-  const removePhotoAt = (index) => {
-    setFilePreviews((prev) => {
-      const nextUrls = prev.filter((_, i) => i !== index);
+  const removeMediaAt = (index) => {
+    setMediaItems((prev) => {
+      const next = prev.filter((_, i) => i !== index);
       if (prev[index]) {
         try {
-          URL.revokeObjectURL(prev[index]);
+          URL.revokeObjectURL(prev[index].url);
         } catch {
           /* ignore */
         }
       }
-      filePreviewsRef.current = nextUrls;
-      return nextUrls;
+      return next;
     });
-    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e) => {
@@ -205,6 +257,7 @@ export default function WriteReviewModal({
     setSubmitting(true);
     setError(null);
 
+    const files = mediaItems.map((m) => m.file);
     const payload = {
       rating,
       description: description.trim().slice(0, MAX_REVIEW_LENGTH),
@@ -252,7 +305,15 @@ export default function WriteReviewModal({
       .finally(() => setSubmitting(false));
   };
 
+  const openPhotoPicker = () => photoInputRef.current?.click();
+  const openVideoPicker = () => videoInputRef.current?.click();
+
   if (!open) return null;
+
+  const acceptPhoto =
+    "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/*";
+  const acceptVideo =
+    "video/mp4,video/webm,video/quicktime,video/x-msvideo,video/*";
 
   return (
     <div
@@ -368,59 +429,118 @@ export default function WriteReviewModal({
 
               <div>
                 <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  Photos{" "}
+                  Photos &amp; videos{" "}
                   <span className="font-normal normal-case text-zinc-400">
-                    (optional, max {MAX_PHOTOS})
+                    (optional, max {MAX_MEDIA} total)
                   </span>
                 </span>
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 px-4 py-6 transition hover:border-zinc-300 hover:bg-zinc-50">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="sr-only"
-                    onChange={handleFilesChange}
-                    disabled={submitting}
-                  />
-                  <svg
-                    className="mb-2 h-8 w-8 text-zinc-400"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium text-zinc-700">
-                    Click to upload
-                  </span>
-                  <span className="mt-1 text-xs text-zinc-500">
-                    PNG, JPG — up to {MAX_PHOTOS} images
-                  </span>
-                </label>
 
-                {filePreviews.length > 0 && (
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept={acceptPhoto}
+                  multiple
+                  className="sr-only"
+                  onChange={handleFilesChange}
+                  disabled={submitting || mediaItems.length >= MAX_MEDIA}
+                />
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept={acceptVideo}
+                  multiple
+                  className="sr-only"
+                  onChange={handleFilesChange}
+                  disabled={submitting || mediaItems.length >= MAX_MEDIA}
+                />
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={openPhotoPicker}
+                    disabled={
+                      submitting || mediaItems.length >= MAX_MEDIA
+                    }
+                    className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[140px] sm:flex-none"
+                  >
+                    <svg
+                      className="h-5 w-5 shrink-0 text-zinc-500"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      viewBox="0 0 24 24"
+                      aria-hidden
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    Add photos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openVideoPicker}
+                    disabled={
+                      submitting || mediaItems.length >= MAX_MEDIA
+                    }
+                    className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[140px] sm:flex-none"
+                  >
+                    <svg
+                      className="h-5 w-5 shrink-0 text-zinc-500"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      viewBox="0 0 24 24"
+                      aria-hidden
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      />
+                    </svg>
+                    Add video
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-zinc-500">
+                  JPG, PNG, WebP, GIF, or MP4 / WebM / MOV — up to {MAX_MEDIA}{" "}
+                  files combined. You can add more in separate steps.
+                </p>
+
+                {mediaItems.length > 0 && (
                   <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-                    {filePreviews.map((url, i) => (
+                    {mediaItems.map(({ file, url }, i) => (
                       <li
                         key={`${url}-${i}`}
-                        className="relative aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100"
+                        className="relative aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900"
                       >
-                        <img
-                          src={url}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
+                        {isVideoFile(file) ? (
+                          <video
+                            src={url}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                            aria-label="Video preview"
+                          />
+                        ) : (
+                          <img
+                            src={url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                        <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+                          {isVideoFile(file) ? "Video" : "Photo"}
+                        </span>
                         <button
                           type="button"
-                          onClick={() => removePhotoAt(i)}
+                          onClick={() => removeMediaAt(i)}
                           disabled={submitting}
                           className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-white hover:bg-black disabled:opacity-50"
-                          aria-label={`Remove photo ${i + 1}`}
+                          aria-label={`Remove ${isVideoFile(file) ? "video" : "photo"} ${i + 1}`}
                         >
                           ×
                         </button>

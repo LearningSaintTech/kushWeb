@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { reviewsService } from '../../../services/reviews.service.js'
 import { RiStarFill, RiStarHalfFill, RiStarLine } from 'react-icons/ri'
 import ProductReviewImages from './ProductReviewImages'
+import {
+  getUrlFromMediaEntry,
+  isVideoMediaEntry,
+  isVideoUrlString,
+} from '../../../utils/mediaUrl.js'
 
 /** Format date as MM/DD/YYYY */
 function formatReviewDate(dateStr) {
@@ -16,12 +21,45 @@ function formatReviewDate(dateStr) {
 
 const DISPLAY_IMAGES_PER_REVIEW = 3
 
+function buildReviewMediaList(review) {
+  if (Array.isArray(review.images) && review.images.length > 0) {
+    return review.images
+      .map((img) => {
+        const raw = typeof img === 'string' ? { url: img } : img
+        const url = getUrlFromMediaEntry(raw)
+        if (!url) return null
+        return { url, isVideo: isVideoMediaEntry(raw) }
+      })
+      .filter(Boolean)
+  }
+  if (review.imageUrl) {
+    const url = review.imageUrl
+    return [{ url, isVideo: isVideoUrlString(url) }]
+  }
+  return []
+}
+
 /**
- * Lightbox: full-screen overlay, large image, prev/next, close. Navigate with arrows or click outside.
+ * Lightbox: full-screen overlay; images or videos with controls.
  */
 function ImageLightbox({ images, initialIndex = 0, onClose }) {
+  const items = useMemo(() => {
+    if (!Array.isArray(images)) return []
+    return images
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          const url = entry
+          return { url, isVideo: isVideoUrlString(url) }
+        }
+        const url = getUrlFromMediaEntry(entry)
+        if (!url) return null
+        return { url, isVideo: isVideoMediaEntry(entry) }
+      })
+      .filter(Boolean)
+  }, [images])
+
   const [index, setIndex] = useState(initialIndex)
-  const total = images.length
+  const total = items.length
 
   const goPrev = useCallback(() => {
     setIndex((i) => (i <= 0 ? total - 1 : i - 1))
@@ -42,7 +80,7 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
 
   if (total === 0) return null
   const safeIndex = Math.min(Math.max(0, index), total - 1)
-  const currentUrl = images[safeIndex]
+  const current = items[safeIndex]
 
   return (
     <div
@@ -50,7 +88,7 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Review image gallery"
+      aria-label="Review media gallery"
     >
       <button
         type="button"
@@ -67,7 +105,7 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
         type="button"
         onClick={(e) => { e.stopPropagation(); goPrev(); }}
         className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full p-2 text-white hover:bg-white/10 sm:left-4 cursor-pointer"
-        aria-label="Previous image"
+        aria-label="Previous"
       >
         <svg className="h-10 w-10 sm:h-12 sm:w-12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -78,11 +116,21 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
         className="relative max-h-[80vh] sm:max-h-[85vh] max-w-[95vw] sm:max-w-[90vw] shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
-        <img
-          src={currentUrl}
-          alt=""
-          className="max-h-[80vh] sm:max-h-[85vh] max-w-full object-contain"
-        />
+        {current?.isVideo ? (
+          <video
+            key={current.url}
+            src={current.url}
+            controls
+            playsInline
+            className="max-h-[80vh] sm:max-h-[85vh] max-w-full bg-black object-contain"
+          />
+        ) : (
+          <img
+            src={current?.url}
+            alt=""
+            className="max-h-[80vh] sm:max-h-[85vh] max-w-full object-contain"
+          />
+        )}
         <p className="mt-1 sm:mt-2 text-center text-xs sm:text-sm text-white/90">
           {safeIndex + 1} / {total}
         </p>
@@ -92,7 +140,7 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
         type="button"
         onClick={(e) => { e.stopPropagation(); goNext(); }}
         className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 text-white hover:bg-white/10 sm:right-4 cursor-pointer"
-        aria-label="Next image"
+        aria-label="Next"
       >
         <svg className="h-10 w-10 sm:h-12 sm:w-12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -109,14 +157,15 @@ function ReviewCard({ review, onOpenLightbox }) {
   const name = review.name ?? 'Customer'
   const date = formatReviewDate(review.createdAt)
   const rating = review.rating != null ? Number(review.rating).toFixed(1) : '—'
-  const imageList = Array.isArray(review.images) && review.images.length > 0
-    ? review.images.map((img) => img?.url ?? img).filter(Boolean)
-    : (review.imageUrl ? [review.imageUrl] : [])
+  const mediaList = useMemo(
+    () => buildReviewMediaList(review),
+    [review.images, review.imageUrl],
+  )
   const description = review.description ?? ''
-  const displayImages = imageList.slice(0, DISPLAY_IMAGES_PER_REVIEW)
+  const displayMedia = mediaList.slice(0, DISPLAY_IMAGES_PER_REVIEW)
 
-  const handleImageClick = (index) => {
-    if (imageList.length > 0 && onOpenLightbox) onOpenLightbox(imageList, index)
+  const openLightboxAt = (index) => {
+    if (mediaList.length > 0 && onOpenLightbox) onOpenLightbox(mediaList, index)
   }
 
   return (
@@ -129,17 +178,33 @@ function ReviewCard({ review, onOpenLightbox }) {
           ★{rating}
         </span>
       </div>
-      {displayImages.length > 0 && (
+      {displayMedia.length > 0 && (
         <div className="mt-2 sm:mt-3 flex gap-1.5 sm:gap-2 flex-wrap">
-          {displayImages.map((url, idx) => (
+          {displayMedia.map((item, idx) => (
             <button
-              key={idx}
+              key={`${item.url}-${idx}`}
               type="button"
-              onClick={() => handleImageClick(idx)}
+              onClick={() => openLightboxAt(idx)}
               className="h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-black/20 cursor-pointer sm:h-20 sm:w-20"
-              aria-label={`View image ${idx + 1}`}
+              aria-label={item.isVideo ? `View video ${idx + 1}` : `View image ${idx + 1}`}
             >
-              <img src={url} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform" />
+              {item.isVideo ? (
+                <span className="relative block h-full w-full bg-black">
+                  <video
+                    src={item.url}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-contain object-center pointer-events-none"
+                    aria-hidden
+                  />
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
+                    <span className="rounded-full bg-black/60 px-2 py-1 text-sm text-white">▶</span>
+                  </span>
+                </span>
+              ) : (
+                <img src={item.url} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform" loading="lazy" />
+              )}
             </button>
           ))}
         </div>
