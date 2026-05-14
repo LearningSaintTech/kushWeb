@@ -183,7 +183,7 @@ function StarDisplay({ avg }) {
   )
 }
 
-export default function ReviewRating({ itemId }) {
+export default function ReviewRating({ itemId, refreshKey = 0 }) {
   const [data, setData] = useState({ reviews: [], pagination: null })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -211,7 +211,7 @@ export default function ReviewRating({ itemId }) {
         setData({ reviews: [], pagination: null })
       })
       .finally(() => setLoading(false))
-  }, [itemId])
+  }, [itemId, refreshKey])
 
   const totalReviews = data.pagination?.totalItems ?? data.reviews?.length ?? 0
   const ratingsSummary = useMemo(() => {

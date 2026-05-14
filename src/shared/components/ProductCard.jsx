@@ -79,7 +79,7 @@ function ProductCardStarRating({ value }) {
                   style={{ width: `${fillRatio * 100}%` }}
                 >
                   <svg
-                    className="block h-3 w-3 sm:h-3.5 sm:w-3.5 text-black"
+                    className="block h-3 w-3 sm:h-3.5 sm:w-3.5 text-yellow-500"
                     viewBox="0 0 20 20"
                     fill="currentColor"
                     aria-hidden
@@ -112,6 +112,7 @@ const ProductCard = React.memo(function ProductCard({
   price,
   originalPrice,
   delivery,
+  
   rating,
   rounded = "lg",
   roundedTop,
@@ -464,7 +465,7 @@ const ProductCard = React.memo(function ProductCard({
               className="flex shrink-0 items-center gap-1.5"
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
-              <span className="shrink-0 text-gray-700 font-semibold">
+              <span className="shrink-0 text-[#DD8560] font-medium">
                 {price}
               </span>
               {originalPrice && (
