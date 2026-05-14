@@ -1,13 +1,13 @@
-import { Outlet } from "react-router-dom";
-import { useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
-import Header from "../components/Header";
-import Footer from "../components/Footer";
-import ScrollToTop from "../components/ScrollToTop";
-import AuthModal from "../../features/auth/AuthModal";
-import { trackPageView } from "../../analytics";
-import ChatbotModal from "../../features/chatbot/ChatbotModal";
-import assistantLogo from "../../assets/temporary/khush bot.png";
+import { Outlet } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import Header from '../components/Header'
+import Footer from '../components/Footer'
+import ScrollToTop from '../components/ScrollToTop'
+import AuthModal from '../../features/auth/AuthModal'
+import { trackPageView } from '../../analytics'
+import ChatbotModal from '../../features/chatbot/ChatbotModal'
+import chatFabImage from '../../assets/images/Component 3.svg'
 
 function MainLayout() {
   const location = useLocation();
@@ -29,13 +29,16 @@ function MainLayout() {
       <button
         type="button"
         onClick={() => setChatOpen(true)}
-        className="fixed bottom-5 right-4 z-40 rounded-full shadow-lg transition hover:scale-105 sm:bottom-6 sm:right-6"
+        className="fixed bottom-5 right-4 z-40 rounded-full p-0 shadow-lg transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:bottom-6 sm:right-6"
         aria-label="Open shopping assistant"
       >
         <img
-          src={assistantLogo}
-          alt="Assistant"
-          className="h-14 w-14 rounded-full object-cover  shadow-lg"
+          src={chatFabImage}
+          alt=""
+          width={70}
+          height={70}
+          className="h-[62px] w-[62px] sm:h-[74px] sm:w-[74px]"
+          draggable={false}
         />
       </button>
       <ChatbotModal open={chatOpen} onClose={() => setChatOpen(false)} />

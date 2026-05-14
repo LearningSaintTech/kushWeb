@@ -1,6 +1,19 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL + "/api";
+/**
+ * Local Express runs HTTP; `https://localhost` causes ERR_SSL_PROTOCOL_ERROR.
+ * In dev, coerce https → http for loopback only.
+ */
+function normalizeDevApiOrigin(url) {
+  if (!url || typeof url !== "string") return "";
+  const t = url.trim().replace(/\/$/, "");
+  if (!import.meta.env.DEV) return t;
+  if (/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(t)) return t.replace(/^https:/i, "http:");
+  return t;
+}
+
+const API_ORIGIN = normalizeDevApiOrigin(import.meta.env.VITE_API_URL || "");
+const API_BASE_URL = `${API_ORIGIN}/api`;
 /** Public base URL for assets (images). Use CloudFront or API so Razorpay/iframes never request localhost. */
-const ASSET_BASE_URL = (import.meta.env.VITE_ASSET_URL || import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const ASSET_BASE_URL = (import.meta.env.VITE_ASSET_URL || API_ORIGIN || "").replace(/\/$/, "");
 
 function isDebug() {
   const { VITE_DEBUG, DEV } = import.meta.env;
@@ -27,4 +40,4 @@ function getPublicImageUrl(url) {
   return u;
 }
 
-export { API_BASE_URL, isDebug, getPublicImageUrl, ASSET_BASE_URL };
+export { API_ORIGIN, API_BASE_URL, isDebug, getPublicImageUrl, ASSET_BASE_URL };

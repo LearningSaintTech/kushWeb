@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
+import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValidation.js'
 import { trackEvent } from '../../analytics'
 
 const DEFAULT_COUNTRY_CODE = '+91'
@@ -28,6 +30,7 @@ function ClockIcon({ className }) {
 }
 
 export default function AuthModal() {
+  const [searchParams] = useSearchParams()
   const {
     login,
     register,
@@ -41,6 +44,7 @@ export default function AuthModal() {
   const [step, setStep] = useState('form')
   const [mode, setMode] = useState('login')
   const [name, setName] = useState('')
+  const [referralCode, setReferralCode] = useState('')
   const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_CODE)
   const [phoneNumber, setPhoneNumber] = useState('')
   const [userId, setUserId] = useState(null)
@@ -50,6 +54,12 @@ export default function AuthModal() {
   const [resendCooldown, setResendCooldown] = useState(0)
   const otpInputRefs = useRef([])
   const resendTimerRef = useRef(null)
+
+  const referralValidateEnabled = step === 'form' && mode === 'register'
+  const { status: refValStatus, message: refValMessage } = useReferralCodeValidation(
+    referralCode,
+    referralValidateEnabled
+  )
 
   const maskedPhone = phoneNumber.length >= 3
     ? `${countryCode} ******${phoneNumber.slice(-3)}`
@@ -71,8 +81,12 @@ export default function AuthModal() {
       setOtpDigits(Array(OTP_LENGTH).fill(''))
       setUserId(null)
       setResendCooldown(0)
+      const ref = searchParams.get('ref') || searchParams.get('referralCode') || ''
+      setReferralCode(String(ref).replace(/\s/g, '').toUpperCase())
       if (resendTimerRef.current) clearInterval(resendTimerRef.current)
     }
+    // searchParams read when modal opens; omitting searchParams from deps avoids resetting OTP when URL changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authModalOpen])
 
   // Resend cooldown timer
@@ -95,9 +109,25 @@ export default function AuthModal() {
         eventType: mode === 'register' ? 'auth_signup_started' : 'auth_login_started',
         meta: { source: 'auth_modal' },
       })
-      const data = mode === 'register'
-        ? await register({ ...payload, name: name.trim(), role: 'user' })
-        : await login(payload)
+      const code = String(referralCode ?? '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s/g, '')
+      if (mode === 'register' && code.length > 0 && (code.length < 4 || code.length > 16)) {
+        setError('Referral code must be 4–16 characters, or leave it blank.')
+        return
+      }
+      const registerPayload =
+        mode === 'register'
+          ? {
+              ...payload,
+              name: name.trim(),
+              role: 'user',
+              ...(code.length >= 4 && code.length <= 16 ? { referralCode: code } : {}),
+            }
+          : payload
+      const data =
+        mode === 'register' ? await register(registerPayload) : await login(payload)
       const id = data?.userId ?? data?.userId
       if (id) {
         setUserId(id)
@@ -283,6 +313,37 @@ export default function AuthModal() {
                 className={inputBaseClass}
                 required
               />
+              <div>
+                <label className="sr-only" htmlFor="auth-modal-referral">
+                  Referral code (optional)
+                </label>
+                <input
+                  id="auth-modal-referral"
+                  type="text"
+                  value={referralCode}
+                  onChange={(e) =>
+                    setReferralCode(e.target.value.replace(/\s/g, '').toUpperCase().slice(0, 16))
+                  }
+                  placeholder="REFERRAL CODE (OPTIONAL)"
+                  autoComplete="off"
+                  className={`${inputBaseClass} tracking-wider`}
+                  maxLength={16}
+                />
+                <p className="text-gray-500 text-xs mt-1">4–16 characters. Leave blank if you don&apos;t have a code.</p>
+                {referralValidateEnabled && String(referralCode).replace(/\s/g, '').length >= 4 && (
+                  <p
+                    className={`text-xs mt-1 ${
+                      refValStatus === 'valid'
+                        ? 'text-green-700'
+                        : refValStatus === 'invalid'
+                          ? 'text-amber-800'
+                          : 'text-gray-500'
+                    }`}
+                  >
+                    {refValStatus === 'checking' ? 'Checking code…' : refValMessage}
+                  </p>
+                )}
+              </div>
               <p className="text-gray-500 text-sm">
                 Already have an account?{' '}
                 <button

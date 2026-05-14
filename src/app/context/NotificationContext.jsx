@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { notificationService } from '../../services/notification.service.js';
 import { io } from 'socket.io-client';
+import { API_ORIGIN } from '../../services/config.js';
 
 const NotificationContext = createContext(null);
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const SOCKET_URL = (API_ORIGIN || '').replace(/\/$/, '');
 const LIST_PAGE_SIZE = 20;
 const DROPDOWN_LIMIT = 5;
 

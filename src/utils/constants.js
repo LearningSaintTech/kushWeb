@@ -16,6 +16,7 @@ export const ROUTES = {
   NOTIFICATIONS: '/notifications',
   COUPONS: '/coupons',
   WALLET: '/wallet',
+  REFER_EARN: '/refer-earn',
   REDEEM_COINS: '/redeem-coins',
   ADDRESS: '/address',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',
