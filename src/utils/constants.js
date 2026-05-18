@@ -20,6 +20,7 @@ export const ROUTES = {
   REDEEM_COINS: '/redeem-coins',
   ADDRESS: '/address',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',
+  RETURN_POLICY: '/return-policy',
   PAYMENT_POLICY: '/payment-policy',
   SHIPPING_DELIVERY_POLICY: '/shipping-delivery-policy',
   FAQS: '/faqs',
