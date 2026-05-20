@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { HandCoins } from 'lucide-react'
 import { useAuth } from '../../app/context/AuthContext'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import { ROUTES } from '../../utils/constants'
@@ -87,6 +88,7 @@ const NAV_ITEMS = [
   { label: 'Coupons', to: ROUTES.COUPONS, icon: TagIcon },
   { label: 'Wallet', to: ROUTES.WALLET, icon: WalletIcon },
   { label: 'Redeem Coins', to: ROUTES.REDEEM_COINS, icon: CoinsIcon },
+  { label: 'REFER AND EARN', to: ROUTES.REFER_EARN, icon: HandCoins },
   { label: 'Contact Us', to: ROUTES.CONTACT_US, icon: PhoneIcon },
   { label: 'Terms & Conditions', to: ROUTES.TERMS_CONDITIONS, icon: DocumentIcon },
 ]
@@ -95,7 +97,6 @@ export default function ProfileModal({ open, onClose }) {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const { wishlistCount, cartCount } = useCartWishlist()
-
   const displayName = user?.name ?? [user?.firstName, user?.lastName].filter(Boolean).join(' ') ?? 'User'
   const avatarUrl = user?.profileImage ?? user?.avatar ?? user?.image ?? null
 
@@ -232,7 +233,7 @@ export default function ProfileModal({ open, onClose }) {
                 key={label}
                 to={to}
                 onClick={handleNavClick}
-                className="font-inter flex items-center gap-3 py-4 text-black text-sm  hover:bg-gray-50/80 transition-colors border-b border-gray-100 last:border-0"
+                className="font-inter flex items-center gap-3 py-4 text-black text-sm hover:bg-gray-50/80 transition-colors border-b border-gray-100 last:border-0 w-full text-left"
               >
                 <Icon className="h-5 w-5 shrink-0 text-gray-600" />
                 <span className="flex-1">{label}</span>

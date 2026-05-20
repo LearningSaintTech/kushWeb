@@ -12,6 +12,7 @@ import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
 import { CouponsPage } from '../../features/coupons'
 import { WalletPage } from '../../features/wallet'
+import { ReferEarnPage } from '../../features/referEarn'
 import { CoinsPage } from '../../features/coins'
 import {
   RefundCancelPolicyPage,
@@ -23,6 +24,7 @@ import {
   TermsConditionsPage,
   PrivacyPolicyPage,
   DeleteAccountPage,
+  ReturnPolicyPage,
 } from '../../features/policy'
 import Address from '../../shared/address/Address'
 import ProfileUpdatePage from '../../features/account/ProfileUpdatePage'
@@ -46,6 +48,7 @@ const router = createBrowserRouter([
       { path: 'search', element: <SearchPage /> },
       { path: 'section/:sectionId', element: <SectionExplorePage /> },
       { path: 'refund-cancel-policy', element: <RefundCancelPolicyPage /> },
+      { path: 'return-policy', element: <ReturnPolicyPage /> },
       { path: 'payment-policy', element: <PaymentPolicyPage /> },
       { path: 'shipping-delivery-policy', element: <ShippingDeliveryPolicyPage /> },
       { path: 'faqs', element: <FAQsPage /> },
@@ -57,6 +60,7 @@ const router = createBrowserRouter([
       { path: 'address', element: <Address /> },
       { path: 'coupons', element: <CouponsPage /> },
       { path: 'wallet', element: <WalletPage /> },
+      { path: 'refer-earn', element: <ReferEarnPage /> },
       { path: 'redeem-coins', element: <CoinsPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],

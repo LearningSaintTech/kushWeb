@@ -12,15 +12,27 @@ import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { ROUTES } from "../../utils/constants";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
+import WriteReviewModal from "./components/WriteReviewModal";
 import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
 import { trackEvent } from "../../analytics";
+import {
+  getUrlFromMediaEntry,
+  isVideoMediaEntry,
+  isVideoUrlString,
+} from "../../utils/mediaUrl.js";
+
+function getMediaType(entry) {
+  if (entry?.type === "video" || entry?.type === "image") return entry.type;
+  return isVideoUrlString(entry?.url) ? "video" : "image";
+}
+
 function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const pincode = useSelector((s) => s?.location?.pincode) ?? null;
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, openAuthModal } = useAuth();
   const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const [addedToCart, setAddedToCart] = useState(false);
   const [cartError, setCartError] = useState(null);
@@ -35,6 +47,8 @@ function ProductPage() {
   const [shortDescExpanded, setShortDescExpanded] = useState(false);
   const [longDescExpanded, setLongDescExpanded] = useState(false);
   const [showSizeChart, setShowSizeChart] = useState(false);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
   );
@@ -166,13 +180,46 @@ function ProductPage() {
 
   const images = useMemo(() => {
     if (!selectedVariant?.images?.length) {
-      return item?.thumbnail ? [item.thumbnail] : [productImage];
+      if (item?.thumbnail) {
+        return [
+          {
+            url: item.thumbnail,
+            type: isVideoUrlString(item.thumbnail) ? "video" : "image",
+          },
+        ];
+      }
+      return [{ url: productImage, type: "image" }];
     }
     const sorted = [...selectedVariant.images].sort(
       (a, b) => (a.order ?? 0) - (b.order ?? 0),
     );
-    return sorted.map((img) => img.url).filter(Boolean);
+    return sorted
+      .filter((m) => m?.url)
+      .map((m) => ({ url: m.url, type: getMediaType(m) }));
   }, [selectedVariant, item?.thumbnail]);
+
+  // First non-video URL — used for cart/wishlist thumbnails so they never receive an mp4 source.
+  const firstImageUrl = useMemo(() => {
+    const variantSorted = [...(selectedVariant?.images || [])].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0),
+    );
+    const firstImg = variantSorted.find(
+      (m) => m?.url && getMediaType(m) === "image",
+    );
+    if (firstImg?.url) return firstImg.url;
+    if (item?.thumbnail && !isVideoUrlString(item.thumbnail)) return item.thumbnail;
+    return "";
+  }, [selectedVariant, item?.thumbnail]);
+
+  const hoverImageUrl = useMemo(() => {
+    const variantSorted = [...(selectedVariant?.images || [])].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0),
+    );
+    const imageEntries = variantSorted.filter(
+      (m) => m?.url && getMediaType(m) === "image",
+    );
+    return imageEntries[1]?.url ?? firstImageUrl;
+  }, [selectedVariant, firstImageUrl]);
 
   useEffect(() => {
     setSelectedImageIndex(0);
@@ -212,7 +259,8 @@ function ProductPage() {
     selectedImageIndex,
     Math.max(0, images.length - 1),
   );
-  const mainImage = images[imageSlideIndex] ?? images[0] ?? productImage;
+  const mainMedia =
+    images[imageSlideIndex] ?? images[0] ?? { url: productImage, type: "image" };
 
   const selectedSizeObj = sizes.find(
     (s) => String(s.size).trim() === String(selectedSize).trim(),
@@ -251,7 +299,7 @@ function ProductPage() {
 
   const productForCart = useMemo(() => {
     if (!item || !selectedVariant || !selectedSizeObj) return null;
-    const imageUrl = selectedVariant.images?.[0]?.url ?? item.thumbnail ?? "";
+    const imageUrl = firstImageUrl || "";
     return {
       id: item._id,
       _id: item._id,
@@ -259,7 +307,7 @@ function ProductPage() {
       price: priceDisplay,
       originalPrice: originalPriceDisplay ?? undefined,
       image: imageUrl,
-      hoverImage: imageUrl,
+      hoverImage: hoverImageUrl || imageUrl,
       delivery: deliveryText,
       rating: item.avgRating ?? 4,
       variant: {
@@ -278,6 +326,8 @@ function ProductPage() {
     priceDisplay,
     originalPriceDisplay,
     deliveryText,
+    firstImageUrl,
+    hoverImageUrl,
   ]);
 
   console.log("[ProductPage] product details state:", {
@@ -364,8 +414,8 @@ function ProductPage() {
 
   const handleWishlist = () => {
     if (!item) return;
-    const imageUrl = selectedVariant?.images?.[0]?.url ?? item.thumbnail ?? "";
-    const hoverUrl = selectedVariant?.images?.[1]?.url ?? imageUrl;
+    const imageUrl = firstImageUrl || "";
+    const hoverUrl = hoverImageUrl || imageUrl;
     toggleWishlist({
       id: itemIdStr ?? item._id,
       title: item.name,
@@ -430,6 +480,18 @@ function ProductPage() {
       behavior: "smooth",
       block: "start",
     });
+  };
+
+  const currentUserId = user?._id ?? user?.id ?? null;
+
+  const handleOpenWriteReview = () => {
+    if (!isAuthenticated) {
+      openAuthModal(
+        `${window.location.pathname}${window.location.search}`,
+      );
+      return;
+    }
+    setReviewModalOpen(true);
   };
 
   const shortDescText = (item?.shortDescription ?? "").trim();
@@ -518,17 +580,28 @@ function ProductPage() {
                     transform: `translateX(-${imageSlideIndex * 100}%)`,
                   }}
                 >
-                  {images.map((url, idx) => (
+                  {images.map((m, idx) => (
                     <div
-                      key={`${url}-${idx}`}
+                      key={`${m.url}-${idx}`}
                       className="relative h-full min-w-full shrink-0 bg-gray-100"
                     >
-                      <img
-                        src={url}
-                        alt={idx === 0 ? item.name : ""}
-                        className="absolute inset-0 h-full w-full object-contain object-center"
-                        decoding="async"
-                      />
+                      {m.type === "video" ? (
+                        <video
+                          src={m.url}
+                          className="absolute inset-0 h-full w-full object-contain object-center"
+                          controls
+                          playsInline
+                          muted
+                          preload="metadata"
+                        />
+                      ) : (
+                        <img
+                          src={m.url}
+                          alt={idx === 0 ? item.name : ""}
+                          className="absolute inset-0 h-full w-full object-contain object-center"
+                          decoding="async"
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -555,31 +628,67 @@ function ProductPage() {
             <div className="hidden sm:block">
               <div className="w-full max-w-full bg-gray-100 overflow-hidden rounded-none sm:rounded-lg lg:rounded-none">
                 <div className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 sm:aspect-square lg:max-h-[620px] lg:aspect-square">
-                  <img
-                    src={mainImage}
-                    alt={item.name}
-                    className="absolute inset-0 h-full w-full object-contain object-center"
-                    decoding="async"
-                  />
+                  {mainMedia?.type === "video" ? (
+                    <video
+                      key={mainMedia.url}
+                      src={mainMedia.url}
+                      className="absolute inset-0 h-full w-full object-contain object-center"
+                      controls
+                      playsInline
+                      muted
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      src={mainMedia?.url ?? productImage}
+                      alt={item.name}
+                      className="absolute inset-0 h-full w-full object-contain object-center"
+                      decoding="async"
+                    />
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Variant thumbnails: under carousel on phone, under main image on tablet/desktop */}
             <div className="mt-2 flex gap-1.5 overflow-x-auto scrollbar-hide sm:mt-3 sm:gap-2 md:mt-4 md:gap-4 lg:mt-5 lg:flex-wrap lg:overflow-visible pb-1 lg:pb-0 min-w-0 max-w-full">
-              {images.map((url, idx) => (
+              {images.map((m, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setSelectedImageIndex(idx)}
                   className={`relative h-11 w-11 min-w-11 max-w-full shrink-0 overflow-hidden border-2 bg-gray-100 sm:h-14 sm:w-14 sm:min-w-14 md:h-20 md:w-20 md:min-w-20 lg:h-[100px] lg:w-[100px] lg:min-w-0 lg:max-h-[100px] lg:max-w-[110px] xl:h-[120px] xl:w-[120px] xl:max-h-[120px] xl:max-w-[128px] cursor-pointer ${imageSlideIndex === idx ? "border-black" : "border-transparent"}`}
+                  aria-label={m.type === "video" ? "Play product video" : "View product image"}
                 >
-                  <img
-                    src={url}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-contain object-center"
-                    decoding="async"
-                  />
+                  {m.type === "video" ? (
+                    <>
+                      <video
+                        src={m.url}
+                        className="absolute inset-0 h-full w-full object-contain object-center"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/60 sm:h-6 sm:w-6 lg:h-7 lg:w-7">
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-2.5 w-2.5 fill-white sm:h-3 sm:w-3 lg:h-3.5 lg:w-3.5"
+                            aria-hidden
+                          >
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </span>
+                      </span>
+                    </>
+                  ) : (
+                    <img
+                      src={m.url}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-contain object-center"
+                      decoding="async"
+                    />
+                  )}
                 </button>
               ))}
             </div>
@@ -1089,9 +1198,36 @@ function ProductPage() {
           </div>
         </div>
 
-        <div ref={reviewsSectionRef}>
-          <ReviewRating itemId={item._id} />
+        <div ref={reviewsSectionRef} className="mt-6 sm:mt-8">
+          <div className="flex flex-col gap-4 border-t border-gray-200 pt-8 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
+            <div className="min-w-0 max-w-xl">
+              <p className="font-inter text-sm font-semibold text-gray-900">
+                Customer feedback
+              </p>
+              <p className="mt-1 text-xs text-gray-600 sm:text-sm">
+                Share an honest rating and review after your purchase. Photos
+                are optional.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenWriteReview}
+              className="shrink-0 rounded-full border-2 border-black bg-black px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-gray-900 active:scale-[0.98] touch-manipulation"
+            >
+              Write a review
+            </button>
+          </div>
+          <ReviewRating itemId={item._id} refreshKey={reviewsRefreshKey} />
         </div>
+
+        <WriteReviewModal
+          open={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          itemId={item._id}
+          productName={item.name}
+          currentUserId={currentUserId}
+          onSubmitted={() => setReviewsRefreshKey((k) => k + 1)}
+        />
 
         {/* 🔥 SIZE CHART SLIDER */}
         <div

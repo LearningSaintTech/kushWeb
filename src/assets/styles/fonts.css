@@ -4,7 +4,7 @@
  */
 
 /* Inter & Raleway – Google Fonts */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Raleway:wght@400;500;600;700;800&family=Tenor+Sans&family=Baloo+2:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Raleway:wght@400;500;600;700;800&family=Tenor+Sans&family=Baloo+2:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap");
 
 /* ---------------------------------------------------------------------------
    Font family variables – use in CSS or Tailwind (e.g. font-[var(--font-sans)])
@@ -34,6 +34,11 @@
 /* Apply Raleway – use class "font-raleway" for section headings */
 .font-raleway {
   font-family: var(--font-raleway);
+}
+
+/* Refer & Earn hero — decorative serif headings */
+.font-refer-display {
+  font-family: "Playfair Display", ui-serif, Georgia, "Times New Roman", serif;
 }
 
 /* ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
+import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValidation.js'
 import { ROUTES } from '../../utils/constants'
 import { trackEvent } from '../../analytics'
 
@@ -15,12 +16,22 @@ export default function AuthPage() {
   const [step, setStep] = useState('choose')
   const [mode, setMode] = useState('login')
   const [name, setName] = useState('')
+  const [referralCode, setReferralCode] = useState(() => {
+    const ref = searchParams.get('ref') || searchParams.get('referralCode') || ''
+    return String(ref).replace(/\s/g, '').toUpperCase()
+  })
   const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_CODE)
   const [phoneNumber, setPhoneNumber] = useState('')
   const [userId, setUserId] = useState(null)
   const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const referralValidateEnabled = step === 'form' && mode === 'register'
+  const { status: refValStatus, message: refValMessage } = useReferralCodeValidation(
+    referralCode,
+    referralValidateEnabled
+  )
 
   if (isAuthenticated) {
     navigate(redirectTo, { replace: true })
@@ -37,9 +48,25 @@ export default function AuthPage() {
         eventType: mode === 'register' ? 'auth_signup_started' : 'auth_login_started',
         meta: { source: 'auth_page' },
       })
-      const data = mode === 'register'
-        ? await register({ ...payload, name: name.trim(), role: 'user' })
-        : await login(payload)
+      const code = String(referralCode ?? '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s/g, '')
+      if (mode === 'register' && code.length > 0 && (code.length < 4 || code.length > 16)) {
+        setError('Referral code must be 4–16 characters, or leave it blank.')
+        return
+      }
+      const registerPayload =
+        mode === 'register'
+          ? {
+              ...payload,
+              name: name.trim(),
+              role: 'user',
+              ...(code.length >= 4 && code.length <= 16 ? { referralCode: code } : {}),
+            }
+          : payload
+      const data =
+        mode === 'register' ? await register(registerPayload) : await login(payload)
       const id = data?.userId ?? data?.userId
       if (id) {
         setUserId(id)
@@ -138,18 +165,50 @@ export default function AuthPage() {
         {step === 'form' && (
           <form onSubmit={handleSendOtp} className="space-y-4">
             {mode === 'register' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
-                  required
-                  minLength={2}
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+                    required
+                    minLength={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Referral code <span className="font-normal text-gray-500">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) =>
+                      setReferralCode(e.target.value.replace(/\s/g, '').toUpperCase().slice(0, 16))
+                    }
+                    placeholder="Enter code if you have one"
+                    autoComplete="off"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 uppercase tracking-wider placeholder:text-gray-400 placeholder:normal-case placeholder:tracking-normal focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black"
+                    maxLength={16}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">4–16 characters. Leave blank if you don&apos;t have a code.</p>
+                  {referralValidateEnabled && String(referralCode).replace(/\s/g, '').length >= 4 && (
+                    <p
+                      className={`mt-1 text-xs ${
+                        refValStatus === 'valid'
+                          ? 'text-green-700'
+                          : refValStatus === 'invalid'
+                            ? 'text-amber-800'
+                            : 'text-gray-500'
+                      }`}
+                    >
+                      {refValStatus === 'checking' ? 'Checking code…' : refValMessage}
+                    </p>
+                  )}
+                </div>
+              </>
             )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Phone number</label>
