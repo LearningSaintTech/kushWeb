@@ -3,15 +3,19 @@ import { reviewsService } from '../../../services/reviews.service.js'
 import { RiStarFill, RiStarHalfFill, RiStarLine } from 'react-icons/ri'
 import ProductReviewImages from './ProductReviewImages'
 
-/** Format date as MM/DD/YYYY */
-function formatReviewDate(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  if (Number.isNaN(d.getTime())) return ''
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const year = d.getFullYear()
-  return `${month}/${day}/${year}`
+/** Display name from API (fake user or real user). */
+function formatReviewerName(review) {
+  const raw =
+    review?.reviewerName ??
+    review?.name ??
+    review?.user?.name ??
+    ''
+  const trimmed = String(raw).trim()
+  if (!trimmed) return 'Customer'
+  return trimmed
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')
 }
 
 const DISPLAY_IMAGES_PER_REVIEW = 3
@@ -103,11 +107,10 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
 }
 
 /**
- * Single review card: name + date, rating badge (top-right), 3 images in a row, review text.
+ * Single review card: reviewer name, rating badge (top-right), images, review text.
  */
 function ReviewCard({ review, onOpenLightbox }) {
-  const name = review.name ?? 'Customer'
-  const date = formatReviewDate(review.createdAt)
+  const name = formatReviewerName(review)
   const rating = review.rating != null ? Number(review.rating).toFixed(1) : '—'
   const imageList = Array.isArray(review.images) && review.images.length > 0
     ? review.images.map((img) => img?.url ?? img).filter(Boolean)
@@ -123,7 +126,7 @@ function ReviewCard({ review, onOpenLightbox }) {
     <article className="border-b border-gray-200 py-4 sm:py-6 first:pt-0 last:border-b-0 font-inter">
       <div className="relative flex flex-wrap items-start justify-between gap-1 sm:gap-2">
         <p className="text-xs sm:text-sm font-medium text-black pr-14 sm:pr-20 min-w-0 break-words">
-          {name}{date ? `, ${date}` : ''}
+          {name}
         </p>
         <span className="absolute top-0 right-0 inline-flex items-center gap-0.5 rounded-md bg-black px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-medium text-white shrink-0">
           ★{rating}
@@ -153,7 +156,7 @@ function ReviewCard({ review, onOpenLightbox }) {
 
 /**
  * Reviews section: title "REVIEWS" + list of reviews from API (by itemId).
- * Matches layout: bold uppercase title; each review with name/date, rating badge, image, text.
+ * Matches layout: bold uppercase title; each review with name, rating badge, image, text.
  */
 const INITIAL_VISIBLE = 3
 
@@ -200,13 +203,43 @@ export default function ReviewRating({ itemId }) {
     reviewsService
       .getByItem(itemId, { page: 1, limit: 20 })
       .then((res) => {
+        console.log('[ReviewRating] API response', {
+          itemId,
+          status: res?.status,
+          success: res?.data?.success,
+          message: res?.data?.message,
+          topLevelKeys: res?.data ? Object.keys(res.data) : [],
+          dataKeys: res?.data?.data ? Object.keys(res.data.data) : [],
+        })
         const payload = res?.data?.data ?? res?.data ?? {}
+        const reviews = Array.isArray(payload.reviews) ? payload.reviews : []
+        console.log('[ReviewRating] parsed reviews', {
+          itemId,
+          count: reviews.length,
+          pagination: payload.pagination ?? null,
+          sample: reviews.slice(0, 3).map((r) => ({
+            _id: r._id ?? r.id,
+            reviewerType: r.reviewerType,
+            name: r.name,
+            reviewerName: r.reviewerName,
+            isFakeReviewer: r.isFakeReviewer,
+            fakeUserId: r.fakeUserId,
+            userId: r.userId,
+            displayName: formatReviewerName(r),
+          })),
+        })
         setData({
-          reviews: Array.isArray(payload.reviews) ? payload.reviews : [],
+          reviews,
           pagination: payload.pagination ?? null,
         })
       })
       .catch((err) => {
+        console.error('[ReviewRating] fetch failed', {
+          itemId,
+          message: err?.message,
+          status: err?.response?.status,
+          data: err?.response?.data,
+        })
         setError(err?.response?.data?.message || err?.message || 'Failed to load reviews')
         setData({ reviews: [], pagination: null })
       })

@@ -147,6 +147,10 @@ function CheckoutPage() {
   const [lastVerifyPayload, setLastVerifyPayload] = useState(null)
 
   const paymentSuccessHandledRef = useRef(false)
+
+  useEffect(() => {
+    trackEvent({ eventType: 'begin_checkout' })
+  }, [])
   const pollingIntervalRef = useRef(null)
   const priceSummaryRequestRef = useRef(0)
   const autoCouponReconcileAttemptedRef = useRef(false)

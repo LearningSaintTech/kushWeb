@@ -5,7 +5,7 @@ import { NotificationProvider, useNotificationSocket } from './app/context/Notif
 import { usePushSubscribe } from './app/hooks/usePushSubscribe'
 import { useLocationOnLoad } from './app/hooks/useLocationOnLoad'
 import { useEffect, useRef } from 'react'
-import { trackSessionStart } from './analytics'
+import { trackSessionEnd, trackSessionStart } from './analytics'
 
 function NotificationSocketConnector() {
   const { token } = useAuth()
@@ -28,11 +28,38 @@ function LocationOnLoadConnector() {
 function AnalyticsSessionConnector() {
   const { isAuthenticated } = useAuth()
   const sentRef = useRef(false)
+  const sessionEndSentRef = useRef(false)
 
   useEffect(() => {
     if (sentRef.current) return
     sentRef.current = true
     trackSessionStart({ isAuthenticated })
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    const sendSessionEnd = () => {
+      if (sessionEndSentRef.current) return
+      sessionEndSentRef.current = true
+      trackSessionEnd({ isAuthenticated })
+    }
+
+    const onBeforeUnload = () => {
+      sendSessionEnd()
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        sendSessionEnd()
+      }
+    }
+
+    window.addEventListener('beforeunload', onBeforeUnload)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [isAuthenticated])
 
   return null

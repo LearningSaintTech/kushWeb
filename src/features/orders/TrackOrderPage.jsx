@@ -9,6 +9,7 @@ import { exchangeService } from "../../services/exchange.service.js";
 import { policyService } from "../../services/policy.service.js";
 import { ROUTES, getOrderTrackPath } from "../../utils/constants";
 import { reviewsService } from "../../services/reviews.service.js";
+import { trackEvent } from "../../analytics";
 
 const QUANTITY_LABELS = {
   1: "One",
@@ -435,6 +436,14 @@ export default function TrackOrderPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    trackEvent({
+      eventType: "order_tracking_view",
+      orderId: orderId ? String(orderId) : undefined,
+      itemId: itemId ? String(itemId) : undefined,
+    });
+  }, [orderId, itemId]);
 
   // Review state (per item for current user)
   const [reviewLoading, setReviewLoading] = useState(false);

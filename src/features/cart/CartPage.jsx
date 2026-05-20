@@ -157,6 +157,10 @@ function CartPage() {
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? pincodeRedux
 
+  useEffect(() => {
+    trackEvent({ eventType: 'cart_view' })
+  }, [])
+
   const lineItems = useMemo(() => {
     if (isAuthenticated) return cartData?.items ?? []
     return guestCartToRows(guestCartFromContext)

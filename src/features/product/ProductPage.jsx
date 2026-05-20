@@ -375,17 +375,6 @@ function ProductPage() {
       delivery: deliveryText,
       rating: item.avgRating ?? 4,
     });
-    trackEvent({
-      eventType: inWishlist ? "wishlist_remove" : "wishlist_add",
-      itemId: itemIdStr ?? (item?._id ? String(item._id) : undefined),
-      currency: "INR",
-      price:
-        item?.discountedPrice != null
-          ? Number(item.discountedPrice)
-          : item?.price != null
-            ? Number(item.price)
-            : undefined,
-    });
   };
 
   const handleShare = async () => {

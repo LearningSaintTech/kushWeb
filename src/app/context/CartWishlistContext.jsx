@@ -4,6 +4,7 @@ import { useAuth } from '../../app/context/AuthContext'
 import { wishlistService } from '../../services/wishlist.service.js'
 import { cartService } from '../../services/cart.service.js'
 import { itemsService } from '../../services/items.service.js'
+import { trackEvent } from '../../analytics'
 
 const STORAGE_KEY_CART = 'khush_cart'
 const STORAGE_KEY_WISHLIST = 'khush_wishlist'
@@ -82,6 +83,21 @@ function mapWishlistItem(item, deliveryOptions = []) {
     delivery: deliveryText,
     rating: 4,
   }
+}
+
+function emitWishlistAnalytics(eventType, productLike) {
+  if (!eventType) return
+  const id = productLike?.id ?? productLike?._id
+  const numericPrice =
+    typeof productLike?.price === 'number'
+      ? productLike.price
+      : Number(String(productLike?.price ?? '').replace(/[^\d.]/g, ''))
+  trackEvent({
+    eventType,
+    itemId: id != null ? String(id) : undefined,
+    price: Number.isFinite(numericPrice) ? numericPrice : undefined,
+    currency: 'INR',
+  })
 }
 
 export function CartWishlistProvider({ children }) {
@@ -477,6 +493,7 @@ export function CartWishlistProvider({ children }) {
           const deliveries = itemsData?.deliveries ?? []
           setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
           setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
+          emitWishlistAnalytics('wishlist_add', product)
         } catch (_) {}
         return
       }
@@ -484,6 +501,7 @@ export function CartWishlistProvider({ children }) {
         if (prev.some((item) => item.id === id)) return prev
         return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating }]
       })
+      emitWishlistAnalytics('wishlist_add', product)
     },
     [isAuthenticated, wishlistIds, pincode]
   )
@@ -507,10 +525,12 @@ export function CartWishlistProvider({ children }) {
           const deliveries = itemsData?.deliveries ?? []
           setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
           setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
+          emitWishlistAnalytics('wishlist_remove', { id: productId })
         } catch {}
         return
       }
       setWishlist((prev) => prev.filter((item) => item.id !== productId))
+      emitWishlistAnalytics('wishlist_remove', { id: productId })
     },
     [isAuthenticated, pincode]
   )
@@ -518,6 +538,10 @@ export function CartWishlistProvider({ children }) {
   const toggleWishlist = useCallback(async (product) => {
     const id = typeof product === 'object' ? product?.id : product
     if (!id) return
+    const wasInWishlist = isAuthenticated
+      ? wishlistIds.some((wid) => String(wid) === String(id))
+      : wishlist.some((item) => String(item.id) === String(id))
+    const eventType = wasInWishlist ? 'wishlist_remove' : 'wishlist_add'
     if (isAuthenticated) {
       try {
         await wishlistService.toggle({ itemId: id })
@@ -534,6 +558,7 @@ export function CartWishlistProvider({ children }) {
         const deliveries = itemsData?.deliveries ?? []
         setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
         setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
+        emitWishlistAnalytics(eventType, typeof product === 'object' ? product : { id })
       } catch {}
       return
     }
@@ -544,7 +569,8 @@ export function CartWishlistProvider({ children }) {
       if (typeof product !== 'object' || !title) return prev
       return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating }]
     })
-  }, [isAuthenticated, pincode])
+    emitWishlistAnalytics(eventType, typeof product === 'object' ? product : { id })
+  }, [isAuthenticated, pincode, wishlistIds, wishlist])
 
   const isInWishlist = useCallback(
     (productId) => {

@@ -4,6 +4,8 @@ import { getOrCreateAnonymousId, getOrCreateSessionId } from "./session.js";
 
 const INGEST_URL = `${API_BASE_URL}/analytics/events`;
 const ANALYTICS_KEY = import.meta.env.VITE_ANALYTICS_INGEST_KEY || "";
+const SESSION_START_SENT_KEY = "khush_analytics_session_start_sent";
+let inMemorySessionStartSent = false;
 
 function getDeviceType() {
   if (typeof window === "undefined") return "desktop";
@@ -43,6 +45,7 @@ function buildBasePayload() {
   const userId = parseJwtUserId(token);
   return {
     channel: "website",
+    sourcePlatform: "website",
     sessionId: getOrCreateSessionId(),
     anonymousId: getOrCreateAnonymousId(),
     userId: userId || undefined,
@@ -58,7 +61,8 @@ export async function trackEvent(eventPayload = {}) {
   const payload = { ...buildBasePayload(), ...eventPayload };
   try {
     const headers = { "Content-Type": "application/json" };
-      headers["x-client-channel"] = "website";
+    headers["x-client-channel"] = "website";
+    headers["x-source-platform"] = "website";
     if (ANALYTICS_KEY) headers["x-api-key"] = ANALYTICS_KEY;
     await fetch(INGEST_URL, {
       method: "POST",
@@ -75,9 +79,41 @@ export async function trackEvent(eventPayload = {}) {
 }
 
 export function trackSessionStart(extra = {}) {
+  if (inMemorySessionStartSent) return Promise.resolve();
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage?.getItem(SESSION_START_SENT_KEY) === "1") {
+      inMemorySessionStartSent = true;
+      return Promise.resolve();
+    }
+  } catch {
+    // ignore storage-access errors
+  }
+
+  inMemorySessionStartSent = true;
+  try {
+    if (typeof window !== "undefined") {
+      window.sessionStorage?.setItem(SESSION_START_SENT_KEY, "1");
+    }
+  } catch {
+    // ignore storage-access errors
+  }
+  if (import.meta.env.DEV) {
+    console.debug("[Analytics] session_start emitted", {
+      path: typeof window !== "undefined" ? window.location.pathname + window.location.search : "/",
+      at: new Date().toISOString(),
+    });
+  }
   return trackEvent({ eventType: "session_start", ...extra });
 }
 
 export function trackPageView(extra = {}) {
   return trackEvent({ eventType: "page_view", ...extra });
+}
+
+export function trackRouteChange(extra = {}) {
+  return trackEvent({ eventType: "route_change", ...extra });
+}
+
+export function trackSessionEnd(extra = {}) {
+  return trackEvent({ eventType: "session_end", ...extra });
 }
