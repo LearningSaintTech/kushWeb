@@ -8,6 +8,12 @@ import { cancellationService } from "../../services/cancellation.service.js";
 import { exchangeService } from "../../services/exchange.service.js";
 import { policyService } from "../../services/policy.service.js";
 import { ROUTES, getOrderTrackPath } from "../../utils/constants";
+import {
+  formatPaymentLine,
+  getPaymentStatus,
+  getPaymentStatusLabel,
+  isCodPayment,
+} from "../../utils/paymentMode";
 import { reviewsService } from "../../services/reviews.service.js";
 import { trackEvent } from "../../analytics";
 
@@ -346,13 +352,6 @@ function formatOrderDateTime(dateVal) {
   const min = String(d.getMinutes()).padStart(2, "0");
   const ampm = d.getHours() >= 12 ? "PM" : "AM";
   return `${date} ${month} ${year}, ${h}:${min} ${ampm}`;
-}
-
-function getPaymentModeLabel(data) {
-  const mode = data?.payment?.mode ?? data?.item?.paymentMode ?? "";
-  if (mode === "COD") return "Cash on Delivery";
-  if (mode === "RAZORPAY" || mode === "PREPAID") return "Prepaid";
-  return mode || "—";
 }
 
 function getStepStatus(statusHistory, currentStatus, step) {
@@ -1187,8 +1186,13 @@ export default function TrackOrderPage() {
                 </p>
               )}
               <p className="text-gray-600 text-sm mt-0.5">
-                Payment mode : <strong>{getPaymentModeLabel(data)}</strong>
+                Payment : <strong>{formatPaymentLine(data)}</strong>
               </p>
+              {getPaymentStatus(data) && getPaymentStatus(data) !== "SUCCESS" && (
+                <p className="text-gray-500 text-xs mt-0.5">
+                  Payment status: {getPaymentStatusLabel(data)}
+                </p>
+              )}
               {/* {data?.item?.paymentStatus && (
                 <p className="text-gray-600 text-sm mt-1">
                   Payment status :{" "}
@@ -2130,11 +2134,7 @@ export default function TrackOrderPage() {
                     <h3 className="font-bold text-black uppercase text-lg mb-2">
                       Order cancelled successfully
                     </h3>
-                    {(
-                      data?.payment?.mode ??
-                      data?.item?.paymentMode ??
-                      ""
-                    ).toUpperCase() === "COD" ? (
+                    {isCodPayment(data) ? (
                       <p className="text-sm text-gray-600">
                         This order item has been cancelled.
                       </p>

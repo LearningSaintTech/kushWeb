@@ -6,6 +6,7 @@ import { WishlistPage } from '../../features/wishlist'
 import { ProductPage } from '../../features/product'
 import { AuthPage } from '../../features/auth'
 import { CheckoutPage } from '../../features/checkout'
+import NimbleCallbackPage from '../../features/checkout/NimbleCallbackPage'
 import { OrdersPage, TrackOrderPage } from '../../features/orders'
 import { NotificationsPage } from '../../features/notifications'
 import { SearchPage } from '../../features/search'
@@ -42,6 +43,7 @@ const router = createBrowserRouter([
       { path: 'product/:slug/:id', element: <ProductPage /> },
       { path: 'product/:id', element: <ProductPage /> },
       { path: 'checkout', element: <CheckoutPage /> },
+      { path: 'checkout/nimble/callback', element: <NimbleCallbackPage /> },
       { path: 'orders', element: <OrdersPage /> },
       { path: 'orders/track/:orderId/:itemId', element: <TrackOrderPage /> },
       { path: 'notifications', element: <NotificationsPage /> },

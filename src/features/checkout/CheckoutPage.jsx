@@ -10,41 +10,28 @@ import { orderService } from '../../services/order.service.js'
 import { paymentService } from '../../services/payment.service.js'
 import { walletService } from '../../services/wallet.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
+import { PAYMENT_MODES } from '../../utils/paymentMode'
 import { trackEvent } from '../../analytics'
+import {
+  formatNimblePayLaterUnavailableMessage,
+  getNimbleReturnUrl,
+  buildNimbblVerifyBody,
+  hasNimbblVerifyPayload,
+  shouldPollNimbblOrderStatus,
+  isNimbblPaymentCancelled,
+  isBelowNimblePayLaterMinimum,
+  NIMBLE_MIN_ORDER_AMOUNT,
+  preloadNimbleCheckout,
+  loadRazorpayScript,
+  openNimbleCheckout,
+} from './paymentCheckout.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
 
 const POLL_INTERVAL_MS = 2500
 const POLL_MAX_ATTEMPTS = 40
-
-/** Load Razorpay checkout script once. */
-function loadRazorpayScript() {
-  console.log('[Checkout] loadRazorpayScript called')
-  if (typeof window === 'undefined') {
-    console.log('[Checkout] loadRazorpayScript: no window')
-    return Promise.reject(new Error('No window'))
-  }
-  if (window.Razorpay) {
-    console.log('[Checkout] loadRazorpayScript: already loaded')
-    return Promise.resolve()
-  }
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-    script.async = true
-    script.onload = () => {
-      console.log('[Checkout] loadRazorpayScript: script onload')
-      resolve()
-    }
-    script.onerror = () => {
-      console.log('[Checkout] loadRazorpayScript: script onerror')
-      reject(new Error('Failed to load Razorpay'))
-    }
-    document.body.appendChild(script)
-    console.log('[Checkout] loadRazorpayScript: script appended')
-  })
-}
+const NIMBLE_POLL_MAX_ATTEMPTS = 8
 
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return 'Rs 0'
@@ -147,6 +134,8 @@ function CheckoutPage() {
   const [lastVerifyPayload, setLastVerifyPayload] = useState(null)
 
   const paymentSuccessHandledRef = useRef(false)
+  const nimbleCheckoutActiveRef = useRef(false)
+  const nimbleVerifyingRef = useRef(false)
 
   useEffect(() => {
     trackEvent({ eventType: 'begin_checkout' })
@@ -158,7 +147,7 @@ function CheckoutPage() {
   const navigate = useNavigate()
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? null
-  const prepaidSelected = paymentMode === 'RAZORPAY'
+  const walletApplicable = paymentMode === PAYMENT_MODES.RAZORPAY
 
   const refetchAddresses = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -417,13 +406,25 @@ function CheckoutPage() {
     fetchPriceSummary,
   ])
 
-  // Preload Razorpay script for prepaid flows (online / wallet-assisted)
+  // Preload payment scripts when user selects a gateway
   useEffect(() => {
-    if (prepaidSelected) {
-      console.log('[Checkout] preload Razorpay script (paymentMode=RAZORPAY)')
+    if (paymentMode === PAYMENT_MODES.RAZORPAY) {
       loadRazorpayScript().catch(() => {})
     }
-  }, [prepaidSelected])
+    if (paymentMode === PAYMENT_MODES.NIMBLE) {
+      preloadNimbleCheckout().catch(() => {})
+    }
+  }, [paymentMode])
+
+  const clearPaymentConfirmation = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+    setCheckingPaymentStatus(false)
+    setStatusMessage(null)
+    setPlaceOrderLoading(false)
+  }, [])
 
   // Clear polling on unmount
   useEffect(() => {
@@ -623,7 +624,9 @@ function CheckoutPage() {
         })
         console.log('[Checkout] COD success, refetch cart and navigate to orders:', orderId)
         refetchCart()
-        navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
+        navigate(ROUTES.ORDERS, {
+          state: { orderId, orderSuccess: true, paymentMode: PAYMENT_MODES.COD },
+        })
         return
       }
 
@@ -703,7 +706,9 @@ function CheckoutPage() {
             })
             refetchCart()
             console.log('[Checkout] verifyPayment success, navigate to orders:', businessOrderId)
-            navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
+            navigate(ROUTES.ORDERS, {
+              state: { orderId: businessOrderId, orderSuccess: true, paymentMode: PAYMENT_MODES.RAZORPAY },
+            })
           } catch (verifyErr) {
             console.log('[Checkout] ERR paymentService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message)
             trackEvent({
@@ -772,7 +777,9 @@ function CheckoutPage() {
                     paymentSuccessHandledRef.current = true
                     refetchCart()
                     console.log('[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:', businessOrderId)
-                    navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
+                    navigate(ROUTES.ORDERS, {
+              state: { orderId: businessOrderId, orderSuccess: true, paymentMode: PAYMENT_MODES.RAZORPAY },
+            })
                     return
                   }
                   // If payment stays pending/created for first few checks, stop early and allow retry
@@ -831,6 +838,250 @@ function CheckoutPage() {
         })
         console.log('[Checkout] Razorpay rzp.open()')
         rzp.open()
+        return
+      }
+
+      if (paymentMode === PAYMENT_MODES.NIMBLE) {
+        if (nimbleCheckoutActiveRef.current) {
+          console.log('[Checkout] Nimbbl checkout already open or opening; ignoring duplicate click')
+          setPlaceOrderLoading(false)
+          return
+        }
+
+        const createReq = {
+          addressId,
+          paymentMode: PAYMENT_MODES.NIMBLE,
+          couponCode,
+          nimbleReturnUrl: getNimbleReturnUrl(),
+        }
+        console.log('[Checkout] REQ paymentService.createOrder (NIMBLE):', createReq)
+        const res = await paymentService.createOrder(createReq)
+        const data = res?.data?.data ?? res?.data
+        const order = data?.order ?? data
+        const nimblePayload = data?.nimble
+        const businessOrderId = order?.orderId
+        trackEvent({
+          eventType: 'payment_initiated',
+          orderId: businessOrderId ? String(businessOrderId) : undefined,
+          paymentMode: 'NIMBLE',
+          cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+          currency: 'INR',
+        })
+
+        if (nimblePayload?.redirectUrl) {
+          window.location.href = nimblePayload.redirectUrl
+          return
+        }
+
+        if (!nimblePayload?.orderToken) {
+          setError('Pay later setup failed. Please try again or choose another method.')
+          setPlaceOrderLoading(false)
+          return
+        }
+
+        const orderAmount = Number(nimblePayload.amount ?? finalPayable ?? 0)
+        const belowPayLaterMin = isBelowNimblePayLaterMinimum(orderAmount)
+        if (belowPayLaterMin) {
+          console.warn('[Checkout] Order below typical Pay Later minimum; opening Nimbbl checkout anyway.', {
+            orderAmount,
+            min: NIMBLE_MIN_ORDER_AMOUNT,
+          })
+        }
+
+        const payLaterHint = belowPayLaterMin
+          ? formatNimblePayLaterUnavailableMessage({ amount: orderAmount, payLaterCount: 0 })
+          : null
+
+        const stopNimblePolling = () => {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          setCheckingPaymentStatus(false)
+        }
+
+        const handleNimbleCheckoutAborted = (reason = 'cancelled') => {
+          console.log('[Checkout] Nimbbl checkout aborted:', reason)
+          stopNimblePolling()
+          setError(null)
+          setStatusMessage(null)
+          setPlaceOrderLoading(false)
+        }
+
+        const completeNimbleOrderSuccess = () => {
+          stopNimblePolling()
+          paymentSuccessHandledRef.current = true
+          refetchCart()
+          navigate(ROUTES.ORDERS, {
+            state: {
+              orderId: businessOrderId,
+              orderSuccess: true,
+              paymentMode: PAYMENT_MODES.NIMBLE,
+            },
+          })
+        }
+
+        const verifyNimbleSuccess = async (response, { keepPollingOnFailure = false } = {}) => {
+          if (paymentSuccessHandledRef.current) return true
+          nimbleVerifyingRef.current = true
+
+          const verifyBody = buildNimbblVerifyBody(response, {
+            nimbleOrderId: nimblePayload.orderId,
+            businessOrderId,
+          })
+
+          if (!verifyBody.order_id || !verifyBody.transaction_id) {
+            console.warn('[Checkout] Nimbbl callback missing order/transaction ids:', response)
+            nimbleVerifyingRef.current = false
+            return false
+          }
+
+          if (!keepPollingOnFailure) {
+            stopNimblePolling()
+          }
+          setPlaceOrderLoading(true)
+          setError(null)
+          if (!keepPollingOnFailure) {
+            setStatusMessage('Confirming your payment…')
+          }
+
+          try {
+            console.log('[Checkout] REQ paymentService.verifyNimblePayment:', verifyBody)
+            await paymentService.verifyNimblePayment(verifyBody)
+            trackEvent({
+              eventType: 'payment_success',
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: 'NIMBLE',
+              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+              currency: 'INR',
+            })
+            trackEvent({
+              eventType: 'order_placed',
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: 'NIMBLE',
+              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+              currency: 'INR',
+            })
+            completeNimbleOrderSuccess()
+            return true
+          } catch (verifyErr) {
+            console.error('[Checkout] verifyNimblePayment failed:', verifyErr?.response?.data ?? verifyErr)
+            const msg =
+              verifyErr?.response?.data?.message ??
+              verifyErr?.message ??
+              'Payment verification failed.'
+            if (!keepPollingOnFailure) {
+              setError(msg)
+              startNimbleStatusPolling(response)
+            }
+            return false
+          } finally {
+            nimbleVerifyingRef.current = false
+            setPlaceOrderLoading(false)
+          }
+        }
+
+        const finishNimblePollingNotCompleted = () => {
+          stopNimblePolling()
+          setStatusMessage('Payment not completed. You can try again.')
+        }
+
+        const startNimbleStatusPolling = (lastCallbackResponse = null) => {
+          if (!businessOrderId || paymentSuccessHandledRef.current) return
+          if (lastCallbackResponse && isNimbblPaymentCancelled(lastCallbackResponse)) {
+            handleNimbleCheckoutAborted('cancelled_callback')
+            return
+          }
+          setError(null)
+          setStatusMessage('Confirming your payment with Nimbbl…')
+          setCheckingPaymentStatus(true)
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current)
+          let attempts = 0
+          pollingIntervalRef.current = setInterval(async () => {
+            attempts += 1
+
+            if (
+              lastCallbackResponse &&
+              attempts <= 3 &&
+              hasNimbblVerifyPayload(lastCallbackResponse, { nimbleOrderId: nimblePayload.orderId })
+            ) {
+              const verified = await verifyNimbleSuccess(lastCallbackResponse, {
+                keepPollingOnFailure: true,
+              })
+              if (verified) return
+            }
+
+            try {
+              const statusRes = await paymentService.getOrderStatus(businessOrderId)
+              const statusData = statusRes?.data?.data ?? statusRes?.data
+              const pStatus = statusData?.payment?.status
+              const ordStatus = statusData?.status
+              console.log('[Checkout] Nimble poll status:', { attempts, pStatus, ordStatus })
+              if (pStatus === 'SUCCESS' || ordStatus === 'CONFIRMED') {
+                completeNimbleOrderSuccess()
+              } else if (
+                attempts >= 4 &&
+                (pStatus === 'PENDING' || !pStatus) &&
+                (ordStatus === 'CREATED' || !ordStatus)
+              ) {
+                finishNimblePollingNotCompleted()
+              } else if (attempts >= NIMBLE_POLL_MAX_ATTEMPTS) {
+                finishNimblePollingNotCompleted()
+              }
+            } catch {
+              if (attempts >= NIMBLE_POLL_MAX_ATTEMPTS) {
+                finishNimblePollingNotCompleted()
+              }
+            }
+          }, POLL_INTERVAL_MS)
+        }
+
+        const releaseNimbleCheckoutLock = () => {
+          nimbleCheckoutActiveRef.current = false
+        }
+
+        try {
+          nimbleCheckoutActiveRef.current = true
+          console.log('[Checkout] Opening Nimbbl Sonic checkout')
+          setStatusMessage(
+            payLaterHint || 'Complete payment in the Nimbbl window (look for Pay Later / BNPL)'
+          )
+          await openNimbleCheckout({
+            orderToken: nimblePayload.orderToken,
+            onSuccess: async (response) => {
+              releaseNimbleCheckoutLock()
+              await verifyNimbleSuccess(response)
+            },
+            onFailure: async (response) => {
+              releaseNimbleCheckoutLock()
+              setPlaceOrderLoading(false)
+              console.log('[Checkout] Nimbbl onFailure:', response)
+              if (!shouldPollNimbblOrderStatus(response)) {
+                handleNimbleCheckoutAborted('failure_or_cancel')
+                return
+              }
+              const verified = await verifyNimbleSuccess(response)
+              if (verified) return
+              startNimbleStatusPolling(response)
+            },
+            onOpened: () => {
+              console.log('[Checkout] Nimbbl checkout UI is visible')
+              setPlaceOrderLoading(false)
+            },
+            onClosed: () => {
+              releaseNimbleCheckoutLock()
+              setPlaceOrderLoading(false)
+              if (!paymentSuccessHandledRef.current && !nimbleVerifyingRef.current) {
+                handleNimbleCheckoutAborted('modal_closed')
+              }
+            },
+          })
+        } catch (nimbleErr) {
+          releaseNimbleCheckoutLock()
+          console.log('[Checkout] Nimble checkout error:', nimbleErr)
+          setError(nimbleErr?.message || 'Unable to open pay later checkout.')
+          setPlaceOrderLoading(false)
+        }
         return
       }
     } catch (err) {
@@ -922,7 +1173,7 @@ function CheckoutPage() {
     autoCouponReconcileAttemptedRef.current = true
     console.log('[Checkout][AutoCoupon] reconciling missing initial summary discount for auto coupon:', appliedCouponCode)
     setAutoCouponReconciling(true)
-    fetchPriceSummary(appliedCouponCode, 'RAZORPAY').finally(() => {
+    fetchPriceSummary(appliedCouponCode, paymentMode).finally(() => {
       setAutoCouponReconciling(false)
     })
   }, [
@@ -998,7 +1249,16 @@ function CheckoutPage() {
               <div className="p-5">
                 <p className="text-sm text-gray-800">{statusMessage}</p>
                 {checkingPaymentStatus ? (
-                  <p className="text-xs text-gray-500 mt-2">Please don’t refresh this page.</p>
+                  <div className="pt-4 space-y-2">
+                    <p className="text-xs text-gray-500">Please don’t refresh this page.</p>
+                    <button
+                      type="button"
+                      onClick={clearPaymentConfirmation}
+                      className="w-full border border-gray-300 py-2.5 px-4 text-sm font-semibold uppercase bg-white text-black hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 ) : (
                   <div className="pt-4">
                     <button
@@ -1603,6 +1863,7 @@ function CheckoutPage() {
                   onClick={() => {
                     console.log('[Checkout] paymentMode changed to RAZORPAY')
                     setPaymentMode('RAZORPAY')
+                    setUseWalletForOnline(false)
                   }}
                   className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
                 >
@@ -1615,15 +1876,36 @@ function CheckoutPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (paymentMode !== 'RAZORPAY') {
-                      setPaymentMode('RAZORPAY')
+                    console.log('[Checkout] paymentMode changed to NIMBLE')
+                    setPaymentMode(PAYMENT_MODES.NIMBLE)
+                    setUseWalletForOnline(false)
+                  }}
+                  className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
+                >
+                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">Buy now, pay later</span>
+                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === 'NIMBLE' ? 'border-black bg-black text-white' : 'border-black text-transparent'}`}>
+                    ✓
+                  </span>
+                </button>
+                {paymentMode === PAYMENT_MODES.NIMBLE && (
+                  <p className="px-3.5 sm:px-4 pb-2.5 text-[11px] leading-snug text-[#666] bg-[#f2f2f2]">
+                    Opens Nimbbl checkout — select <strong>Pay Later</strong> (LazyPay, Simpl, etc.) if shown.
+                    Usually requires order total ≥ ₹{NIMBLE_MIN_ORDER_AMOUNT} and Pay Later enabled in your Nimbbl dashboard.
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!walletApplicable) {
+                      setPaymentMode(PAYMENT_MODES.RAZORPAY)
                       setUseWalletForOnline(true)
                       return
                     }
                     setUseWalletForOnline((prev) => !prev)
                   }}
                   className={`w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left transition-opacity ${
-                    paymentMode === 'RAZORPAY' ? 'opacity-100' : 'opacity-50'
+                    walletApplicable ? 'opacity-100' : 'opacity-50'
                   }`}
                 >
                   <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">
@@ -1633,7 +1915,7 @@ function CheckoutPage() {
                     </span>
                   </span>
                   <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${
-                    paymentMode === 'RAZORPAY' && useWalletForOnline ? 'border-black bg-black text-white' : 'border-black text-transparent'
+                    walletApplicable && useWalletForOnline ? 'border-black bg-black text-white' : 'border-black text-transparent'
                   }`}>
                     ✓
                   </span>
@@ -1746,7 +2028,7 @@ function CheckoutPage() {
                 className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {placeOrderLoading
-                  ? (paymentMode === 'COD' ? 'Placing order…' : 'Opening payment…')
+                  ? (paymentMode === 'COD' ? 'Placing order…' : paymentMode === 'NIMBLE' ? 'Opening pay later…' : 'Opening payment…')
                   : checkingPaymentStatus
                     ? 'Checking payment…'
                     : hasOutOfStockItem

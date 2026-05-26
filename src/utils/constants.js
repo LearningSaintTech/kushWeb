@@ -5,6 +5,7 @@ export const ROUTES = {
   PRODUCT: '/product/:slug/:id',
   AUTH: '/auth',
   CHECKOUT: '/checkout',
+  CHECKOUT_NIMBLE_CALLBACK: '/checkout/nimble/callback',
   SEARCH: '/search',
   /** Section explore (Explore More from home sections): /section/:sectionId */
   SECTION_EXPLORE: '/section/:sectionId',

@@ -19,7 +19,7 @@ function logErr(label, err) {
 }
 
 export const paymentService = {
-  /** Create order (Razorpay or COD). Body: { addressId, paymentMode: 'RAZORPAY'|'COD', couponCode? } */
+  /** Create order (Razorpay, COD, or NIMBLE BNPL). */
   createOrder: (body) => {
     logReq('createOrder', body);
     return client.post(`${BASE}/create-order`, body).then((res) => {
@@ -39,6 +39,18 @@ export const paymentService = {
       return res;
     }).catch((err) => {
       logErr('verifyPayment', err);
+      throw err;
+    });
+  },
+
+  /** Verify Nimble / Nimbbl BNPL payment after checkout. */
+  verifyNimblePayment: (body) => {
+    logReq('verifyNimblePayment', body);
+    return client.post(`${BASE}/nimble/verify`, body).then((res) => {
+      logRes('verifyNimblePayment', res?.data);
+      return res;
+    }).catch((err) => {
+      logErr('verifyNimblePayment', err);
       throw err;
     });
   },
