@@ -12,26 +12,34 @@ import { walletService } from '../../services/wallet.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
 import { PAYMENT_MODES } from '../../utils/paymentMode'
 import { trackEvent } from '../../analytics'
+import { loadRazorpayScript } from './paymentCheckout.js'
+// Pay later (Nimbbl) — disabled for now
+// import {
+//   formatNimblePayLaterUnavailableMessage,
+//   getNimbleReturnUrl,
+//   buildNimbblVerifyBody,
+//   hasNimbblVerifyPayload,
+//   shouldPollNimbblOrderStatus,
+//   isNimbblPaymentCancelled,
+//   isBelowNimblePayLaterMinimum,
+//   NIMBLE_MIN_ORDER_AMOUNT,
+//   preloadNimbleCheckout,
+//   openNimbleCheckout,
+// } from './paymentCheckout.js'
 import {
-  formatNimblePayLaterUnavailableMessage,
-  getNimbleReturnUrl,
-  buildNimbblVerifyBody,
-  hasNimbblVerifyPayload,
-  shouldPollNimbblOrderStatus,
-  isNimbblPaymentCancelled,
-  isBelowNimblePayLaterMinimum,
-  NIMBLE_MIN_ORDER_AMOUNT,
-  preloadNimbleCheckout,
-  loadRazorpayScript,
-  openNimbleCheckout,
-} from './paymentCheckout.js'
+  DEFAULT_DONATION_AMOUNT,
+  DONATION_MAX_AMOUNT,
+  donationStateFromCart,
+  buildDonationApiParams,
+  buildDonationOrderBody,
+} from '../../utils/donation.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
 
 const POLL_INTERVAL_MS = 2500
 const POLL_MAX_ATTEMPTS = 40
-const NIMBLE_POLL_MAX_ATTEMPTS = 8
+// const NIMBLE_POLL_MAX_ATTEMPTS = 8
 
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return 'Rs 0'
@@ -91,6 +99,7 @@ function CheckoutPage() {
   const couponCodeFromCart = cartState.couponCode ?? null
   const selectedAddressFromCart = cartState.selectedAddress ?? null
   const addressesFromCart = Array.isArray(cartState.addresses) ? cartState.addresses : []
+  const donationFromCartNav = cartState.donation ?? null
 
   const [cartData, setCartData] = useState(null)
   const [priceSummary, setPriceSummary] = useState(null)
@@ -123,6 +132,12 @@ function CheckoutPage() {
     isDefault: true,
   })
   const [paymentMode, setPaymentMode] = useState('RAZORPAY')
+  const initialDonation = donationStateFromCart(donationFromCartNav)
+  const [donationEnabled, setDonationEnabled] = useState(initialDonation.donationEnabled)
+  const [donationAmount, setDonationAmount] = useState(initialDonation.donationAmount)
+  const [donationPresetUsed, setDonationPresetUsed] = useState(initialDonation.donationPresetUsed)
+  const [donationCustomMode, setDonationCustomMode] = useState(initialDonation.donationCustomMode)
+  const [donationError, setDonationError] = useState(null)
   const [useWalletForOnline, setUseWalletForOnline] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
   const [walletBalanceLoading, setWalletBalanceLoading] = useState(false)
@@ -134,8 +149,9 @@ function CheckoutPage() {
   const [lastVerifyPayload, setLastVerifyPayload] = useState(null)
 
   const paymentSuccessHandledRef = useRef(false)
-  const nimbleCheckoutActiveRef = useRef(false)
-  const nimbleVerifyingRef = useRef(false)
+  // const nimbleCheckoutActiveRef = useRef(false)
+  // const nimbleVerifyingRef = useRef(false)
+  const donationInitializedRef = useRef(Boolean(donationFromCartNav))
 
   useEffect(() => {
     trackEvent({ eventType: 'begin_checkout' })
@@ -185,6 +201,17 @@ function CheckoutPage() {
       if (useWalletParam) {
         params.walletAmountToUse = Math.max(0, Number(walletBalance || 0))
       }
+      const donationParams = buildDonationApiParams({
+        donationEnabled,
+        donationAmount,
+        donationPresetUsed,
+      })
+      if (!donationParams) {
+        setDonationError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`)
+        return null
+      }
+      setDonationError(null)
+      Object.assign(params, donationParams)
       console.log('[Checkout] REQ cartService.getPriceSummary:', params)
       const res = await cartService.getPriceSummary(params)
       console.log('[Checkout] RES cartService.getPriceSummary:', res?.data)
@@ -208,8 +235,39 @@ function CheckoutPage() {
       return null
     }
     },
-    [paymentMode, useWalletForOnline, walletBalance]
+    [paymentMode, useWalletForOnline, walletBalance, donationEnabled, donationAmount, donationPresetUsed]
   )
+
+  useEffect(() => {
+    if (donationInitializedRef.current || !cartData?.donation) return
+    const s = donationStateFromCart(cartData.donation)
+    setDonationEnabled(s.donationEnabled)
+    setDonationAmount(s.donationAmount)
+    setDonationPresetUsed(s.donationPresetUsed)
+    setDonationCustomMode(s.donationCustomMode)
+    donationInitializedRef.current = true
+  }, [cartData?.donation])
+
+  const handleDonationToggle = (checked) => {
+    setDonationEnabled(checked)
+    if (checked) {
+      setDonationPresetUsed(true)
+      setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
+      setDonationCustomMode(false)
+    } else {
+      setDonationPresetUsed(false)
+      setDonationAmount('')
+      setDonationCustomMode(false)
+    }
+    setDonationError(null)
+  }
+
+  const handleDonationCustomAmountChange = (value) => {
+    setDonationAmount(value)
+    setDonationPresetUsed(false)
+    setDonationCustomMode(true)
+    setDonationError(null)
+  }
 
   const fetchAvailableCoupons = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -340,7 +398,17 @@ function CheckoutPage() {
   useEffect(() => {
     if (!cartData?.items?.length || !isAuthenticated) return
     fetchPriceSummary(appliedCouponCode || null, paymentMode, useWalletForOnline)
-  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated, paymentMode, useWalletForOnline, fetchPriceSummary])
+  }, [
+    cartData?.items?.length,
+    appliedCouponCode,
+    isAuthenticated,
+    paymentMode,
+    useWalletForOnline,
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+    fetchPriceSummary,
+  ])
 
   const cartSubTotalForCoupon = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
 
@@ -411,9 +479,10 @@ function CheckoutPage() {
     if (paymentMode === PAYMENT_MODES.RAZORPAY) {
       loadRazorpayScript().catch(() => {})
     }
-    if (paymentMode === PAYMENT_MODES.NIMBLE) {
-      preloadNimbleCheckout().catch(() => {})
-    }
+    // Pay later disabled
+    // if (paymentMode === PAYMENT_MODES.NIMBLE) {
+    //   preloadNimbleCheckout().catch(() => {})
+    // }
   }, [paymentMode])
 
   const clearPaymentConfirmation = useCallback(() => {
@@ -607,8 +676,19 @@ function CheckoutPage() {
     const couponCode = appliedCouponCode?.trim() || undefined
 
     try {
+      const donationBody = buildDonationOrderBody({
+        donationEnabled,
+        donationAmount,
+        donationPresetUsed,
+      })
+      if (!donationBody) {
+        setError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`)
+        setPlaceOrderLoading(false)
+        return
+      }
+
       if (paymentMode === 'COD') {
-        const createReq = { addressId, paymentMode: 'COD', couponCode }
+        const createReq = { addressId, paymentMode: 'COD', couponCode, ...donationBody }
         console.log('[Checkout] REQ orderService.create (COD):', createReq)
         const res = await orderService.create(createReq)
         console.log('[Checkout] RES orderService.create (COD):', res?.data)
@@ -640,6 +720,7 @@ function CheckoutPage() {
           couponCode,
           useWallet: useWalletForOnline,
           walletAmountToUse: useWalletForOnline ? walletAmountToUse : undefined,
+          ...donationBody,
         }
         console.log('[Checkout] REQ paymentService.createOrder (PREPAID):', createReq)
         const res = await paymentService.createOrder(createReq)
@@ -841,6 +922,7 @@ function CheckoutPage() {
         return
       }
 
+      /* Pay later (Nimble / BNPL) — disabled
       if (paymentMode === PAYMENT_MODES.NIMBLE) {
         if (nimbleCheckoutActiveRef.current) {
           console.log('[Checkout] Nimbbl checkout already open or opening; ignoring duplicate click')
@@ -1082,8 +1164,8 @@ function CheckoutPage() {
           setError(nimbleErr?.message || 'Unable to open pay later checkout.')
           setPlaceOrderLoading(false)
         }
-        return
-      }
+      */
+
     } catch (err) {
       console.log('[Checkout] ERR place order:', err?.response?.data ?? err?.message)
       if (paymentMode === 'RAZORPAY') {
@@ -1136,6 +1218,10 @@ function CheckoutPage() {
   const chargesList = Array.isArray(summary.charges) ? summary.charges : []
   const taxableAmount = summary.taxableAmount ?? 0
   const subTotalAfterDiscount = summary.subTotalAfterDiscount ?? summary.subTotal ?? 0
+  const donationLineAmount =
+    summary.donation?.enabled && Number(summary.donation?.amount) > 0
+      ? Number(summary.donation.amount)
+      : 0
   const hasSummaryFromApi = Boolean(priceSummary?.cartSummary ?? priceSummary?.summary)
 
   useEffect(() => {
@@ -1757,6 +1843,73 @@ function CheckoutPage() {
               </div>
             )}
 
+            {/* Donation */}
+            <section className="border border-gray-200 rounded-sm p-3.5 sm:p-4 bg-[#fafafa]">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={donationEnabled}
+                  onChange={(e) => handleDonationToggle(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-black"
+                />
+                <span className="text-sm text-gray-800">
+                  Would you like to donate ₹{DEFAULT_DONATION_AMOUNT}?
+                </span>
+              </label>
+              {donationEnabled && (
+                <div className="mt-3 pl-6 space-y-2">
+                  {!donationCustomMode ? (
+                    <p className="text-xs text-gray-600">
+                      Preset amount: ₹{DEFAULT_DONATION_AMOUNT}
+                      {' · '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDonationCustomMode(true)
+                          setDonationPresetUsed(false)
+                          setDonationAmount('')
+                        }}
+                        className="underline text-black hover:no-underline"
+                      >
+                        Enter custom amount
+                      </button>
+                    </p>
+                  ) : (
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1" htmlFor="checkout-donation-amount">
+                        Custom amount (₹)
+                      </label>
+                      <input
+                        id="checkout-donation-amount"
+                        type="number"
+                        min="0"
+                        max={DONATION_MAX_AMOUNT}
+                        step="1"
+                        value={donationAmount}
+                        onChange={(e) => handleDonationCustomAmountChange(e.target.value)}
+                        placeholder={`e.g. ${DEFAULT_DONATION_AMOUNT}`}
+                        className="w-full max-w-[140px] border border-gray-300 px-2.5 py-1.5 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDonationCustomMode(false)
+                          setDonationPresetUsed(true)
+                          setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
+                        }}
+                        className="mt-1.5 block text-xs underline text-black hover:no-underline"
+                      >
+                        Use preset ₹{DEFAULT_DONATION_AMOUNT}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {donationError && (
+                <p className="mt-2 text-xs text-red-600">{donationError}</p>
+              )}
+            </section>
+
             {/* Bill Summary */}
             <section>
               <h2 className="text-sm font-semibold text-black mb-3">Bill Summary</h2>
@@ -1827,6 +1980,12 @@ function CheckoutPage() {
                       <span className="font-medium">{formatRs(totalGst)}</span>
                     </div>
                   )}
+                  {donationLineAmount > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">Donation</span>
+                      <span className="font-medium">{formatRs(donationLineAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-300">
                     <span className="font-bold text-black">Total</span>
                     <span className="font-bold text-base">
@@ -1873,6 +2032,7 @@ function CheckoutPage() {
                   </span>
                 </button>
 
+                {/* Pay later (Nimble) — disabled
                 <button
                   type="button"
                   onClick={() => {
@@ -1890,9 +2050,9 @@ function CheckoutPage() {
                 {paymentMode === PAYMENT_MODES.NIMBLE && (
                   <p className="px-3.5 sm:px-4 pb-2.5 text-[11px] leading-snug text-[#666] bg-[#f2f2f2]">
                     Opens Nimbbl checkout — select <strong>Pay Later</strong> (LazyPay, Simpl, etc.) if shown.
-                    Usually requires order total ≥ ₹{NIMBLE_MIN_ORDER_AMOUNT} and Pay Later enabled in your Nimbbl dashboard.
                   </p>
                 )}
+                */}
 
                 <button
                   type="button"
@@ -2028,7 +2188,7 @@ function CheckoutPage() {
                 className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {placeOrderLoading
-                  ? (paymentMode === 'COD' ? 'Placing order…' : paymentMode === 'NIMBLE' ? 'Opening pay later…' : 'Opening payment…')
+                  ? (paymentMode === 'COD' ? 'Placing order…' : 'Opening payment…')
                   : checkingPaymentStatus
                     ? 'Checking payment…'
                     : hasOutOfStockItem
