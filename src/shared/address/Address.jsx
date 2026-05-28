@@ -80,6 +80,7 @@ export default function Address() {
   })
   const currentPincode = useSelector((s) => s?.location?.pincode)
   const [formError, setFormError] = useState(null)
+  const [phoneError, setPhoneError] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
   const [mapGeocoding, setMapGeocoding] = useState(false)
   const [addressSearchQuery, setAddressSearchQuery] = useState('')
@@ -134,6 +135,7 @@ export default function Address() {
     setModalMode("create");
     setEditingAddressId(null);
     setFormError(null);
+    setPhoneError(null);
     setAddressSearchQuery("");
     setAddressSearchResults([]);
     setAddressSearchOpen(false);
@@ -156,6 +158,7 @@ export default function Address() {
     setModalMode('edit')
     setEditingAddressId(addr?._id ?? null)
     setFormError(null)
+    setPhoneError(null)
     setForm({
       name: addr?.name ?? '',
       phoneNumber: addr?.phoneNumber ?? '',
@@ -264,18 +267,26 @@ export default function Address() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+    setPhoneError(null);
 
     const pin = String(form.pinCode || "")
       .trim()
       .replace(/\D/g, "");
+    const phoneDigits = String(form.phoneNumber || "").replace(/\D/g, "");
     if (
       !form.name?.trim() ||
+      !phoneDigits ||
       !form.addressLine?.trim() ||
       !form.city?.trim() ||
       !form.state?.trim() ||
       !pin
     ) {
-      setFormError("Please fill name, address, city, state and pincode.");
+      setFormError("Please fill name, phone number, address, city, state and pincode.");
+      if (!phoneDigits) setPhoneError("Phone number is required.");
+      return;
+    }
+    if (phoneDigits.length !== 9) {
+      setPhoneError("Phone number must be 9 digits.");
       return;
     }
     if (
@@ -291,7 +302,7 @@ export default function Address() {
     const addressType = (form.addressType || 'HOME').toUpperCase()
     const payload = {
       name: form.name.trim(),
-      phoneNumber: (form.phoneNumber || "").trim() || undefined,
+      phoneNumber: phoneDigits,
       countryCode: INDIA_PHONE_CODE,
       addressLine: form.addressLine.trim(),
       city: form.city.trim(),
@@ -743,13 +754,19 @@ export default function Address() {
                     onChange={(e) =>
                       handleFormChange(
                         "phoneNumber",
-                        e.target.value.replace(/\D/g, "").slice(0, 10),
+                        e.target.value.replace(/\D/g, "").slice(0, 9),
                       )
                     }
-                    placeholder="10-digit mobile number"
+                    placeholder="9-digit mobile number"
                     className="min-w-0 flex-1 border-0 py-2 text-sm outline-none placeholder:text-gray-400"
+                    required
                   />
                 </div>
+                {phoneError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {phoneError}
+                  </p>
+                )}
               </div>
               <button
                 type="submit"

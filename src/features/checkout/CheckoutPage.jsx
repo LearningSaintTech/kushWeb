@@ -121,6 +121,7 @@ function CheckoutPage() {
   const [addressFormOpen, setAddressFormOpen] = useState(false)
   const [addressFormLoading, setAddressFormLoading] = useState(false)
   const [addressFormError, setAddressFormError] = useState(null)
+  const [addressFormPhoneError, setAddressFormPhoneError] = useState(null)
   const [addressForm, setAddressForm] = useState({
     name: '',
     phoneNumber: '',
@@ -599,6 +600,7 @@ function CheckoutPage() {
   const openAddressForm = () => {
     console.log('[Checkout] openAddressForm')
     setAddressFormError(null)
+    setAddressFormPhoneError(null)
     setAddressForm({
       name: '',
       phoneNumber: '',
@@ -620,17 +622,32 @@ function CheckoutPage() {
     e.preventDefault()
     console.log('[Checkout] handleAddressFormSubmit')
     setAddressFormError(null)
+    setAddressFormPhoneError(null)
     const pin = String(addressForm.pinCode || '').trim().replace(/\D/g, '')
-    if (!addressForm.name?.trim() || !addressForm.addressLine?.trim() || !addressForm.city?.trim() || !addressForm.state?.trim() || !pin) {
+    const phoneRaw = String(addressForm.phoneNumber || '').trim()
+    const phoneDigits = phoneRaw.replace(/\D/g, '')
+    if (
+      !addressForm.name?.trim() ||
+      !phoneDigits ||
+      !addressForm.addressLine?.trim() ||
+      !addressForm.city?.trim() ||
+      !addressForm.state?.trim() ||
+      !pin
+    ) {
       console.log('[Checkout] handleAddressFormSubmit: validation failed')
-      setAddressFormError('Please fill name, address, city, state and pincode.')
+      setAddressFormError('Please fill name, phone number, address, city, state and pincode.')
+      if (!phoneDigits) setAddressFormPhoneError('Phone number is required.')
+      return
+    }
+    if (phoneDigits.length !== 9) {
+      setAddressFormPhoneError('Phone number must be 9 digits.')
       return
     }
     setAddressFormLoading(true)
     try {
       const payload = {
         name: addressForm.name.trim(),
-        phoneNumber: (addressForm.phoneNumber || '').trim() || undefined,
+        phoneNumber: phoneDigits,
         countryCode: INDIA_PHONE_CODE,
         addressLine: addressForm.addressLine.trim(),
         city: addressForm.city.trim(),
@@ -668,6 +685,11 @@ function CheckoutPage() {
     if (!selectedAddress?._id) {
       console.log('[Checkout] handlePlaceOrder: no address selected')
       setError('Please select a delivery address.')
+      return
+    }
+    const selectedPhoneDigits = String(selectedAddress?.phoneNumber || '').replace(/\D/g, '')
+    if (!selectedPhoneDigits || selectedPhoneDigits.length !== 9) {
+      setError('Please add a valid 9-digit phone number to your delivery address.')
       return
     }
     setPlaceOrderLoading(true)
@@ -1649,13 +1671,19 @@ function CheckoutPage() {
                           onChange={(e) =>
                             handleAddressFormChange(
                               'phoneNumber',
-                              e.target.value.replace(/\D/g, '').slice(0, 10),
+                              e.target.value.replace(/\D/g, '').slice(0, 9),
                             )
                           }
                           className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
-                          placeholder="10-digit mobile number"
+                          placeholder="9-digit mobile number"
+                          required
                         />
                       </div>
+                      {addressFormPhoneError && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {addressFormPhoneError}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
