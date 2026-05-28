@@ -285,8 +285,8 @@ export default function Address() {
       if (!phoneDigits) setPhoneError("Phone number is required.");
       return;
     }
-    if (phoneDigits.length !== 9) {
-      setPhoneError("Phone number must be 9 digits.");
+    if (phoneDigits.length !== 10) {
+      setPhoneError("Phone number must be 10 digits.");
       return;
     }
     if (
@@ -754,10 +754,10 @@ export default function Address() {
                     onChange={(e) =>
                       handleFormChange(
                         "phoneNumber",
-                        e.target.value.replace(/\D/g, "").slice(0, 9),
+                        e.target.value.replace(/\D/g, "").slice(0, 10),
                       )
                     }
-                    placeholder="9-digit mobile number"
+                    placeholder="10-digit mobile number"
                     className="min-w-0 flex-1 border-0 py-2 text-sm outline-none placeholder:text-gray-400"
                     required
                   />

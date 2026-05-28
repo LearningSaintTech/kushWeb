@@ -639,8 +639,8 @@ function CheckoutPage() {
       if (!phoneDigits) setAddressFormPhoneError('Phone number is required.')
       return
     }
-    if (phoneDigits.length !== 9) {
-      setAddressFormPhoneError('Phone number must be 9 digits.')
+    if (phoneDigits.length !== 10) {
+      setAddressFormPhoneError('Phone number must be 10 digits.')
       return
     }
     setAddressFormLoading(true)
@@ -688,8 +688,8 @@ function CheckoutPage() {
       return
     }
     const selectedPhoneDigits = String(selectedAddress?.phoneNumber || '').replace(/\D/g, '')
-    if (!selectedPhoneDigits || selectedPhoneDigits.length !== 9) {
-      setError('Please add a valid 9-digit phone number to your delivery address.')
+    if (!selectedPhoneDigits || selectedPhoneDigits.length !== 10) {
+      setError('Please add a valid 10-digit phone number to your delivery address.')
       return
     }
     setPlaceOrderLoading(true)
@@ -1671,11 +1671,11 @@ function CheckoutPage() {
                           onChange={(e) =>
                             handleAddressFormChange(
                               'phoneNumber',
-                              e.target.value.replace(/\D/g, '').slice(0, 9),
+                              e.target.value.replace(/\D/g, '').slice(0, 10),
                             )
                           }
                           className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
-                          placeholder="9-digit mobile number"
+                          placeholder="10-digit mobile number"
                           required
                         />
                       </div>
