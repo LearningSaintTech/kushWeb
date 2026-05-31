@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Helmet } from "react-helmet-async"
 import { useSelector } from 'react-redux'
 import Banner from './components/Banner'
 import SpecialDiscount from './components/SpecialDiscount'
@@ -73,6 +74,39 @@ function HomePage() {
   }, [pincode])
 
   return (
+    <>
+     <Helmet>
+        <title>
+          Buy Online Fashion Clothing for Women & Men | Khush Pehno
+        </title>
+
+  <meta
+          name="description"
+          content="Looking for Online Shopping Site for Fashion Clothing. We bring you the finest Collection of Women, Men. Shop today on khushpehno with Free delivery, Online Payment, COD."
+        />
+
+        <meta
+          name="keywords"
+          content="online shopping, fashion clothing, women clothing, men clothing, online fashion store"
+        />
+
+        
+        <meta
+          property="og:type"
+          content="website"
+        />
+
+        <meta
+          property="og:title"
+          content="Buy Online Fashion Clothing for Women & Men | Khush Pehno"
+        />
+
+         <meta
+          property="og:description"
+          content="Looking for Online Shopping Site for Fashion Clothing. We bring you the finest Collection of Women, Men. Shop today on khushpehno with Free delivery, Online Payment, COD."
+        />
+      </Helmet>
+
     <div>
       <Banner />
       <StaticCard />
@@ -99,8 +133,10 @@ function HomePage() {
             })}
           </div>
         </div>
+        
       )}
     </div>
+    </>
   )
 }
 

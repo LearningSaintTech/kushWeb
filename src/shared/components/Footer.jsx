@@ -378,7 +378,12 @@ function Footer() {
                       <Link to="#">Track Order</Link>
                     </li> */}
                     <li>
-                      <Link to="#">Exchange & Returns</Link>
+                      <Link
+                        to={ROUTES.RETURN_POLICY}
+                        className="hover:text-white transition-colors"
+                      >
+                        Exchange & Returns
+                      </Link>
                     </li>
                     <li>
                       <Link to={ROUTES.DELETE_ACCOUNT}>Delete Account</Link>

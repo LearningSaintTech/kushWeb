@@ -1,1 +1,8 @@
-export { trackEvent, trackPageView, trackSessionStart, pushToDataLayer } from "./tracker.js";
+export {
+  trackEvent,
+  trackPageView,
+  trackSessionStart,
+  trackRouteChange,
+  trackSessionEnd,
+  pushToDataLayer,
+} from "./tracker.js";

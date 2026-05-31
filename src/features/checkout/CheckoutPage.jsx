@@ -10,41 +10,36 @@ import { orderService } from '../../services/order.service.js'
 import { paymentService } from '../../services/payment.service.js'
 import { walletService } from '../../services/wallet.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
+import { PAYMENT_MODES } from '../../utils/paymentMode'
 import { trackEvent } from '../../analytics'
+import { loadRazorpayScript } from './paymentCheckout.js'
+// Pay later (Nimbbl) — disabled for now
+// import {
+//   formatNimblePayLaterUnavailableMessage,
+//   getNimbleReturnUrl,
+//   buildNimbblVerifyBody,
+//   hasNimbblVerifyPayload,
+//   shouldPollNimbblOrderStatus,
+//   isNimbblPaymentCancelled,
+//   isBelowNimblePayLaterMinimum,
+//   NIMBLE_MIN_ORDER_AMOUNT,
+//   preloadNimbleCheckout,
+//   openNimbleCheckout,
+// } from './paymentCheckout.js'
+import {
+  DEFAULT_DONATION_AMOUNT,
+  DONATION_MAX_AMOUNT,
+  donationStateFromCart,
+  buildDonationApiParams,
+  buildDonationOrderBody,
+} from '../../utils/donation.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
 
 const POLL_INTERVAL_MS = 2500
 const POLL_MAX_ATTEMPTS = 40
-
-/** Load Razorpay checkout script once. */
-function loadRazorpayScript() {
-  console.log('[Checkout] loadRazorpayScript called')
-  if (typeof window === 'undefined') {
-    console.log('[Checkout] loadRazorpayScript: no window')
-    return Promise.reject(new Error('No window'))
-  }
-  if (window.Razorpay) {
-    console.log('[Checkout] loadRazorpayScript: already loaded')
-    return Promise.resolve()
-  }
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-    script.async = true
-    script.onload = () => {
-      console.log('[Checkout] loadRazorpayScript: script onload')
-      resolve()
-    }
-    script.onerror = () => {
-      console.log('[Checkout] loadRazorpayScript: script onerror')
-      reject(new Error('Failed to load Razorpay'))
-    }
-    document.body.appendChild(script)
-    console.log('[Checkout] loadRazorpayScript: script appended')
-  })
-}
+// const NIMBLE_POLL_MAX_ATTEMPTS = 8
 
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return 'Rs 0'
@@ -104,6 +99,7 @@ function CheckoutPage() {
   const couponCodeFromCart = cartState.couponCode ?? null
   const selectedAddressFromCart = cartState.selectedAddress ?? null
   const addressesFromCart = Array.isArray(cartState.addresses) ? cartState.addresses : []
+  const donationFromCartNav = cartState.donation ?? null
 
   const [cartData, setCartData] = useState(null)
   const [priceSummary, setPriceSummary] = useState(null)
@@ -125,6 +121,7 @@ function CheckoutPage() {
   const [addressFormOpen, setAddressFormOpen] = useState(false)
   const [addressFormLoading, setAddressFormLoading] = useState(false)
   const [addressFormError, setAddressFormError] = useState(null)
+  const [addressFormPhoneError, setAddressFormPhoneError] = useState(null)
   const [addressForm, setAddressForm] = useState({
     name: '',
     phoneNumber: '',
@@ -136,6 +133,12 @@ function CheckoutPage() {
     isDefault: true,
   })
   const [paymentMode, setPaymentMode] = useState('RAZORPAY')
+  const initialDonation = donationStateFromCart(donationFromCartNav)
+  const [donationEnabled, setDonationEnabled] = useState(initialDonation.donationEnabled)
+  const [donationAmount, setDonationAmount] = useState(initialDonation.donationAmount)
+  const [donationPresetUsed, setDonationPresetUsed] = useState(initialDonation.donationPresetUsed)
+  const [donationCustomMode, setDonationCustomMode] = useState(initialDonation.donationCustomMode)
+  const [donationError, setDonationError] = useState(null)
   const [useWalletForOnline, setUseWalletForOnline] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
   const [walletBalanceLoading, setWalletBalanceLoading] = useState(false)
@@ -147,6 +150,13 @@ function CheckoutPage() {
   const [lastVerifyPayload, setLastVerifyPayload] = useState(null)
 
   const paymentSuccessHandledRef = useRef(false)
+  // const nimbleCheckoutActiveRef = useRef(false)
+  // const nimbleVerifyingRef = useRef(false)
+  const donationInitializedRef = useRef(Boolean(donationFromCartNav))
+
+  useEffect(() => {
+    trackEvent({ eventType: 'begin_checkout' })
+  }, [])
   const pollingIntervalRef = useRef(null)
   const priceSummaryRequestRef = useRef(0)
   const autoCouponReconcileAttemptedRef = useRef(false)
@@ -154,7 +164,7 @@ function CheckoutPage() {
   const navigate = useNavigate()
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? null
-  const prepaidSelected = paymentMode === 'RAZORPAY'
+  const walletApplicable = paymentMode === PAYMENT_MODES.RAZORPAY
 
   const refetchAddresses = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -192,6 +202,17 @@ function CheckoutPage() {
       if (useWalletParam) {
         params.walletAmountToUse = Math.max(0, Number(walletBalance || 0))
       }
+      const donationParams = buildDonationApiParams({
+        donationEnabled,
+        donationAmount,
+        donationPresetUsed,
+      })
+      if (!donationParams) {
+        setDonationError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`)
+        return null
+      }
+      setDonationError(null)
+      Object.assign(params, donationParams)
       console.log('[Checkout] REQ cartService.getPriceSummary:', params)
       const res = await cartService.getPriceSummary(params)
       console.log('[Checkout] RES cartService.getPriceSummary:', res?.data)
@@ -215,8 +236,39 @@ function CheckoutPage() {
       return null
     }
     },
-    [paymentMode, useWalletForOnline, walletBalance]
+    [paymentMode, useWalletForOnline, walletBalance, donationEnabled, donationAmount, donationPresetUsed]
   )
+
+  useEffect(() => {
+    if (donationInitializedRef.current || !cartData?.donation) return
+    const s = donationStateFromCart(cartData.donation)
+    setDonationEnabled(s.donationEnabled)
+    setDonationAmount(s.donationAmount)
+    setDonationPresetUsed(s.donationPresetUsed)
+    setDonationCustomMode(s.donationCustomMode)
+    donationInitializedRef.current = true
+  }, [cartData?.donation])
+
+  const handleDonationToggle = (checked) => {
+    setDonationEnabled(checked)
+    if (checked) {
+      setDonationPresetUsed(true)
+      setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
+      setDonationCustomMode(false)
+    } else {
+      setDonationPresetUsed(false)
+      setDonationAmount('')
+      setDonationCustomMode(false)
+    }
+    setDonationError(null)
+  }
+
+  const handleDonationCustomAmountChange = (value) => {
+    setDonationAmount(value)
+    setDonationPresetUsed(false)
+    setDonationCustomMode(true)
+    setDonationError(null)
+  }
 
   const fetchAvailableCoupons = useCallback(async () => {
     const req = { page: 1, limit: 50 }
@@ -347,7 +399,17 @@ function CheckoutPage() {
   useEffect(() => {
     if (!cartData?.items?.length || !isAuthenticated) return
     fetchPriceSummary(appliedCouponCode || null, paymentMode, useWalletForOnline)
-  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated, paymentMode, useWalletForOnline, fetchPriceSummary])
+  }, [
+    cartData?.items?.length,
+    appliedCouponCode,
+    isAuthenticated,
+    paymentMode,
+    useWalletForOnline,
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+    fetchPriceSummary,
+  ])
 
   const cartSubTotalForCoupon = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
 
@@ -413,13 +475,26 @@ function CheckoutPage() {
     fetchPriceSummary,
   ])
 
-  // Preload Razorpay script for prepaid flows (online / wallet-assisted)
+  // Preload payment scripts when user selects a gateway
   useEffect(() => {
-    if (prepaidSelected) {
-      console.log('[Checkout] preload Razorpay script (paymentMode=RAZORPAY)')
+    if (paymentMode === PAYMENT_MODES.RAZORPAY) {
       loadRazorpayScript().catch(() => {})
     }
-  }, [prepaidSelected])
+    // Pay later disabled
+    // if (paymentMode === PAYMENT_MODES.NIMBLE) {
+    //   preloadNimbleCheckout().catch(() => {})
+    // }
+  }, [paymentMode])
+
+  const clearPaymentConfirmation = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+    setCheckingPaymentStatus(false)
+    setStatusMessage(null)
+    setPlaceOrderLoading(false)
+  }, [])
 
   // Clear polling on unmount
   useEffect(() => {
@@ -525,6 +600,7 @@ function CheckoutPage() {
   const openAddressForm = () => {
     console.log('[Checkout] openAddressForm')
     setAddressFormError(null)
+    setAddressFormPhoneError(null)
     setAddressForm({
       name: '',
       phoneNumber: '',
@@ -546,34 +622,32 @@ function CheckoutPage() {
     e.preventDefault()
     console.log('[Checkout] handleAddressFormSubmit')
     setAddressFormError(null)
-    const phone = String(addressForm.phoneNumber || '').trim().replace(/\D/g, '')
+    setAddressFormPhoneError(null)
     const pin = String(addressForm.pinCode || '').trim().replace(/\D/g, '')
+    const phoneRaw = String(addressForm.phoneNumber || '').trim()
+    const phoneDigits = phoneRaw.replace(/\D/g, '')
     if (
       !addressForm.name?.trim() ||
-      !phone ||
+      !phoneDigits ||
       !addressForm.addressLine?.trim() ||
       !addressForm.city?.trim() ||
       !addressForm.state?.trim() ||
-      !pin ||
-      !addressForm.addressType
+      !pin
     ) {
       console.log('[Checkout] handleAddressFormSubmit: validation failed')
-      setAddressFormError('All fields are required.')
+      setAddressFormError('Please fill name, phone number, address, city, state and pincode.')
+      if (!phoneDigits) setAddressFormPhoneError('Phone number is required.')
       return
     }
-    if (phone.length !== 10) {
-      setAddressFormError('Number must be 10 digit')
-      return
-    }
-    if (!/^[6-9]/.test(phone)) {
-      setAddressFormError('Number must start from 6-9')
+    if (phoneDigits.length !== 10) {
+      setAddressFormPhoneError('Phone number must be 10 digits.')
       return
     }
     setAddressFormLoading(true)
     try {
       const payload = {
         name: addressForm.name.trim(),
-        phoneNumber: phone,
+        phoneNumber: phoneDigits,
         countryCode: INDIA_PHONE_CODE,
         addressLine: addressForm.addressLine.trim(),
         city: addressForm.city.trim(),
@@ -613,14 +687,30 @@ function CheckoutPage() {
       setError('Please select a delivery address.')
       return
     }
+    const selectedPhoneDigits = String(selectedAddress?.phoneNumber || '').replace(/\D/g, '')
+    if (!selectedPhoneDigits || selectedPhoneDigits.length !== 10) {
+      setError('Please add a valid 10-digit phone number to your delivery address.')
+      return
+    }
     setPlaceOrderLoading(true)
     setError(null)
     const addressId = selectedAddress._id
     const couponCode = appliedCouponCode?.trim() || undefined
 
     try {
+      const donationBody = buildDonationOrderBody({
+        donationEnabled,
+        donationAmount,
+        donationPresetUsed,
+      })
+      if (!donationBody) {
+        setError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`)
+        setPlaceOrderLoading(false)
+        return
+      }
+
       if (paymentMode === 'COD') {
-        const createReq = { addressId, paymentMode: 'COD', couponCode }
+        const createReq = { addressId, paymentMode: 'COD', couponCode, ...donationBody }
         console.log('[Checkout] REQ orderService.create (COD):', createReq)
         const res = await orderService.create(createReq)
         console.log('[Checkout] RES orderService.create (COD):', res?.data)
@@ -636,7 +726,9 @@ function CheckoutPage() {
         })
         console.log('[Checkout] COD success, refetch cart and navigate to orders:', orderId)
         refetchCart()
-        navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
+        navigate(ROUTES.ORDERS, {
+          state: { orderId, orderSuccess: true, paymentMode: PAYMENT_MODES.COD },
+        })
         return
       }
 
@@ -650,6 +742,7 @@ function CheckoutPage() {
           couponCode,
           useWallet: useWalletForOnline,
           walletAmountToUse: useWalletForOnline ? walletAmountToUse : undefined,
+          ...donationBody,
         }
         console.log('[Checkout] REQ paymentService.createOrder (PREPAID):', createReq)
         const res = await paymentService.createOrder(createReq)
@@ -716,7 +809,9 @@ function CheckoutPage() {
             })
             refetchCart()
             console.log('[Checkout] verifyPayment success, navigate to orders:', businessOrderId)
-            navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
+            navigate(ROUTES.ORDERS, {
+              state: { orderId: businessOrderId, orderSuccess: true, paymentMode: PAYMENT_MODES.RAZORPAY },
+            })
           } catch (verifyErr) {
             console.log('[Checkout] ERR paymentService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message)
             trackEvent({
@@ -785,7 +880,9 @@ function CheckoutPage() {
                     paymentSuccessHandledRef.current = true
                     refetchCart()
                     console.log('[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:', businessOrderId)
-                    navigate(ROUTES.ORDERS, { state: { orderId: businessOrderId, orderSuccess: true } })
+                    navigate(ROUTES.ORDERS, {
+              state: { orderId: businessOrderId, orderSuccess: true, paymentMode: PAYMENT_MODES.RAZORPAY },
+            })
                     return
                   }
                   // If payment stays pending/created for first few checks, stop early and allow retry
@@ -846,6 +943,251 @@ function CheckoutPage() {
         rzp.open()
         return
       }
+
+      /* Pay later (Nimble / BNPL) — disabled
+      if (paymentMode === PAYMENT_MODES.NIMBLE) {
+        if (nimbleCheckoutActiveRef.current) {
+          console.log('[Checkout] Nimbbl checkout already open or opening; ignoring duplicate click')
+          setPlaceOrderLoading(false)
+          return
+        }
+
+        const createReq = {
+          addressId,
+          paymentMode: PAYMENT_MODES.NIMBLE,
+          couponCode,
+          nimbleReturnUrl: getNimbleReturnUrl(),
+        }
+        console.log('[Checkout] REQ paymentService.createOrder (NIMBLE):', createReq)
+        const res = await paymentService.createOrder(createReq)
+        const data = res?.data?.data ?? res?.data
+        const order = data?.order ?? data
+        const nimblePayload = data?.nimble
+        const businessOrderId = order?.orderId
+        trackEvent({
+          eventType: 'payment_initiated',
+          orderId: businessOrderId ? String(businessOrderId) : undefined,
+          paymentMode: 'NIMBLE',
+          cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+          currency: 'INR',
+        })
+
+        if (nimblePayload?.redirectUrl) {
+          window.location.href = nimblePayload.redirectUrl
+          return
+        }
+
+        if (!nimblePayload?.orderToken) {
+          setError('Pay later setup failed. Please try again or choose another method.')
+          setPlaceOrderLoading(false)
+          return
+        }
+
+        const orderAmount = Number(nimblePayload.amount ?? finalPayable ?? 0)
+        const belowPayLaterMin = isBelowNimblePayLaterMinimum(orderAmount)
+        if (belowPayLaterMin) {
+          console.warn('[Checkout] Order below typical Pay Later minimum; opening Nimbbl checkout anyway.', {
+            orderAmount,
+            min: NIMBLE_MIN_ORDER_AMOUNT,
+          })
+        }
+
+        const payLaterHint = belowPayLaterMin
+          ? formatNimblePayLaterUnavailableMessage({ amount: orderAmount, payLaterCount: 0 })
+          : null
+
+        const stopNimblePolling = () => {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          setCheckingPaymentStatus(false)
+        }
+
+        const handleNimbleCheckoutAborted = (reason = 'cancelled') => {
+          console.log('[Checkout] Nimbbl checkout aborted:', reason)
+          stopNimblePolling()
+          setError(null)
+          setStatusMessage(null)
+          setPlaceOrderLoading(false)
+        }
+
+        const completeNimbleOrderSuccess = () => {
+          stopNimblePolling()
+          paymentSuccessHandledRef.current = true
+          refetchCart()
+          navigate(ROUTES.ORDERS, {
+            state: {
+              orderId: businessOrderId,
+              orderSuccess: true,
+              paymentMode: PAYMENT_MODES.NIMBLE,
+            },
+          })
+        }
+
+        const verifyNimbleSuccess = async (response, { keepPollingOnFailure = false } = {}) => {
+          if (paymentSuccessHandledRef.current) return true
+          nimbleVerifyingRef.current = true
+
+          const verifyBody = buildNimbblVerifyBody(response, {
+            nimbleOrderId: nimblePayload.orderId,
+            businessOrderId,
+          })
+
+          if (!verifyBody.order_id || !verifyBody.transaction_id) {
+            console.warn('[Checkout] Nimbbl callback missing order/transaction ids:', response)
+            nimbleVerifyingRef.current = false
+            return false
+          }
+
+          if (!keepPollingOnFailure) {
+            stopNimblePolling()
+          }
+          setPlaceOrderLoading(true)
+          setError(null)
+          if (!keepPollingOnFailure) {
+            setStatusMessage('Confirming your payment…')
+          }
+
+          try {
+            console.log('[Checkout] REQ paymentService.verifyNimblePayment:', verifyBody)
+            await paymentService.verifyNimblePayment(verifyBody)
+            trackEvent({
+              eventType: 'payment_success',
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: 'NIMBLE',
+              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+              currency: 'INR',
+            })
+            trackEvent({
+              eventType: 'order_placed',
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: 'NIMBLE',
+              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+              currency: 'INR',
+            })
+            completeNimbleOrderSuccess()
+            return true
+          } catch (verifyErr) {
+            console.error('[Checkout] verifyNimblePayment failed:', verifyErr?.response?.data ?? verifyErr)
+            const msg =
+              verifyErr?.response?.data?.message ??
+              verifyErr?.message ??
+              'Payment verification failed.'
+            if (!keepPollingOnFailure) {
+              setError(msg)
+              startNimbleStatusPolling(response)
+            }
+            return false
+          } finally {
+            nimbleVerifyingRef.current = false
+            setPlaceOrderLoading(false)
+          }
+        }
+
+        const finishNimblePollingNotCompleted = () => {
+          stopNimblePolling()
+          setStatusMessage('Payment not completed. You can try again.')
+        }
+
+        const startNimbleStatusPolling = (lastCallbackResponse = null) => {
+          if (!businessOrderId || paymentSuccessHandledRef.current) return
+          if (lastCallbackResponse && isNimbblPaymentCancelled(lastCallbackResponse)) {
+            handleNimbleCheckoutAborted('cancelled_callback')
+            return
+          }
+          setError(null)
+          setStatusMessage('Confirming your payment with Nimbbl…')
+          setCheckingPaymentStatus(true)
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current)
+          let attempts = 0
+          pollingIntervalRef.current = setInterval(async () => {
+            attempts += 1
+
+            if (
+              lastCallbackResponse &&
+              attempts <= 3 &&
+              hasNimbblVerifyPayload(lastCallbackResponse, { nimbleOrderId: nimblePayload.orderId })
+            ) {
+              const verified = await verifyNimbleSuccess(lastCallbackResponse, {
+                keepPollingOnFailure: true,
+              })
+              if (verified) return
+            }
+
+            try {
+              const statusRes = await paymentService.getOrderStatus(businessOrderId)
+              const statusData = statusRes?.data?.data ?? statusRes?.data
+              const pStatus = statusData?.payment?.status
+              const ordStatus = statusData?.status
+              console.log('[Checkout] Nimble poll status:', { attempts, pStatus, ordStatus })
+              if (pStatus === 'SUCCESS' || ordStatus === 'CONFIRMED') {
+                completeNimbleOrderSuccess()
+              } else if (
+                attempts >= 4 &&
+                (pStatus === 'PENDING' || !pStatus) &&
+                (ordStatus === 'CREATED' || !ordStatus)
+              ) {
+                finishNimblePollingNotCompleted()
+              } else if (attempts >= NIMBLE_POLL_MAX_ATTEMPTS) {
+                finishNimblePollingNotCompleted()
+              }
+            } catch {
+              if (attempts >= NIMBLE_POLL_MAX_ATTEMPTS) {
+                finishNimblePollingNotCompleted()
+              }
+            }
+          }, POLL_INTERVAL_MS)
+        }
+
+        const releaseNimbleCheckoutLock = () => {
+          nimbleCheckoutActiveRef.current = false
+        }
+
+        try {
+          nimbleCheckoutActiveRef.current = true
+          console.log('[Checkout] Opening Nimbbl Sonic checkout')
+          setStatusMessage(
+            payLaterHint || 'Complete payment in the Nimbbl window (look for Pay Later / BNPL)'
+          )
+          await openNimbleCheckout({
+            orderToken: nimblePayload.orderToken,
+            onSuccess: async (response) => {
+              releaseNimbleCheckoutLock()
+              await verifyNimbleSuccess(response)
+            },
+            onFailure: async (response) => {
+              releaseNimbleCheckoutLock()
+              setPlaceOrderLoading(false)
+              console.log('[Checkout] Nimbbl onFailure:', response)
+              if (!shouldPollNimbblOrderStatus(response)) {
+                handleNimbleCheckoutAborted('failure_or_cancel')
+                return
+              }
+              const verified = await verifyNimbleSuccess(response)
+              if (verified) return
+              startNimbleStatusPolling(response)
+            },
+            onOpened: () => {
+              console.log('[Checkout] Nimbbl checkout UI is visible')
+              setPlaceOrderLoading(false)
+            },
+            onClosed: () => {
+              releaseNimbleCheckoutLock()
+              setPlaceOrderLoading(false)
+              if (!paymentSuccessHandledRef.current && !nimbleVerifyingRef.current) {
+                handleNimbleCheckoutAborted('modal_closed')
+              }
+            },
+          })
+        } catch (nimbleErr) {
+          releaseNimbleCheckoutLock()
+          console.log('[Checkout] Nimble checkout error:', nimbleErr)
+          setError(nimbleErr?.message || 'Unable to open pay later checkout.')
+          setPlaceOrderLoading(false)
+        }
+      */
+
     } catch (err) {
       console.log('[Checkout] ERR place order:', err?.response?.data ?? err?.message)
       if (paymentMode === 'RAZORPAY') {
@@ -898,6 +1240,10 @@ function CheckoutPage() {
   const chargesList = Array.isArray(summary.charges) ? summary.charges : []
   const taxableAmount = summary.taxableAmount ?? 0
   const subTotalAfterDiscount = summary.subTotalAfterDiscount ?? summary.subTotal ?? 0
+  const donationLineAmount =
+    summary.donation?.enabled && Number(summary.donation?.amount) > 0
+      ? Number(summary.donation.amount)
+      : 0
   const hasSummaryFromApi = Boolean(priceSummary?.cartSummary ?? priceSummary?.summary)
 
   useEffect(() => {
@@ -935,7 +1281,7 @@ function CheckoutPage() {
     autoCouponReconcileAttemptedRef.current = true
     console.log('[Checkout][AutoCoupon] reconciling missing initial summary discount for auto coupon:', appliedCouponCode)
     setAutoCouponReconciling(true)
-    fetchPriceSummary(appliedCouponCode, 'RAZORPAY').finally(() => {
+    fetchPriceSummary(appliedCouponCode, paymentMode).finally(() => {
       setAutoCouponReconciling(false)
     })
   }, [
@@ -1011,7 +1357,16 @@ function CheckoutPage() {
               <div className="p-5">
                 <p className="text-sm text-gray-800">{statusMessage}</p>
                 {checkingPaymentStatus ? (
-                  <p className="text-xs text-gray-500 mt-2">Please don’t refresh this page.</p>
+                  <div className="pt-4 space-y-2">
+                    <p className="text-xs text-gray-500">Please don’t refresh this page.</p>
+                    <button
+                      type="button"
+                      onClick={clearPaymentConfirmation}
+                      className="w-full border border-gray-300 py-2.5 px-4 text-sm font-semibold uppercase bg-white text-black hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 ) : (
                   <div className="pt-4">
                     <button
@@ -1324,14 +1679,11 @@ function CheckoutPage() {
                           required
                         />
                       </div>
-                      {addressForm.phoneNumber && String(addressForm.phoneNumber).length < 10 && (
-                        <p className="mt-1 text-xs text-red-600">Number must be 10 digit</p>
+                      {addressFormPhoneError && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {addressFormPhoneError}
+                        </p>
                       )}
-                      {addressForm.phoneNumber &&
-                        String(addressForm.phoneNumber).length === 10 &&
-                        !/^[6-9]/.test(String(addressForm.phoneNumber)) && (
-                          <p className="mt-1 text-xs text-red-600">Number must start from 6-9</p>
-                        )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
@@ -1519,6 +1871,73 @@ function CheckoutPage() {
               </div>
             )}
 
+            {/* Donation */}
+            <section className="border border-gray-200 rounded-sm p-3.5 sm:p-4 bg-[#fafafa]">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={donationEnabled}
+                  onChange={(e) => handleDonationToggle(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-black"
+                />
+                <span className="text-sm text-gray-800">
+                  Would you like to donate ₹{DEFAULT_DONATION_AMOUNT}?
+                </span>
+              </label>
+              {donationEnabled && (
+                <div className="mt-3 pl-6 space-y-2">
+                  {!donationCustomMode ? (
+                    <p className="text-xs text-gray-600">
+                      Preset amount: ₹{DEFAULT_DONATION_AMOUNT}
+                      {' · '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDonationCustomMode(true)
+                          setDonationPresetUsed(false)
+                          setDonationAmount('')
+                        }}
+                        className="underline text-black hover:no-underline"
+                      >
+                        Enter custom amount
+                      </button>
+                    </p>
+                  ) : (
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1" htmlFor="checkout-donation-amount">
+                        Custom amount (₹)
+                      </label>
+                      <input
+                        id="checkout-donation-amount"
+                        type="number"
+                        min="0"
+                        max={DONATION_MAX_AMOUNT}
+                        step="1"
+                        value={donationAmount}
+                        onChange={(e) => handleDonationCustomAmountChange(e.target.value)}
+                        placeholder={`e.g. ${DEFAULT_DONATION_AMOUNT}`}
+                        className="w-full max-w-[140px] border border-gray-300 px-2.5 py-1.5 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDonationCustomMode(false)
+                          setDonationPresetUsed(true)
+                          setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
+                        }}
+                        className="mt-1.5 block text-xs underline text-black hover:no-underline"
+                      >
+                        Use preset ₹{DEFAULT_DONATION_AMOUNT}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {donationError && (
+                <p className="mt-2 text-xs text-red-600">{donationError}</p>
+              )}
+            </section>
+
             {/* Bill Summary */}
             <section>
               <h2 className="text-sm font-semibold text-black mb-3">Bill Summary</h2>
@@ -1589,6 +2008,12 @@ function CheckoutPage() {
                       <span className="font-medium">{formatRs(totalGst)}</span>
                     </div>
                   )}
+                  {donationLineAmount > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">Donation</span>
+                      <span className="font-medium">{formatRs(donationLineAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-300">
                     <span className="font-bold text-black">Total</span>
                     <span className="font-bold text-base">
@@ -1625,6 +2050,7 @@ function CheckoutPage() {
                   onClick={() => {
                     console.log('[Checkout] paymentMode changed to RAZORPAY')
                     setPaymentMode('RAZORPAY')
+                    setUseWalletForOnline(false)
                   }}
                   className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
                 >
@@ -1634,18 +2060,40 @@ function CheckoutPage() {
                   </span>
                 </button>
 
+                {/* Pay later (Nimble) — disabled
                 <button
                   type="button"
                   onClick={() => {
-                    if (paymentMode !== 'RAZORPAY') {
-                      setPaymentMode('RAZORPAY')
+                    console.log('[Checkout] paymentMode changed to NIMBLE')
+                    setPaymentMode(PAYMENT_MODES.NIMBLE)
+                    setUseWalletForOnline(false)
+                  }}
+                  className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
+                >
+                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">Buy now, pay later</span>
+                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === 'NIMBLE' ? 'border-black bg-black text-white' : 'border-black text-transparent'}`}>
+                    ✓
+                  </span>
+                </button>
+                {paymentMode === PAYMENT_MODES.NIMBLE && (
+                  <p className="px-3.5 sm:px-4 pb-2.5 text-[11px] leading-snug text-[#666] bg-[#f2f2f2]">
+                    Opens Nimbbl checkout — select <strong>Pay Later</strong> (LazyPay, Simpl, etc.) if shown.
+                  </p>
+                )}
+                */}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!walletApplicable) {
+                      setPaymentMode(PAYMENT_MODES.RAZORPAY)
                       setUseWalletForOnline(true)
                       return
                     }
                     setUseWalletForOnline((prev) => !prev)
                   }}
                   className={`w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left transition-opacity ${
-                    paymentMode === 'RAZORPAY' ? 'opacity-100' : 'opacity-50'
+                    walletApplicable ? 'opacity-100' : 'opacity-50'
                   }`}
                 >
                   <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">
@@ -1655,7 +2103,7 @@ function CheckoutPage() {
                     </span>
                   </span>
                   <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${
-                    paymentMode === 'RAZORPAY' && useWalletForOnline ? 'border-black bg-black text-white' : 'border-black text-transparent'
+                    walletApplicable && useWalletForOnline ? 'border-black bg-black text-white' : 'border-black text-transparent'
                   }`}>
                     ✓
                   </span>

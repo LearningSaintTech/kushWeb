@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
@@ -10,6 +10,12 @@ import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
 import { trackEvent } from '../../analytics'
+import {
+  DEFAULT_DONATION_AMOUNT,
+  DONATION_MAX_AMOUNT,
+  donationStateFromCart,
+  buildDonationApiParams,
+} from '../../utils/donation.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -192,8 +198,7 @@ function CartPage() {
   const [addressFormOpen, setAddressFormOpen] = useState(false)
   const [addressFormLoading, setAddressFormLoading] = useState(false)
   const [addressFormError, setAddressFormError] = useState(null)
-  const [addressFormErrors, setAddressFormErrors] = useState({})
-  const [addressFormTouched, setAddressFormTouched] = useState({})
+  const [addressFormPhoneError, setAddressFormPhoneError] = useState(null)
   const [addressForm, setAddressForm] = useState({
     name: '',
     phoneNumber: '',
@@ -204,9 +209,21 @@ function CartPage() {
     addressType: 'HOME',
     isDefault: true,
   })
+  const [addressFormTouched, setAddressFormTouched] = useState({})
+  const [addressFormErrors, setAddressFormErrors] = useState({})
+  const [donationEnabled, setDonationEnabled] = useState(false)
+  const [donationAmount, setDonationAmount] = useState('')
+  const [donationPresetUsed, setDonationPresetUsed] = useState(false)
+  const [donationCustomMode, setDonationCustomMode] = useState(false)
+  const [donationError, setDonationError] = useState(null)
+  const donationInitializedRef = useRef(false)
 
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? pincodeRedux
+
+  useEffect(() => {
+    trackEvent({ eventType: 'cart_view' })
+  }, [])
 
   const lineItems = useMemo(() => {
     if (isAuthenticated) return cartData?.items ?? []
@@ -244,6 +261,17 @@ function CartPage() {
   const fetchPriceSummary = useCallback(async (couponCode = null) => {
     try {
       const params = couponCode ? { couponCode } : {}
+      const donationParams = buildDonationApiParams({
+        donationEnabled,
+        donationAmount,
+        donationPresetUsed,
+      })
+      if (!donationParams) {
+        setDonationError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`)
+        return null
+      }
+      setDonationError(null)
+      Object.assign(params, donationParams)
       const res = await cartService.getPriceSummary(params)
       const data = res?.data?.data ?? res?.data
       setPriceSummary(data?.cartSummary ?? data)
@@ -255,7 +283,38 @@ function CartPage() {
       setPriceSummary(null)
       return null
     }
-  }, [])
+  }, [donationEnabled, donationAmount, donationPresetUsed])
+
+  useEffect(() => {
+    if (donationInitializedRef.current || !cartData?.donation) return
+    const s = donationStateFromCart(cartData.donation)
+    setDonationEnabled(s.donationEnabled)
+    setDonationAmount(s.donationAmount)
+    setDonationPresetUsed(s.donationPresetUsed)
+    setDonationCustomMode(s.donationCustomMode)
+    donationInitializedRef.current = true
+  }, [cartData?.donation])
+
+  const handleDonationToggle = (checked) => {
+    setDonationEnabled(checked)
+    if (checked) {
+      setDonationPresetUsed(true)
+      setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
+      setDonationCustomMode(false)
+    } else {
+      setDonationPresetUsed(false)
+      setDonationAmount('')
+      setDonationCustomMode(false)
+    }
+    setDonationError(null)
+  }
+
+  const handleDonationCustomAmountChange = (value) => {
+    setDonationAmount(value)
+    setDonationPresetUsed(false)
+    setDonationCustomMode(true)
+    setDonationError(null)
+  }
 
   const fetchAvailableCoupons = useCallback(async () => {
     const res = await couponsService.getAvailable({ page: 1, limit: 50 })
@@ -350,11 +409,19 @@ function CartPage() {
       .catch(() => setDeliveryOptionsFromPincode([]))
   }, [pincode])
 
-  // When cart items or coupon change, refresh price summary
+  // When cart items, coupon, or donation change, refresh price summary
   useEffect(() => {
     if (!cartData?.items?.length || !isAuthenticated) return
     fetchPriceSummary(appliedCouponCode || null)
-  }, [cartData?.items?.length, appliedCouponCode, isAuthenticated])
+  }, [
+    cartData?.items?.length,
+    appliedCouponCode,
+    isAuthenticated,
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+    fetchPriceSummary,
+  ])
 
   const handleIncreaseQty = async (sku, row) => {
     if (row?.isGuest && row.guestProductId != null) {
@@ -517,8 +584,9 @@ function CartPage() {
 
   const openAddressForm = () => {
     setAddressFormError(null)
-    setAddressFormErrors({})
+    setAddressFormPhoneError(null)
     setAddressFormTouched({})
+    setAddressFormErrors({})
     setAddressForm({
       name: '',
       phoneNumber: '',
@@ -553,6 +621,8 @@ function CartPage() {
   const handleAddressFormSubmit = async (e) => {
     e.preventDefault()
     setAddressFormError(null)
+    setAddressFormPhoneError(null)
+    const validation = validateAddressForm(addressForm)
     setAddressFormTouched({
       name: true,
       phoneNumber: true,
@@ -562,16 +632,19 @@ function CartPage() {
       pinCode: true,
       addressType: true,
     })
-    const errors = validateAddressForm(addressForm)
-    setAddressFormErrors(errors)
-    if (Object.keys(errors).length > 0) return
-
+    setAddressFormErrors(validation)
+    if (Object.keys(validation).length > 0) {
+      if (validation.phoneNumber) setAddressFormPhoneError(validation.phoneNumber)
+      setAddressFormError('Please fix the highlighted fields.')
+      return
+    }
     const pin = digitsOnly(addressForm.pinCode, 6)
+    const phoneDigits = digitsOnly(addressForm.phoneNumber, 10)
     setAddressFormLoading(true)
     try {
       const payload = {
-        name: normalizeSpaces(addressForm.name),
-        phoneNumber: digitsOnly(addressForm.phoneNumber, 10),
+        name: addressForm.name.trim(),
+        phoneNumber: phoneDigits,
         countryCode: INDIA_PHONE_CODE,
         addressLine: normalizeSpaces(addressForm.addressLine),
         city: normalizeSpaces(addressForm.city),
@@ -612,6 +685,17 @@ function CartPage() {
   const chargesList = isAuthenticated && Array.isArray(summary.charges) ? summary.charges : []
   const taxableAmount = summary.taxableAmount ?? 0
   const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0
+  const donationLineAmount =
+    summary.donation?.enabled && Number(summary.donation?.amount) > 0
+      ? Number(summary.donation.amount)
+      : 0
+  const donationForCheckout = donationEnabled
+    ? {
+        enabled: true,
+        amount: donationPresetUsed ? DEFAULT_DONATION_AMOUNT : Number(donationAmount) || 0,
+        presetUsed: donationPresetUsed,
+      }
+    : { enabled: false, amount: 0, presetUsed: false }
   const subTotalAfterDiscount = isAuthenticated
     ? (summary.subTotalAfterDiscount ?? summary.subTotal ?? 0)
     : guestSubTotal
@@ -1069,12 +1153,15 @@ function CartPage() {
                           onBlur={() => touchAddressField('phoneNumber')}
                           className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
                           placeholder="10-digit mobile number"
-                          maxLength={10}
-                          pattern="[0-9]{10}"
                           required
                         />
                       </div>
-                      {addressFormTouched.phoneNumber && addressFormErrors.phoneNumber && <p className="mt-1 text-xs text-red-600">{addressFormErrors.phoneNumber}</p>}
+                      {(addressFormPhoneError ||
+                        (addressFormTouched.phoneNumber && addressFormErrors.phoneNumber)) && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {addressFormPhoneError || addressFormErrors.phoneNumber}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
@@ -1306,6 +1393,75 @@ function CartPage() {
               </div>
             )}
 
+            {/* Donation */}
+            {isAuthenticated && (
+              <section className="border border-gray-200 rounded-sm p-3.5 sm:p-4 bg-[#fafafa]">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={donationEnabled}
+                    onChange={(e) => handleDonationToggle(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-black"
+                  />
+                  <span className="text-sm text-gray-800">
+                    Would you like to donate ₹{DEFAULT_DONATION_AMOUNT}?
+                  </span>
+                </label>
+                {donationEnabled && (
+                  <div className="mt-3 pl-6 space-y-2">
+                    {!donationCustomMode ? (
+                      <p className="text-xs text-gray-600">
+                        Preset amount: ₹{DEFAULT_DONATION_AMOUNT}
+                        {' · '}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDonationCustomMode(true)
+                            setDonationPresetUsed(false)
+                            setDonationAmount('')
+                          }}
+                          className="underline text-black hover:no-underline"
+                        >
+                          Enter custom amount
+                        </button>
+                      </p>
+                    ) : (
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1" htmlFor="cart-donation-amount">
+                          Custom amount (₹)
+                        </label>
+                        <input
+                          id="cart-donation-amount"
+                          type="number"
+                          min="0"
+                          max={DONATION_MAX_AMOUNT}
+                          step="1"
+                          value={donationAmount}
+                          onChange={(e) => handleDonationCustomAmountChange(e.target.value)}
+                          placeholder={`e.g. ${DEFAULT_DONATION_AMOUNT}`}
+                          className="w-full max-w-[140px] border border-gray-300 px-2.5 py-1.5 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDonationCustomMode(false)
+                            setDonationPresetUsed(true)
+                            setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
+                          }}
+                          className="mt-1.5 block text-xs underline text-black hover:no-underline"
+                        >
+                          Use preset ₹{DEFAULT_DONATION_AMOUNT}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {donationError && (
+                  <p className="mt-2 text-xs text-red-600">{donationError}</p>
+                )}
+              </section>
+            )}
+
             {/* Bill Summary */}
             <section>
               <h2 className="text-sm font-semibold text-black mb-3">Bill Summary</h2>
@@ -1357,6 +1513,12 @@ function CartPage() {
                     <span className="font-medium">{formatRs(totalGst)}</span>
                   </div>
                 )}
+                {donationLineAmount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Donation</span>
+                    <span className="font-medium">{formatRs(donationLineAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-300">
                   <span className="font-bold text-black">Total</span>
                   <span className="font-bold text-base">
@@ -1391,6 +1553,7 @@ function CartPage() {
                     couponCode: appliedCouponCode || null,
                     selectedAddress: selectedAddress || null,
                     addresses: addresses?.length ? addresses : null,
+                    donation: donationForCheckout,
                   }}
                   onClick={() => {
                     pushDataLayer({

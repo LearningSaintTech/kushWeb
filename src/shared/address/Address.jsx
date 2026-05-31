@@ -80,6 +80,7 @@ export default function Address() {
   })
   const currentPincode = useSelector((s) => s?.location?.pincode)
   const [formError, setFormError] = useState(null)
+  const [phoneError, setPhoneError] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
   const [mapGeocoding, setMapGeocoding] = useState(false)
   const [pinAutofetchLoading, setPinAutofetchLoading] = useState(false)
@@ -137,6 +138,7 @@ export default function Address() {
     setModalMode("create");
     setEditingAddressId(null);
     setFormError(null);
+    setPhoneError(null);
     setAddressSearchQuery("");
     setAddressSearchResults([]);
     setAddressSearchOpen(false);
@@ -160,6 +162,7 @@ export default function Address() {
     setModalMode('edit')
     setEditingAddressId(addr?._id ?? null)
     setFormError(null)
+    setPhoneError(null)
     setForm({
       name: addr?.name ?? '',
       phoneNumber: addr?.phoneNumber ?? '',
@@ -309,27 +312,29 @@ export default function Address() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+    setPhoneError(null);
 
     const phoneDigits = String(form.phoneNumber || "")
       .trim()
       .replace(/\D/g, "");
-    setPhoneTouched(true)
+    setPhoneTouched(true);
     const pin = String(form.pinCode || "")
       .trim()
       .replace(/\D/g, "");
     if (
       !form.name?.trim() ||
+      !phoneDigits ||
       !form.addressLine?.trim() ||
       !form.city?.trim() ||
       !form.state?.trim() ||
       !pin
     ) {
-      setFormError("Please fill name, address, city, state and pincode.");
+      setFormError("Please fill name, phone number, address, city, state and pincode.");
+      if (!phoneDigits) setPhoneError("Phone number is required.");
       return;
     }
-
     if (phoneDigits.length !== 10) {
-      setFormError("Phone number must be exactly 10 digits.");
+      setPhoneError("Phone number must be 10 digits.");
       return;
     }
     if (
@@ -813,16 +818,11 @@ export default function Address() {
                     className="min-w-0 flex-1 border-0 py-2 text-sm outline-none placeholder:text-gray-400"
                   />
                 </div>
-                {(() => {
-                  const digits = String(form.phoneNumber || "").replace(/\D/g, "")
-                  const show = phoneTouched && digits.length > 0 && digits.length < 10
-                  if (!show) return null
-                  return (
-                    <p className="mt-1 text-xs text-red-600">
-                      Number must be 10 digits.
-                    </p>
-                  )
-                })()}
+                {phoneError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {phoneError}
+                  </p>
+                )}
               </div>
               <button
                 type="submit"

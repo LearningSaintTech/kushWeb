@@ -112,6 +112,7 @@ const ProductCard = React.memo(function ProductCard({
   price,
   originalPrice,
   delivery,
+  
   rating,
   rounded = "lg",
   roundedTop,

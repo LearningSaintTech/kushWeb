@@ -4,6 +4,7 @@ import { useAuth } from "../../app/context/AuthContext";
 import { useNotification } from "../../app/context/NotificationContext";
 import { notificationService } from "../../services/notification.service.js";
 import { ROUTES } from "../../utils/constants";
+import { trackEvent } from "../../analytics";
 import coupon from "../../assets/images/coupon/khushnotifi.svg";
 const PAGE_SIZE = 20;
 
@@ -88,6 +89,14 @@ export default function NotificationsPage() {
   };
 
   const handleNotificationClick = (n) => {
+    trackEvent({
+      eventType: "notification_opened",
+      meta: {
+        notificationId: n?._id ? String(n._id) : undefined,
+        module: n?.module || undefined,
+        referenceId: n?.referenceId ? String(n.referenceId) : undefined,
+      },
+    });
     if (!n.read) handleMarkRead(n._id);
     if (n.module === "order" && n.referenceId) {
       // Backend sends referenceId = orderId only (no itemId); track URL needs both. Link to orders list.

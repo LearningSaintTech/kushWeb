@@ -5,6 +5,7 @@ export const ROUTES = {
   PRODUCT: '/product/:slug/:id',
   AUTH: '/auth',
   CHECKOUT: '/checkout',
+  CHECKOUT_NIMBLE_CALLBACK: '/checkout/nimble/callback',
   SEARCH: '/search',
   /** Section explore (Explore More from home sections): /section/:sectionId */
   SECTION_EXPLORE: '/section/:sectionId',
@@ -21,6 +22,7 @@ export const ROUTES = {
   GIFTCARD: '/giftcard',
   ADDRESS: '/address',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',
+  RETURN_POLICY: '/return-policy',
   PAYMENT_POLICY: '/payment-policy',
   SHIPPING_DELIVERY_POLICY: '/shipping-delivery-policy',
   FAQS: '/faqs',

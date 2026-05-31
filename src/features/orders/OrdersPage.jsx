@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
 import { ROUTES, getOrderTrackPath } from '../../utils/constants'
+import { formatPaymentLine, PAYMENT_MODES } from '../../utils/paymentMode'
 
 const LOG = (...args) => {
   if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
@@ -38,13 +39,6 @@ function formatOrderDateTime(dateVal) {
   const min = String(d.getMinutes()).padStart(2, '0')
   const ampm = d.getHours() >= 12 ? 'PM' : 'AM'
   return `${date} ${month} ${year}, ${h}:${min} ${ampm}`
-}
-
-function getPaymentModeLabel(oi) {
-  const mode = oi?.payment?.mode ?? oi?.item?.paymentMode ?? ''
-  if (mode === 'COD') return 'Cash on Delivery'
-  if (mode === 'RAZORPAY' || mode === 'PREPAID') return 'Prepaid'
-  return mode || '—'
 }
 
 /** Normalize API line status (e.g. Shiprocket "PICKED UP" → PICKED_UP) for comparisons */
@@ -291,6 +285,11 @@ function OrdersPage() {
             <p className="mt-1 text-xs sm:text-sm text-gray-700">
               Order ID: <span className="font-mono font-medium">{orderIdFromState}</span>
             </p>
+            {location.state?.paymentMode === PAYMENT_MODES.NIMBLE && (
+              <p className="mt-1 text-xs sm:text-sm text-gray-600">
+                Paid with Buy now, pay later. Your EMI schedule is managed by our payment partner.
+              </p>
+            )}
             <div className="mt-4 flex flex-wrap gap-2 sm:gap-3">
               <Link to={ROUTES.SEARCH} className="inline-block px-4 py-2 bg-black text-white text-xs sm:text-sm font-medium uppercase hover:bg-gray-800">
                 Continue shopping
@@ -392,7 +391,7 @@ function OrdersPage() {
                             </p>
                           )}
                           <p className="text-gray-500 text-[10px] sm:text-[11px] mt-0.5">
-                            Payment: {getPaymentModeLabel(oi)}
+                            Payment: {formatPaymentLine(oi)}
                           </p>
                         </div>
                       </div>
@@ -402,7 +401,7 @@ function OrdersPage() {
                         {oi.orderCreatedAt && (
                           <p className="text-gray-500 text-[10px] sm:text-[11px]">Placed {formatOrderDateTime(oi.orderCreatedAt)}</p>
                         )}
-                        <p className="text-gray-500 text-[10px] sm:text-[11px]">Payment: {getPaymentModeLabel(oi)}</p>
+                        <p className="text-gray-500 text-[10px] sm:text-[11px]">Payment: {formatPaymentLine(oi)}</p>
                         <p
                           className={`font-bold uppercase text-[11px] sm:text-xs px-2 py-1 rounded inline-block border ${
                             statusDisplay.type === 'cancelled'
