@@ -1,24 +1,33 @@
 import React, { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import Banner from './components/Banner'
+import SpecialDiscount from './components/SpecialDiscount'
+import LimitedEdition from './components/LimitedEdition'
 import OurProduct from './components/OurProduct'
-import BestSellar from './components/BestSellar'
-import Collection from './components/Collection'
-import OurCategory from './components/OurCategory'
+// import Collection from './components/Collection'
+// import OurCategory from './components/OurCategory'
 import NewArrivals from './components/NewArrivals'
-// import Couples from './components/Couples'
-// import WearYour from './components/WearYour'
 import HomePageLoader from './components/HomePageLoader'
+import { GiftCardBanner } from '../giftcard'
+import StaticCard from '../staticCards/StaticCard.jsx'
 import { sectionsService } from '../../services/content.service.js'
 
-// API webOrder 1,2,3zz... maps to these components. WearYour is static (not in API order).
+/** webOrder → home section component (static fallbacks when no API section for that slot). */
 const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
   // 2: Couples,
   // 3: OurCategory,
-  // 4: Collection,
-  // 5: BestSellar,
+  4: SpecialDiscount,
+  5: LimitedEdition,
   6: OurProduct,
+}
+
+const HOME_SLOT_ORDERS = [1, 4, 5, 6]
+
+function getSectionWebOrder(section) {
+  let order = section.webOrder ?? section.webinfo?.webOrder ?? 999
+  if (order === 0) order = 1
+  return order
 }
 
 function HomePage() {
@@ -36,23 +45,25 @@ function HomePage() {
     sectionsService
       .getActive(params)
       .then((res) => {
-        console.log("res", res)
         if (cancelled) return
+        console.log('[HomePage] sections API response:', res)
+        console.log('[HomePage] sections API data:', res?.data)
         const raw = res?.data?.data?.items ?? res?.data?.items ?? []
-        console.log("raw", raw)
+        console.log('[HomePage] sections items (raw):', raw)
         const sorted = [...raw].sort(
-          (a, b) => (a.webinfo?.webOrder ?? 999) - (b.webinfo?.webOrder ?? 999)
+          (a, b) => getSectionWebOrder(a) - getSectionWebOrder(b)
         )
-        console.log("sorted", sorted)
+        console.log('[HomePage] sections sorted by webOrder:', sorted)
         const byOrder = {}
         sorted.forEach((s) => {
-          let order = s.webinfo?.webOrder ?? 999
-          if (order === 0) order = 1 // webOrder 0 → slot 1 (New Arrivals)
+          const order = getSectionWebOrder(s)
           if (order >= 1 && order <= 6) byOrder[order] = s
         })
+        console.log('[HomePage] sections by slot (webOrder):', byOrder)
         setSectionsByOrder(byOrder)
       })
       .catch((err) => {
+        console.error('[HomePage] sections API error:', err)
         if (!cancelled) setError(err?.message ?? 'Failed to load sections')
       })
       .finally(() => {
@@ -64,6 +75,8 @@ function HomePage() {
   return (
     <div>
       <Banner />
+      <StaticCard />
+      <GiftCardBanner />
       {loading && <HomePageLoader />}
       {error && (
         <div className="container mx-auto px-4 py-8 text-center text-red-600">
@@ -73,27 +86,17 @@ function HomePage() {
       {!loading && !error && (
         <div className="bg-white">
           <div className="pt-8 md:pt-12 lg:pt-16 space-y-8 md:space-y-12 lg:space-y-16">
-            {[1, 6].map((order) => {
+            {HOME_SLOT_ORDERS.map((order) => {
               const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
               const section = sectionsByOrder[order]
+              if (!SectionComponent) return null
               return (
-                <React.Fragment key={order}>
-                  {/* {order === 2 && <WearYour key="wear-your-static" />} */}
-                  {SectionComponent ? <SectionComponent key={`section-${order}`} section={section} /> : null}
-                </React.Fragment>
+                <SectionComponent
+                  key={`home-slot-${order}`}
+                  section={section}
+                />
               )
             })}
-            {Object.keys(sectionsByOrder).length === 0 && (
-              <>
-                <NewArrivals />
-                {/* <WearYour /> */}
-                {/* <Couples /> */}
-                {/* <OurCategory /> */}
-                {/* <Collection /> */}
-                {/* <BestSellar /> */}
-                <OurProduct />
-              </>
-            )}
           </div>
         </div>
       )}

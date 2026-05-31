@@ -169,9 +169,10 @@ const Wallet = () => {
   const renderedTransactions = useMemo(() => transactions.slice(0, 6), [transactions])
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 mt-20">
-      <h1 className="font-inter text-3xl font-semibold text-black">Wallet</h1>
-
+    <div className="mx-auto mt-16 w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 md:mt-20 md:px-6">
+      <h1 className="font-inter text-2xl font-semibold text-black sm:text-3xl">
+        Wallet
+      </h1>
       <section className="relative mt-4 overflow-hidden rounded-lg border border-[#d6d6d6] bg-white p-5">
         <div className="absolute -left-3 -top-3 h-12 w-12 rounded-full bg-black/5" />
         <div className="absolute -bottom-8 right-10 h-24 w-24 rounded-full bg-black/5" />
@@ -180,9 +181,13 @@ const Wallet = () => {
           <div>
             <div className="flex items-center gap-2">
               <WalletBadgeIcon />
-              <p className="font-inter text-3xl font-semibold text-black">AVAILABLE BALANCE</p>
+              <p className="font-inter text-lg font-semibold text-black sm:text-2xl md:text-3xl">
+                AVAILABLE BALANCE
+              </p>
             </div>
-            <p className="mt-1 pl-8 font-['Rubik'] text-4xl text-[#5c5c5c]">{formatMoney(walletBalance).toUpperCase()}</p>
+            <p className="mt-1 pl-8 font-['Rubik'] text-2xl text-[#5c5c5c] sm:text-3xl md:text-4xl">
+              {formatMoney(walletBalance).toUpperCase()}
+            </p>
           </div>
         </div>
 
@@ -202,7 +207,9 @@ const Wallet = () => {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-inter text-4xl font-semibold text-black">Last Transaction</h2>
+        <h2 className="font-inter text-2xl font-semibold text-black sm:text-3xl md:text-4xl">
+          Last Transaction
+        </h2>
         {error && <p className="mt-3 font-inter text-sm text-red-600">{error}</p>}
         {loading && <p className="mt-3 font-inter text-sm text-gray-500">Loading transactions...</p>}
         {!loading && renderedTransactions.length === 0 && (
@@ -212,9 +219,9 @@ const Wallet = () => {
           {renderedTransactions.map((transaction) => (
             <article
               key={transaction?._id}
-              className="flex items-center justify-between gap-4 rounded-lg border border-[#e8e8e8] bg-white px-6 py-5 shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
+              className="flex w-full items-start justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-4 shadow-[0_1px_6px_rgba(0,0,0,0.06)] sm:items-center sm:gap-4 sm:px-5 md:px-6"
             >
-              <div className="flex min-w-0 items-start gap-3">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
                 <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#f4f4f4]">
                   <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current text-black" aria-hidden="true">
                     <path d="M3.5 5.25A2.25 2.25 0 0 1 5.75 3h8.5a2.25 2.25 0 0 1 2.25 2.25V6h-2.75A2.75 2.75 0 0 0 11 8.75v2.5A2.75 2.75 0 0 0 13.75 14h2.75v.75A2.25 2.25 0 0 1 14.25 17h-8.5A2.25 2.25 0 0 1 3.5 14.75v-9.5Z" />
@@ -222,16 +229,22 @@ const Wallet = () => {
                   </svg>
                 </span>
                 <div className="min-w-0">
-                  <p className="font-inter truncate text-lg font-bold uppercase text-black">
+                  <p className="font-inter max-w-[150px] truncate text-base font-bold uppercase text-black sm:max-w-none sm:text-lg md:text-xl">
                     {getWalletTransactionTitle(transaction?.transaction_source)}
                   </p>
-                  <p className="font-['Poppins'] text-lg text-[#5d5d5d]">
+                  <p className="font-['Poppins'] text-base text-[#5d5d5d] sm:text-lg md:text-xl">
                     {(transaction?.transaction_source || 'TRANSACTION').replaceAll('_', ' ')}
                   </p>
-                  <p className="font-['Poppins'] text-sm text-[#101010]">{formatDateTime(transaction?.createdAt)}</p>
+                  <p className="font-['Poppins'] text-xs text-[#101010] sm:text-sm md:text-base">
+                    {formatDateTime(transaction?.createdAt)}
+                  </p>
+
                 </div>
               </div>
-              <p className={`font-['Rubik'] text-4xl font-medium ${transaction?.type === 'CREDIT' ? 'text-[#4f9428]' : 'text-black'}`}>
+              <p
+                className={`shrink-0 whitespace-nowrap text-right font-['Rubik'] text-2xl font-medium sm:text-3xl md:text-4xl ${transaction?.type === 'CREDIT' ? 'text-[#4f9428]' : 'text-black'
+                  }`}
+              >
                 {transaction?.type === 'CREDIT' ? '+ ' : '- '}
                 {formatMoney(transaction?.amount)}
               </p>
@@ -275,9 +288,8 @@ const Wallet = () => {
                     setInputAmount(amount)
                     setPaymentError('')
                   }}
-                  className={`font-['Rubik'] h-10 rounded-full px-5 text-[26px] ${
-                    selectedAmount === amount ? 'bg-black text-white' : 'bg-[#efefef] text-[#666666]'
-                  }`}
+                  className={`font-['Rubik'] h-10 rounded-full px-5 text-[26px] ${selectedAmount === amount ? 'bg-black text-white' : 'bg-[#efefef] text-[#666666]'
+                    }`}
                 >
                   ₹{amount}
                 </button>

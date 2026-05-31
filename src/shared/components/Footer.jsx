@@ -8,6 +8,7 @@ import {
   subcategoriesService,
 } from "../../services/categories.service.js";
 import { contactUsService } from "../../services";
+import { CONTACT_LIMITS, validateContactForm } from "../../utils/validators";
 import {
   FaFacebookF,
   FaInstagram,
@@ -79,6 +80,8 @@ function Footer() {
     message: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [contactStatus, setContactStatus] = useState(null);
+  const [contactFieldErrors, setContactFieldErrors] = useState({});
   const [footerSections, setFooterSections] = useState([]);
   const [collectionsLoaded, setCollectionsLoaded] = useState(false);
 
@@ -174,24 +177,53 @@ function Footer() {
   const handleContactChange = (e) => {
     const { name, value } = e.target;
     setContactForm((prev) => ({ ...prev, [name]: value }));
+    if (contactFieldErrors[name]) {
+      setContactFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
+    if (contactStatus) setContactStatus(null);
   };
+
+  const handleContactBlur = (e) => {
+    const { name } = e.target;
+    const result = validateContactForm(contactForm, { phoneRequired: false });
+    if (result.errors[name]) {
+      setContactFieldErrors((prev) => ({ ...prev, [name]: result.errors[name] }));
+    }
+  };
+
+  const contactInputClass = (field) =>
+    `w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
+      contactFieldErrors[field]
+        ? "border-red-500 focus:ring-red-500"
+        : "border-gray-300 focus:ring-black"
+    }`;
 
   const handleContactSubmit = async (e) => {
     e.preventDefault();
-    const { name, email, phone, subject, message } = contactForm;
-    if (!name.trim() || !email.trim() || !message.trim()) return;
+    const result = validateContactForm(contactForm, { phoneRequired: false });
+    if (!result.valid) {
+      setContactFieldErrors(result.errors);
+      setContactStatus({ type: "error", text: "Please fix the errors below." });
+      return;
+    }
+
+    const { name, email, phone, subject, message } = result.values;
 
     try {
       setIsSubmitting(true);
+      setContactStatus(null);
+      setContactFieldErrors({});
       await contactUsService.submit({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || undefined,
-        subject: subject.trim() || undefined,
-        message: message.trim(),
-        source: "web-footer-modal",
+        name,
+        email,
+        phone: phone || undefined,
+        subject: subject || undefined,
+        message,
       });
-      setShowContactForm(false);
       setContactForm({
         name: "",
         email: "",
@@ -199,12 +231,25 @@ function Footer() {
         subject: "",
         message: "",
       });
+      setContactStatus({
+        type: "success",
+        text: "Thank you! We received your message and will respond soon.",
+      });
     } catch (err) {
-      // optional: surface error via toast/snackbar
       console.error("Failed to submit contact-us request from footer modal", err);
+      setContactStatus({
+        type: "error",
+        text: err?.message || "Something went wrong. Please try again.",
+      });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const closeContactModal = () => {
+    setShowContactForm(false);
+    setContactStatus(null);
+    setContactFieldErrors({});
   };
 
   const sectionsToRender = footerSections.length
@@ -276,7 +321,7 @@ function Footer() {
                   className="w-full flex items-center gap-3 border-b border-white/40 pb-3 text-left"
                 >
                   <span className="flex-1 bg-transparent text-white/50 text-sm tracking-widest">
-                    CONTACT US
+                    SHARE YOUR FEEDBACK
                   </span>
                   <span className="hover:opacity-80 transition">➤</span>
                 </button>
@@ -368,7 +413,7 @@ function Footer() {
                         to={ROUTES.TERMS_CONDITIONS}
                         className="hover:text-white transition-colors"
                       >
-                        Terms & Conditions
+                        Terms & Conditions  
                       </Link>
                     </li>
                     <li>
@@ -474,7 +519,7 @@ function Footer() {
           <div className="bg-white text-black w-full max-w-lg rounded-2xl shadow-2xl p-6 sm:p-8 relative">
             <button
               type="button"
-              onClick={() => setShowContactForm(false)}
+              onClick={closeContactModal}
               className="absolute right-4 top-4 text-gray-500 hover:text-black"
             >
               ✕
@@ -485,91 +530,153 @@ function Footer() {
             <p className="text-sm text-gray-600 mb-6">
               Share your query or feedback and our team will get back to you.
             </p>
-            <form onSubmit={handleContactSubmit} className="space-y-4">
+            <form onSubmit={handleContactSubmit} noValidate className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label htmlFor="footer-contact-name" className="block text-xs font-medium text-gray-700 mb-1">
                     Name*
                   </label>
                   <input
+                    id="footer-contact-name"
                     type="text"
                     name="name"
-                    required
                     value={contactForm.name}
                     onChange={handleContactChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                    onBlur={handleContactBlur}
+                    maxLength={CONTACT_LIMITS.nameMax}
+                    autoComplete="name"
+                    aria-invalid={contactFieldErrors.name ? true : undefined}
+                    aria-describedby={contactFieldErrors.name ? "footer-contact-name-error" : undefined}
+                    className={contactInputClass("name")}
                   />
+                  {contactFieldErrors.name && (
+                    <p id="footer-contact-name-error" className="mt-1 text-xs text-red-600" role="alert">
+                      {contactFieldErrors.name}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label htmlFor="footer-contact-email" className="block text-xs font-medium text-gray-700 mb-1">
                     Email*
                   </label>
                   <input
+                    id="footer-contact-email"
                     type="email"
                     name="email"
-                    required
                     value={contactForm.email}
                     onChange={handleContactChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                    onBlur={handleContactBlur}
+                    maxLength={CONTACT_LIMITS.emailMax}
+                    autoComplete="email"
+                    aria-invalid={contactFieldErrors.email ? true : undefined}
+                    aria-describedby={contactFieldErrors.email ? "footer-contact-email-error" : undefined}
+                    className={contactInputClass("email")}
                   />
+                  {contactFieldErrors.email && (
+                    <p id="footer-contact-email-error" className="mt-1 text-xs text-red-600" role="alert">
+                      {contactFieldErrors.email}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label htmlFor="footer-contact-phone" className="block text-xs font-medium text-gray-700 mb-1">
                     Phone
                   </label>
                   <input
+                    id="footer-contact-phone"
                     type="tel"
                     name="phone"
+                    inputMode="tel"
                     value={contactForm.phone}
                     onChange={handleContactChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                    onBlur={handleContactBlur}
+                    maxLength={15}
+                    autoComplete="tel"
+                    aria-invalid={contactFieldErrors.phone ? true : undefined}
+                    aria-describedby={contactFieldErrors.phone ? "footer-contact-phone-error" : undefined}
+                    className={contactInputClass("phone")}
                   />
+                  {contactFieldErrors.phone && (
+                    <p id="footer-contact-phone-error" className="mt-1 text-xs text-red-600" role="alert">
+                      {contactFieldErrors.phone}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label htmlFor="footer-contact-subject" className="block text-xs font-medium text-gray-700 mb-1">
                     Subject
                   </label>
                   <input
+                    id="footer-contact-subject"
                     type="text"
                     name="subject"
                     value={contactForm.subject}
                     onChange={handleContactChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                    onBlur={handleContactBlur}
+                    maxLength={CONTACT_LIMITS.subjectMax}
+                    aria-invalid={contactFieldErrors.subject ? true : undefined}
+                    aria-describedby={contactFieldErrors.subject ? "footer-contact-subject-error" : undefined}
+                    className={contactInputClass("subject")}
                   />
+                  {contactFieldErrors.subject && (
+                    <p id="footer-contact-subject-error" className="mt-1 text-xs text-red-600" role="alert">
+                      {contactFieldErrors.subject}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label htmlFor="footer-contact-message" className="block text-xs font-medium text-gray-700 mb-1">
                   Message*
                 </label>
                 <textarea
+                  id="footer-contact-message"
                   name="message"
                   rows={4}
-                  required
                   value={contactForm.message}
                   onChange={handleContactChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black resize-none"
+                  onBlur={handleContactBlur}
+                  maxLength={CONTACT_LIMITS.messageMax}
+                  aria-invalid={contactFieldErrors.message ? true : undefined}
+                  aria-describedby={contactFieldErrors.message ? "footer-contact-message-error" : undefined}
+                  className={`${contactInputClass("message")} resize-none`}
                 />
+                {contactFieldErrors.message && (
+                  <p id="footer-contact-message-error" className="mt-1 text-xs text-red-600" role="alert">
+                    {contactFieldErrors.message}
+                  </p>
+                )}
               </div>
+
+              {contactStatus && (
+                <p
+                  className={`text-sm ${
+                    contactStatus.type === "success" ? "text-green-700" : "text-red-600"
+                  }`}
+                  role="alert"
+                >
+                  {contactStatus.text}
+                </p>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowContactForm(false)}
+                  onClick={closeContactModal}
                   className="px-4 py-2 text-sm border border-gray-300 rounded-full hover:bg-gray-100"
                 >
-                  Cancel
+                  {contactStatus?.type === "success" ? "Close" : "Cancel"}
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-900 disabled:opacity-50"
+                  className="px-5 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Submit
+                  {isSubmitting ? "Submitting…" : "Submit"}
                 </button>
               </div>
             </form>

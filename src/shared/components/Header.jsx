@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { ROUTES, getSearchPath } from "../../utils/constants";
+import { getPublicImageUrl } from "../../services/config.js";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { useNavbarMenu } from "../../app/hooks/useNavbarMenu";
@@ -51,6 +52,51 @@ function DiamondIcon({ className }) {
     <svg className={className} viewBox="0 0 8 8" fill="currentColor">
       <path d="M4 0L8 4L4 8L0 4L4 0z" />
     </svg>
+  );
+}
+
+function ChevronRightIcon({ className }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+function getSubcategoryIconUrl(sub) {
+  if (!sub) return "";
+  if (sub.iconUrl) return getPublicImageUrl(sub.iconUrl);
+  if (sub.iconKey) return getPublicImageUrl(sub.iconKey);
+  return "";
+}
+
+function SubcategoryMenuIcon({ sub }) {
+  const src = getSubcategoryIconUrl(sub);
+  if (!src) {
+    return (
+      <span
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-gray-50"
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      className="h-5 w-5 shrink-0 object-contain"
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      aria-hidden
+    />
   );
 }
 
@@ -154,14 +200,15 @@ function ReferEarnIcon({ className }) {
   );
 }
 
-function IconBadge({ count, children, scrolled }) {
+function IconBadge({ count, children, scrolled, mobileDark = false }) {
+  const darkBadge = mobileDark || scrolled;
   return (
     <span className="relative inline-block">
       {children}
       {count > 0 && (
         <span
-          className={`font-inter absolute -right-1 -top-1 md:-right-[0.52vw] md:-top-[0.52vw] flex h-3 w-3 md:h-[0.83vw] md:min-w-[0.83vw] items-center justify-center rounded-full px-0.5 md:px-[0.21vw] text-[10px] md:text-[0.52vw] font-medium ${
-            scrolled ? "bg-black text-white" : "bg-white text-black"
+          className={`font-inter absolute -right-1 -top-1 md:-right-[0.52vw] md:-top-[0.52vw] flex h-4 w-4 md:h-[0.83vw] md:min-w-[0.83vw] items-center justify-center rounded-full px-0.5 md:px-[0.21vw] text-[10px] md:text-[0.52vw] font-medium leading-none ${
+            darkBadge ? "bg-black text-white" : "bg-white text-black"
           }`}
         >
           {count > 99 ? "99+" : count}
@@ -170,6 +217,38 @@ function IconBadge({ count, children, scrolled }) {
     </span>
   );
 }
+
+function KhushMobileLogo({ className = "h-9 w-9" }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 40 40"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M9.86179 8.1033L17.0941 7.9089C17.8917 7.88925 19.4662 7.79205 20.0497 7.20887C20.1863 7.07236 20.2639 6.9566 20.2049 6.74255L20.3218 6.6257L22.8688 9.17136L22.7519 9.28821C19.4083 8.08364 15.9282 8.5303 12.4284 8.56962C17.2886 12.5721 8.30694 21.394 11.3587 24.4453C11.9805 25.0667 12.895 25.2807 13.7309 25.0667L13.7888 25.2414C12.5836 25.5134 11.3194 25.1049 10.4638 24.2509C6.16752 19.9568 14.7798 11.3479 12.1356 8.70504L12.0187 8.58818L9.25755 8.70504L3.5801 14.3795C3.05563 14.9037 2.86114 15.7206 3.11354 16.4392L3.01629 16.5364L0.0803223 13.602L0.17757 13.5048C0.916207 13.6992 1.73242 13.5048 2.27766 12.9609L13.0676 2.17653C13.6315 1.61302 13.8259 0.874763 13.5735 0.116854L13.6905 0L16.6264 2.93444L16.5095 3.05129C15.8288 2.79902 15.0126 2.9541 14.4881 3.4783L9.8607 8.1033H9.86179Z"
+        fill="currentColor"
+      />
+      <path
+        d="M8.10752 29.8889L7.91302 22.6604C7.89335 21.8631 7.79611 20.2894 7.21263 19.7063C7.07605 19.5698 6.96023 19.4922 6.74606 19.5512L6.62915 19.4343L9.17614 16.8887L9.29305 17.0055C8.08785 20.3473 8.53475 23.8256 8.57408 27.3236C12.5787 22.466 21.4052 31.4429 24.458 28.3927C25.0798 27.7713 25.2939 26.8573 25.0798 26.0218L25.2546 25.9639C25.5267 27.1685 25.118 28.432 24.2635 29.2872C19.9672 33.5812 11.3538 24.9734 8.70957 27.6163L8.59265 27.7331L8.70957 30.4928L14.387 36.1673C14.9115 36.6915 15.7288 36.8859 16.4478 36.6336L16.545 36.7308L13.609 39.6653L13.5118 39.5681C13.7063 38.8298 13.5118 38.014 12.9677 37.4691L2.17766 26.6847C1.61385 26.1212 0.875219 25.9268 0.116915 26.1791L0 26.0622L2.93597 23.1278L3.05288 23.2446C2.80048 23.925 2.95564 24.7408 3.48011 25.265L8.10752 29.89V29.8889Z"
+        fill="currentColor"
+      />
+      <path
+        d="M29.9047 31.6435L22.6724 31.8379C21.8748 31.8576 20.3002 31.9548 19.7168 32.5379C19.5802 32.6744 19.5026 32.7902 19.5616 33.0042L19.4447 33.1211L16.8977 30.5754L17.0146 30.4586C20.3581 31.6632 23.8383 31.2165 27.338 31.1772C22.4779 27.1747 31.4595 18.3528 28.4078 15.3015C27.786 14.6801 26.8715 14.4661 26.0356 14.6801L25.9777 14.5054C27.1829 14.2334 28.4471 14.6419 29.3026 15.4959C33.599 19.79 24.9866 28.3989 27.6309 31.0418L27.7478 31.1586L30.5089 31.0418L36.1864 25.3673C36.7109 24.8431 36.9054 24.0262 36.6529 23.3076L36.7502 23.2104L39.6862 26.1448L39.5889 26.242C38.8503 26.0476 38.0341 26.242 37.4888 26.7859L26.6988 37.5703C26.135 38.1338 25.9405 38.872 26.1929 39.6299L26.076 39.7468L23.14 36.8124L23.257 36.6955C23.9377 36.9478 24.7539 36.7927 25.2784 36.2685L29.9058 31.6435H29.9047Z"
+        fill="currentColor"
+      />
+      <path
+        d="M31.6596 9.85645L31.854 17.085C31.8737 17.8822 31.971 19.4559 32.5544 20.0391C32.691 20.1756 32.8069 20.2531 33.021 20.1942L33.1379 20.311L30.5909 22.8567L30.474 22.7398C31.6792 19.398 31.2323 15.9197 31.193 12.4218C27.1884 17.2794 18.3619 8.30241 15.309 11.3526C14.6873 11.974 14.4732 12.8881 14.6873 13.7235L14.5125 13.7814C14.2404 12.5768 14.6491 11.3133 15.5035 10.4582C19.7999 6.1641 28.4133 14.7719 31.0575 12.1291L31.1744 12.0122L31.0575 9.25253L25.3801 3.57804C24.8556 3.05383 24.0383 2.85944 23.3193 3.11171L23.2221 3.01452L26.158 0.0800781L26.2553 0.177272C26.0608 0.915524 26.2553 1.73131 26.7994 2.27627L37.5894 13.0606C38.1532 13.6242 38.8919 13.8185 39.6502 13.5663L39.7671 13.6831L36.8311 16.6176L36.7142 16.5007C36.9666 15.8203 36.8114 15.0046 36.287 14.4804L31.6596 9.85536V9.85645Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+const mobileIconBtn =
+  "cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-black hover:opacity-70";
 
 /** Build search URL for menu links; SearchPage reads categoryId + subcategoryId (or category/subcategory) */
 function getSearchUrl({
@@ -207,7 +286,14 @@ export default function Header() {
   const [activeMobileCategory, setActiveMobileCategory] = useState(null);
   const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
   const [panelAnimated, setPanelAnimated] = useState(false);
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated, openAuthModal, user } = useAuth();
+  const menuProfileName =
+    user?.name ??
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ??
+    user?.phone ??
+    "Account";
+  const menuProfileImage =
+    user?.profileImage ?? user?.avatar ?? user?.image ?? user?.photo ?? null;
   const { wishlistCount, cartCount } = useCartWishlist();
   const {
     unreadCount,
@@ -414,7 +500,7 @@ export default function Header() {
   return (
     <header
       ref={headerRef}
-      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 ${
+      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-md:bg-white ${
         useWhiteStyle ? "bg-white" : "bg-transparent"
       }`}
     >
@@ -433,147 +519,101 @@ export default function Header() {
           useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
-        {/* Mobile: row 1 — hamburger, logo, notification, profile; row 2 — location, search */}
+        {/* Mobile: row 1 — menu, bell, logo, profile, cart, wishlist; row 2 — search + location */}
         <div className="md:hidden flex flex-col gap-2.5">
-          <div className="relative flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className={`relative z-10 cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                useWhiteStyle
-                  ? "text-black hover:bg-gray-100"
-                  : "text-white hover:bg-white/10"
-              }`}
-              aria-label="Open menu"
-              aria-expanded={menuOpen}
-            >
-              <HamburgerIcon
-                className={`h-6 w-6 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                open={false}
-              />
-            </button>
-            <NavLink
-              to={ROUTES.HOME}
-              onClick={handleLogoClick}
-              className="pointer-events-auto absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 cursor-pointer flex max-w-[calc(100%-8.5rem)] items-center justify-center"
-            >
-              <img
-                src={logoImg}
-                alt="KHUSH"
-                className={`h-11 w-auto max-h-10 max-w-full object-contain sm:h-12 sm:max-h-11 ${useWhiteStyle ? "" : "brightness-0 invert"}`}
-              />
-            </NavLink>
-            <div className="relative z-10 flex shrink-0 items-center justify-end gap-0.5">
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1">
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className={mobileIconBtn}
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
+              >
+                <HamburgerIcon className="h-6 w-6 text-black" open={false} />
+              </button>
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.NOTIFICATIONS}
-                  className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg relative ${
-                    useWhiteStyle
-                      ? "text-black hover:opacity-70"
-                      : "text-white hover:opacity-70"
-                  }`}
+                  className={`${mobileIconBtn} relative`}
                   aria-label="Notifications"
                 >
-                  <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
-                    <NotificationIcon
-                      className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                    />
+                  <IconBadge count={unreadCount} scrolled mobileDark>
+                    <NotificationIcon className="h-5 w-5 text-black" />
                   </IconBadge>
                 </NavLink>
-              ) : null}
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal(ROUTES.NOTIFICATIONS)}
+                  className={`${mobileIconBtn} relative`}
+                  aria-label="Notifications – sign in"
+                >
+                  <NotificationIcon className="h-5 w-5 text-black" />
+                </button>
+              )}
+            </div>
+
+            <NavLink
+              to={ROUTES.HOME}
+              onClick={handleLogoClick}
+              className="flex items-center justify-center text-black"
+              aria-label="KHUSH home"
+            >
+              <KhushMobileLogo className="h-9 w-9 sm:h-10 sm:w-10" />
+            </NavLink>
+
+            <div className="flex items-center justify-end gap-0.5">
               {isAuthenticated ? (
                 <button
                   type="button"
                   onClick={() => setProfileModalOpen(true)}
-                  className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                    useWhiteStyle
-                      ? "text-black hover:opacity-70"
-                      : "text-white hover:opacity-70"
-                  }`}
+                  className={mobileIconBtn}
                   aria-label="Account"
                 >
-                  <ProfileIcon
-                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  />
+                  <ProfileIcon className="h-5 w-5 text-black" />
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                  className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                    useWhiteStyle
-                      ? "text-black hover:opacity-70"
-                      : "text-white hover:opacity-70"
-                  }`}
+                  className={mobileIconBtn}
                   aria-label="Account – sign in"
                 >
-                  <ProfileIcon
-                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  />
+                  <ProfileIcon className="h-5 w-5 text-black" />
                 </button>
               )}
+              <NavLink to={ROUTES.CART} className={mobileIconBtn} aria-label="Cart">
+                <IconBadge count={cartCount} scrolled mobileDark>
+                  <CartIcon className="h-5 w-5 text-black" />
+                </IconBadge>
+              </NavLink>
+              <NavLink to={ROUTES.WISHLIST} className={mobileIconBtn} aria-label="Wishlist">
+                <IconBadge count={wishlistCount} scrolled mobileDark>
+                  <HeartIcon className="h-5 w-5 text-black" />
+                </IconBadge>
+              </NavLink>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
-            <LocationPicker
-              scrolled={useWhiteStyle}
-              className="flex min-w-0 flex-1"
-            />
-            <NavLink
-              to={ROUTES.REFER_EARN}
-              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                useWhiteStyle
-                  ? "text-black hover:bg-gray-100"
-                  : "text-white hover:bg-white/10"
-              }`}
-              aria-label="Refer and Earn"
+            <form
+              onSubmit={handleSearchModalSubmit}
+              className="flex min-w-0 flex-1 items-center rounded-full border border-gray-200 bg-white px-4 py-2.5"
             >
-              <ReferEarnIcon className="h-4 w-4" />
-            </NavLink>
-            <NavLink
-              to={ROUTES.WISHLIST}
-              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                useWhiteStyle
-                  ? "text-black hover:bg-gray-100"
-                  : "text-white hover:bg-white/10"
-              }`}
-              aria-label="Wishlist"
-            >
-              <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
-                <HeartIcon
-                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                />
-              </IconBadge>
-            </NavLink>
-            <NavLink
-              to={ROUTES.CART}
-              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                useWhiteStyle
-                  ? "text-black hover:bg-gray-100"
-                  : "text-white hover:bg-white/10"
-              }`}
-              aria-label="Cart"
-            >
-              <IconBadge count={cartCount} scrolled={useWhiteStyle}>
-                <CartIcon
-                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                />
-              </IconBadge>
-            </NavLink>
-            <button
-              type="button"
-              onClick={openSearchModal}
-              className={`cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                useWhiteStyle
-                  ? "text-black hover:bg-gray-100"
-                  : "text-white hover:bg-white/10"
-              }`}
-              aria-label="Search"
-            >
-              <SearchIcon
-                className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+              <input
+                type="search"
+                name="q"
+                value={searchInputValue}
+                onChange={(e) => setSearchInputValue(e.target.value)}
+                placeholder="Find Your Choice"
+                onFocus={openSearchModal}
+                onClick={openSearchModal}
+                className="font-inter w-full min-w-0 bg-transparent text-sm text-black placeholder:text-[#9E9E9E] focus:outline-none"
+                aria-label="Search products"
               />
-            </button>
+            </form>
+            <LocationPicker scrolled iconOnly className="shrink-0" />
           </div>
         </div>
 
@@ -934,16 +974,61 @@ export default function Header() {
               aria-modal="true"
               aria-label="Navigation menu"
             >
-              {/* Close Button */}
-              <div className="flex justify-end shrink-0 pt-4 pr-4 md:pt-6 md:pr-6">
-                <button
-                  type="button"
-                  onClick={closeMenu}
-                  className="cursor-pointer flex h-12 w-12 items-center justify-center text-black hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Close menu"
-                >
-                  <CloseIcon className="h-7 w-7" />
-                </button>
+              {/* Top bar (Login/Signup + FAQs + Close) */}
+              <div className="shrink-0 border-b border-gray-100 bg-white px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeMenu();
+                      if (isAuthenticated) navigate(ROUTES.PROFILE_UPDATE);
+                      else openAuthModal(ROUTES.PROFILE_UPDATE);
+                    }}
+                    className="flex min-w-0 items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray-50 transition-colors"
+                    aria-label={isAuthenticated ? "Account" : "Login or Signup"}
+                  >
+                    <span className="flex h-9 w-9 shrink-0  items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white text-black">
+                      {isAuthenticated && menuProfileImage ? (
+                        <img
+                          src={menuProfileImage}
+                          alt={menuProfileName}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <ProfileIcon className="h-5 w-5 text-black" />
+                      )}
+                    </span>
+                    <span className="min-w-0 font-inter text-[15px] font-semibold text-black truncate">
+                      {isAuthenticated ? menuProfileName : "Login/Signup"}
+                    </span>
+                  </button>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <NavLink
+                      to={ROUTES.FAQS}
+                      onClick={closeMenu}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 font-inter text-[13px] font-semibold text-black hover:bg-gray-50 transition-colors"
+                      aria-label="FAQs"
+                    >
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[11px] leading-none">
+                        i
+                      </span>
+                      FAQs
+                    </NavLink>
+
+                    <button
+                      type="button"
+                      onClick={closeMenu}
+                      className="cursor-pointer flex h-10 w-10 items-center justify-center text-black hover:bg-gray-50 rounded-xl transition-colors"
+                      aria-label="Close menu"
+                    >
+                      <CloseIcon className="h-6 w-6" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* ========================= */}
@@ -1023,7 +1108,7 @@ export default function Header() {
                         const subName = sub.name ?? sub.label ?? "Subcategory";
 
                         return (
-                          <li key={subId}>
+                          <li key={subId} className="border-b border-gray-100 last:border-b-0">
                             <NavLink
                               to={getSearchUrl({
                                 categoryId: effectiveActiveCategory,
@@ -1032,9 +1117,11 @@ export default function Header() {
                                 subcategoryName: subName,
                               })}
                               onClick={closeMenu}
-                              className="cursor-pointer font-inter flex items-center w-full text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50 transition-colors"
+                              className="cursor-pointer font-inter flex items-center gap-3 w-full text-left py-4 px-4 text-black text-sm md:text-base font-medium hover:bg-gray-50 transition-colors"
                             >
-                              {subName}
+                              <SubcategoryMenuIcon sub={sub} />
+                              <span className="min-w-0 flex-1">{subName}</span>
+                              <ChevronRightIcon className="h-4 w-4 shrink-0 text-gray-300" />
                             </NavLink>
                           </li>
                         );

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import StaticCard from "../../staticCards/StaticCard.jsx"
 import { Link, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { getProductPath, ROUTES } from '../../../utils/constants'
@@ -469,6 +470,7 @@ function NewArrivals({ section }) {
             <span>Explore More</span>
             <IoChevronForward />
           </Link>
+          
         </div>
         </>
         )}

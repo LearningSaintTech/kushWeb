@@ -51,6 +51,7 @@ body::-webkit-scrollbar {
   }
 }
 
+
 /* Search: fade-in for newly appended product cards */
 @keyframes search-card-in {
   from {
@@ -96,4 +97,74 @@ body::-webkit-scrollbar {
   .product-desc-clamp-long {
     -webkit-line-clamp: 6;
   }
+}
+
+/* Gift card home banner — mobile hero gradient + watermark */
+.gift-hero-banner {
+  background: linear-gradient(
+    180deg,
+    #e61e25 0%,
+    #a31828 38%,
+    #4a0f1e 68%,
+    #1a051d 100%
+  );
+}
+
+.gift-hero-watermark {
+  position: absolute;
+  right: -8%;
+  top: 50%;
+  width: min(48vw, 11rem);
+  height: min(54vw, 13rem);
+  transform: translateY(-50%);
+  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 140' fill='none'%3E%3Crect x='18' y='58' width='84' height='68' rx='6' stroke='%23fff' stroke-width='2.5'/%3E%3Cpath d='M18 58h84M60 58V30M38 42c0-10 8-16 22-16s22 6 22 16M60 58c-14 0-22-8-22-16M60 58c14 0 22-8 22-16' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M60 30c-8-12-22-10-22 0 0 10 22 12 22 28 0-16 22-18 22-28 0-10-14-12-22 0z' stroke='%23fff' stroke-width='2.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  pointer-events: none;
+}
+
+@media (min-width: 480px) {
+  .gift-hero-watermark {
+    right: -6%;
+    width: min(52vw, 13rem);
+    height: min(58vw, 15rem);
+    opacity: 0.14;
+  }
+}
+
+@media (min-width: 768px) {
+  .gift-hero-watermark {
+    right: -2%;
+    top: 45%;
+    width: min(36vw, 14rem);
+    height: min(40vw, 16rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .gift-hero-watermark {
+    right: 4%;
+    top: 42%;
+    width: min(28vw, 16rem);
+    height: min(32vw, 18rem);
+    opacity: 0.12;
+  }
+}
+
+@media (min-width: 1536px) {
+  .gift-hero-watermark {
+    right: 6%;
+    width: min(22vw, 18rem);
+    height: min(26vw, 20rem);
+  }
+}
+
+/* Special discount — full banner visible at every breakpoint (no object-cover crop) */
+.special-discount-hero-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: middle;
 }

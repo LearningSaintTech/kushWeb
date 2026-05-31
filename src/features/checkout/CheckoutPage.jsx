@@ -546,17 +546,34 @@ function CheckoutPage() {
     e.preventDefault()
     console.log('[Checkout] handleAddressFormSubmit')
     setAddressFormError(null)
+    const phone = String(addressForm.phoneNumber || '').trim().replace(/\D/g, '')
     const pin = String(addressForm.pinCode || '').trim().replace(/\D/g, '')
-    if (!addressForm.name?.trim() || !addressForm.addressLine?.trim() || !addressForm.city?.trim() || !addressForm.state?.trim() || !pin) {
+    if (
+      !addressForm.name?.trim() ||
+      !phone ||
+      !addressForm.addressLine?.trim() ||
+      !addressForm.city?.trim() ||
+      !addressForm.state?.trim() ||
+      !pin ||
+      !addressForm.addressType
+    ) {
       console.log('[Checkout] handleAddressFormSubmit: validation failed')
-      setAddressFormError('Please fill name, address, city, state and pincode.')
+      setAddressFormError('All fields are required.')
+      return
+    }
+    if (phone.length !== 10) {
+      setAddressFormError('Number must be 10 digit')
+      return
+    }
+    if (!/^[6-9]/.test(phone)) {
+      setAddressFormError('Number must start from 6-9')
       return
     }
     setAddressFormLoading(true)
     try {
       const payload = {
         name: addressForm.name.trim(),
-        phoneNumber: (addressForm.phoneNumber || '').trim() || undefined,
+        phoneNumber: phone,
         countryCode: INDIA_PHONE_CODE,
         addressLine: addressForm.addressLine.trim(),
         city: addressForm.city.trim(),
@@ -1286,7 +1303,7 @@ function CheckoutPage() {
                       <input type="text" value={addressForm.name} onChange={(e) => handleAddressFormChange('name', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Full name" required />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone Number</label>
                       <div className="flex border border-gray-300 overflow-hidden rounded-none">
                         <span className="shrink-0 flex items-center border-r border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600" aria-hidden>
                           {INDIA_PHONE_CODE}
@@ -1294,7 +1311,7 @@ function CheckoutPage() {
                         <input
                           type="text"
                           inputMode="numeric"
-                          autoComplete="tel-national"
+                          autoComplete="tel-national" 
                           value={addressForm.phoneNumber}
                           onChange={(e) =>
                             handleAddressFormChange(
@@ -1304,8 +1321,17 @@ function CheckoutPage() {
                           }
                           className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
                           placeholder="10-digit mobile number"
+                          required
                         />
                       </div>
+                      {addressForm.phoneNumber && String(addressForm.phoneNumber).length < 10 && (
+                        <p className="mt-1 text-xs text-red-600">Number must be 10 digit</p>
+                      )}
+                      {addressForm.phoneNumber &&
+                        String(addressForm.phoneNumber).length === 10 &&
+                        !/^[6-9]/.test(String(addressForm.phoneNumber)) && (
+                          <p className="mt-1 text-xs text-red-600">Number must start from 6-9</p>
+                        )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
@@ -1327,7 +1353,7 @@ function CheckoutPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Type</label>
-                      <select value={addressForm.addressType} onChange={(e) => handleAddressFormChange('addressType', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm bg-white">
+                      <select value={addressForm.addressType} onChange={(e) => handleAddressFormChange('addressType', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm bg-white" required>
                         <option value="HOME">Home</option>
                         <option value="WORK">Work</option>
                         <option value="OTHER">Other</option>

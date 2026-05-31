@@ -538,8 +538,9 @@ export function CartWishlistProvider({ children }) {
       return
     }
     setWishlist((prev) => {
-      const inList = prev.some((item) => item.id === id)
-      if (inList) return prev.filter((item) => item.id !== id)
+      const targetId = String(id)
+      const inList = prev.some((item) => String(item.id) === targetId)
+      if (inList) return prev.filter((item) => String(item.id) !== targetId)
       const { title, price, originalPrice, image, hoverImage, delivery, rating } = typeof product === 'object' ? product : {}
       if (typeof product !== 'object' || !title) return prev
       return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating }]
@@ -549,7 +550,7 @@ export function CartWishlistProvider({ children }) {
   const isInWishlist = useCallback(
     (productId) => {
       if (isAuthenticated) return wishlistIds.some((wid) => String(wid) === String(productId))
-      return wishlist.some((item) => item.id === productId)
+      return wishlist.some((item) => String(item.id) === String(productId))
     },
     [isAuthenticated, wishlistIds, wishlist]
   )

@@ -14,6 +14,55 @@ import { trackEvent } from '../../analytics'
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
 
+function normalizeSpaces(s) {
+  return String(s ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function digitsOnly(s, maxLen = null) {
+  const d = String(s ?? '').replace(/\D/g, '')
+  return maxLen != null ? d.slice(0, maxLen) : d
+}
+
+function validateAddressForm(form) {
+  const errors = {}
+
+  const name = normalizeSpaces(form?.name)
+  const addressLine = normalizeSpaces(form?.addressLine)
+  const city = normalizeSpaces(form?.city)
+  const state = normalizeSpaces(form?.state)
+  const pin = digitsOnly(form?.pinCode, 6)
+  const phone = digitsOnly(form?.phoneNumber, 10)
+
+  if (!name) errors.name = 'Name is required.'
+  else if (name.length < 2) errors.name = 'Name must be at least 2 characters.'
+  else if (name.length > 60) errors.name = 'Name must be at most 60 characters.'
+
+  if (!phone) errors.phoneNumber = 'Phone number is required.'
+  else if (phone.length !== 10) errors.phoneNumber = 'Phone number must be exactly 10 digits.'
+  else if (/^[0]{10}$/.test(phone)) errors.phoneNumber = 'Please enter a valid phone number.'
+
+  if (!addressLine) errors.addressLine = 'Address is required.'
+  else if (addressLine.length < 5) errors.addressLine = 'Address must be at least 5 characters.'
+  else if (addressLine.length > 160) errors.addressLine = 'Address must be at most 160 characters.'
+
+  if (!city) errors.city = 'City is required.'
+  else if (city.length < 2) errors.city = 'City must be at least 2 characters.'
+  else if (city.length > 60) errors.city = 'City must be at most 60 characters.'
+
+  if (!state) errors.state = 'State is required.'
+  else if (state.length < 2) errors.state = 'State must be at least 2 characters.'
+  else if (state.length > 60) errors.state = 'State must be at most 60 characters.'
+
+  if (!pin) errors.pinCode = 'Pincode is required.'
+  else if (pin.length !== 6) errors.pinCode = 'Pincode must be exactly 6 digits.'
+  else if (/^[0]{6}$/.test(pin)) errors.pinCode = 'Please enter a valid pincode.'
+
+  const t = String(form?.addressType ?? 'HOME').toUpperCase()
+  if (!['HOME', 'WORK', 'OFFICE', 'OTHER'].includes(t)) errors.addressType = 'Please select a valid address type.'
+
+  return errors
+}
+
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return 'Rs 0'
   return `Rs ${Number(num).toLocaleString('en-IN', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`
@@ -143,6 +192,8 @@ function CartPage() {
   const [addressFormOpen, setAddressFormOpen] = useState(false)
   const [addressFormLoading, setAddressFormLoading] = useState(false)
   const [addressFormError, setAddressFormError] = useState(null)
+  const [addressFormErrors, setAddressFormErrors] = useState({})
+  const [addressFormTouched, setAddressFormTouched] = useState({})
   const [addressForm, setAddressForm] = useState({
     name: '',
     phoneNumber: '',
@@ -466,6 +517,8 @@ function CartPage() {
 
   const openAddressForm = () => {
     setAddressFormError(null)
+    setAddressFormErrors({})
+    setAddressFormTouched({})
     setAddressForm({
       name: '',
       phoneNumber: '',
@@ -480,28 +533,51 @@ function CartPage() {
   }
 
   const handleAddressFormChange = (field, value) => {
-    setAddressForm((prev) => ({ ...prev, [field]: value }))
+    setAddressForm((prev) => {
+      const next = { ...prev, [field]: value }
+      // keep validation responsive after user starts interacting
+      if (addressFormTouched[field]) setAddressFormErrors(validateAddressForm(next))
+      return next
+    })
+  }
+
+  const touchAddressField = (field) => {
+    setAddressFormTouched((prev) => ({ ...prev, [field]: true }))
+    setAddressFormErrors((prev) => {
+      const next = validateAddressForm(addressForm)
+      // if user already has an error object, keep it but refresh values
+      return { ...prev, ...next }
+    })
   }
 
   const handleAddressFormSubmit = async (e) => {
     e.preventDefault()
     setAddressFormError(null)
-    const pin = String(addressForm.pinCode || '').trim().replace(/\D/g, '')
-    if (!addressForm.name?.trim() || !addressForm.addressLine?.trim() || !addressForm.city?.trim() || !addressForm.state?.trim() || !pin) {
-      setAddressFormError('Please fill name, address, city, state and pincode.')
-      return
-    }
+    setAddressFormTouched({
+      name: true,
+      phoneNumber: true,
+      addressLine: true,
+      city: true,
+      state: true,
+      pinCode: true,
+      addressType: true,
+    })
+    const errors = validateAddressForm(addressForm)
+    setAddressFormErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    const pin = digitsOnly(addressForm.pinCode, 6)
     setAddressFormLoading(true)
     try {
       const payload = {
-        name: addressForm.name.trim(),
-        phoneNumber: (addressForm.phoneNumber || '').trim() || undefined,
+        name: normalizeSpaces(addressForm.name),
+        phoneNumber: digitsOnly(addressForm.phoneNumber, 10),
         countryCode: INDIA_PHONE_CODE,
-        addressLine: addressForm.addressLine.trim(),
-        city: addressForm.city.trim(),
-        state: addressForm.state.trim(),
+        addressLine: normalizeSpaces(addressForm.addressLine),
+        city: normalizeSpaces(addressForm.city),
+        state: normalizeSpaces(addressForm.state),
         pinCode: parseInt(pin, 10) || 0,
-        addressType: addressForm.addressType || 'HOME',
+        addressType: (addressForm.addressType || 'HOME').toUpperCase(),
         isDefault: !!addressForm.isDefault,
       }
       if (payload.pinCode <= 0) {
@@ -961,7 +1037,17 @@ function CartPage() {
                     {addressFormError && <p className="text-xs text-red-600">{addressFormError}</p>}
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Name</label>
-                      <input type="text" value={addressForm.name} onChange={(e) => handleAddressFormChange('name', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Full name" required />
+                      <input
+                        type="text"
+                        value={addressForm.name}
+                        onChange={(e) => handleAddressFormChange('name', e.target.value)}
+                        onBlur={() => touchAddressField('name')}
+                        className="w-full border border-gray-300 py-2 px-3 text-sm"
+                        placeholder="Full name"
+                        required
+                        maxLength={60}
+                      />
+                      {addressFormTouched.name && addressFormErrors.name && <p className="mt-1 text-xs text-red-600">{addressFormErrors.name}</p>}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
@@ -980,36 +1066,91 @@ function CartPage() {
                               e.target.value.replace(/\D/g, '').slice(0, 10),
                             )
                           }
+                          onBlur={() => touchAddressField('phoneNumber')}
                           className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
                           placeholder="10-digit mobile number"
+                          maxLength={10}
+                          pattern="[0-9]{10}"
+                          required
                         />
                       </div>
+                      {addressFormTouched.phoneNumber && addressFormErrors.phoneNumber && <p className="mt-1 text-xs text-red-600">{addressFormErrors.phoneNumber}</p>}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
-                      <input type="text" value={addressForm.addressLine} onChange={(e) => handleAddressFormChange('addressLine', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Street, area, building" required />
+                      <input
+                        type="text"
+                        value={addressForm.addressLine}
+                        onChange={(e) => handleAddressFormChange('addressLine', e.target.value)}
+                        onBlur={() => touchAddressField('addressLine')}
+                        className="w-full border border-gray-300 py-2 px-3 text-sm"
+                        placeholder="Street, area, building"
+                        required
+                        maxLength={160}
+                      />
+                      {addressFormTouched.addressLine && addressFormErrors.addressLine && <p className="mt-1 text-xs text-red-600">{addressFormErrors.addressLine}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-medium uppercase text-gray-700 mb-1">City</label>
-                        <input type="text" value={addressForm.city} onChange={(e) => handleAddressFormChange('city', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="City" required />
+                        <input
+                          type="text"
+                          value={addressForm.city}
+                          onChange={(e) => handleAddressFormChange('city', e.target.value)}
+                          onBlur={() => touchAddressField('city')}
+                          className="w-full border border-gray-300 py-2 px-3 text-sm"
+                          placeholder="City"
+                          required
+                          maxLength={60}
+                        />
+                        {addressFormTouched.city && addressFormErrors.city && <p className="mt-1 text-xs text-red-600">{addressFormErrors.city}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-medium uppercase text-gray-700 mb-1">State</label>
-                        <input type="text" value={addressForm.state} onChange={(e) => handleAddressFormChange('state', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="State" required />
+                        <input
+                          type="text"
+                          value={addressForm.state}
+                          onChange={(e) => handleAddressFormChange('state', e.target.value)}
+                          onBlur={() => touchAddressField('state')}
+                          className="w-full border border-gray-300 py-2 px-3 text-sm"
+                          placeholder="State"
+                          required
+                          maxLength={60}
+                        />
+                        {addressFormTouched.state && addressFormErrors.state && <p className="mt-1 text-xs text-red-600">{addressFormErrors.state}</p>}
                       </div>
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Pincode</label>
-                      <input type="text" inputMode="numeric" value={addressForm.pinCode} onChange={(e) => handleAddressFormChange('pinCode', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Pincode" required />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={addressForm.pinCode}
+                        onChange={(e) =>
+                          handleAddressFormChange('pinCode', e.target.value.replace(/\D/g, '').slice(0, 6))
+                        }
+                        onBlur={() => touchAddressField('pinCode')}
+                        className="w-full border border-gray-300 py-2 px-3 text-sm"
+                        placeholder="Pincode"
+                        maxLength={6}
+                        pattern="[0-9]{6}"
+                        required
+                      />
+                      {addressFormTouched.pinCode && addressFormErrors.pinCode && <p className="mt-1 text-xs text-red-600">{addressFormErrors.pinCode}</p>}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Type</label>
-                      <select value={addressForm.addressType} onChange={(e) => handleAddressFormChange('addressType', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm bg-white">
+                      <select
+                        value={addressForm.addressType}
+                        onChange={(e) => handleAddressFormChange('addressType', e.target.value)}
+                        onBlur={() => touchAddressField('addressType')}
+                        className="w-full border border-gray-300 py-2 px-3 text-sm bg-white"
+                      >
                         <option value="HOME">Home</option>
                         <option value="WORK">Work</option>
                         <option value="OTHER">Other</option>
                       </select>
+                      {addressFormTouched.addressType && addressFormErrors.addressType && <p className="mt-1 text-xs text-red-600">{addressFormErrors.addressType}</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       <input type="checkbox" id="addr-default" checked={!!addressForm.isDefault} onChange={(e) => handleAddressFormChange('isDefault', e.target.checked)} className="rounded border-gray-300" />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { HandCoins } from 'lucide-react'
+import { HandCoins, Gift } from 'lucide-react'
 import { useAuth } from '../../app/context/AuthContext'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import { ROUTES } from '../../utils/constants'
@@ -87,6 +87,7 @@ const NAV_ITEMS = [
   { label: 'Orders', to: ROUTES.ORDERS, icon: PackageIcon },
   { label: 'Coupons', to: ROUTES.COUPONS, icon: TagIcon },
   { label: 'Wallet', to: ROUTES.WALLET, icon: WalletIcon },
+  { label: 'Gift Card', to: ROUTES.GIFTCARD, icon: Gift },
   { label: 'Redeem Coins', to: ROUTES.REDEEM_COINS, icon: CoinsIcon },
   { label: 'REFER AND EARN', to: ROUTES.REFER_EARN, icon: HandCoins },
   { label: 'Contact Us', to: ROUTES.CONTACT_US, icon: PhoneIcon },

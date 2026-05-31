@@ -79,7 +79,7 @@ function ProductCardStarRating({ value }) {
                   style={{ width: `${fillRatio * 100}%` }}
                 >
                   <svg
-                    className="block h-3 w-3 sm:h-3.5 sm:w-3.5 text-black"
+                    className="block h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-400"
                     viewBox="0 0 20 20"
                     fill="currentColor"
                     aria-hidden
@@ -121,6 +121,10 @@ const ProductCard = React.memo(function ProductCard({
   imageLoading = "eager",
   /** Bottom “Buy It Now” bar on image hover (e.g. home Our Products). */
   showBuyNowOnHover = false,
+  /** Reveal heart/cart/quick-view only on hover. */
+  revealActionsOnHover = true,
+  /** When `revealActionsOnHover`, keep only heart visible until hover/focus. */
+  showOnlyWishlistIconWhenIdle = false,
 }) {
   const navigate = useNavigate();
   const { addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
@@ -239,6 +243,12 @@ const ProductCard = React.memo(function ProductCard({
     hoverImage && hoverImageLoaded && hoverImage !== image,
   );
 
+  const revealOnHoverClass =
+    "opacity-0 pointer-events-none transition-opacity duration-300 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto";
+
+  const actionIconClass = () =>
+    revealActionsOnHover ? revealOnHoverClass : "opacity-100";
+
   return (
     <CardWrapper
       {...wrapperProps}
@@ -314,9 +324,9 @@ const ProductCard = React.memo(function ProductCard({
                   });
                 }}
                 className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${
-                  inWishlist
-                    ? "translate-x-0 opacity-100"
-                    : "translate-x-0 opacity-100 md:translate-x-12 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100"
+                  showOnlyWishlistIconWhenIdle
+                    ? "opacity-100"
+                    : actionIconClass()
                 }`}
                 aria-label={
                   inWishlist ? "Remove from wishlist" : "Add to wishlist"
@@ -337,8 +347,17 @@ const ProductCard = React.memo(function ProductCard({
                 </svg>
               </button>
 
-              {/* Compare */}
-              <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-0 opacity-100 md:translate-x-12 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100 transition-all duration-500 ease-in-out md:delay-100">
+              {/* Quick view — opens product page */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate(getProductPath(id, title, shortDescription));
+                }}
+                className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-100 hover:scale-105 cursor-pointer ${actionIconClass()}`}
+                aria-label="View product"
+              >
                 <svg
                   className="w-5 h-5 text-gray-700"
                   fill="none"
@@ -352,7 +371,7 @@ const ProductCard = React.memo(function ProductCard({
                     d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
                   />
                 </svg>
-              </div>
+              </button>
 
               {/* Cart */}
               <button
@@ -384,7 +403,7 @@ const ProductCard = React.memo(function ProductCard({
                     );
                   }
                 }}
-                className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm translate-x-0 opacity-100 md:translate-x-12 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100 transition-all duration-500 ease-in-out md:delay-200 hover:scale-105 cursor-pointer"
+                className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-200 hover:scale-105 cursor-pointer ${actionIconClass()}`}
                 aria-label="Add to cart"
               >
                 <svg
@@ -464,11 +483,15 @@ const ProductCard = React.memo(function ProductCard({
               className="flex shrink-0 items-center gap-1.5"
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
-              <span className="shrink-0 text-gray-700 font-semibold">
+              <span
+                className={`shrink-0 font-semibold ${
+                  originalPrice ? "text-[#DCA86C]" : "text-gray-400"
+                }`}
+              >
                 {price}
               </span>
               {originalPrice && (
-                <span className="shrink-0 text-gray-400 line-through">
+                <span className="shrink-0 text-[#DCA86C] text-gray-400 line-through">
                   {originalPrice}
                 </span>
               )}

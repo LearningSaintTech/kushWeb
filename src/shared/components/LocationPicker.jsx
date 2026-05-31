@@ -15,7 +15,7 @@ function formatAddressLabel(addr) {
   return parts.join(', ')
 }
 
-export default function LocationPicker({ scrolled, className = '', compact = false }) {
+export default function LocationPicker({ scrolled, className = '', compact = false, iconOnly = false }) {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
@@ -129,30 +129,43 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
   const bgClass = isLight ? 'bg-[#F5F5F5]' : 'bg-white/10'
   const iconBgClass = isLight ? 'bg-white shadow-sm' : 'bg-white/20'
 
+  const triggerLabel = resolvedLabel || displayPlaceholder
+
   return (
     <div className={`relative ${className}`} ref={panelRef}>
       <button
         type="button"
-        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-2 py-1 md:gap-[0.83vw] md:px-[0.83vw] md:py-[0.3vw] ${bgClass} ${
-          compact ? 'w-full md:w-[18.1vw]' : ''
-        } ${error ? 'ring-1 ring-amber-400/80' : ''}`}
+        className={
+          iconOnly
+            ? `flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full ${isLight ? 'bg-[#F5F5F5]' : 'bg-white/20'} ${error ? 'ring-1 ring-amber-400/80' : ''}`
+            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-2 py-1 md:gap-[0.83vw] md:px-[0.83vw] md:py-[0.3vw] ${bgClass} ${
+                compact ? 'w-full md:w-[18.1vw]' : ''
+              } ${error ? 'ring-1 ring-amber-400/80' : ''}`
+        }
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-label="Delivery location"
+        aria-label={iconOnly ? `Delivery location: ${triggerLabel}` : 'Delivery location'}
+        title={iconOnly ? triggerLabel : undefined}
       >
-        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full md:h-[1.8vw] md:w-[1.8vw] ${iconBgClass}`}>
-          <LocationIcon className={`h-4 w-4 md:h-5 md:w-5 ${iconClass}`} />
-        </div>
-        <span
-          title={resolvedLabel || displayPlaceholder}
-          className={`font-inter min-w-0 flex-1 truncate text-left text-xs md:text-[0.83vw] ${textClass} ${!resolvedLabel ? 'opacity-70' : ''}`}
-        >
-          {resolvedLabel || displayPlaceholder}
-        </span>
-        <span className={`inline-flex shrink-0 ${textClass} transition-transform duration-200 ease-out`}>
-          {open ? <FaChevronUp className="h-4 w-4 md:h-5 md:w-5" /> : <FaChevronDown className="h-4 w-4 md:h-5 md:w-5" />}
-        </span>
+        {iconOnly ? (
+          <LocationIcon className={`h-5 w-5 ${iconClass}`} />
+        ) : (
+          <>
+            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full md:h-[1.8vw] md:w-[1.8vw] ${iconBgClass}`}>
+              <LocationIcon className={`h-4 w-4 md:h-5 md:w-5 ${iconClass}`} />
+            </div>
+            <span
+              title={triggerLabel}
+              className={`font-inter min-w-0 flex-1 truncate text-left text-xs md:text-[0.83vw] ${textClass} ${!resolvedLabel ? 'opacity-70' : ''}`}
+            >
+              {triggerLabel}
+            </span>
+            <span className={`inline-flex shrink-0 ${textClass} transition-transform duration-200 ease-out`}>
+              {open ? <FaChevronUp className="h-4 w-4 md:h-5 md:w-5" /> : <FaChevronDown className="h-4 w-4 md:h-5 md:w-5" />}
+            </span>
+          </>
+        )}
       </button>
 
       {open && (
