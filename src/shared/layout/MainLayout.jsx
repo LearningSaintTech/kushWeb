@@ -23,7 +23,7 @@ function MainLayout() {
     <div className="flex min-h-dvh flex-col overflow-x-hidden bg-gray-100 max-w-full">
       <ScrollToTop />
       <Header />
-      <main className="flex-1 bg-gray-100">
+      <main className="flex-1">
         <Outlet />
       </main>
       <button

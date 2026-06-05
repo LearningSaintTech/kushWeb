@@ -282,7 +282,7 @@ export default function ContactUsPage() {
 
           <div className="space-y-6 lg:space-y-8">
 
-            <h1 className="text-3xl font-raleway font-bold tracking-[0.1em] uppercase  text-[#000000] sm:text-3xl lg:text-5xl">
+            <h1 className="text-3xl w-[50vh] font-raleway font-bold  uppercase  text-[#000000] sm:text-3xl lg:text-5xl">
 
               Get in Touch with KHUSH
 

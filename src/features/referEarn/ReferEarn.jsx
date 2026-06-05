@@ -206,7 +206,7 @@ const ReferEarn = () => {
               <button
                 type="button"
                 onClick={() => setShareOpen(true)}
-                className="font-inter h-14 w-full max-w-[370px] rounded-xl bg-white px-6 text-lg font-medium uppercase tracking-[0.08em] text-black transition-colors hover:bg-gray-100 sm:h-16 sm:text-xl md:h-20 md:max-w-[370px] md:text-2xl"
+                className="font-inter h-14 w-full max-w-[270px] rounded-xl bg-white px-6 text-base font-normal uppercase  text-black transition-colors hover:bg-gray-100 sm:h-16 sm:text-xl md:h-15 md:max-w-[270px] md:text-2xl"
               >
                 Refer and earn
               </button>
@@ -214,7 +214,7 @@ const ReferEarn = () => {
           </section>
 
           <section className="relative mt-4 overflow-hidden rounded-lg border border-[#9A9A9A] text-black p-4 sm:p-5 md:p-6">
-            <ul className="font-inter space-y-2 text-xl leading-relaxed text-[#000000]">
+            <ul className="font-inter space-y-2 text-base leading-relaxed text-[#000000]">
               <li>&middot; Invite up to 25 friends and earn rewards for each successful referral.</li>
               <li>&middot; Referral valid only for new users (no prior account/device match).</li>
             </ul>

@@ -10,6 +10,8 @@ import {
 } from '../../services/giftcard.service.js'
 import GiftCardPurchasedModal from './GiftCardPurchasedModal.jsx'
 import GiftCardCreatedShareModal from './GiftCardCreatedShareModal.jsx'
+import GiftCardPromoBanner from './GiftCardPromoBanner.jsx'
+import GiftCardPageHeader from './GiftCardPageHeader.jsx'
 import GiftCardWalletSuccessModal from './GiftCardWalletSuccessModal.jsx'
 import GiftCardAlreadyRedeemedModal from './GiftCardAlreadyRedeemedModal.jsx'
 
@@ -99,9 +101,8 @@ function StatusBadge({ status }) {
 
   return (
     <span
-      className={`mt-1 inline-block rounded px-1.5 py-0.5 font-inter text-[10px] font-semibold uppercase tracking-wide ${
-        isAvailable ? 'bg-[#E8F5E9] text-[#34A853]' : 'bg-[#E3F2FD] text-[#068FBD]'
-      }`}
+      className={`mt-1 inline-block rounded px-1.5 py-0.5 font-inter text-[10px] font-semibold uppercase tracking-wide ${isAvailable ? 'bg-[#E8F5E9] text-[#34A853]' : 'bg-[#E3F2FD] text-[#068FBD]'
+        }`}
     >
       {label}
     </span>
@@ -116,9 +117,8 @@ function CreatedRow({ card, selected, onThumbClick }) {
 
   return (
     <div
-      className={`flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:gap-6 lg:gap-20 ${
-        selected ? 'bg-gray-50' : 'bg-white'
-      }`}
+      className={`flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:gap-6 lg:gap-20 ${selected ? 'bg-gray-50' : 'bg-white'
+        }`}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-6 lg:gap-10">
         <div className="flex shrink-0 flex-col items-center">
@@ -180,7 +180,7 @@ function RedeemedRow({ card }) {
   const name = card.redeemedBy?.name ?? '—'
   const phone = card.redeemedBy?.phone ?? ''
   const rowLabel = card.rowLabel ?? 'Sent By'
-  const dateLabel = card.redeemedAt ? 'Redeemed On' : 'Created On' 
+  const dateLabel = card.redeemedAt ? 'Redeemed On' : 'Created On'
   const dateValue = card.redeemedAt || card.createdAt
 
   return (
@@ -267,11 +267,10 @@ function GiftCardListTabs({
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className={`flex-1 rounded-md px-3 py-2.5 font-inter text-xs font-medium uppercase tracking-wide transition-colors ${
-                isActive
+              className={`flex-1 rounded-md px-3 py-2.5 font-inter text-xs font-medium uppercase tracking-wide transition-colors ${isActive
                   ? 'bg-[#E8E8E8] font-bold text-black'
                   : 'bg-[#F2F2F2] text-gray-500'
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -363,59 +362,10 @@ function GiftCardPurchasePanel({
   }, [redeemInputResetKey, initialRedeemCode])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 p-4 bg-white shadow-md">
-      <div className="w-full overflow-hidden">
-        <img
-          src={bannerImage || frameBanner}
-          alt="Khush Gift Card"
-          className="block h-auto w-full object-cover object-center"
-          draggable={false}
-        />
-      </div>
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-md sm:p-5">
+      <GiftCardPromoBanner className="px-1 pb-4 sm:pb-5" imageUrl={bannerImage} />
 
-      <div className="space-y-5 px-5 pb-5 pt-4">
-        <div>
-          <h1 className="font-inter text-[3vh] font-bold italic leading-tight text-black">
-            GIFT MORE.
-            <span className="font-inter text-[3vh] font-normal italic text-gray-500 leading-tight text-black">
-              {' '}
-              
-              GET MORE.
-            </span>
-          </h1>
-          <p className=" font-inter text-[11px] font-normal uppercase tracking-wide text-[#333333]">
-            EXTRA VALUE {' '}
-            <span className="font-bold text-[#E65100]">
-              ON EVERY PURCHASE.
-            </span>{' '}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-50">
-            <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 25 25" fill="none">
-              <path
-                d="M12.0501 7.03177V21.0921M12.0501 7.03177C11.6868 5.53474 11.0613 4.2549 10.2552 3.35916C9.44898 2.46341 8.49956 1.99332 7.53072 2.0102C6.86482 2.0102 6.22619 2.27473 5.75533 2.7456C5.28447 3.21646 5.01994 3.85509 5.01994 4.52099C5.01994 5.18689 5.28447 5.82551 5.75533 6.29638C6.22619 6.76724 6.86482 7.03177 7.53072 7.03177M12.0501 7.03177C12.4134 5.53474 13.0389 4.2549 13.8451 3.35916C14.6513 2.46341 15.6007 1.99332 16.5695 2.0102C17.2354 2.0102 17.8741 2.27473 18.3449 2.7456C18.8158 3.21646 19.0803 3.85509 19.0803 4.52099C19.0803 5.18689 18.8158 5.82551 18.3449 6.29638C17.8741 6.76724 17.2354 7.03177 16.5695 7.03177M20.0846 11.049V19.0835C20.0846 19.6162 19.873 20.1271 19.4963 20.5038C19.1196 20.8805 18.6087 21.0921 18.076 21.0921H6.02425C5.49153 21.0921 4.98063 20.8805 4.60394 20.5038C4.22725 20.1271 4.01563 19.6162 4.01562 19.0835V11.049"
-                stroke="black"
-                strokeWidth="2.00862"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M20.0889 7.03125H4.01994C3.46527 7.03125 3.01562 7.4809 3.01562 8.03556V10.0442C3.01562 10.5989 3.46527 11.0485 4.01994 11.0485H20.0889C20.6436 11.0485 21.0932 10.5989 21.0932 10.0442V8.03556C21.0932 7.4809 20.6436 7.03125 20.0889 7.03125Z"
-                stroke="black"
-                strokeWidth="2.00862"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-          <p className="font-inter text-xs text-black">
-            <span className="font-bold">the joy of gifting - .</span> <br />
-            <span className="italic text-gray-600">NOW EVEN BETTER..</span>
-          </p>
-        </div>
-
+      <div className="space-y-5 px-1 pb-1 sm:px-2">
         <div className="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
           <div>
             <p className="font-inter text-[10px] font-medium uppercase tracking-wide text-gray-500">You Pay</p>
@@ -469,11 +419,10 @@ function GiftCardPurchasePanel({
                 key={amt}
                 type="button"
                 onClick={() => onPayAmountChange(amt)}
-                className={`rounded-full px-4 py-1.5 font-inter text-xs font-semibold transition-colors ${
-                  payAmount === amt
+                className={`rounded-full px-4 py-1.5 font-inter text-xs font-semibold transition-colors ${payAmount === amt
                     ? 'bg-black text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 ₹{amt.toLocaleString('en-IN')}
               </button>
@@ -616,7 +565,7 @@ const GiftCardPage = () => {
         }
         if (rules?.image) setBannerImage(rules.image)
       })
-      .catch(() => {})
+      .catch(() => { })
     return () => {
       cancelled = true
     }
@@ -699,9 +648,8 @@ const GiftCardPage = () => {
       setWalletSuccessAmount(Number(amount ?? 0))
       setSuccess(
         amount != null
-          ? `₹${Number(amount).toLocaleString('en-IN')} credited to your wallet.${
-              redemptionType === 'SELF' ? ' (Self redeemed)' : ''
-            }`
+          ? `₹${Number(amount).toLocaleString('en-IN')} credited to your wallet.${redemptionType === 'SELF' ? ' (Self redeemed)' : ''
+          }`
           : 'Gift card redeemed to wallet successfully.'
       )
       await loadHistory()
@@ -816,9 +764,8 @@ const GiftCardPage = () => {
 
   const alerts = (error || success) && (
     <div
-      className={`mb-3 rounded-lg px-4 py-2 font-inter text-xs ${
-        error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'
-      }`}
+      className={`mb-3 rounded-lg px-4 py-2 font-inter text-xs ${error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'
+        }`}
     >
       {error || success}
     </div>
@@ -842,68 +789,71 @@ const GiftCardPage = () => {
   )
 
   return (
-    <div className="mx-auto w-full max-w-7xl bg-white px-4 pb-10 pt-24 sm:px-6 lg:mt-[18vh] lg:px-8 lg:pb-16">
-      {/* Tablet & mobile: purchase first, then tabbed lists */}
-      <div className="flex flex-col gap-6 lg:hidden">
-        {alerts}
-        {purchasePanel}
-        <GiftCardListTabs
-          activeTab={listTab}
-          onTabChange={setListTab}
-          created={created}
-          redeemed={redeemed}
-          listLoading={listLoading}
-          onCreatedThumbClick={openCreatedModal}
-        />
-      </div>
-
-      {/* Desktop: side-by-side */}
-      <div className="hidden items-start gap-4 lg:flex">
-        <div className="w-[30%] shrink-0">
+    <div className="mx-auto w-full bg-white px-4 pb-10 pt-[max(10rem,calc(8.5rem+env(safe-area-inset-top,0px)))] sm:px-6 sm:pb-12 sm:pt-28 md:pt-32 lg:px-8 lg:pb-16 lg:pt-36">
+      <GiftCardPageHeader className="mb-6 sm:mb-8 lg:mb-10" />
+      <div className="mx-auto w-full max-w-7xl">
+        {/* Tablet & mobile: purchase first, then tabbed lists */}
+        <div className="flex flex-col gap-6 lg:hidden">
           {alerts}
           {purchasePanel}
+          <GiftCardListTabs
+            activeTab={listTab}
+            onTabChange={setListTab}
+            created={created}
+            redeemed={redeemed}
+            listLoading={listLoading}
+            onCreatedThumbClick={openCreatedModal}
+          />
         </div>
-        <GiftCardDesktopLists
-          created={created}
-          redeemed={redeemed}
-          listLoading={listLoading}
-          onCreatedThumbClick={openCreatedModal}
+
+        {/* Desktop: side-by-side */}
+        <div className="hidden items-start gap-4 lg:flex">
+          <div className="w-[30%] shrink-0">
+            {alerts}
+            {purchasePanel}
+          </div>
+          <GiftCardDesktopLists
+            created={created}
+            redeemed={redeemed}
+            listLoading={listLoading}
+            onCreatedThumbClick={openCreatedModal}
+          />
+        </div>
+
+        <GiftCardPurchasedModal
+          open={Boolean(purchasedModal)}
+          onClose={closePurchasedModal}
+          code={purchasedModal?.code}
+          giftValue={purchasedModal?.giftValue}
+          paidAmount={purchasedModal?.paidAmount}
+          shareUrl={purchasedModal?.shareUrl}
+          onSelfRedeem={handleSelfRedeemFromModal}
+          selfRedeeming={selfRedeeming}
+        />
+
+        <GiftCardCreatedShareModal
+          open={Boolean(createdModalCard)}
+          onClose={closeCreatedModal}
+          card={createdModalCard}
+          bannerImage={bannerImage}
+          multiplier={multiplier}
+          shareUrl={createdModalShareUrl}
+          onRedeem={handleCreatedModalRedeem}
+          redeeming={createdModalRedeeming}
+        />
+
+        <GiftCardWalletSuccessModal
+          open={walletSuccessAmount != null}
+          onClose={closeWalletSuccessModal}
+          amount={walletSuccessAmount ?? 0}
+        />
+
+        <GiftCardAlreadyRedeemedModal
+          open={alreadyRedeemedOpen}
+          onClose={closeAlreadyRedeemedModal}
+          message={alreadyRedeemedMessage}
         />
       </div>
-
-      <GiftCardPurchasedModal
-        open={Boolean(purchasedModal)}
-        onClose={closePurchasedModal}
-        code={purchasedModal?.code}
-        giftValue={purchasedModal?.giftValue}
-        paidAmount={purchasedModal?.paidAmount}
-        shareUrl={purchasedModal?.shareUrl}
-        onSelfRedeem={handleSelfRedeemFromModal}
-        selfRedeeming={selfRedeeming}
-      />
-
-      <GiftCardCreatedShareModal
-        open={Boolean(createdModalCard)}
-        onClose={closeCreatedModal}
-        card={createdModalCard}
-        bannerImage={bannerImage}
-        multiplier={multiplier}
-        shareUrl={createdModalShareUrl}
-        onRedeem={handleCreatedModalRedeem}
-        redeeming={createdModalRedeeming}
-      />
-
-      <GiftCardWalletSuccessModal
-        open={walletSuccessAmount != null}
-        onClose={closeWalletSuccessModal}
-        amount={walletSuccessAmount ?? 0}
-      />
-
-      <GiftCardAlreadyRedeemedModal
-        open={alreadyRedeemedOpen}
-        onClose={closeAlreadyRedeemedModal}
-        message={alreadyRedeemedMessage}
-      />
     </div>
   )
 }

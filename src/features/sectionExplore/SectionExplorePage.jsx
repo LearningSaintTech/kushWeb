@@ -6,6 +6,7 @@ import { sectionsService } from '../../services/content.service.js'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
 import { ROUTES, getSearchPath } from '../../utils/constants'
+import { getItemStockTotal } from '../../utils/productStock.js'
 
 const DEFAULT_LIMIT = 12
 
@@ -36,6 +37,7 @@ function itemToCardProps(item) {
     hoverImage: hoverUrl || undefined,
     title: item.name ?? 'Product',
     shortDescription: item.shortDescription ?? '',
+    stock: getItemStockTotal(item),
     price,
     originalPrice,
     delivery,

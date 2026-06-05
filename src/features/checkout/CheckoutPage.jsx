@@ -32,7 +32,10 @@ import {
   donationStateFromCart,
   buildDonationApiParams,
   buildDonationOrderBody,
+  getActiveDonationAmount,
 } from '../../utils/donation.js'
+import DonationPicker from '../../shared/components/DonationPicker.jsx'
+import CartItemDescription from '../../shared/components/CartItemDescription.jsx'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -249,24 +252,23 @@ function CheckoutPage() {
     donationInitializedRef.current = true
   }, [cartData?.donation])
 
-  const handleDonationToggle = (checked) => {
-    setDonationEnabled(checked)
-    if (checked) {
-      setDonationPresetUsed(true)
-      setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
-      setDonationCustomMode(false)
-    } else {
+  const handleDonationPresetSelect = (amount) => {
+    const current = getActiveDonationAmount({
+      donationEnabled,
+      donationAmount,
+      donationPresetUsed,
+    })
+    if (donationEnabled && current === amount) {
+      setDonationEnabled(false)
       setDonationPresetUsed(false)
       setDonationAmount('')
       setDonationCustomMode(false)
+    } else {
+      setDonationEnabled(true)
+      setDonationAmount(String(amount))
+      setDonationPresetUsed(amount === DEFAULT_DONATION_AMOUNT)
+      setDonationCustomMode(false)
     }
-    setDonationError(null)
-  }
-
-  const handleDonationCustomAmountChange = (value) => {
-    setDonationAmount(value)
-    setDonationPresetUsed(false)
-    setDonationCustomMode(true)
     setDonationError(null)
   }
 
@@ -1434,7 +1436,7 @@ function CheckoutPage() {
                         ) : (
                           <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
                         )}
-                        {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case line-clamp-2">{shortDesc}</p>}
+                        <CartItemDescription text={shortDesc} />
                         {(color || size) && (
                           <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                             {color && (
@@ -1525,7 +1527,7 @@ function CheckoutPage() {
                               {productPath ? (
                                 <Link to={productPath} className="block hover:underline">
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  <CartItemDescription text={shortDesc} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
@@ -1547,7 +1549,7 @@ function CheckoutPage() {
                               ) : (
                                 <>
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  <CartItemDescription text={shortDesc} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
@@ -1872,71 +1874,14 @@ function CheckoutPage() {
             )}
 
             {/* Donation */}
-            <section className="border border-gray-200 rounded-sm p-3.5 sm:p-4 bg-[#fafafa]">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={donationEnabled}
-                  onChange={(e) => handleDonationToggle(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-black"
-                />
-                <span className="text-sm text-gray-800">
-                  Would you like to donate ₹{DEFAULT_DONATION_AMOUNT}?
-                </span>
-              </label>
-              {donationEnabled && (
-                <div className="mt-3 pl-6 space-y-2">
-                  {!donationCustomMode ? (
-                    <p className="text-xs text-gray-600">
-                      Preset amount: ₹{DEFAULT_DONATION_AMOUNT}
-                      {' · '}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDonationCustomMode(true)
-                          setDonationPresetUsed(false)
-                          setDonationAmount('')
-                        }}
-                        className="underline text-black hover:no-underline"
-                      >
-                        Enter custom amount
-                      </button>
-                    </p>
-                  ) : (
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1" htmlFor="checkout-donation-amount">
-                        Custom amount (₹)
-                      </label>
-                      <input
-                        id="checkout-donation-amount"
-                        type="number"
-                        min="0"
-                        max={DONATION_MAX_AMOUNT}
-                        step="1"
-                        value={donationAmount}
-                        onChange={(e) => handleDonationCustomAmountChange(e.target.value)}
-                        placeholder={`e.g. ${DEFAULT_DONATION_AMOUNT}`}
-                        className="w-full max-w-[140px] border border-gray-300 px-2.5 py-1.5 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDonationCustomMode(false)
-                          setDonationPresetUsed(true)
-                          setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
-                        }}
-                        className="mt-1.5 block text-xs underline text-black hover:no-underline"
-                      >
-                        Use preset ₹{DEFAULT_DONATION_AMOUNT}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-              {donationError && (
-                <p className="mt-2 text-xs text-red-600">{donationError}</p>
-              )}
-            </section>
+            <DonationPicker
+              className="border border-gray-200 rounded-sm bg-[#fafafa] p-3.5 sm:p-4"
+              donationEnabled={donationEnabled}
+              donationAmount={donationAmount}
+              donationPresetUsed={donationPresetUsed}
+              donationError={donationError}
+              onSelectPreset={handleDonationPresetSelect}
+            />
 
             {/* Bill Summary */}
             <section>

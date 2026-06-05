@@ -9,6 +9,7 @@ import { addRecentKeyword } from '../../app/store/slices/searchSlice.js'
 import collectionBanner from '../../assets/temporary/websitebanner.svg'
 import { ROUTES, getProductPath } from '../../utils/constants'
 import ProductCard from '../../shared/components/ProductCard'
+import { getItemStockTotal } from '../../utils/productStock.js'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
 import { sectionsService } from '../../services/content.service.js'
@@ -127,6 +128,7 @@ function itemToCardProps(item) {
     hoverImage: hoverUrl || undefined,
     title: item.name ?? 'Product',
     shortDescription: item.shortDescription ?? '',
+    stock: getItemStockTotal(item),
     price,
     originalPrice,
     delivery,

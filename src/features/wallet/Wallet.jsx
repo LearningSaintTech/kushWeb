@@ -14,11 +14,12 @@ function WalletBadgeIcon() {
 
 function SuccessTickIcon() {
   return (
-    <svg viewBox="0 0 64 64" className="h-16 w-16 text-black" fill="none" aria-hidden="true">
-      <circle cx="32" cy="32" r="22" stroke="currentColor" strokeWidth="2" />
-      <path d="M23 32l7 7 12-14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M17 20l2 2M48 16l2 2M14 30l2 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="139" height="119" viewBox="0 0 139 119" fill="none">
+  <rect width="138.174" height="118.592" fill="white"/>
+  <path d="M70.0509 30.5952C45.7985 30.5952 26.0703 50.3233 26.0703 74.5757C26.0703 98.8281 45.7985 118.556 70.0509 118.556C94.3033 118.556 114.031 98.8281 114.031 74.5757C114.031 65.8561 111.47 57.728 107.077 50.8861L104.459 53.9785C108.083 60.0096 110.207 67.0417 110.207 74.5757C110.207 96.7171 92.1922 114.732 70.0509 114.732C47.9095 114.732 29.8947 96.7171 29.8947 74.5757C29.8947 52.4344 47.9095 34.4196 70.0509 34.4196C80.459 34.4196 89.9261 38.4347 97.0681 44.9553L99.5704 42.0011C91.7591 34.9164 81.3998 30.5952 70.0509 30.5952ZM104.922 41.5978L67.9743 85.1974L52.4228 70.6916L49.8159 73.4889L68.2993 90.7286L107.843 44.0702L104.922 41.5978Z" fill="black"/>
+  <path d="M113.072 15.9112C111.068 16.9648 106.117 17.4331 106.117 17.4331V19.3061C106.117 19.3061 111.068 19.7744 113.072 20.828C114.958 21.8816 116.609 23.2864 117.787 25.1595C119.084 27.0326 119.909 29.1398 120.499 31.5982C121.088 34.0566 121.324 36.1755 121.324 36.1755H122.974C122.974 36.1755 123.556 32.8148 123.799 31.5982C124.389 29.1398 125.332 27.0326 126.511 25.1595C127.689 23.2864 129.222 21.8816 131.226 20.828C133.23 19.7744 138.181 19.3061 138.181 19.3061V17.4331C138.181 17.4331 133.23 16.9648 131.226 15.9112C129.34 14.8576 127.689 13.4528 126.511 11.5797C125.214 9.70663 124.389 7.59943 123.799 5.14102C123.529 3.69193 122.974 0 122.974 0H121.324C121.324 0 120.776 4.20475 120.499 5.14102C119.909 7.59943 118.966 9.70663 117.787 11.5797C116.609 13.4528 115.076 14.8576 113.072 15.9112Z" fill="#555555"/>
+  <path d="M4.12626 42.6268C2.93734 43.2519 0 43.5297 0 43.5297V44.641C0 44.641 2.93734 44.9188 4.12626 45.5439C5.24524 46.169 6.22435 47.0024 6.92371 48.1137C7.69302 49.2249 8.18258 50.4751 8.53226 51.9336C8.88194 53.3921 9.02181 54.6493 9.02181 54.6493H10.0009C10.0009 54.6493 10.3461 52.6554 10.4905 51.9336C10.8402 50.4751 11.3996 49.2249 12.099 48.1137C12.7984 47.0024 13.7076 46.169 14.8965 45.5439C16.0854 44.9188 19.0227 44.641 19.0227 44.641V43.5297C19.0227 43.5297 16.0854 43.2519 14.8965 42.6268C13.7775 42.0018 12.7984 41.1683 12.099 40.0571C11.3297 38.9458 10.8402 37.6957 10.4905 36.2371C10.33 35.3774 10.0009 33.1871 10.0009 33.1871H9.02181C9.02181 33.1871 8.69673 35.6817 8.53226 36.2371C8.18258 37.6957 7.62308 38.9458 6.92371 40.0571C6.22435 41.1683 5.31518 42.0018 4.12626 42.6268Z" fill="#555555"/>
+</svg>
   )
 }
 
@@ -169,7 +170,7 @@ const Wallet = () => {
   const renderedTransactions = useMemo(() => transactions.slice(0, 6), [transactions])
 
   return (
-    <div className="mx-auto mt-16 w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 md:mt-20 md:px-6">
+    <div className="mx-auto mt-16 w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6 md:mt-20 md:px-6">
       <h1 className="font-inter text-2xl font-semibold text-black sm:text-3xl">
         Wallet
       </h1>
@@ -320,11 +321,12 @@ const Wallet = () => {
             <div className="mx-auto flex w-fit items-center justify-center">
               <SuccessTickIcon />
             </div>
-            <h3 className="font-inter mt-6 text-[46px] font-medium uppercase leading-[1.1] tracking-[0.2em] text-black">
-              Money Added Successfully
+            <h3 className="font-inter mt-6 text-[36px] font-medium uppercase leading-[1.1] tracking-[0.2em] text-black">
+              Success
             </h3>
-            <p className="font-['Poppins'] mt-6 text-[38px] leading-tight text-[#3c3c3c]">
-              ₹{Number(lastAddedAmount || 0).toLocaleString('en-IN')} has been added to your wallet. You can now use it for payments.
+            <p className="font-['Poppins'] mt-6 text-[28px] leading-tight text-[#3c3c3c]">
+              {/* ₹{Number(lastAddedAmount || 0).toLocaleString('en-IN')}  */}
+              Wallet Balance added successfully.
             </p>
           </div>
         </div>

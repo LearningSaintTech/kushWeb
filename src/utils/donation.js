@@ -1,7 +1,25 @@
 /** Default preset donation (₹2) — matches backend checkout contract. */
 export const DEFAULT_DONATION_AMOUNT = 2
 
+export const DONATION_PRESETS = [2, 5, 10, 20]
+
 export const DONATION_MAX_AMOUNT = 10000
+
+/** Amount shown in heading and used for API when donation is on. */
+export function getActiveDonationAmount({
+  donationEnabled,
+  donationAmount,
+  donationPresetUsed,
+}) {
+  if (!donationEnabled) return null
+  const resolved = resolveDonationAmount({
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+  })
+  if (resolved.invalid) return null
+  return resolved.amount
+}
 
 /** Restore UI state from cart API `donation` object or checkout navigation state. */
 export function donationStateFromCart(cartDonation) {

@@ -15,7 +15,10 @@ import {
   DONATION_MAX_AMOUNT,
   donationStateFromCart,
   buildDonationApiParams,
+  getActiveDonationAmount,
 } from '../../utils/donation.js'
+import DonationPicker from '../../shared/components/DonationPicker.jsx'
+import CartItemDescription from '../../shared/components/CartItemDescription.jsx'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -295,24 +298,23 @@ function CartPage() {
     donationInitializedRef.current = true
   }, [cartData?.donation])
 
-  const handleDonationToggle = (checked) => {
-    setDonationEnabled(checked)
-    if (checked) {
-      setDonationPresetUsed(true)
-      setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
-      setDonationCustomMode(false)
-    } else {
+  const handleDonationPresetSelect = (amount) => {
+    const current = getActiveDonationAmount({
+      donationEnabled,
+      donationAmount,
+      donationPresetUsed,
+    })
+    if (donationEnabled && current === amount) {
+      setDonationEnabled(false)
       setDonationPresetUsed(false)
       setDonationAmount('')
       setDonationCustomMode(false)
+    } else {
+      setDonationEnabled(true)
+      setDonationAmount(String(amount))
+      setDonationPresetUsed(amount === DEFAULT_DONATION_AMOUNT)
+      setDonationCustomMode(false)
     }
-    setDonationError(null)
-  }
-
-  const handleDonationCustomAmountChange = (value) => {
-    setDonationAmount(value)
-    setDonationPresetUsed(false)
-    setDonationCustomMode(true)
     setDonationError(null)
   }
 
@@ -390,7 +392,7 @@ function CartPage() {
       const data = res?.data?.data ?? res?.data
       setCartData(data)
       if (data?.items?.length) fetchPriceSummary(appliedCouponCode || null)
-    }).catch(() => {})
+    }).catch(() => { })
   }, [addressId, isAuthenticated])
 
   // Fetch delivery options from pincode check API (selected address pinCode or Redux pincode)
@@ -441,7 +443,7 @@ function CartPage() {
       refetchCart({ addressId })
       const next = await fetchCart()
       if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const handleDecreaseQty = async (sku, row) => {
@@ -461,7 +463,7 @@ function CartPage() {
       refetchCart({ addressId })
       const next = await fetchCart()
       if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const handleRemove = async (sku, row) => {
@@ -475,7 +477,7 @@ function CartPage() {
             items: [cartRowToEcommerceItem(row)],
           },
         })
-      } catch (_) {}
+      } catch (_) { }
       return
     }
     try {
@@ -491,7 +493,7 @@ function CartPage() {
       const next = await fetchCart()
       setCartData(next)
       if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const handleSelectDelivery = async (sku, deliveryId) => {
@@ -500,7 +502,7 @@ function CartPage() {
       refetchCart({ addressId })
       await fetchCart()
       fetchPriceSummary(appliedCouponCode || null)
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const handleApplyCoupon = () => {
@@ -689,10 +691,15 @@ function CartPage() {
     summary.donation?.enabled && Number(summary.donation?.amount) > 0
       ? Number(summary.donation.amount)
       : 0
-  const donationForCheckout = donationEnabled
+  const activeDonationAmount = getActiveDonationAmount({
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+  })
+  const donationForCheckout = donationEnabled && activeDonationAmount != null
     ? {
         enabled: true,
-        amount: donationPresetUsed ? DEFAULT_DONATION_AMOUNT : Number(donationAmount) || 0,
+        amount: activeDonationAmount,
         presetUsed: donationPresetUsed,
       }
     : { enabled: false, amount: 0, presetUsed: false }
@@ -777,7 +784,7 @@ function CartPage() {
                         ) : (
                           <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
                         )}
-                        {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case line-clamp-2">{shortDesc}</p>}
+                        <CartItemDescription text={shortDesc} />
                         {(color || size) && (
                           <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                             {color && (
@@ -829,25 +836,25 @@ function CartPage() {
                           Delivery speed and charges are confirmed at checkout after you sign in.
                         </p>
                       ) : (
-                      <select
-                        value={selectedDeliveryId ?? ''}
-                        onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
-                        className="flex-1 border border-gray-200 bg-gray-100 py-2 pl-3 pr-8 text-xs uppercase text-gray-800 rounded-md appearance-none cursor-pointer"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a5568'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }}
-                      >
-                        <option value="">Select delivery</option>
-                        {deliveryOptions.map((opt) => {
-                          const id = opt._id?.toString?.() ?? opt._id
-                          const fallback = opt.deliveryType === '90_MIN' ? '90 MIN' : opt.deliveryType === 'ONE_DAY' ? '1 DAY' : opt.deliveryType || 'Standard'
-                          const durationLabel = formatDeliveryDuration(opt.deliveryDuration, fallback)
-                          const charge = opt.deliveryCharge != null && opt.deliveryCharge > 0 ? ` — Rs ${Number(opt.deliveryCharge).toLocaleString('en-IN')}` : ' — Free'
-                          return (
-                            <option key={id} value={id}>
-                              {durationLabel}{charge}
-                            </option>
-                          )
-                        })}
-                      </select>
+                        <select
+                          value={selectedDeliveryId ?? ''}
+                          onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
+                          className="flex-1 border border-gray-200 bg-gray-100 py-2 pl-3 pr-8 text-xs uppercase text-gray-800 rounded-md appearance-none cursor-pointer"
+                          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a5568'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }}
+                        >
+                          <option value="">Select delivery</option>
+                          {deliveryOptions.map((opt) => {
+                            const id = opt._id?.toString?.() ?? opt._id
+                            const fallback = opt.deliveryType === '90_MIN' ? '90 MIN' : opt.deliveryType === 'ONE_DAY' ? '1 DAY' : opt.deliveryType || 'Standard'
+                            const durationLabel = formatDeliveryDuration(opt.deliveryDuration, fallback)
+                            const charge = opt.deliveryCharge != null && opt.deliveryCharge > 0 ? ` — Rs ${Number(opt.deliveryCharge).toLocaleString('en-IN')}` : ' — Free'
+                            return (
+                              <option key={id} value={id}>
+                                {durationLabel}{charge}
+                              </option>
+                            )
+                          })}
+                        </select>
                       )}
                       <button
                         type="button"
@@ -917,7 +924,7 @@ function CartPage() {
                               {productPath ? (
                                 <Link to={productPath} className="block hover:underline">
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  <CartItemDescription text={shortDesc} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
@@ -939,7 +946,7 @@ function CartPage() {
                               ) : (
                                 <>
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  <CartItemDescription text={shortDesc} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
@@ -992,25 +999,25 @@ function CartPage() {
                               Confirmed at checkout after sign-in.
                             </p>
                           ) : (
-                          <select
-                            value={selectedDeliveryId ?? ''}
-                            onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
-                            className="w-full max-w-[180px] border border-gray-200 bg-gray-100 py-2 pl-3 pr-8 text-sm uppercase text-gray-800 rounded-md appearance-none cursor-pointer"
-                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a5568'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }}
-                          >
-                            <option value="">Select delivery</option>
-                            {deliveryOptions.map((opt) => {
-                              const id = opt._id?.toString?.() ?? opt._id
-                              const fallback = opt.deliveryType === '90_MIN' ? '90 MIN' : opt.deliveryType === 'ONE_DAY' ? '1 DAY' : opt.deliveryType || 'Standard'
-                              const durationLabel = formatDeliveryDuration(opt.deliveryDuration, fallback)
-                              const charge = opt.deliveryCharge != null && opt.deliveryCharge > 0 ? ` — Rs ${Number(opt.deliveryCharge).toLocaleString('en-IN')}` : ' — Free'
-                              return (
-                                <option key={id} value={id}>
-                                  {durationLabel}{charge}
-                                </option>
-                              )
-                            })}
-                          </select>
+                            <select
+                              value={selectedDeliveryId ?? ''}
+                              onChange={(e) => handleSelectDelivery(sku, e.target.value || null)}
+                              className="w-full max-w-[180px] border border-gray-200 bg-gray-100 py-2 pl-3 pr-8 text-sm uppercase text-gray-800 rounded-md appearance-none cursor-pointer"
+                              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a5568'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }}
+                            >
+                              <option value="">Select delivery</option>
+                              {deliveryOptions.map((opt) => {
+                                const id = opt._id?.toString?.() ?? opt._id
+                                const fallback = opt.deliveryType === '90_MIN' ? '90 MIN' : opt.deliveryType === 'ONE_DAY' ? '1 DAY' : opt.deliveryType || 'Standard'
+                                const durationLabel = formatDeliveryDuration(opt.deliveryDuration, fallback)
+                                const charge = opt.deliveryCharge != null && opt.deliveryCharge > 0 ? ` — Rs ${Number(opt.deliveryCharge).toLocaleString('en-IN')}` : ' — Free'
+                                return (
+                                  <option key={id} value={id}>
+                                    {durationLabel}{charge}
+                                  </option>
+                                )
+                              })}
+                            </select>
                           )}
                         </td>
                         <td className="pl-2 py-4 align-middle">
@@ -1050,63 +1057,63 @@ function CartPage() {
               </section>
             )}
             {isAuthenticated && (
-            <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">Delivery to:</h2>
-              {addresses.length > 0 ? (
-                <>
-                  <select
-                    value={selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : '')}
-                    onChange={(e) => {
-                      const id = e.target.value
-                      const addr = addresses.find((a) => String(a._id ?? '') === id)
-                      if (addr) {
-                        setSelectedAddress(addr)
-                        dispatch(setLocation({
-                          pincode: addr.pinCode != null ? String(addr.pinCode) : null,
-                          addressLabel: formatAddress(addr) || (addr.pinCode ? `Pin ${addr.pinCode}` : null),
-                          selectedAddressId: addr._id ?? null,
-                        }))
-                      }
-                    }}
-                    className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
-                  >
-                    {addresses.map((addr) => (
-                      <option key={addr._id} value={String(addr._id ?? '')}>
-                        {addr.name} – {addr.addressLine}
-                      </option>
-                    ))}
-                  </select>
-                  {/* Selected address details below dropdown — always show when we have addresses */}
-                  {(() => {
-                    const selectedId = selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : null)
-                    const toShow = selectedId
-                      ? (addresses.find((a) => String(a._id ?? '') === selectedId) ?? addresses.find((a) => a.isDefault) ?? addresses[0])
-                      : (addresses.find((a) => a.isDefault) ?? addresses[0])
-                    if (!toShow) return null
-                    return (
-                      <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
-                        <p className="font-semibold uppercase text-black">{toShow.name}</p>
-                        <p className="text-gray-700 mt-1">{formatAddress(toShow)}</p>
-                        {(toShow.phoneNumber || toShow.countryCode) && (
-                          <p className="text-xs uppercase text-gray-600 mt-1">
-                            Contact: {[toShow.countryCode, toShow.phoneNumber].filter(Boolean).join(' ')}
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </>
-              ) : (
-                <p className="text-sm text-gray-500 mb-3">Please enter a delivery address to continue.</p>
-              )}
-              <button
-                type="button"
-                onClick={openAddressForm}
-                className="w-full border border-black py-2.5 px-4 text-sm font-medium uppercase bg-white text-black hover:bg-gray-50 transition-colors rounded-none"
-              >
-                Add new address
-              </button>
-            </section>
+              <section>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">Delivery to:</h2>
+                {addresses.length > 0 ? (
+                  <>
+                    <select
+                      value={selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : '')}
+                      onChange={(e) => {
+                        const id = e.target.value
+                        const addr = addresses.find((a) => String(a._id ?? '') === id)
+                        if (addr) {
+                          setSelectedAddress(addr)
+                          dispatch(setLocation({
+                            pincode: addr.pinCode != null ? String(addr.pinCode) : null,
+                            addressLabel: formatAddress(addr) || (addr.pinCode ? `Pin ${addr.pinCode}` : null),
+                            selectedAddressId: addr._id ?? null,
+                          }))
+                        }
+                      }}
+                      className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
+                    >
+                      {addresses.map((addr) => (
+                        <option key={addr._id} value={String(addr._id ?? '')}>
+                          {addr.name} – {addr.addressLine}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Selected address details below dropdown — always show when we have addresses */}
+                    {(() => {
+                      const selectedId = selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : null)
+                      const toShow = selectedId
+                        ? (addresses.find((a) => String(a._id ?? '') === selectedId) ?? addresses.find((a) => a.isDefault) ?? addresses[0])
+                        : (addresses.find((a) => a.isDefault) ?? addresses[0])
+                      if (!toShow) return null
+                      return (
+                        <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
+                          <p className="font-semibold uppercase text-black">{toShow.name}</p>
+                          <p className="text-gray-700 mt-1">{formatAddress(toShow)}</p>
+                          {(toShow.phoneNumber || toShow.countryCode) && (
+                            <p className="text-xs uppercase text-gray-600 mt-1">
+                              Contact: {[toShow.countryCode, toShow.phoneNumber].filter(Boolean).join(' ')}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500 mb-3">Please enter a delivery address to continue.</p>
+                )}
+                <button
+                  type="button"
+                  onClick={openAddressForm}
+                  className="w-full border border-black py-2.5 px-4 text-sm font-medium uppercase bg-white text-black hover:bg-gray-50 transition-colors rounded-none"
+                >
+                  Add new address
+                </button>
+              </section>
             )}
 
             {/* Add / Edit Address modal */}
@@ -1158,10 +1165,10 @@ function CartPage() {
                       </div>
                       {(addressFormPhoneError ||
                         (addressFormTouched.phoneNumber && addressFormErrors.phoneNumber)) && (
-                        <p className="mt-1 text-xs text-red-600">
-                          {addressFormPhoneError || addressFormErrors.phoneNumber}
-                        </p>
-                      )}
+                          <p className="mt-1 text-xs text-red-600">
+                            {addressFormPhoneError || addressFormErrors.phoneNumber}
+                          </p>
+                        )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
@@ -1256,57 +1263,57 @@ function CartPage() {
 
             {/* Apply Coupon */}
             {isAuthenticated && (
-            <section>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <h2 className="text-sm font-semibold text-black">Apply Coupon</h2>
-                <button
-                  type="button"
-                  onClick={openCouponModal}
-                  className="text-xs font-medium uppercase text-black hover:underline whitespace-nowrap"
-                >
-                  See all
-                </button>
-              </div>
-              {appliedCouponCode ? (
-                <div className="flex items-center justify-between gap-2 p-3 border border-green-600 bg-green-50/80">
-                  <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
+              <section>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h2 className="text-sm font-semibold text-black">Apply Coupon</h2>
                   <button
                     type="button"
-                    onClick={handleRemoveCoupon}
-                    className="text-xs font-semibold uppercase text-green-700 hover:text-green-900 underline"
+                    onClick={openCouponModal}
+                    className="text-xs font-medium uppercase text-black hover:underline whitespace-nowrap"
                   >
-                    Remove coupon
+                    See all
                   </button>
                 </div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap gap-2 items-stretch">
-                    <div className="flex-1 min-w-[140px] relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                        </svg>
-                      </span>
-                      <input
-                        type="text"
-                        placeholder="ENTER COUPON CODE HERE"
-                        value={couponInput}
-                        onChange={(e) => setCouponInput(e.target.value)}
-                        className="w-full border border-gray-300 py-2 pl-9 pr-3 text-sm placeholder-gray-400 uppercase rounded-none"
-                      />
-                    </div>
+                {appliedCouponCode ? (
+                  <div className="flex items-center justify-between gap-2 p-3 border border-green-600 bg-green-50/80">
+                    <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
                     <button
                       type="button"
-                      onClick={handleApplyCoupon}
-                      className="bg-black text-white py-2 px-5 text-sm font-semibold uppercase hover:bg-gray-800 transition-colors whitespace-nowrap rounded-none"
+                      onClick={handleRemoveCoupon}
+                      className="text-xs font-semibold uppercase text-green-700 hover:text-green-900 underline"
                     >
-                      Apply
+                      Remove coupon
                     </button>
                   </div>
-                  {couponError && <p className="mt-1 text-xs text-red-600">{couponError}</p>}
-                </>
-              )}
-            </section>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2 items-stretch">
+                      <div className="flex-1 min-w-[140px] relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                          </svg>
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="ENTER COUPON CODE HERE"
+                          value={couponInput}
+                          onChange={(e) => setCouponInput(e.target.value)}
+                          className="w-full border border-gray-300 py-2 pl-9 pr-3 text-sm placeholder-gray-400 uppercase rounded-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        className="bg-black text-white py-2 px-5 text-sm font-semibold uppercase hover:bg-gray-800 transition-colors whitespace-nowrap rounded-none"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                    {couponError && <p className="mt-1 text-xs text-red-600">{couponError}</p>}
+                  </>
+                )}
+              </section>
             )}
 
             {/* Coupons modal — larger, enhanced UI with Apply / Remove per coupon */}
@@ -1326,7 +1333,7 @@ function CartPage() {
                       <ul className="space-y-4">
                         {availableCoupons.map((c) => {
                           const code = (c.code ?? '').trim()
-                          const desc = c.description ?? ''
+                          const desc = (c.description ?? '')
                           const type = (c.discountType || '').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FLAT'
                           const value = c.discountValue ?? 0
                           const maxDiscount = c.maxDiscountAmount ?? c.maxDiscount
@@ -1395,71 +1402,14 @@ function CartPage() {
 
             {/* Donation */}
             {isAuthenticated && (
-              <section className="border border-gray-200 rounded-sm p-3.5 sm:p-4 bg-[#fafafa]">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={donationEnabled}
-                    onChange={(e) => handleDonationToggle(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-black"
-                  />
-                  <span className="text-sm text-gray-800">
-                    Would you like to donate ₹{DEFAULT_DONATION_AMOUNT}?
-                  </span>
-                </label>
-                {donationEnabled && (
-                  <div className="mt-3 pl-6 space-y-2">
-                    {!donationCustomMode ? (
-                      <p className="text-xs text-gray-600">
-                        Preset amount: ₹{DEFAULT_DONATION_AMOUNT}
-                        {' · '}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDonationCustomMode(true)
-                            setDonationPresetUsed(false)
-                            setDonationAmount('')
-                          }}
-                          className="underline text-black hover:no-underline"
-                        >
-                          Enter custom amount
-                        </button>
-                      </p>
-                    ) : (
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1" htmlFor="cart-donation-amount">
-                          Custom amount (₹)
-                        </label>
-                        <input
-                          id="cart-donation-amount"
-                          type="number"
-                          min="0"
-                          max={DONATION_MAX_AMOUNT}
-                          step="1"
-                          value={donationAmount}
-                          onChange={(e) => handleDonationCustomAmountChange(e.target.value)}
-                          placeholder={`e.g. ${DEFAULT_DONATION_AMOUNT}`}
-                          className="w-full max-w-[140px] border border-gray-300 px-2.5 py-1.5 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDonationCustomMode(false)
-                            setDonationPresetUsed(true)
-                            setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
-                          }}
-                          className="mt-1.5 block text-xs underline text-black hover:no-underline"
-                        >
-                          Use preset ₹{DEFAULT_DONATION_AMOUNT}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {donationError && (
-                  <p className="mt-2 text-xs text-red-600">{donationError}</p>
-                )}
-              </section>
+              <DonationPicker
+                className="border border-gray-200 rounded-sm bg-[#fafafa] p-3.5 sm:p-4"
+                donationEnabled={donationEnabled}
+                donationAmount={donationAmount}
+                donationPresetUsed={donationPresetUsed}
+                donationError={donationError}
+                onSelectPreset={handleDonationPresetSelect}
+              />
             )}
 
             {/* Bill Summary */}

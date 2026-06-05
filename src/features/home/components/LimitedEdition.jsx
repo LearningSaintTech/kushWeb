@@ -135,10 +135,7 @@ function LimitedEditionHeader({ title }) {
     return (
         <header className="mb-6 sm:mb-8 md:mb-10">
             <h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-0 leading-none text-white">
-                <span
-                    className="font-refer-display text-[clamp(2rem,9vw,3rem)] italic text-white sm:text-[clamp(2.5rem,6vw,3.75rem)] md:text-[clamp(3rem,4.5vw,4.25rem)] lg:text-[4.5rem]"
-                    style={{ fontWeight: 600 }}
-                >
+                <span className="font-rivera text-[clamp(2rem,9vw,3rem)] text-white sm:text-[clamp(2.5rem,6vw,3.75rem)] md:text-[clamp(3rem,4.5vw,4.25rem)] lg:text-[4.5rem]">
                     {first}
                 </span>
                 <span className="font-inter text-[clamp(1rem,3.5vw,1.25rem)] font-bold uppercase tracking-[0.14em] text-white sm:text-xl sm:tracking-[0.16em] md:text-2xl lg:text-[2.25rem]">

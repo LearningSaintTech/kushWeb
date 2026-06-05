@@ -7,6 +7,7 @@ import React, {
 import { Link, useNavigate } from "react-router-dom";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { getProductPath } from "../../utils/constants";
+import { getLowStockLabel } from "../../utils/productStock.js";
 
 const ROUNDED_CLASSES = {
   none: "",
@@ -109,6 +110,7 @@ const ProductCard = React.memo(function ProductCard({
   hoverImage,
   title,
   shortDescription,
+  stock,
   price,
   originalPrice,
   delivery,
@@ -243,6 +245,9 @@ const ProductCard = React.memo(function ProductCard({
   const showHoverImage = Boolean(
     hoverImage && hoverImageLoaded && hoverImage !== image,
   );
+
+  const shortDescText = (shortDescription ?? "").trim();
+  const lowStockLabel = !outOfStock ? getLowStockLabel(stock) : null;
 
   const revealOnHoverClass =
     "opacity-0 pointer-events-none transition-opacity duration-300 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto";
@@ -475,6 +480,21 @@ const ProductCard = React.memo(function ProductCard({
               >
                 {titleExpanded ? "See less" : "See more"}
               </button>
+            )}
+
+            {(shortDescText || lowStockLabel) && (
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                {shortDescText ? (
+                  <p className="min-w-0 flex-1 line-clamp-1 font-inter text-[10px] font-normal normal-case tracking-normal text-gray-500 sm:text-xs">
+                    {shortDescText}
+                  </p>
+                ) : null}
+                {lowStockLabel ? (
+                  <span className="shrink-0 font-inter text-[10px] font-semibold uppercase tracking-wide text-[#C45C26] sm:text-xs">
+                    {lowStockLabel}
+                  </span>
+                ) : null}
+              </div>
             )}
           </div>
 

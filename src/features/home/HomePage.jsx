@@ -108,9 +108,9 @@ function HomePage() {
       </Helmet>
 
     <div>
-      <Banner />
-      <StaticCard />
-      <GiftCardBanner />
+      <Banner className="bg-white" />
+      <StaticCard className="bg-white" />
+      <GiftCardBanner className="bg-white" />
       {loading && <HomePageLoader />}
       {error && (
         <div className="container mx-auto px-4 py-8 text-center text-red-600">

@@ -107,7 +107,7 @@ export default function NotificationsPage() {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 mt-[20vh] sm:mt-[15vh] md:mt-[10vh] lg:mt-[8vh] py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Notifications</h1>
         {unreadCount > 0 && (
