@@ -83,11 +83,14 @@ export default function Address() {
   const [phoneError, setPhoneError] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
   const [mapGeocoding, setMapGeocoding] = useState(false)
+  const [pinAutofetchLoading, setPinAutofetchLoading] = useState(false)
   const [addressSearchQuery, setAddressSearchQuery] = useState('')
   const [addressSearchResults, setAddressSearchResults] = useState([])
   const [addressSearchOpen, setAddressSearchOpen] = useState(false)
   const [addressSearchLoading, setAddressSearchLoading] = useState(false)
   const addressSearchRef = useRef(null)
+  const [phoneTouched, setPhoneTouched] = useState(false)
+  const lastPinAutofetchRef = useRef(null)
 
   const loadAddresses = useCallback(async () => {
     if (!isAuthenticated) {
@@ -150,6 +153,7 @@ export default function Address() {
       latitude: null,
       longitude: null,
     });
+    setPhoneTouched(false)
     setModalOpen(true);
   };
 
@@ -170,6 +174,7 @@ export default function Address() {
       latitude: addr?.latitude ?? null,
       longitude: addr?.longitude ?? null,
     });
+    setPhoneTouched(false)
     setModalOpen(true);
   };
 
@@ -209,6 +214,46 @@ export default function Address() {
     }, 400);
     return () => clearTimeout(t);
   }, [modalOpen, modalMode, addressSearchQuery]);
+
+  // Pincode autofetch: when user enters 6 digits, auto-fill city/state (+lat/lng if available).
+  useEffect(() => {
+    if (!modalOpen) return
+    const pin = String(form.pinCode || '').replace(/\D/g, '').slice(0, 6)
+    if (pin.length !== 6) return
+    if (lastPinAutofetchRef.current === pin) return
+
+    let cancelled = false
+    setPinAutofetchLoading(true)
+    ;(async () => {
+      try {
+        const results = await searchPlaces(pin)
+        if (cancelled) return
+        const list = Array.isArray(results) ? results : []
+        const match =
+          list.find((r) => String(r?.pincode || '').replace(/\D/g, '') === pin) ??
+          list[0] ??
+          null
+        if (!match) return
+        lastPinAutofetchRef.current = pin
+        setForm((prev) => ({
+          ...prev,
+          // Only fill if empty so we don't overwrite user edits
+          city: prev.city?.trim() ? prev.city : (match.city || prev.city),
+          state: prev.state?.trim() ? prev.state : (match.state || prev.state),
+          latitude: prev.latitude ?? match.latitude ?? prev.latitude,
+          longitude: prev.longitude ?? match.longitude ?? prev.longitude,
+        }))
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setPinAutofetchLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [modalOpen, form.pinCode, form.city, form.state])
 
   const handleSelectAddressSuggestion = useCallback((item) => {
     setForm((prev) => ({
@@ -269,10 +314,13 @@ export default function Address() {
     setFormError(null);
     setPhoneError(null);
 
+    const phoneDigits = String(form.phoneNumber || "")
+      .trim()
+      .replace(/\D/g, "");
+    setPhoneTouched(true);
     const pin = String(form.pinCode || "")
       .trim()
       .replace(/\D/g, "");
-    const phoneDigits = String(form.phoneNumber || "").replace(/\D/g, "");
     if (
       !form.name?.trim() ||
       !phoneDigits ||
@@ -378,8 +426,8 @@ export default function Address() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-24 pb-12">
-        <div className=" px-4 sm:px-6 md:px-8 py-12 sm:py-16 text-center ">
+      <div className="min-h-screen bg-gray-50 pt-20 sm:pt-24 pb-12">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 md:px-8 py-12 sm:py-16 text-center">
           <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">
             Address 
           </h1>
@@ -399,9 +447,9 @@ export default function Address() {
   }
 
   return (
-    <div className="min-h-screen  bg-white pt-30 pb-12">
-      <div className=" px-4 sm:px-6 md:px-8 lg:px-10 ">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="min-h-screen bg-white pt-20 sm:pt-24 pb-12">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-8 lg:px-10">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <h1 className="text-lg sm:text-xl font-bold text-black uppercase">
             Address book
           </h1>
@@ -423,7 +471,7 @@ export default function Address() {
             No addresses added yet. Add your first address.
           </p>
         ) : (
-          <div className="border border-[#E6E6E6] bg-white rounded-lg overflow-hidden">
+          <div className="border border-[#E6E6E6] bg-white rounded-xl overflow-hidden">
             {/* Header row — visible from md up */}
             <div className="hidden md:flex border-b border-[#E6E6E6]">
               <div className="flex-1 px-4 lg:px-8 py-4 text-[11px] tracking-[0.28em] font-semibold uppercase text-gray-900">
@@ -444,7 +492,7 @@ export default function Address() {
                 >
                   {/* Address content */}
                   <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 md:py-10 md:min-h-[120px]">
-                    <div className="max-w-[320px] pr-2">
+                    <div className="max-w-none md:max-w-[420px] pr-0 md:pr-2">
                       <div className="flex flex-wrap gap-2 mb-3 md:mb-4">
                         {isDefault && (
                           <span className="inline-block text-[11px] font-semibold tracking-[0.28em] uppercase text-[#0E8635] bg-[#CBE1D2] px-2.5 py-1 rounded">
@@ -481,7 +529,7 @@ export default function Address() {
                   </div>
                   {/* Edit/Delete + Set as current (below icons) */}
                   <div className="w-full md:w-[220px] lg:w-[260px] xl:w-[280px] shrink-0 border-t md:border-t-0 md:border-l border-[#E6E6E6] flex flex-col items-stretch md:items-center gap-3 md:gap-4 px-4 py-4 md:py-6 text-gray-500">
-                    <div className="flex items-center justify-end md:justify-center gap-6">
+                    <div className="flex items-center justify-end md:justify-center gap-4 sm:gap-6">
                       <button
                         type="button"
                         onClick={() => handleDelete(addr._id)}
@@ -528,11 +576,11 @@ export default function Address() {
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-center items-center gap-4 mt-6">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-8 lg:px-10 flex justify-center items-center gap-4 mt-6">
         <button
           onClick={() => setPage((p) => Math.max(p - 1, 1))}
           disabled={page === 1}
-          className="px-4 py-2 border text-sm disabled:opacity-40"
+          className="px-4 py-2 border text-sm disabled:opacity-40 rounded-lg hover:bg-gray-50"
         >
           Prev
         </button>
@@ -541,7 +589,7 @@ export default function Address() {
 
         <button
           onClick={() => setPage((p) => p + 1)}
-          className="px-4 py-2 border text-sm"
+          className="px-4 py-2 border text-sm rounded-lg hover:bg-gray-50"
         >
           Next
         </button>
@@ -555,7 +603,7 @@ export default function Address() {
           aria-hidden
         >
           <div
-            className="w-full max-w-sm my-auto bg-white shadow-xl rounded-lg overflow-hidden"
+            className="w-full max-w-[92vw] sm:max-w-md my-auto bg-white shadow-xl rounded-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-200 shrink-0">
@@ -735,6 +783,11 @@ export default function Address() {
                   required
                 />
               </div>
+              {pinAutofetchLoading && (
+                <p className="-mt-2 text-xs text-gray-500">
+                  Fetching city/state from pincode…
+                </p>
+              )}
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
                   Phone
@@ -757,9 +810,12 @@ export default function Address() {
                         e.target.value.replace(/\D/g, "").slice(0, 10),
                       )
                     }
+                    onBlur={() => setPhoneTouched(true)}
                     placeholder="10-digit mobile number"
-                    className="min-w-0 flex-1 border-0 py-2 text-sm outline-none placeholder:text-gray-400"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
                     required
+                    className="min-w-0 flex-1 border-0 py-2 text-sm outline-none placeholder:text-gray-400"
                   />
                 </div>
                 {phoneError && (

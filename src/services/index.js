@@ -36,7 +36,9 @@ export { reviewsService } from './reviews.service.js';
 export { brandsService } from './brands.service.js';
 export { filtersService } from './filters.service.js';
 export { contactUsService } from './contactUs.service.js';
+export { faqService, faqApiMessage } from './faq.service.js';
 export { walletService } from './wallet.service.js';
+export { giftcardService } from './giftcard.service.js';
 export { chatbotService } from './chatbot.service.js';
 export { referralService, unwrapReferralResponse } from './referral.service.js';
 

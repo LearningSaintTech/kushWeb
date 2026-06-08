@@ -116,9 +116,10 @@ const ReferEarn = () => {
   const referralCodeForModal = dashboard?.referralCode ?? null
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 mt-20">
-      <h1 className="font-inter text-3xl font-semibold text-black">Refer and earn</h1>
-
+    <div className="mx-auto mt-16 w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 md:mt-20 md:px-6">
+      <h1 className="font-inter text-2xl font-semibold text-black sm:text-3xl">
+        Refer and earn
+      </h1>
       {!authChecked && (
         <p className="mt-4 text-sm text-gray-500">Loading…</p>
       )}
@@ -158,34 +159,38 @@ const ReferEarn = () => {
 
       {isAuthenticated && !loading && (
         <>
-          <section className="relative mt-4 overflow-hidden rounded-lg border border-[#d6d6d6] bg-black p-5 md:p-6 text-white shadow-[0_1px_6px_rgba(0,0,0,0.15)]">
+          <section className="relative mt-4 overflow-hidden rounded-lg border border-[#d6d6d6] bg-black p-4 text-white shadow-[0_1px_6px_rgba(0,0,0,0.15)] sm:p-5 md:p-6">
             <div className="absolute -left-3 -top-3 h-12 w-12 rounded-full bg-white/5" />
             <div className="absolute -bottom-8 right-10 h-24 w-24 rounded-full bg-white/5" />
 
-            <div className="relative flex flex-wrap items-start justify-between gap-4">
+            <div className="relative flex items-start justify-between gap-3 sm:gap-4">
+
               <div className="min-w-0 flex-1">
-                <p className="font-inter text-xs font-medium uppercase tracking-[0.2em] text-white/90">
+                <p className="font-inter text-[15px] font-medium uppercase tracking-[0.18em] text-white/90 sm:text-xs sm:tracking-[0.2em]">
                   Earned balance
                 </p>
-                <p className="mt-1.5 font-['Rubik'] text-4xl font-medium text-white">
+                <p className="mt-1.5 font-['Rubik'] text-3xl ...">
                   {formatMoney(earnedBalance).toUpperCase()}
                 </p>
-                <p className="mt-2 font-inter text-sm text-white/85">
-                  Total referrals {Number.isFinite(totalReferrals) ? totalReferrals : 0}
-                  {dashboard?.rewardedCount != null && (
-                    <span className=" text-white/70">
-                      {' '}
-                      · Rewarded {dashboard.rewardedCount}
-                      {dashboard?.pendingCount != null ? ` · Pending ${dashboard.pendingCount}` : ''}
-                    </span>
-                  )}
-                </p>
+                <div className="mt-3 grid grid-cols-1 gap-1 font-inter text-xs text-white/120 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1 sm:text-sm">
+                  <span className="whitespace-nowrap">
+                    Total referrals {Number.isFinite(totalReferrals) ? totalReferrals : 0}
+                  </span>
+
+                  <span className="whitespace-nowrap text-white/120">
+                    Rewarded {dashboard?.rewardedCount ?? 0}
+                  </span>
+
+                  <span className="whitespace-nowrap text-white/120">
+                    Pending {dashboard?.pendingCount ?? 0}
+                  </span>
+                </div>
               </div>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 60 48"
                 fill="none"
-                className="h-14 w-auto shrink-0 aspect-[60/48]"
+                className="h-11 w-auto shrink-0 aspect-[60/48] sm:h-14 md:h-16"
                 aria-hidden
               >
                 <path
@@ -197,19 +202,19 @@ const ReferEarn = () => {
               </svg>
             </div>
 
-            <div className="relative mt-6 flex justify-end">
+            <div className="relative mt-6 flex justify-center sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShareOpen(true)}
-                className="font-inter h-12 min-w-[160px] bg-white px-6 text-sm font-semibold uppercase tracking-wide text-black transition-colors hover:bg-gray-100"
+                className="font-inter h-14 w-full max-w-[270px] rounded-xl bg-white px-6 text-base font-normal uppercase  text-black transition-colors hover:bg-gray-100 sm:h-16 sm:text-xl md:h-15 md:max-w-[270px] md:text-2xl"
               >
                 Refer and earn
               </button>
             </div>
           </section>
 
-          <section className="relative mt-6 overflow-hidden rounded-lg border border-[#e5e5e5] bg-[#f4f4f4] p-5">
-            <ul className="font-inter space-y-2 text-sm leading-relaxed text-[#3a3a3a]">
+          <section className="relative mt-4 overflow-hidden rounded-lg border border-[#9A9A9A] text-black p-4 sm:p-5 md:p-6">
+            <ul className="font-inter space-y-2 text-base leading-relaxed text-[#000000]">
               <li>&middot; Invite up to 25 friends and earn rewards for each successful referral.</li>
               <li>&middot; Referral valid only for new users (no prior account/device match).</li>
             </ul>
@@ -217,7 +222,9 @@ const ReferEarn = () => {
 
           <section className="mt-8">
             <div className="mb-4 flex items-end justify-between gap-3">
-              <h2 className="font-inter text-4xl font-semibold text-[#130138]">Your History</h2>
+              <h2 className="font-inter text-2xl font-semibold text-[#130138] sm:text-3xl md:text-4xl">
+                Your History
+              </h2>
               <span className="font-inter text-xs font-medium uppercase tracking-wide text-[#9ca3af]">
                 Status
               </span>
@@ -238,10 +245,12 @@ const ReferEarn = () => {
                 return (
                   <article
                     key={item?._id ?? `${name}-${dt}`}
-                    className="flex items-center justify-between gap-4 rounded-lg border border-[#e8e8e8] bg-white px-6 py-5 shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-4 shadow-[0_1px_6px_rgba(0,0,0,0.06)] sm:gap-4 sm:px-5 md:px-6"
                   >
                     <div className="min-w-0">
-                      <p className="font-inter truncate text-lg font-bold uppercase text-black text-[#000000]">{name}</p>
+                      <p className="font-inter max-w-[170px] truncate text-base font-bold uppercase text-black sm:max-w-none sm:text-lg">
+                        {name}
+                      </p>
                       <p className="font-['Poppins'] text-sm text-[#000000]">{dt}</p>
                     </div>
                     <div className="shrink-0 text-right ">

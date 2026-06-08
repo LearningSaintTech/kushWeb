@@ -7,7 +7,7 @@ import ScrollToTop from '../components/ScrollToTop'
 import AuthModal from '../../features/auth/AuthModal'
 import { trackPageView } from '../../analytics'
 import ChatbotModal from '../../features/chatbot/ChatbotModal'
-import chatFabImage from '../../assets/images/Component 3.svg'
+import chatFabImage from '../../assets/images/chat-fab.svg'
 
 function MainLayout() {
   const location = useLocation();
@@ -23,7 +23,7 @@ function MainLayout() {
     <div className="flex min-h-dvh flex-col overflow-x-hidden bg-gray-100 max-w-full">
       <ScrollToTop />
       <Header />
-      <main className="flex-1 bg-gray-100">
+      <main className="flex-1">
         <Outlet />
       </main>
       <button

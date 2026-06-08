@@ -10,7 +10,10 @@ function normalizeDevApiOrigin(url) {
   return t;
 }
 
-const API_ORIGIN = normalizeDevApiOrigin(import.meta.env.VITE_API_URL || "");
+/** In dev, default to local backend when VITE_API_URL is not set. */
+const API_ORIGIN = normalizeDevApiOrigin(
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:5000" : ""),
+);
 const API_BASE_URL = `${API_ORIGIN}/api`;
 /** Public base URL for assets (images). Use CloudFront or API so Razorpay/iframes never request localhost. */
 const ASSET_BASE_URL = (import.meta.env.VITE_ASSET_URL || API_ORIGIN || "").replace(/\/$/, "");

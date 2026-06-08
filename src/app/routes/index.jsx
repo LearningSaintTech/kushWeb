@@ -15,6 +15,7 @@ import { CouponsPage } from '../../features/coupons'
 import { WalletPage } from '../../features/wallet'
 import { ReferEarnPage } from '../../features/referEarn'
 import { CoinsPage } from '../../features/coins'
+import { GiftCardPage } from '../../features/giftcard'
 import {
   RefundCancelPolicyPage,
   PaymentPolicyPage,
@@ -64,6 +65,7 @@ const router = createBrowserRouter([
       { path: 'wallet', element: <WalletPage /> },
       { path: 'refer-earn', element: <ReferEarnPage /> },
       { path: 'redeem-coins', element: <CoinsPage /> },
+      { path: 'giftcard', element: <GiftCardPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],
   },

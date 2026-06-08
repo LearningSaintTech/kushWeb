@@ -9,7 +9,7 @@ import { ROUTES } from '../../utils/constants'
 const PAGE_SIZE = 12
 
 function WishlistPage() {
-  const { wishlist, wishlistDeliveries, wishlistCount, wishlistLoading } = useCartWishlist()
+  const { wishlist, wishlistCount, wishlistLoading } = useCartWishlist()
   const [currentPage, setCurrentPage] = useState(1)
   const listRef = useRef(null)
 
@@ -103,7 +103,7 @@ function WishlistPage() {
 </div> */}
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold text-gray-900">
-            Your wishlist is empty
+            Your Khushlist is empty
           </h1>
           <p className="mt-2 text-gray-600">
             Save items you like by clicking the heart on product cards.
@@ -143,15 +143,27 @@ function WishlistPage() {
     <div>
       {/* {banner} */}
       {breadcrumb}
-      <div className="w-full  px-10 py-6">
-  <h1 className="text-2xl sm:text-3xl font-bold tracking-wide text-black">
-    WISHLIST
-  </h1>
-</div>
-      <div className="py-8">
+      <div className="mx-4 sm:mx-6 md:mx-10">
+        <div className="flex flex-col gap-2 border-b border-neutral-100 bg-neutral-50/60 px-4 py-4 sm:px-6">
+          <h1 className="text-2xl sm:text-3xl font-bold uppercase tracking-wide text-black">
+            KHUSHLIST
+          </h1>
+          <p className="text-sm text-neutral-600">
+            <span className="font-semibold tabular-nums text-neutral-900">
+              {wishlist.length}
+            </span>{' '}
+            {wishlist.length === 1 ? 'item' : 'items'}
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-4 py-8 sm:mx-6 md:mx-10">
        
 
-        <div ref={listRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ">
+        <div
+          ref={listRef}
+          className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-6 md:grid-cols-3 md:gap-x-5 md:gap-y-7 lg:grid-cols-4 lg:gap-x-3 lg:gap-y-8"
+        >
           {displayedItems.map((item) => (
             <div key={item.id} className="flex flex-col">
               <ProductCard
@@ -163,6 +175,8 @@ function WishlistPage() {
                 delivery={item.delivery}
                 rating={item.rating}
                 rounded="none"
+                revealActionsOnHover
+                showOnlyWishlistIconWhenIdle
               />
             </div>
           ))}

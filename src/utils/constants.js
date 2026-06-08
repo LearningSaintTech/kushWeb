@@ -19,6 +19,7 @@ export const ROUTES = {
   WALLET: '/wallet',
   REFER_EARN: '/refer-earn',
   REDEEM_COINS: '/redeem-coins',
+  GIFTCARD: '/giftcard',
   ADDRESS: '/address',
   REFUND_CANCEL_POLICY: '/refund-cancel-policy',
   RETURN_POLICY: '/return-policy',

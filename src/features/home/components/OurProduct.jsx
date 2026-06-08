@@ -5,6 +5,7 @@ import productImage from "../../../assets/temporary/productimage.png";
 import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
 import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
+import { getItemStockTotal } from "../../../utils/productStock.js";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const ALL_CATEGORY_KEY = "__ALL__";
@@ -60,6 +61,7 @@ function itemToCardProps(item, index) {
     hoverImage: hoverUrl,
     title: item.name ?? "Product",
     shortDescription: item.shortDescription ?? "",
+    stock: getItemStockTotal(item),
     price,
     originalPrice,
     delivery,

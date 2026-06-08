@@ -1,18 +1,18 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../app/context/AuthContext'
-import { useCartWishlist } from '../../app/context/CartWishlistContext'
-import { cartService } from '../../services/cart.service.js'
-import { addressService } from '../../services/address.service.js'
-import { deliveryService } from '../../services/delivery.service.js'
-import { couponsService } from '../../services/coupons.service.js'
-import { orderService } from '../../services/order.service.js'
-import { paymentService } from '../../services/payment.service.js'
-import { walletService } from '../../services/wallet.service.js'
-import { ROUTES, getProductPath } from '../../utils/constants'
-import { PAYMENT_MODES } from '../../utils/paymentMode'
-import { trackEvent } from '../../analytics'
-import { loadRazorpayScript } from './paymentCheckout.js'
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../app/context/AuthContext";
+import { useCartWishlist } from "../../app/context/CartWishlistContext";
+import { cartService } from "../../services/cart.service.js";
+import { addressService } from "../../services/address.service.js";
+import { deliveryService } from "../../services/delivery.service.js";
+import { couponsService } from "../../services/coupons.service.js";
+import { orderService } from "../../services/order.service.js";
+import { paymentService } from "../../services/payment.service.js";
+import { walletService } from "../../services/wallet.service.js";
+import { ROUTES, getProductPath } from "../../utils/constants";
+import { PAYMENT_MODES } from "../../utils/paymentMode";
+import { trackEvent } from "../../analytics";
+import { loadRazorpayScript } from "./paymentCheckout.js";
 // Pay later (Nimbbl) — disabled for now
 // import {
 //   formatNimblePayLaterUnavailableMessage,
@@ -32,373 +32,477 @@ import {
   donationStateFromCart,
   buildDonationApiParams,
   buildDonationOrderBody,
-} from '../../utils/donation.js'
+  getActiveDonationAmount,
+} from "../../utils/donation.js";
+import DonationPicker from "../../shared/components/DonationPicker.jsx";
+import CartItemDescription from "../../shared/components/CartItemDescription.jsx";
 
 /** Delivery is India-only; API still expects countryCode. */
-const INDIA_PHONE_CODE = '+91'
+const INDIA_PHONE_CODE = "+91";
 
-const POLL_INTERVAL_MS = 2500
-const POLL_MAX_ATTEMPTS = 40
+const POLL_INTERVAL_MS = 2500;
+const POLL_MAX_ATTEMPTS = 40;
 // const NIMBLE_POLL_MAX_ATTEMPTS = 8
 
 function formatRs(num) {
-  if (num == null || Number.isNaN(num)) return 'Rs 0'
-  return `Rs ${Number(num).toLocaleString('en-IN', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`
+  if (num == null || Number.isNaN(num)) return "Rs 0";
+  return `Rs ${Number(num).toLocaleString("en-IN", { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`;
 }
 
 function formatAddress(addr) {
-  if (!addr) return null
-  const parts = [addr.addressLine, addr.city, addr.state, addr.pinCode].filter(Boolean)
-  return parts.join(', ')
+  if (!addr) return null;
+  const parts = [addr.addressLine, addr.city, addr.state, addr.pinCode].filter(
+    Boolean,
+  );
+  return parts.join(", ");
 }
 
 function formatCouponDate(dateVal) {
-  if (!dateVal) return null
-  const d = new Date(dateVal)
-  if (Number.isNaN(d.getTime())) return null
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  if (!dateVal) return null;
+  const d = new Date(dateVal);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function isCouponApplicable(coupon, cartSubTotal) {
-  if (cartSubTotal == null || Number.isNaN(cartSubTotal)) return false
-  const now = new Date()
-  const minCart = coupon.minCartValue ?? 0
-  const maxCart = coupon.maxCartValue
-  if (minCart > 0 && cartSubTotal < minCart) return false
-  if (maxCart != null && maxCart > 0 && cartSubTotal > maxCart) return false
+  if (cartSubTotal == null || Number.isNaN(cartSubTotal)) return false;
+  const now = new Date();
+  const minCart = coupon.minCartValue ?? 0;
+  const maxCart = coupon.maxCartValue;
+  if (minCart > 0 && cartSubTotal < minCart) return false;
+  if (maxCart != null && maxCart > 0 && cartSubTotal > maxCart) return false;
   if (coupon.expiryDate) {
-    const expiry = new Date(coupon.expiryDate)
-    if (!Number.isNaN(expiry.getTime()) && expiry < now) return false
+    const expiry = new Date(coupon.expiryDate);
+    if (!Number.isNaN(expiry.getTime()) && expiry < now) return false;
   }
   if (coupon.startDate) {
-    const start = new Date(coupon.startDate)
-    if (!Number.isNaN(start.getTime()) && start > now) return false
+    const start = new Date(coupon.startDate);
+    if (!Number.isNaN(start.getTime()) && start > now) return false;
   }
-  return true
+  return true;
 }
 
 function isCouponAppliedInSummary(summaryData, expectedCode) {
-  if (!summaryData) return false
-  const summary = summaryData?.cartSummary?.summary ?? summaryData?.summary ?? summaryData ?? {}
-  const summaryCouponCode = String(summary?.coupon?.code ?? '').trim().toUpperCase()
-  const normalizedExpectedCode = String(expectedCode ?? '').trim().toUpperCase()
-  const summaryDiscount = Number(summary?.coupon?.discountAmount ?? 0)
+  if (!summaryData) return false;
+  const summary =
+    summaryData?.cartSummary?.summary ??
+    summaryData?.summary ??
+    summaryData ??
+    {};
+  const summaryCouponCode = String(summary?.coupon?.code ?? "")
+    .trim()
+    .toUpperCase();
+  const normalizedExpectedCode = String(expectedCode ?? "")
+    .trim()
+    .toUpperCase();
+  const summaryDiscount = Number(summary?.coupon?.discountAmount ?? 0);
   const inferredDiscount = Math.max(
     0,
-    Number(summary?.subTotal ?? 0) - Number(summary?.subTotalAfterDiscount ?? summary?.subTotal ?? 0),
-  )
-  if (normalizedExpectedCode && summaryCouponCode === normalizedExpectedCode) return true
-  return summaryDiscount > 0 || inferredDiscount > 0
+    Number(summary?.subTotal ?? 0) -
+      Number(summary?.subTotalAfterDiscount ?? summary?.subTotal ?? 0),
+  );
+  if (normalizedExpectedCode && summaryCouponCode === normalizedExpectedCode)
+    return true;
+  return summaryDiscount > 0 || inferredDiscount > 0;
 }
 
 function CheckoutPage() {
   const location = useLocation();
-  const { isAuthenticated } = useAuth()
-  const { refetchCart } = useCartWishlist()
-  const cartState = location.state ?? {}
-  const couponCodeFromCart = cartState.couponCode ?? null
-  const selectedAddressFromCart = cartState.selectedAddress ?? null
-  const addressesFromCart = Array.isArray(cartState.addresses) ? cartState.addresses : []
-  const donationFromCartNav = cartState.donation ?? null
+  const { isAuthenticated } = useAuth();
+  const { refetchCart } = useCartWishlist();
+  const cartState = location.state ?? {};
+  const couponCodeFromCart = cartState.couponCode ?? null;
+  const selectedAddressFromCart = cartState.selectedAddress ?? null;
+  const addressesFromCart = Array.isArray(cartState.addresses)
+    ? cartState.addresses
+    : [];
+  const donationFromCartNav = cartState.donation ?? null;
 
-  const [cartData, setCartData] = useState(null)
-  const [priceSummary, setPriceSummary] = useState(null)
-  const [addresses, setAddresses] = useState(addressesFromCart)
-  const [selectedAddress, setSelectedAddress] = useState(selectedAddressFromCart)
-  const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState([])
-  const [couponInput, setCouponInput] = useState(couponCodeFromCart || '')
-  const [appliedCouponCode, setAppliedCouponCode] = useState(couponCodeFromCart)
-  const [couponModalOpen, setCouponModalOpen] = useState(false)
-  const [availableCoupons, setAvailableCoupons] = useState([])
-  const [appliedCouponMeta, setAppliedCouponMeta] = useState(null)
-  const [loadingCoupons, setLoadingCoupons] = useState(false)
-  const [autoCouponReconciling, setAutoCouponReconciling] = useState(false)
-  const [autoIncludedCouponCode, setAutoIncludedCouponCode] = useState(null)
-  const [autoCouponDismissed, setAutoCouponDismissed] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [couponError, setCouponError] = useState(null)
-  const [addressFormOpen, setAddressFormOpen] = useState(false)
-  const [addressFormLoading, setAddressFormLoading] = useState(false)
-  const [addressFormError, setAddressFormError] = useState(null)
-  const [addressFormPhoneError, setAddressFormPhoneError] = useState(null)
+  const [cartData, setCartData] = useState(null);
+  const [priceSummary, setPriceSummary] = useState(null);
+  const [addresses, setAddresses] = useState(addressesFromCart);
+  const [selectedAddress, setSelectedAddress] = useState(
+    selectedAddressFromCart,
+  );
+  const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
+    [],
+  );
+  const [couponInput, setCouponInput] = useState(couponCodeFromCart || "");
+  const [appliedCouponCode, setAppliedCouponCode] =
+    useState(couponCodeFromCart);
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [appliedCouponMeta, setAppliedCouponMeta] = useState(null);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [autoCouponReconciling, setAutoCouponReconciling] = useState(false);
+  const [autoIncludedCouponCode, setAutoIncludedCouponCode] = useState(null);
+  const [autoCouponDismissed, setAutoCouponDismissed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [couponError, setCouponError] = useState(null);
+  const [addressFormOpen, setAddressFormOpen] = useState(false);
+  const [addressFormLoading, setAddressFormLoading] = useState(false);
+  const [addressFormError, setAddressFormError] = useState(null);
+  const [addressFormPhoneError, setAddressFormPhoneError] = useState(null);
   const [addressForm, setAddressForm] = useState({
-    name: '',
-    phoneNumber: '',
-    addressLine: '',
-    city: '',
-    state: '',
-    pinCode: '',
-    addressType: 'HOME',
+    name: "",
+    phoneNumber: "",
+    addressLine: "",
+    city: "",
+    state: "",
+    pinCode: "",
+    addressType: "HOME",
     isDefault: true,
-  })
-  const [paymentMode, setPaymentMode] = useState('RAZORPAY')
-  const initialDonation = donationStateFromCart(donationFromCartNav)
-  const [donationEnabled, setDonationEnabled] = useState(initialDonation.donationEnabled)
-  const [donationAmount, setDonationAmount] = useState(initialDonation.donationAmount)
-  const [donationPresetUsed, setDonationPresetUsed] = useState(initialDonation.donationPresetUsed)
-  const [donationCustomMode, setDonationCustomMode] = useState(initialDonation.donationCustomMode)
-  const [donationError, setDonationError] = useState(null)
-  const [useWalletForOnline, setUseWalletForOnline] = useState(false)
-  const [walletBalance, setWalletBalance] = useState(0)
-  const [walletBalanceLoading, setWalletBalanceLoading] = useState(false)
-  const [codWarningOpen, setCodWarningOpen] = useState(false)
-  const [placeOrderLoading, setPlaceOrderLoading] = useState(false)
-  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false)
-  const [statusMessage, setStatusMessage] = useState(null)
-  const [lastVerifyError, setLastVerifyError] = useState(null)
-  const [lastVerifyPayload, setLastVerifyPayload] = useState(null)
+  });
+  const [paymentMode, setPaymentMode] = useState("RAZORPAY");
+  const initialDonation = donationStateFromCart(donationFromCartNav);
+  const [donationEnabled, setDonationEnabled] = useState(
+    initialDonation.donationEnabled,
+  );
+  const [donationAmount, setDonationAmount] = useState(
+    initialDonation.donationAmount,
+  );
+  const [donationPresetUsed, setDonationPresetUsed] = useState(
+    initialDonation.donationPresetUsed,
+  );
+  const [donationCustomMode, setDonationCustomMode] = useState(
+    initialDonation.donationCustomMode,
+  );
+  const [donationError, setDonationError] = useState(null);
+  const [useWalletForOnline, setUseWalletForOnline] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
+  const [codWarningOpen, setCodWarningOpen] = useState(false);
+  const [placeOrderLoading, setPlaceOrderLoading] = useState(false);
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(null);
+  const [lastVerifyError, setLastVerifyError] = useState(null);
+  const [lastVerifyPayload, setLastVerifyPayload] = useState(null);
 
-  const paymentSuccessHandledRef = useRef(false)
+  const paymentSuccessHandledRef = useRef(false);
+  const initiateCheckoutTrackedRef = useRef(false);
   // const nimbleCheckoutActiveRef = useRef(false)
   // const nimbleVerifyingRef = useRef(false)
-  const donationInitializedRef = useRef(Boolean(donationFromCartNav))
+  const donationInitializedRef = useRef(Boolean(donationFromCartNav));
 
-  useEffect(() => {
-    trackEvent({ eventType: 'begin_checkout' })
-  }, [])
-  const pollingIntervalRef = useRef(null)
-  const priceSummaryRequestRef = useRef(0)
-  const autoCouponReconcileAttemptedRef = useRef(false)
+  const pollingIntervalRef = useRef(null);
+  const priceSummaryRequestRef = useRef(0);
+  const autoCouponReconcileAttemptedRef = useRef(false);
 
-  const navigate = useNavigate()
-  const addressId = selectedAddress?._id
-  const pincode = selectedAddress?.pinCode ?? null
-  const walletApplicable = paymentMode === PAYMENT_MODES.RAZORPAY
+  const navigate = useNavigate();
+  const addressId = selectedAddress?._id;
+  const pincode = selectedAddress?.pinCode ?? null;
+  const walletApplicable = paymentMode === PAYMENT_MODES.RAZORPAY;
 
   const refetchAddresses = useCallback(async () => {
-    const req = { page: 1, limit: 50 }
-    console.log('[Checkout] REQ addressService.getAll:', req)
-    const res = await addressService.getAll(req)
-    console.log('[Checkout] RES addressService.getAll:', res?.data)
-    const list = res?.data?.data ?? res?.data
-    const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
-    const addressList = Array.isArray(arr) ? arr : []
-    setAddresses(addressList)
-    return addressList
-  }, [])
+    const req = { page: 1, limit: 50 };
+    console.log("[Checkout] REQ addressService.getAll:", req);
+    const res = await addressService.getAll(req);
+    console.log("[Checkout] RES addressService.getAll:", res?.data);
+    const list = res?.data?.data ?? res?.data;
+    const arr = Array.isArray(list)
+      ? list
+      : (list?.addresses ?? list?.data ?? []);
+    const addressList = Array.isArray(arr) ? arr : [];
+    setAddresses(addressList);
+    return addressList;
+  }, []);
 
-  const fetchCart = useCallback(async (addrId = null) => {
-    const params = { limit: 100 }
-    const id = addrId ?? addressId
-    if (id) params.addressId = id
-    if (pincode) params.pincode = String(pincode)
-    console.log('[Checkout] REQ cartService.my:', params)
-    const res = await cartService.my(params)
-    console.log('[Checkout] RES cartService.my:', res?.data)
-    const data = res?.data?.data ?? res?.data
-    setCartData(data)
-    return data
-  }, [addressId, pincode])
+  const fetchCart = useCallback(
+    async (addrId = null) => {
+      const params = { limit: 100 };
+      const id = addrId ?? addressId;
+      if (id) params.addressId = id;
+      if (pincode) params.pincode = String(pincode);
+      console.log("[Checkout] REQ cartService.my:", params);
+      const res = await cartService.my(params);
+      console.log("[Checkout] RES cartService.my:", res?.data);
+      const data = res?.data?.data ?? res?.data;
+      setCartData(data);
+      return data;
+    },
+    [addressId, pincode],
+  );
 
   const fetchPriceSummary = useCallback(
-    async (couponCode = null, paymentModeParam = paymentMode, useWalletParam = useWalletForOnline) => {
-    const requestId = ++priceSummaryRequestRef.current
-    try {
-      const params = {}
-      if (couponCode) params.couponCode = couponCode
-      if (paymentModeParam) params.paymentMode = paymentModeParam
-      params.useWallet = useWalletParam ? 'true' : 'false'
-      if (useWalletParam) {
-        params.walletAmountToUse = Math.max(0, Number(walletBalance || 0))
+    async (
+      couponCode = null,
+      paymentModeParam = paymentMode,
+      useWalletParam = useWalletForOnline,
+    ) => {
+      const requestId = ++priceSummaryRequestRef.current;
+      try {
+        const params = {};
+        if (couponCode) params.couponCode = couponCode;
+        if (paymentModeParam) params.paymentMode = paymentModeParam;
+        params.useWallet = useWalletParam ? "true" : "false";
+        if (useWalletParam) {
+          params.walletAmountToUse = Math.max(0, Number(walletBalance || 0));
+        }
+        const donationParams = buildDonationApiParams({
+          donationEnabled,
+          donationAmount,
+          donationPresetUsed,
+        });
+        if (!donationParams) {
+          setDonationError(
+            `Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`,
+          );
+          return null;
+        }
+        setDonationError(null);
+        Object.assign(params, donationParams);
+        console.log("[Checkout] REQ cartService.getPriceSummary:", params);
+        const res = await cartService.getPriceSummary(params);
+        console.log("[Checkout] RES cartService.getPriceSummary:", res?.data);
+        const data = res?.data?.data ?? res?.data;
+        if (requestId !== priceSummaryRequestRef.current) {
+          console.log(
+            "[Checkout] IGNORE stale getPriceSummary success response",
+            { requestId, latest: priceSummaryRequestRef.current },
+          );
+          return data;
+        }
+        setPriceSummary(data?.cartSummary ?? data);
+        setCouponError(null);
+        return data;
+      } catch (err) {
+        console.log(
+          "[Checkout] ERR cartService.getPriceSummary:",
+          err?.response?.data ?? err?.message,
+        );
+        if (requestId !== priceSummaryRequestRef.current) {
+          console.log(
+            "[Checkout] IGNORE stale getPriceSummary error response",
+            { requestId, latest: priceSummaryRequestRef.current },
+          );
+          return null;
+        }
+        const msg =
+          err?.response?.data?.message ??
+          err?.message ??
+          "Failed to get price summary";
+        setCouponError(msg);
+        setPriceSummary(null);
+        return null;
       }
-      const donationParams = buildDonationApiParams({
-        donationEnabled,
-        donationAmount,
-        donationPresetUsed,
-      })
-      if (!donationParams) {
-        setDonationError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`)
-        return null
-      }
-      setDonationError(null)
-      Object.assign(params, donationParams)
-      console.log('[Checkout] REQ cartService.getPriceSummary:', params)
-      const res = await cartService.getPriceSummary(params)
-      console.log('[Checkout] RES cartService.getPriceSummary:', res?.data)
-      const data = res?.data?.data ?? res?.data
-      if (requestId !== priceSummaryRequestRef.current) {
-        console.log('[Checkout] IGNORE stale getPriceSummary success response', { requestId, latest: priceSummaryRequestRef.current })
-        return data
-      }
-      setPriceSummary(data?.cartSummary ?? data)
-      setCouponError(null)
-      return data
-    } catch (err) {
-      console.log('[Checkout] ERR cartService.getPriceSummary:', err?.response?.data ?? err?.message)
-      if (requestId !== priceSummaryRequestRef.current) {
-        console.log('[Checkout] IGNORE stale getPriceSummary error response', { requestId, latest: priceSummaryRequestRef.current })
-        return null
-      }
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to get price summary'
-      setCouponError(msg)
-      setPriceSummary(null)
-      return null
-    }
     },
-    [paymentMode, useWalletForOnline, walletBalance, donationEnabled, donationAmount, donationPresetUsed]
-  )
+    [
+      paymentMode,
+      useWalletForOnline,
+      walletBalance,
+      donationEnabled,
+      donationAmount,
+      donationPresetUsed,
+    ],
+  );
 
   useEffect(() => {
-    if (donationInitializedRef.current || !cartData?.donation) return
-    const s = donationStateFromCart(cartData.donation)
-    setDonationEnabled(s.donationEnabled)
-    setDonationAmount(s.donationAmount)
-    setDonationPresetUsed(s.donationPresetUsed)
-    setDonationCustomMode(s.donationCustomMode)
-    donationInitializedRef.current = true
-  }, [cartData?.donation])
+    if (donationInitializedRef.current || !cartData?.donation) return;
+    const s = donationStateFromCart(cartData.donation);
+    setDonationEnabled(s.donationEnabled);
+    setDonationAmount(s.donationAmount);
+    setDonationPresetUsed(s.donationPresetUsed);
+    setDonationCustomMode(s.donationCustomMode);
+    donationInitializedRef.current = true;
+  }, [cartData?.donation]);
 
-  const handleDonationToggle = (checked) => {
-    setDonationEnabled(checked)
-    if (checked) {
-      setDonationPresetUsed(true)
-      setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
-      setDonationCustomMode(false)
+  const handleDonationPresetSelect = (amount) => {
+    const current = getActiveDonationAmount({
+      donationEnabled,
+      donationAmount,
+      donationPresetUsed,
+    });
+    if (donationEnabled && current === amount) {
+      setDonationEnabled(false);
+      setDonationPresetUsed(false);
+      setDonationAmount("");
+      setDonationCustomMode(false);
     } else {
-      setDonationPresetUsed(false)
-      setDonationAmount('')
-      setDonationCustomMode(false)
+      setDonationEnabled(true);
+      setDonationAmount(String(amount));
+      setDonationPresetUsed(amount === DEFAULT_DONATION_AMOUNT);
+      setDonationCustomMode(false);
     }
-    setDonationError(null)
-  }
-
-  const handleDonationCustomAmountChange = (value) => {
-    setDonationAmount(value)
-    setDonationPresetUsed(false)
-    setDonationCustomMode(true)
-    setDonationError(null)
-  }
+    setDonationError(null);
+  };
 
   const fetchAvailableCoupons = useCallback(async () => {
-    const req = { page: 1, limit: 50 }
-    console.log('[Checkout] REQ couponsService.getAvailable:', req)
-    const res = await couponsService.getAvailable(req)
-    console.log('[Checkout] RES couponsService.getAvailable:', res?.data)
-    const data = res?.data?.data ?? res?.data
-    const list = Array.isArray(data) ? data : (data?.data ?? [])
-    return Array.isArray(list) ? list : []
-  }, [])
+    const req = { page: 1, limit: 50 };
+    console.log("[Checkout] REQ couponsService.getAvailable:", req);
+    const res = await couponsService.getAvailable(req);
+    console.log("[Checkout] RES couponsService.getAvailable:", res?.data);
+    const data = res?.data?.data ?? res?.data;
+    const list = Array.isArray(data) ? data : (data?.data ?? []);
+    return Array.isArray(list) ? list : [];
+  }, []);
 
   const fetchWalletBalance = useCallback(async () => {
     if (!isAuthenticated) {
-      setWalletBalance(0)
-      return
+      setWalletBalance(0);
+      return;
     }
-    setWalletBalanceLoading(true)
+    setWalletBalanceLoading(true);
     try {
-      const res = await walletService.getCashBalance()
-      const data = res?.data?.data ?? {}
-      setWalletBalance(Number(data?.balance || 0))
+      const res = await walletService.getCashBalance();
+      const data = res?.data?.data ?? {};
+      setWalletBalance(Number(data?.balance || 0));
     } catch {
-      setWalletBalance(0)
+      setWalletBalance(0);
     } finally {
-      setWalletBalanceLoading(false)
+      setWalletBalanceLoading(false);
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    console.log('[Checkout] init effect', { isAuthenticated })
+    console.log("[Checkout] init effect", { isAuthenticated });
     if (!isAuthenticated) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
-    setLoading(true)
-    setError(null)
-    const fromCart = selectedAddressFromCart != null
-    let defaultAddr = null
-    let addressList = []
-    console.log('[Checkout] REQ addressService.getDefaultAddress')
+    setLoading(true);
+    setError(null);
+    const fromCart = selectedAddressFromCart != null;
+    let defaultAddr = null;
+    let addressList = [];
+    console.log("[Checkout] REQ addressService.getDefaultAddress");
     addressService
       .getDefaultAddress()
       .then((res) => {
-        console.log('[Checkout] RES addressService.getDefaultAddress:', res?.data)
-        const data = res?.data?.data ?? res?.data
-        defaultAddr = data
-        if (!fromCart && data) setSelectedAddress(data)
-        return data
+        console.log(
+          "[Checkout] RES addressService.getDefaultAddress:",
+          res?.data,
+        );
+        const data = res?.data?.data ?? res?.data;
+        defaultAddr = data;
+        if (!fromCart && data) setSelectedAddress(data);
+        return data;
       })
       .catch(() => null)
       .then(() => {
-        const req = { page: 1, limit: 50 }
-        console.log('[Checkout] REQ addressService.getAll (init):', req)
+        const req = { page: 1, limit: 50 };
+        console.log("[Checkout] REQ addressService.getAll (init):", req);
         return addressService.getAll(req).then((res) => {
-          console.log('[Checkout] RES addressService.getAll (init):', res?.data)
-          const list = res?.data?.data ?? res?.data
-          const arr = Array.isArray(list) ? list : (list?.addresses ?? list?.data ?? [])
-          addressList = Array.isArray(arr) ? arr : []
-          setAddresses(addressList)
+          console.log(
+            "[Checkout] RES addressService.getAll (init):",
+            res?.data,
+          );
+          const list = res?.data?.data ?? res?.data;
+          const arr = Array.isArray(list)
+            ? list
+            : (list?.addresses ?? list?.data ?? []);
+          addressList = Array.isArray(arr) ? arr : [];
+          setAddresses(addressList);
           if (fromCart && selectedAddressFromCart?._id != null) {
-            const found = addressList.find((a) => String(a._id ?? '') === String(selectedAddressFromCart._id))
-            if (found) setSelectedAddress(found)
-            else setSelectedAddress(selectedAddressFromCart)
-          } else if (!fromCart && !defaultAddr && addressList.length) setSelectedAddress(addressList[0])
-          return addressList
-        })
-      }).catch(() => [])
+            const found = addressList.find(
+              (a) =>
+                String(a._id ?? "") === String(selectedAddressFromCart._id),
+            );
+            if (found) setSelectedAddress(found);
+            else setSelectedAddress(selectedAddressFromCart);
+          } else if (!fromCart && !defaultAddr && addressList.length)
+            setSelectedAddress(addressList[0]);
+          return addressList;
+        });
+      })
+      .catch(() => [])
       .then((list) => {
-        const fromCartId = fromCart && selectedAddressFromCart?._id != null ? selectedAddressFromCart._id : null
-        const id = fromCartId ?? defaultAddr?._id ?? list?.[0]?._id
-        const cartParams = { limit: 100 }
-        if (id) cartParams.addressId = id
-        console.log('[Checkout] REQ cartService.my (init):', cartParams)
-        return cartService.my(cartParams)
+        const fromCartId =
+          fromCart && selectedAddressFromCart?._id != null
+            ? selectedAddressFromCart._id
+            : null;
+        const id = fromCartId ?? defaultAddr?._id ?? list?.[0]?._id;
+        const cartParams = { limit: 100 };
+        if (id) cartParams.addressId = id;
+        console.log("[Checkout] REQ cartService.my (init):", cartParams);
+        return cartService.my(cartParams);
       })
       .then((res) => {
-        console.log('[Checkout] RES cartService.my (init):', res?.data)
-        const data = res?.data?.data ?? res?.data
-        setCartData(data)
-        if (data?.items?.length) return fetchPriceSummary(appliedCouponCode || couponCodeFromCart || null)
+        console.log("[Checkout] RES cartService.my (init):", res?.data);
+        const data = res?.data?.data ?? res?.data;
+        setCartData(data);
+        if (data?.items?.length)
+          return fetchPriceSummary(
+            appliedCouponCode || couponCodeFromCart || null,
+          );
       })
-      .catch((err) => setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load checkout'))
-      .finally(() => setLoading(false))
-  }, [isAuthenticated])
+      .catch((err) =>
+        setError(
+          err?.response?.data?.message ??
+            err?.message ??
+            "Failed to load checkout",
+        ),
+      )
+      .finally(() => setLoading(false));
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    fetchWalletBalance()
-  }, [fetchWalletBalance])
+    fetchWalletBalance();
+  }, [fetchWalletBalance]);
 
   useEffect(() => {
-    if (addresses.length === 0 || selectedAddress != null) return
-    const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0]
-    console.log('[Checkout] address sync: set default/first', defaultOrFirst?._id)
-    if (defaultOrFirst) setSelectedAddress(defaultOrFirst)
-  }, [addresses, selectedAddress])
+    if (addresses.length === 0 || selectedAddress != null) return;
+    const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0];
+    console.log(
+      "[Checkout] address sync: set default/first",
+      defaultOrFirst?._id,
+    );
+    if (defaultOrFirst) setSelectedAddress(defaultOrFirst);
+  }, [addresses, selectedAddress]);
 
   useEffect(() => {
-    if (!isAuthenticated || !addressId) return
-    const params = { limit: 100, addressId }
-    console.log('[Checkout] REQ cartService.my (addressId changed):', params)
-    cartService.my(params).then((res) => {
-      console.log('[Checkout] RES cartService.my (addressId changed):', res?.data)
-      const data = res?.data?.data ?? res?.data
-      setCartData(data)
-      if (data?.items?.length) fetchPriceSummary(appliedCouponCode || null)
-    }).catch(() => {})
-  }, [addressId, isAuthenticated])
+    if (!isAuthenticated || !addressId) return;
+    const params = { limit: 100, addressId };
+    console.log("[Checkout] REQ cartService.my (addressId changed):", params);
+    cartService
+      .my(params)
+      .then((res) => {
+        console.log(
+          "[Checkout] RES cartService.my (addressId changed):",
+          res?.data,
+        );
+        const data = res?.data?.data ?? res?.data;
+        setCartData(data);
+        if (data?.items?.length) fetchPriceSummary(appliedCouponCode || null);
+      })
+      .catch(() => {});
+  }, [addressId, isAuthenticated]);
 
   useEffect(() => {
-    console.log('[Checkout] pincode effect', { pincode })
+    console.log("[Checkout] pincode effect", { pincode });
     if (!pincode || !String(pincode).trim()) {
-      setDeliveryOptionsFromPincode([])
-      return
+      setDeliveryOptionsFromPincode([]);
+      return;
     }
-    const pincodeStr = String(pincode).trim()
-    console.log('[Checkout] REQ deliveryService.checkByPincode:', { pincode: pincodeStr })
+    const pincodeStr = String(pincode).trim();
+    console.log("[Checkout] REQ deliveryService.checkByPincode:", {
+      pincode: pincodeStr,
+    });
     deliveryService
       .checkByPincode(pincodeStr)
       .then((res) => {
-        console.log('[Checkout] RES deliveryService.checkByPincode:', res?.data)
-        const data = res?.data?.data ?? res?.data
-        const options = data?.deliveryOptions ?? []
-        setDeliveryOptionsFromPincode(Array.isArray(options) ? options : [])
+        console.log(
+          "[Checkout] RES deliveryService.checkByPincode:",
+          res?.data,
+        );
+        const data = res?.data?.data ?? res?.data;
+        const options = data?.deliveryOptions ?? [];
+        setDeliveryOptionsFromPincode(Array.isArray(options) ? options : []);
       })
-      .catch(() => setDeliveryOptionsFromPincode([]))
-  }, [pincode])
+      .catch(() => setDeliveryOptionsFromPincode([]));
+  }, [pincode]);
 
   useEffect(() => {
-    if (!cartData?.items?.length || !isAuthenticated) return
-    fetchPriceSummary(appliedCouponCode || null, paymentMode, useWalletForOnline)
+    if (!cartData?.items?.length || !isAuthenticated) return;
+    fetchPriceSummary(
+      appliedCouponCode || null,
+      paymentMode,
+      useWalletForOnline,
+    );
   }, [
     cartData?.items?.length,
     appliedCouponCode,
@@ -409,60 +513,70 @@ function CheckoutPage() {
     donationAmount,
     donationPresetUsed,
     fetchPriceSummary,
-  ])
+  ]);
 
-  const cartSubTotalForCoupon = cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0
+  const cartSubTotalForCoupon =
+    cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0;
 
   useEffect(() => {
-    if (!isAuthenticated || !cartData?.items?.length) return
-    if (appliedCouponCode || autoCouponDismissed || paymentMode === 'COD') return
-    console.log('[Checkout][AutoCoupon] checking auto-included coupon', {
+    if (!isAuthenticated || !cartData?.items?.length) return;
+    if (appliedCouponCode || autoCouponDismissed || paymentMode === "COD")
+      return;
+    console.log("[Checkout][AutoCoupon] checking auto-included coupon", {
       paymentMode,
       cartSubTotalForCoupon,
       appliedCouponCode,
       autoCouponDismissed,
-    })
+    });
     fetchAvailableCoupons()
       .then((coupons) => {
-        console.log('[Checkout][AutoCoupon] available coupons count (raw):', coupons?.length ?? 0)
+        console.log(
+          "[Checkout][AutoCoupon] available coupons count (raw):",
+          coupons?.length ?? 0,
+        );
         const autoCoupon = coupons.find(
-          (c) => c?.isAutoIncluded === true && isCouponApplicable(c, cartSubTotalForCoupon),
-        )
-        console.log('[Checkout][AutoCoupon] selected auto coupon:', autoCoupon?.code ?? null)
-        if (!autoCoupon?.code) return
-        const code = String(autoCoupon.code).trim()
-        if (!code) return
-        console.log('[Checkout][AutoCoupon] applying coupon:', code)
-        setAutoIncludedCouponCode(code)
-        setCouponInput(code)
-        setCouponError(null)
-        setAutoCouponReconciling(true)
+          (c) =>
+            c?.isAutoIncluded === true &&
+            isCouponApplicable(c, cartSubTotalForCoupon),
+        );
+        console.log(
+          "[Checkout][AutoCoupon] selected auto coupon:",
+          autoCoupon?.code ?? null,
+        );
+        if (!autoCoupon?.code) return;
+        const code = String(autoCoupon.code).trim();
+        if (!code) return;
+        console.log("[Checkout][AutoCoupon] applying coupon:", code);
+        setAutoIncludedCouponCode(code);
+        setCouponInput(code);
+        setCouponError(null);
+        setAutoCouponReconciling(true);
         fetchPriceSummary(code, paymentMode)
           .then(() => fetchCart())
           .then(() => fetchPriceSummary(code, paymentMode))
           .then((latestSummaryData) => {
             if (isCouponAppliedInSummary(latestSummaryData, code)) {
-              setAppliedCouponCode(code)
-              setCouponError(null)
-              return
+              setAppliedCouponCode(code);
+              setCouponError(null);
+              return;
             }
             // Avoid showing "applied" UI if backend did not apply it.
-            setAppliedCouponCode(null)
-            setAppliedCouponMeta(null)
-            setCouponInput('')
-            setAutoCouponDismissed(true)
+            setAppliedCouponCode(null);
+            setAppliedCouponMeta(null);
+            setCouponInput("");
+            setAutoCouponDismissed(true);
           })
           .catch(() => {
-            setAppliedCouponCode(null)
-            setAppliedCouponMeta(null)
-            setCouponInput('')
-            setAutoCouponDismissed(true)
+            setAppliedCouponCode(null);
+            setAppliedCouponMeta(null);
+            setCouponInput("");
+            setAutoCouponDismissed(true);
           })
           .finally(() => {
-            setAutoCouponReconciling(false)
-          })
+            setAutoCouponReconciling(false);
+          });
       })
-      .catch(() => {})
+      .catch(() => {});
   }, [
     isAuthenticated,
     cartData?.items?.length,
@@ -473,159 +587,171 @@ function CheckoutPage() {
     fetchAvailableCoupons,
     fetchCart,
     fetchPriceSummary,
-  ])
+  ]);
 
   // Preload payment scripts when user selects a gateway
   useEffect(() => {
     if (paymentMode === PAYMENT_MODES.RAZORPAY) {
-      loadRazorpayScript().catch(() => {})
+      loadRazorpayScript().catch(() => {});
     }
     // Pay later disabled
     // if (paymentMode === PAYMENT_MODES.NIMBLE) {
     //   preloadNimbleCheckout().catch(() => {})
     // }
-  }, [paymentMode])
+  }, [paymentMode]);
 
   const clearPaymentConfirmation = useCallback(() => {
     if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current)
-      pollingIntervalRef.current = null
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
-    setCheckingPaymentStatus(false)
-    setStatusMessage(null)
-    setPlaceOrderLoading(false)
-  }, [])
+    setCheckingPaymentStatus(false);
+    setStatusMessage(null);
+    setPlaceOrderLoading(false);
+  }, []);
 
   // Clear polling on unmount
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
-        console.log('[Checkout] unmount: clear polling interval')
-        clearInterval(pollingIntervalRef.current)
-        pollingIntervalRef.current = null
+        console.log("[Checkout] unmount: clear polling interval");
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
-    }
-  }, [])
+    };
+  }, []);
 
   const handleApplyCoupon = () => {
-    const code = couponInput?.trim()
-    if (!code) return
-    if (autoIncludedCouponCode && code.toUpperCase() !== autoIncludedCouponCode.toUpperCase()) {
-      setAutoCouponDismissed(true)
+    const code = couponInput?.trim();
+    if (!code) return;
+    if (
+      autoIncludedCouponCode &&
+      code.toUpperCase() !== autoIncludedCouponCode.toUpperCase()
+    ) {
+      setAutoCouponDismissed(true);
     }
-    setAppliedCouponCode(code)
-    setAppliedCouponMeta(null)
-    setCouponError(null)
+    setAppliedCouponCode(code);
+    setAppliedCouponMeta(null);
+    setCouponError(null);
     fetchPriceSummary(code, paymentMode)
       .then(() => fetchCart())
       .then(() => fetchPriceSummary(code, paymentMode))
-      .catch(() => {})
-  }
+      .catch(() => {});
+  };
 
   const handleRemoveCoupon = () => {
-    console.log('[Checkout][Coupon] remove clicked', {
+    console.log("[Checkout][Coupon] remove clicked", {
       appliedCouponCode,
       autoIncludedCouponCode,
-    })
+    });
     if (
       appliedCouponCode &&
       autoIncludedCouponCode &&
-      String(appliedCouponCode).toUpperCase() === String(autoIncludedCouponCode).toUpperCase()
+      String(appliedCouponCode).toUpperCase() ===
+        String(autoIncludedCouponCode).toUpperCase()
     ) {
-      console.log('[Checkout][AutoCoupon] user dismissed auto-included coupon')
-      setAutoCouponDismissed(true)
+      console.log("[Checkout][AutoCoupon] user dismissed auto-included coupon");
+      setAutoCouponDismissed(true);
     }
-    setAppliedCouponCode(null)
-    setAppliedCouponMeta(null)
-    setCouponInput('')
-    setCouponError(null)
+    setAppliedCouponCode(null);
+    setAppliedCouponMeta(null);
+    setCouponInput("");
+    setCouponError(null);
     fetchPriceSummary(null, paymentMode)
       .then(() => fetchCart())
       .then(() => fetchPriceSummary(null, paymentMode))
-      .catch(() => {})
-  }
+      .catch(() => {});
+  };
 
   const openCouponModal = () => {
-    setCouponModalOpen(true)
-    setLoadingCoupons(true)
-    setAvailableCoupons([])
+    setCouponModalOpen(true);
+    setLoadingCoupons(true);
+    setAvailableCoupons([]);
     fetchAvailableCoupons()
       .then((list) => {
         const normalCoupons = list.filter((c) => {
-          if (c?.isInfluencer) return false
-          if (paymentMode === 'COD' && c?.isAutoIncluded === true) return false
-          return true
-        })
-        setAvailableCoupons(normalCoupons)
-        const autoCoupon = list.find((c) => c?.isAutoIncluded === true && c?.code)
-        setAutoIncludedCouponCode(autoCoupon?.code ?? null)
+          if (c?.isInfluencer) return false;
+          if (paymentMode === "COD" && c?.isAutoIncluded === true) return false;
+          return true;
+        });
+        setAvailableCoupons(normalCoupons);
+        const autoCoupon = list.find(
+          (c) => c?.isAutoIncluded === true && c?.code,
+        );
+        setAutoIncludedCouponCode(autoCoupon?.code ?? null);
       })
       .catch(() => setAvailableCoupons([]))
-      .finally(() => setLoadingCoupons(false))
-  }
+      .finally(() => setLoadingCoupons(false));
+  };
 
   const handleApplyCouponFromModal = (code) => {
-    if (!code) return
-    if (autoIncludedCouponCode && code.toUpperCase() !== autoIncludedCouponCode.toUpperCase()) {
-      setAutoCouponDismissed(true)
+    if (!code) return;
+    if (
+      autoIncludedCouponCode &&
+      code.toUpperCase() !== autoIncludedCouponCode.toUpperCase()
+    ) {
+      setAutoCouponDismissed(true);
     }
-    setCouponInput(code)
-    setAppliedCouponCode(code)
+    setCouponInput(code);
+    setAppliedCouponCode(code);
     const selected = availableCoupons.find(
-      (c) => String(c?.code ?? '').toUpperCase() === String(code).toUpperCase(),
-    )
-    setAppliedCouponMeta(selected ?? null)
-    setCouponError(null)
+      (c) => String(c?.code ?? "").toUpperCase() === String(code).toUpperCase(),
+    );
+    setAppliedCouponMeta(selected ?? null);
+    setCouponError(null);
     fetchPriceSummary(code, paymentMode)
       .then(() => fetchCart())
       .then(() => fetchPriceSummary(code, paymentMode))
-      .catch(() => {})
-    setCouponModalOpen(false)
-  }
+      .catch(() => {});
+    setCouponModalOpen(false);
+  };
 
   useEffect(() => {
-    if (!appliedCouponCode || appliedCouponMeta) return
+    if (!appliedCouponCode || appliedCouponMeta) return;
     fetchAvailableCoupons()
       .then((list) => {
         const matched = list.find(
           (c) =>
-            String(c?.code ?? '').trim().toUpperCase() ===
-            String(appliedCouponCode).trim().toUpperCase(),
-        )
-        if (matched) setAppliedCouponMeta(matched)
+            String(c?.code ?? "")
+              .trim()
+              .toUpperCase() === String(appliedCouponCode).trim().toUpperCase(),
+        );
+        if (matched) setAppliedCouponMeta(matched);
       })
-      .catch(() => {})
-  }, [appliedCouponCode, appliedCouponMeta, fetchAvailableCoupons])
+      .catch(() => {});
+  }, [appliedCouponCode, appliedCouponMeta, fetchAvailableCoupons]);
 
   const openAddressForm = () => {
-    console.log('[Checkout] openAddressForm')
-    setAddressFormError(null)
-    setAddressFormPhoneError(null)
+    console.log("[Checkout] openAddressForm");
+    setAddressFormError(null);
+    setAddressFormPhoneError(null);
     setAddressForm({
-      name: '',
-      phoneNumber: '',
-      addressLine: '',
-      city: '',
-      state: '',
-      pinCode: '',
-      addressType: 'HOME',
+      name: "",
+      phoneNumber: "",
+      addressLine: "",
+      city: "",
+      state: "",
+      pinCode: "",
+      addressType: "HOME",
       isDefault: addresses.length === 0,
-    })
-    setAddressFormOpen(true)
-  }
+    });
+    setAddressFormOpen(true);
+  };
 
   const handleAddressFormChange = (field, value) => {
-    setAddressForm((prev) => ({ ...prev, [field]: value }))
-  }
+    setAddressForm((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleAddressFormSubmit = async (e) => {
-    e.preventDefault()
-    console.log('[Checkout] handleAddressFormSubmit')
-    setAddressFormError(null)
-    setAddressFormPhoneError(null)
-    const pin = String(addressForm.pinCode || '').trim().replace(/\D/g, '')
-    const phoneRaw = String(addressForm.phoneNumber || '').trim()
-    const phoneDigits = phoneRaw.replace(/\D/g, '')
+    e.preventDefault();
+    console.log("[Checkout] handleAddressFormSubmit");
+    setAddressFormError(null);
+    setAddressFormPhoneError(null);
+    const pin = String(addressForm.pinCode || "")
+      .trim()
+      .replace(/\D/g, "");
+    const phoneRaw = String(addressForm.phoneNumber || "").trim();
+    const phoneDigits = phoneRaw.replace(/\D/g, "");
     if (
       !addressForm.name?.trim() ||
       !phoneDigits ||
@@ -634,16 +760,18 @@ function CheckoutPage() {
       !addressForm.state?.trim() ||
       !pin
     ) {
-      console.log('[Checkout] handleAddressFormSubmit: validation failed')
-      setAddressFormError('Please fill name, phone number, address, city, state and pincode.')
-      if (!phoneDigits) setAddressFormPhoneError('Phone number is required.')
-      return
+      console.log("[Checkout] handleAddressFormSubmit: validation failed");
+      setAddressFormError(
+        "Please fill name, phone number, address, city, state and pincode.",
+      );
+      if (!phoneDigits) setAddressFormPhoneError("Phone number is required.");
+      return;
     }
     if (phoneDigits.length !== 10) {
-      setAddressFormPhoneError('Phone number must be 10 digits.')
-      return
+      setAddressFormPhoneError("Phone number must be 10 digits.");
+      return;
     }
-    setAddressFormLoading(true)
+    setAddressFormLoading(true);
     try {
       const payload = {
         name: addressForm.name.trim(),
@@ -653,295 +781,448 @@ function CheckoutPage() {
         city: addressForm.city.trim(),
         state: addressForm.state.trim(),
         pinCode: parseInt(pin, 10) || 0,
-        addressType: addressForm.addressType || 'HOME',
+        addressType: addressForm.addressType || "HOME",
         isDefault: !!addressForm.isDefault,
-      }
+      };
       if (payload.pinCode <= 0) {
-        console.log('[Checkout] handleAddressFormSubmit: invalid pincode')
-        setAddressFormError('Please enter a valid pincode.')
-        setAddressFormLoading(false)
-        return
+        console.log("[Checkout] handleAddressFormSubmit: invalid pincode");
+        setAddressFormError("Please enter a valid pincode.");
+        setAddressFormLoading(false);
+        return;
       }
-      console.log('[Checkout] REQ addressService.create:', payload)
-      const res = await addressService.create(payload)
-      console.log('[Checkout] RES addressService.create:', res?.data)
-      const newAddr = res?.data?.data ?? res?.data
-      const list = await refetchAddresses()
-      if (newAddr?._id) setSelectedAddress(newAddr)
-      else if (list?.length) setSelectedAddress(list[list.length - 1])
-      setAddressFormOpen(false)
-      if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+      console.log("[Checkout] REQ addressService.create:", payload);
+      const res = await addressService.create(payload);
+      console.log("[Checkout] RES addressService.create:", res?.data);
+      const newAddr = res?.data?.data ?? res?.data;
+      const list = await refetchAddresses();
+      if (newAddr?._id) setSelectedAddress(newAddr);
+      else if (list?.length) setSelectedAddress(list[list.length - 1]);
+      setAddressFormOpen(false);
+      if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null);
     } catch (err) {
-      console.log('[Checkout] ERR addressService.create:', err?.response?.data ?? err?.message)
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to add address.'
-      setAddressFormError(msg)
+      console.log(
+        "[Checkout] ERR addressService.create:",
+        err?.response?.data ?? err?.message,
+      );
+      const msg =
+        err?.response?.data?.message ??
+        err?.message ??
+        "Failed to add address.";
+      setAddressFormError(msg);
     } finally {
-      setAddressFormLoading(false)
+      setAddressFormLoading(false);
     }
-  }
+  };
 
   const handlePlaceOrder = async () => {
-    console.log('[Checkout] handlePlaceOrder', { paymentMode, useWalletForOnline, addressId: selectedAddress?._id })
+    if (window.fbq) {
+      window.fbq("track", "AddPaymentInfo", {
+        value: Number(finalPayable || 0),
+        currency: "INR",
+        content_type: "product",
+        contents: items.map((item) => ({
+          id: item.itemId?._id,
+          quantity: item.quantity,
+        })),
+      });
+    }
+    console.log("[Checkout] handlePlaceOrder", {
+      paymentMode,
+      useWalletForOnline,
+      addressId: selectedAddress?._id,
+    });
     if (!selectedAddress?._id) {
-      console.log('[Checkout] handlePlaceOrder: no address selected')
-      setError('Please select a delivery address.')
-      return
+      console.log("[Checkout] handlePlaceOrder: no address selected");
+      setError("Please select a delivery address.");
+      return;
     }
-    const selectedPhoneDigits = String(selectedAddress?.phoneNumber || '').replace(/\D/g, '')
+    const selectedPhoneDigits = String(
+      selectedAddress?.phoneNumber || "",
+    ).replace(/\D/g, "");
     if (!selectedPhoneDigits || selectedPhoneDigits.length !== 10) {
-      setError('Please add a valid 10-digit phone number to your delivery address.')
-      return
+      setError(
+        "Please add a valid 10-digit phone number to your delivery address.",
+      );
+      return;
     }
-    setPlaceOrderLoading(true)
-    setError(null)
-    const addressId = selectedAddress._id
-    const couponCode = appliedCouponCode?.trim() || undefined
+    setPlaceOrderLoading(true);
+    setError(null);
+    const addressId = selectedAddress._id;
+    const couponCode = appliedCouponCode?.trim() || undefined;
 
     try {
       const donationBody = buildDonationOrderBody({
         donationEnabled,
         donationAmount,
         donationPresetUsed,
-      })
+      });
       if (!donationBody) {
-        setError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`)
-        setPlaceOrderLoading(false)
-        return
+        setError(`Enter a valid donation amount (0–${DONATION_MAX_AMOUNT}).`);
+        setPlaceOrderLoading(false);
+        return;
       }
 
-      if (paymentMode === 'COD') {
-        const createReq = { addressId, paymentMode: 'COD', couponCode, ...donationBody }
-        console.log('[Checkout] REQ orderService.create (COD):', createReq)
-        const res = await orderService.create(createReq)
-        console.log('[Checkout] RES orderService.create (COD):', res?.data)
-        const data = res?.data?.data ?? res?.data
-        const order = data?.order ?? data
-        const orderId = order?.orderId
+      if (paymentMode === "COD") {
+        const createReq = {
+          addressId,
+          paymentMode: "COD",
+          couponCode,
+          ...donationBody,
+        };
+        console.log("[Checkout] REQ orderService.create (COD):", createReq);
+        const res = await orderService.create(createReq);
+        console.log("[Checkout] RES orderService.create (COD):", res?.data);
+        const data = res?.data?.data ?? res?.data;
+        if (window.fbq) {
+          window.fbq("track", "Purchase", {
+            value: Number(finalPayable || 0),
+            currency: "INR",
+            content_type: "product",
+            contents: items.map((item) => ({
+              id: item.itemId?._id,
+              quantity: item.quantity,
+            })),
+            num_items: items.length,
+          });
+        }
+        const order = data?.order ?? data;
+        const orderId = order?.orderId;
         trackEvent({
-          eventType: 'order_placed',
+          eventType: "order_placed",
           orderId: orderId ? String(orderId) : undefined,
-          paymentMode: 'COD',
+          paymentMode: "COD",
           cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-          currency: 'INR',
-        })
-        console.log('[Checkout] COD success, refetch cart and navigate to orders:', orderId)
-        refetchCart()
+          currency: "INR",
+        });
+        console.log(
+          "[Checkout] COD success, refetch cart and navigate to orders:",
+          orderId,
+        );
+        refetchCart();
         navigate(ROUTES.ORDERS, {
-          state: { orderId, orderSuccess: true, paymentMode: PAYMENT_MODES.COD },
-        })
-        return
+          state: {
+            orderId,
+            orderSuccess: true,
+            paymentMode: PAYMENT_MODES.COD,
+          },
+        });
+        return;
       }
 
       // RAZORPAY: create-order via payment API → open Razorpay → verify-payment on success;
       // on modal_close without success, poll order-status until SUCCESS/CONFIRMED or timeout.
-      if (paymentMode === 'RAZORPAY') {
-        const walletAmountToUse = useWalletForOnline ? Math.max(0, Number(walletBalance || 0)) : 0
+      if (paymentMode === "RAZORPAY") {
+        const walletAmountToUse = useWalletForOnline
+          ? Math.max(0, Number(walletBalance || 0))
+          : 0;
         const createReq = {
           addressId,
-          paymentMode: 'RAZORPAY',
+          paymentMode: "RAZORPAY",
           couponCode,
           useWallet: useWalletForOnline,
           walletAmountToUse: useWalletForOnline ? walletAmountToUse : undefined,
           ...donationBody,
-        }
-        console.log('[Checkout] REQ paymentService.createOrder (PREPAID):', createReq)
-        const res = await paymentService.createOrder(createReq)
-        console.log('[Checkout] RES paymentService.createOrder (PREPAID):', res?.data)
-        const data = res?.data?.data ?? res?.data
-        const order = data?.order ?? data
-        const razorpayPayload = data?.razorpay
-        const businessOrderId = order?.orderId
+        };
+        console.log(
+          "[Checkout] REQ paymentService.createOrder (PREPAID):",
+          createReq,
+        );
+        const res = await paymentService.createOrder(createReq);
+        console.log(
+          "[Checkout] RES paymentService.createOrder (PREPAID):",
+          res?.data,
+        );
+        const data = res?.data?.data ?? res?.data;
+        const order = data?.order ?? data;
+        const razorpayPayload = data?.razorpay;
+        const businessOrderId = order?.orderId;
         trackEvent({
-          eventType: 'payment_initiated',
+          eventType: "payment_initiated",
           orderId: businessOrderId ? String(businessOrderId) : undefined,
-          paymentMode: 'RAZORPAY',
+          paymentMode: "RAZORPAY",
           cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-          currency: 'INR',
-        })
-        console.log('[Checkout] razorpayPayload (amount in rupees for frontend):', razorpayPayload)
+          currency: "INR",
+        });
+        console.log(
+          "[Checkout] razorpayPayload (amount in rupees for frontend):",
+          razorpayPayload,
+        );
         if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) {
-          console.log('[Checkout] RAZORPAY: missing orderId or keyId in payload')
-          setError('Payment setup failed. Please try again.')
-          setPlaceOrderLoading(false)
-          return
+          console.log(
+            "[Checkout] RAZORPAY: missing orderId or keyId in payload",
+          );
+          setError("Payment setup failed. Please try again.");
+          setPlaceOrderLoading(false);
+          return;
         }
         try {
-          await loadRazorpayScript()
+          await loadRazorpayScript();
         } catch (scriptErr) {
-          console.log('[Checkout] loadRazorpayScript failed:', scriptErr)
-          setError('Unable to open payment. Check pop-up blocker or try again.')
-          setPlaceOrderLoading(false)
-          return
+          console.log("[Checkout] loadRazorpayScript failed:", scriptErr);
+          setError(
+            "Unable to open payment. Check pop-up blocker or try again.",
+          );
+          setPlaceOrderLoading(false);
+          return;
         }
-        let amountInPaise = razorpayPayload.amountInPaise != null && !Number.isNaN(razorpayPayload.amountInPaise)
-          ? razorpayPayload.amountInPaise
-          : Math.round((razorpayPayload.amount || 0) * 100)
-        console.log('[Checkout] Razorpay open options: amount (paise)=', amountInPaise, 'amount (rupees)=', razorpayPayload.amount)
+        let amountInPaise =
+          razorpayPayload.amountInPaise != null &&
+          !Number.isNaN(razorpayPayload.amountInPaise)
+            ? razorpayPayload.amountInPaise
+            : Math.round((razorpayPayload.amount || 0) * 100);
+        console.log(
+          "[Checkout] Razorpay open options: amount (paise)=",
+          amountInPaise,
+          "amount (rupees)=",
+          razorpayPayload.amount,
+        );
 
         const handlePaymentSuccess = async function (response) {
-          if (paymentSuccessHandledRef.current) return
-          paymentSuccessHandledRef.current = true
-          console.log('[Checkout] Razorpay payment.success callback fired', { razorpay_order_id: response?.razorpay_order_id, razorpay_payment_id: response?.razorpay_payment_id })
+          if (paymentSuccessHandledRef.current) return;
+          paymentSuccessHandledRef.current = true;
+          console.log("[Checkout] Razorpay payment.success callback fired", {
+            razorpay_order_id: response?.razorpay_order_id,
+            razorpay_payment_id: response?.razorpay_payment_id,
+          });
           const verifyReq = {
             razorpay_order_id: response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
             razorpay_signature: response.razorpay_signature,
-          }
-          setLastVerifyError(null)
-          setLastVerifyPayload(verifyReq)
-          console.log('[Checkout] REQ paymentService.verifyPayment:', { ...verifyReq, razorpay_signature: '(redacted)' })
+          };
+          setLastVerifyError(null);
+          setLastVerifyPayload(verifyReq);
+          console.log("[Checkout] REQ paymentService.verifyPayment:", {
+            ...verifyReq,
+            razorpay_signature: "(redacted)",
+          });
           try {
-            const verifyRes = await paymentService.verifyPayment(verifyReq)
-            console.log('[Checkout] RES paymentService.verifyPayment:', verifyRes?.data)
+            const verifyRes = await paymentService.verifyPayment(verifyReq);
+            console.log(
+              "[Checkout] RES paymentService.verifyPayment:",
+              verifyRes?.data,
+            );
+            window.fbq("track", "Purchase", {
+              value: Number(finalPayable || 0),
+              currency: "INR",
+              content_type: "product",
+              content_ids: items.map((i) => i.itemId?._id),
+              contents: items.map((i) => ({
+                id: i.itemId?._id,
+                quantity: i.quantity,
+              })),
+              num_items: items.length,
+            });
             trackEvent({
-              eventType: 'payment_success',
+              eventType: "payment_success",
               orderId: businessOrderId ? String(businessOrderId) : undefined,
-              paymentMode: 'RAZORPAY',
-              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-              currency: 'INR',
-            })
+              paymentMode: "RAZORPAY",
+              cartValue:
+                finalPayable != null ? Number(finalPayable) : undefined,
+              currency: "INR",
+            });
             trackEvent({
-              eventType: 'order_placed',
+              eventType: "order_placed",
               orderId: businessOrderId ? String(businessOrderId) : undefined,
-              paymentMode: 'RAZORPAY',
-              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-              currency: 'INR',
-            })
-            refetchCart()
-            console.log('[Checkout] verifyPayment success, navigate to orders:', businessOrderId)
+              paymentMode: "RAZORPAY",
+              cartValue:
+                finalPayable != null ? Number(finalPayable) : undefined,
+              currency: "INR",
+            });
+            refetchCart();
+            console.log(
+              "[Checkout] verifyPayment success, navigate to orders:",
+              businessOrderId,
+            );
             navigate(ROUTES.ORDERS, {
-              state: { orderId: businessOrderId, orderSuccess: true, paymentMode: PAYMENT_MODES.RAZORPAY },
-            })
-          } catch (verifyErr) {
-            console.log('[Checkout] ERR paymentService.verifyPayment:', verifyErr?.response?.data ?? verifyErr?.message)
-            trackEvent({
-              eventType: 'payment_failed',
-              orderId: businessOrderId ? String(businessOrderId) : undefined,
-              paymentMode: 'RAZORPAY',
-              cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-              currency: 'INR',
-              meta: {
-                reason: verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'verify_failed',
+              state: {
+                orderId: businessOrderId,
+                orderSuccess: true,
+                paymentMode: PAYMENT_MODES.RAZORPAY,
               },
-            })
-            const msg = verifyErr?.response?.data?.message ?? verifyErr?.message ?? 'Payment verification failed.'
-            setLastVerifyError(msg)
-            setLastVerifyPayload(verifyReq)
+            });
+          } catch (verifyErr) {
+            console.log(
+              "[Checkout] ERR paymentService.verifyPayment:",
+              verifyErr?.response?.data ?? verifyErr?.message,
+            );
+            trackEvent({
+              eventType: "payment_failed",
+              orderId: businessOrderId ? String(businessOrderId) : undefined,
+              paymentMode: "RAZORPAY",
+              cartValue:
+                finalPayable != null ? Number(finalPayable) : undefined,
+              currency: "INR",
+              meta: {
+                reason:
+                  verifyErr?.response?.data?.message ??
+                  verifyErr?.message ??
+                  "verify_failed",
+              },
+            });
+            const msg =
+              verifyErr?.response?.data?.message ??
+              verifyErr?.message ??
+              "Payment verification failed.";
+            setLastVerifyError(msg);
+            setLastVerifyPayload(verifyReq);
           } finally {
-            setPlaceOrderLoading(false)
+            setPlaceOrderLoading(false);
           }
-        }
+        };
 
         const options = {
           key: razorpayPayload.keyId,
           amount: amountInPaise,
-          currency: razorpayPayload.currency || 'INR',
+          currency: razorpayPayload.currency || "INR",
           order_id: razorpayPayload.orderId,
-          name: 'Khush',
+          name: "Khush",
           handler: handlePaymentSuccess,
           modal: {
             ondismiss: () => {
-              console.log('[Checkout] Razorpay modal closed via ondismiss', { paymentSuccessHandled: paymentSuccessHandledRef.current, businessOrderId })
-              setPlaceOrderLoading(false)
+              console.log("[Checkout] Razorpay modal closed via ondismiss", {
+                paymentSuccessHandled: paymentSuccessHandledRef.current,
+                businessOrderId,
+              });
+              setPlaceOrderLoading(false);
               if (paymentSuccessHandledRef.current || !businessOrderId) {
-                console.log('[Checkout] ondismiss: skip polling (already success or no orderId)')
-                return
+                console.log(
+                  "[Checkout] ondismiss: skip polling (already success or no orderId)",
+                );
+                return;
               }
-              setError(null)
-              setLastVerifyError(null)
-              setStatusMessage('Checking payment status…')
-              setCheckingPaymentStatus(true)
-              console.log('[Checkout] ondismiss: start polling order-status for', businessOrderId)
+              setError(null);
+              setLastVerifyError(null);
+              setStatusMessage("Checking payment status…");
+              setCheckingPaymentStatus(true);
+              console.log(
+                "[Checkout] ondismiss: start polling order-status for",
+                businessOrderId,
+              );
               if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current)
-                pollingIntervalRef.current = null
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
               }
-              let attempts = 0
+              let attempts = 0;
               pollingIntervalRef.current = setInterval(async () => {
-                attempts += 1
-                console.log('[Checkout] polling getOrderStatus attempt', attempts, businessOrderId)
+                attempts += 1;
+                console.log(
+                  "[Checkout] polling getOrderStatus attempt",
+                  attempts,
+                  businessOrderId,
+                );
                 // Show user which retry attempt we are on (1–5)
                 if (attempts <= 5) {
-                  setStatusMessage(`Retry ${attempts}/5: checking payment status…`)
+                  setStatusMessage(
+                    `Retry ${attempts}/5: checking payment status…`,
+                  );
                 }
                 try {
-                  const statusRes = await paymentService.getOrderStatus(businessOrderId)
-                  const statusData = statusRes?.data?.data ?? statusRes?.data
-                  const pStatus = statusData?.payment?.status
-                  const ordStatus = statusData?.status
-                  console.log('[Checkout] getOrderStatus response:', { attempts, pStatus, ordStatus, statusData })
-                  if (pStatus === 'SUCCESS' || ordStatus === 'CONFIRMED') {
+                  const statusRes =
+                    await paymentService.getOrderStatus(businessOrderId);
+                  const statusData = statusRes?.data?.data ?? statusRes?.data;
+                  const pStatus = statusData?.payment?.status;
+                  const ordStatus = statusData?.status;
+                  console.log("[Checkout] getOrderStatus response:", {
+                    attempts,
+                    pStatus,
+                    ordStatus,
+                    statusData,
+                  });
+                  if (pStatus === "SUCCESS" || ordStatus === "CONFIRMED") {
                     if (pollingIntervalRef.current) {
-                      clearInterval(pollingIntervalRef.current)
-                      pollingIntervalRef.current = null
+                      clearInterval(pollingIntervalRef.current);
+                      pollingIntervalRef.current = null;
                     }
-                    setCheckingPaymentStatus(false)
-                    setStatusMessage(null)
-                    paymentSuccessHandledRef.current = true
-                    refetchCart()
-                    console.log('[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:', businessOrderId)
+                    setCheckingPaymentStatus(false);
+                    setStatusMessage(null);
+                    paymentSuccessHandledRef.current = true;
+                    refetchCart();
+                    console.log(
+                      "[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:",
+                      businessOrderId,
+                    );
                     navigate(ROUTES.ORDERS, {
-              state: { orderId: businessOrderId, orderSuccess: true, paymentMode: PAYMENT_MODES.RAZORPAY },
-            })
-                    return
+                      state: {
+                        orderId: businessOrderId,
+                        orderSuccess: true,
+                        paymentMode: PAYMENT_MODES.RAZORPAY,
+                      },
+                    });
+                    return;
                   }
                   // If payment stays pending/created for first few checks, stop early and allow retry
-                  if (attempts >= 5 && (pStatus === 'PENDING' || !pStatus) && (ordStatus === 'CREATED' || !ordStatus)) {
+                  if (
+                    attempts >= 5 &&
+                    (pStatus === "PENDING" || !pStatus) &&
+                    (ordStatus === "CREATED" || !ordStatus)
+                  ) {
                     if (pollingIntervalRef.current) {
-                      clearInterval(pollingIntervalRef.current)
-                      pollingIntervalRef.current = null
+                      clearInterval(pollingIntervalRef.current);
+                      pollingIntervalRef.current = null;
                     }
-                    setCheckingPaymentStatus(false)
-                    setStatusMessage('Payment not completed. You can try again.')
-                    console.log('[Checkout] polling: still PENDING/CREATED after few attempts, stop and allow retry')
-                    return
+                    setCheckingPaymentStatus(false);
+                    setStatusMessage(
+                      "Payment not completed. You can try again.",
+                    );
+                    console.log(
+                      "[Checkout] polling: still PENDING/CREATED after few attempts, stop and allow retry",
+                    );
+                    return;
                   }
                 } catch (err) {
-                  console.log('[Checkout] getOrderStatus error:', err?.response?.status, err?.response?.data ?? err?.message)
+                  console.log(
+                    "[Checkout] getOrderStatus error:",
+                    err?.response?.status,
+                    err?.response?.data ?? err?.message,
+                  );
                   if (err?.response?.status === 404) {
                     if (pollingIntervalRef.current) {
-                      clearInterval(pollingIntervalRef.current)
-                      pollingIntervalRef.current = null
+                      clearInterval(pollingIntervalRef.current);
+                      pollingIntervalRef.current = null;
                     }
-                    setCheckingPaymentStatus(false)
-                    setStatusMessage('Order not found. Check My Orders or contact support.')
-                    console.log('[Checkout] polling: 404, stop')
-                    return
+                    setCheckingPaymentStatus(false);
+                    setStatusMessage(
+                      "Order not found. Check My Orders or contact support.",
+                    );
+                    console.log("[Checkout] polling: 404, stop");
+                    return;
                   }
                 }
                 if (attempts >= POLL_MAX_ATTEMPTS) {
                   if (pollingIntervalRef.current) {
-                    clearInterval(pollingIntervalRef.current)
-                    pollingIntervalRef.current = null
+                    clearInterval(pollingIntervalRef.current);
+                    pollingIntervalRef.current = null;
                   }
-                  setCheckingPaymentStatus(false)
-                  setStatusMessage('If you were charged, the order will appear in My Orders shortly.')
-                  console.log('[Checkout] polling: max attempts reached, stop')
+                  setCheckingPaymentStatus(false);
+                  setStatusMessage(
+                    "If you were charged, the order will appear in My Orders shortly.",
+                  );
+                  console.log("[Checkout] polling: max attempts reached, stop");
                 }
-              }, POLL_INTERVAL_MS)
+              }, POLL_INTERVAL_MS);
             },
           },
-        }
-        const rzp = new window.Razorpay(options)
-        rzp.on('payment.failed', (response) => {
-          console.log('[Checkout] Razorpay payment.failed', response)
+        };
+        const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", (response) => {
+          console.log("[Checkout] Razorpay payment.failed", response);
           trackEvent({
-            eventType: 'payment_failed',
+            eventType: "payment_failed",
             orderId: businessOrderId ? String(businessOrderId) : undefined,
-            paymentMode: 'RAZORPAY',
+            paymentMode: "RAZORPAY",
             cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-            currency: 'INR',
+            currency: "INR",
             meta: {
               code: response?.error?.code,
-              reason: response?.error?.description || 'razorpay_failed',
+              reason: response?.error?.description || "razorpay_failed",
             },
-          })
-          setError('Payment failed or was cancelled.')
-          setPlaceOrderLoading(false)
-        })
-        console.log('[Checkout] Razorpay rzp.open()')
-        rzp.open()
-        return
+          });
+          setError("Payment failed or was cancelled.");
+          setPlaceOrderLoading(false);
+        });
+        console.log("[Checkout] Razorpay rzp.open()");
+        rzp.open();
+        return;
       }
 
       /* Pay later (Nimble / BNPL) — disabled
@@ -1187,103 +1468,131 @@ function CheckoutPage() {
           setPlaceOrderLoading(false)
         }
       */
-
     } catch (err) {
-      console.log('[Checkout] ERR place order:', err?.response?.data ?? err?.message)
-      if (paymentMode === 'RAZORPAY') {
+      console.log(
+        "[Checkout] ERR place order:",
+        err?.response?.data ?? err?.message,
+      );
+      if (paymentMode === "RAZORPAY") {
         trackEvent({
-          eventType: 'payment_failed',
-          paymentMode: 'RAZORPAY',
+          eventType: "payment_failed",
+          paymentMode: "RAZORPAY",
           cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-          currency: 'INR',
+          currency: "INR",
           meta: {
-            reason: err?.response?.data?.message ?? err?.message ?? 'create_order_failed',
+            reason:
+              err?.response?.data?.message ??
+              err?.message ??
+              "create_order_failed",
           },
-        })
+        });
       }
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to place order.'
-      setError(msg)
+      const msg =
+        err?.response?.data?.message ??
+        err?.message ??
+        "Failed to place order.";
+      setError(msg);
     } finally {
-      if (paymentMode === 'COD') setPlaceOrderLoading(false)
+      if (paymentMode === "COD") setPlaceOrderLoading(false);
     }
-  }
+  };
 
   // Summary from price-summary API (cartSummary.summary)
-  const summary = priceSummary?.cartSummary?.summary ?? priceSummary?.summary ?? priceSummary ?? {}
-  const subTotal = cartData?.summary?.subTotal ?? summary.subTotal ?? 0
-  const finalPayable = summary.finalPayable ?? subTotal
-  const coupon = summary.coupon
-  const couponDiscountFromSummary = Number(coupon?.discountAmount ?? 0)
+  const summary =
+    priceSummary?.cartSummary?.summary ??
+    priceSummary?.summary ??
+    priceSummary ??
+    {};
+  const subTotal = cartData?.summary?.subTotal ?? summary.subTotal ?? 0;
+  const finalPayable = summary.finalPayable ?? subTotal;
+  const coupon = summary.coupon;
+  const couponDiscountFromSummary = Number(coupon?.discountAmount ?? 0);
   const inferredDiscountFromTotals = Math.max(
     0,
-    Number(summary.subTotal ?? 0) - Number(summary.subTotalAfterDiscount ?? summary.subTotal ?? 0),
-  )
-  const codCouponDiscountValue = Math.max(couponDiscountFromSummary, inferredDiscountFromTotals)
+    Number(summary.subTotal ?? 0) -
+      Number(summary.subTotalAfterDiscount ?? summary.subTotal ?? 0),
+  );
+  const codCouponDiscountValue = Math.max(
+    couponDiscountFromSummary,
+    inferredDiscountFromTotals,
+  );
   const codCouponOfferLabel =
-    appliedCouponMeta?.discountType === 'PERCENT'
+    appliedCouponMeta?.discountType === "PERCENT"
       ? `${Number(appliedCouponMeta?.discountValue ?? 0)}%`
       : appliedCouponMeta?.discountValue != null
         ? formatRs(Number(appliedCouponMeta.discountValue))
-        : null
+        : null;
   const appliedCouponDisplayText =
     codCouponDiscountValue > 0
       ? `Discount: -${formatRs(codCouponDiscountValue)}`
       : codCouponOfferLabel
         ? `Offer: ${codCouponOfferLabel}`
-        : null
-  const hasAnyAppliedCoupon = Boolean(appliedCouponCode)
-  const deliverySummary = summary.delivery
-  const walletUsedFromSummary = Number(summary?.wallet?.usedAmount ?? 0)
-  const rewardPointsToEarn = Number(summary?.rewardPointsPreview?.pointsToEarn ?? 0)
-  const otherChargesTotal = summary.otherChargesTotal ?? 0
-  const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0
-  const chargesList = Array.isArray(summary.charges) ? summary.charges : []
-  const taxableAmount = summary.taxableAmount ?? 0
-  const subTotalAfterDiscount = summary.subTotalAfterDiscount ?? summary.subTotal ?? 0
+        : null;
+  const hasAnyAppliedCoupon = Boolean(appliedCouponCode);
+  const deliverySummary = summary.delivery;
+  const walletUsedFromSummary = Number(summary?.wallet?.usedAmount ?? 0);
+  const rewardPointsToEarn = Number(
+    summary?.rewardPointsPreview?.pointsToEarn ?? 0,
+  );
+  const otherChargesTotal = summary.otherChargesTotal ?? 0;
+  const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0;
+  const chargesList = Array.isArray(summary.charges) ? summary.charges : [];
+  const taxableAmount = summary.taxableAmount ?? 0;
+  const subTotalAfterDiscount =
+    summary.subTotalAfterDiscount ?? summary.subTotal ?? 0;
   const donationLineAmount =
     summary.donation?.enabled && Number(summary.donation?.amount) > 0
       ? Number(summary.donation.amount)
-      : 0
-  const hasSummaryFromApi = Boolean(priceSummary?.cartSummary ?? priceSummary?.summary)
+      : 0;
+  const hasSummaryFromApi = Boolean(
+    priceSummary?.cartSummary ?? priceSummary?.summary,
+  );
 
   useEffect(() => {
-    if (paymentMode === 'COD') {
-      autoCouponReconcileAttemptedRef.current = false
-      return
+    if (paymentMode === "COD") {
+      autoCouponReconcileAttemptedRef.current = false;
+      return;
     }
     if (!appliedCouponCode || !autoIncludedCouponCode || autoCouponDismissed) {
-      autoCouponReconcileAttemptedRef.current = false
-      return
+      autoCouponReconcileAttemptedRef.current = false;
+      return;
     }
-    const appliedCode = String(appliedCouponCode).trim().toUpperCase()
-    const autoCode = String(autoIncludedCouponCode).trim().toUpperCase()
+    const appliedCode = String(appliedCouponCode).trim().toUpperCase();
+    const autoCode = String(autoIncludedCouponCode).trim().toUpperCase();
     if (!appliedCode || appliedCode !== autoCode) {
-      autoCouponReconcileAttemptedRef.current = false
-      return
+      autoCouponReconcileAttemptedRef.current = false;
+      return;
     }
-    if (!hasSummaryFromApi) return
+    if (!hasSummaryFromApi) return;
 
-    const summaryCouponCode = String(coupon?.code ?? '').trim().toUpperCase()
-    const summaryDiscount = Number(coupon?.discountAmount ?? 0)
+    const summaryCouponCode = String(coupon?.code ?? "")
+      .trim()
+      .toUpperCase();
+    const summaryDiscount = Number(coupon?.discountAmount ?? 0);
     const inferredDiscount = Math.max(
       0,
-      Number(summary.subTotal ?? 0) - Number(summary.subTotalAfterDiscount ?? summary.subTotal ?? 0),
-    )
-    const hasDiscountApplied = summaryDiscount > 0 || inferredDiscount > 0
-    const summaryHasAppliedCoupon = summaryCouponCode === appliedCode || hasDiscountApplied
+      Number(summary.subTotal ?? 0) -
+        Number(summary.subTotalAfterDiscount ?? summary.subTotal ?? 0),
+    );
+    const hasDiscountApplied = summaryDiscount > 0 || inferredDiscount > 0;
+    const summaryHasAppliedCoupon =
+      summaryCouponCode === appliedCode || hasDiscountApplied;
 
     if (summaryHasAppliedCoupon) {
-      autoCouponReconcileAttemptedRef.current = false
-      return
+      autoCouponReconcileAttemptedRef.current = false;
+      return;
     }
 
-    if (autoCouponReconcileAttemptedRef.current) return
-    autoCouponReconcileAttemptedRef.current = true
-    console.log('[Checkout][AutoCoupon] reconciling missing initial summary discount for auto coupon:', appliedCouponCode)
-    setAutoCouponReconciling(true)
+    if (autoCouponReconcileAttemptedRef.current) return;
+    autoCouponReconcileAttemptedRef.current = true;
+    console.log(
+      "[Checkout][AutoCoupon] reconciling missing initial summary discount for auto coupon:",
+      appliedCouponCode,
+    );
+    setAutoCouponReconciling(true);
     fetchPriceSummary(appliedCouponCode, paymentMode).finally(() => {
-      setAutoCouponReconciling(false)
-    })
+      setAutoCouponReconciling(false);
+    });
   }, [
     paymentMode,
     appliedCouponCode,
@@ -1295,160 +1604,256 @@ function CheckoutPage() {
     summary.subTotal,
     summary.subTotalAfterDiscount,
     fetchPriceSummary,
-  ])
+  ]);
+
+  const items = cartData?.items ?? [];
+  useEffect(() => {
+    if (!items.length || initiateCheckoutTrackedRef.current) return;
+
+    initiateCheckoutTrackedRef.current = true;
+
+    trackEvent({
+      eventType: "begin_checkout",
+    });
+
+    if (window.fbq) {
+      window.fbq("track", "InitiateCheckout", {
+        value: Number(finalPayable || 0),
+        currency: "INR",
+        num_items: items.length,
+      });
+    }
+  }, [items.length, finalPayable]);
 
   if (!isAuthenticated) {
-    console.log('[Checkout] render: not authenticated, show sign-in')
+    console.log("[Checkout] render: not authenticated, show sign-in");
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold text-black uppercase">Checkout</h1>
           <p className="mt-2 text-gray-600">Please sign in to checkout.</p>
-          <Link to={ROUTES.AUTH} className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors">
+          <Link
+            to={ROUTES.AUTH}
+            className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors"
+          >
             Sign in
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
   if (loading && !cartData) {
-    console.log('[Checkout] render: loading checkout')
+    console.log("[Checkout] render: loading checkout");
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
           <p className="text-gray-600">Loading checkout…</p>
         </div>
       </div>
-    )
+    );
   }
 
-  const items = cartData?.items ?? []
-  const hasOutOfStockItem = items.some((row) => row.outOfStock === true || (row.availableQuantity != null && Number(row.availableQuantity) === 0))
-  const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : (cartData?.deliveryOptions ?? [])
+  const hasOutOfStockItem = items.some(
+    (row) =>
+      row.outOfStock === true ||
+      (row.availableQuantity != null && Number(row.availableQuantity) === 0),
+  );
+  const deliveryOptions =
+    deliveryOptionsFromPincode.length > 0
+      ? deliveryOptionsFromPincode
+      : (cartData?.deliveryOptions ?? []);
 
   if (items.length === 0 && !error) {
-    console.log('[Checkout] render: cart empty')
+    console.log("[Checkout] render: cart empty");
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold text-black uppercase">Your cart is empty</h1>
-          <p className="mt-2 text-gray-600">Add items from the shop to get started.</p>
-          <Link to={ROUTES.SEARCH} className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors">
+          <h1 className="text-2xl font-bold text-black uppercase">
+            Your cart is empty
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Add items from the shop to get started.
+          </p>
+          <Link
+            to={ROUTES.SEARCH}
+            className="mt-6 inline-block px-6 py-3 bg-black text-white uppercase hover:bg-gray-800 transition-colors"
+          >
             Continue shopping
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
-  console.log('[Checkout] render: main checkout', { itemsCount: items.length, paymentMode, placeOrderLoading, checkingPaymentStatus, error: !!error, statusMessage: !!statusMessage })
+  console.log("[Checkout] render: main checkout", {
+    itemsCount: items.length,
+    paymentMode,
+    placeOrderLoading,
+    checkingPaymentStatus,
+    error: !!error,
+    statusMessage: !!statusMessage,
+  });
   return (
     <div className="min-h-screen bg-white text-black pt-40 pb-12 font-sans">
       <div className="px-4 md:px-6 lg:px-8">
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
         {/* Retry/polling + final "not completed" status as a square modal popup */}
-        {statusMessage && !error && (checkingPaymentStatus || /payment not completed/i.test(String(statusMessage))) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white w-full max-w-[360px] border border-gray-200 shadow-xl">
-              <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
-                <p className="text-sm font-semibold uppercase tracking-wider text-black">Payment status</p>
-              </div>
-              <div className="p-5">
-                <p className="text-sm text-gray-800">{statusMessage}</p>
-                {checkingPaymentStatus ? (
-                  <div className="pt-4 space-y-2">
-                    <p className="text-xs text-gray-500">Please don’t refresh this page.</p>
-                    <button
-                      type="button"
-                      onClick={clearPaymentConfirmation}
-                      className="w-full border border-gray-300 py-2.5 px-4 text-sm font-semibold uppercase bg-white text-black hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setStatusMessage(null)}
-                      className="w-full border border-black py-2.5 px-4 text-sm font-semibold uppercase bg-white text-black hover:bg-gray-50 transition-colors"
-                    >
-                      Close
-                    </button>
-                  </div>
-                )}
+        {statusMessage &&
+          !error &&
+          (checkingPaymentStatus ||
+            /payment not completed/i.test(String(statusMessage))) && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+              <div className="bg-white w-full max-w-[360px] border border-gray-200 shadow-xl">
+                <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+                  <p className="text-sm font-semibold uppercase tracking-wider text-black">
+                    Payment status
+                  </p>
+                </div>
+                <div className="p-5">
+                  <p className="text-sm text-gray-800">{statusMessage}</p>
+                  {checkingPaymentStatus ? (
+                    <div className="pt-4 space-y-2">
+                      <p className="text-xs text-gray-500">
+                        Please don’t refresh this page.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={clearPaymentConfirmation}
+                        className="w-full border border-gray-300 py-2.5 px-4 text-sm font-semibold uppercase bg-white text-black hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setStatusMessage(null)}
+                        className="w-full border border-black py-2.5 px-4 text-sm font-semibold uppercase bg-white text-black hover:bg-gray-50 transition-colors"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
         {/* Non-blocking info message (when not polling) */}
-        {statusMessage && !checkingPaymentStatus && !error && !/payment not completed/i.test(String(statusMessage)) && (
-          <p className="mb-4 text-sm text-gray-700">{statusMessage}</p>
-        )}
+        {statusMessage &&
+          !checkingPaymentStatus &&
+          !error &&
+          !/payment not completed/i.test(String(statusMessage)) && (
+            <p className="mb-4 text-sm text-gray-700">{statusMessage}</p>
+          )}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           {/* Left column: Order items (read-only, same table as cart) */}
           <div className="lg:col-span-2">
             <div className="md:hidden space-y-3">
               {items.map((row) => {
-                const item = row.itemId
-                const name = item?.name ?? 'Product'
-                const shortDesc = item?.shortDescription ?? ''
-                const color = row.variant?.color ?? ''
-                const colorHex = row.variant?.hex ?? ''
-                const size = row.variant?.size ?? row.variant?.sizeLabel ?? ''
-                const imageUrl = row.variant?.imageUrl ?? ''
-                const sku = row.variant?.sku
-                const qty = row.quantity ?? 1
-                const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
-                const itemTotal = row.itemTotal ?? unitPrice * qty
-                const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
-                const selectedOpt = deliveryOptions.find((d) => (d._id?.toString?.() ?? d._id) === selectedDeliveryId)
-                const deliveryLabel = selectedOpt?.deliveryType === '90_MIN' ? '90 MIN DELIVERY' : selectedOpt?.deliveryType === 'ONE_DAY' ? '1 DAY DELIVERY' : selectedOpt?.deliveryType || 'Standard'
-                const productId = item?._id
-                const productPath = productId ? getProductPath(productId, name, shortDesc) : null
+                const item = row.itemId;
+                const name = item?.name ?? "Product";
+                const shortDesc = item?.shortDescription ?? "";
+                const color = row.variant?.color ?? "";
+                const colorHex = row.variant?.hex ?? "";
+                const size = row.variant?.size ?? row.variant?.sizeLabel ?? "";
+                const imageUrl = row.variant?.imageUrl ?? "";
+                const sku = row.variant?.sku;
+                const qty = row.quantity ?? 1;
+                const unitPrice =
+                  row.unitPrice ?? item?.discountedPrice ?? item?.price ?? 0;
+                const itemTotal = row.itemTotal ?? unitPrice * qty;
+                const selectedDeliveryId =
+                  row.selectedDeliveryId?.toString?.() ??
+                  row.selectedDeliveryId;
+                const selectedOpt = deliveryOptions.find(
+                  (d) => (d._id?.toString?.() ?? d._id) === selectedDeliveryId,
+                );
+                const deliveryLabel =
+                  selectedOpt?.deliveryType === "90_MIN"
+                    ? "90 MIN DELIVERY"
+                    : selectedOpt?.deliveryType === "ONE_DAY"
+                      ? "1 DAY DELIVERY"
+                      : selectedOpt?.deliveryType || "Standard";
+                const productId = item?._id;
+                const productPath = productId
+                  ? getProductPath(productId, name, shortDesc)
+                  : null;
 
                 return (
-                  <div key={row._id ?? sku} className="border border-gray-200 p-3 bg-white">
+                  <div
+                    key={row._id ?? sku}
+                    className="border border-gray-200 p-3 bg-white"
+                  >
                     <div className="flex items-start gap-3">
                       <div className="w-[72px] h-[96px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
                         {productPath ? (
-                          <Link to={productPath} className="block w-full h-full">
+                          <Link
+                            to={productPath}
+                            className="block w-full h-full"
+                          >
                             {imageUrl ? (
-                              <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                              <img
+                                src={imageUrl}
+                                alt={name}
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                              <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                                No image
+                              </div>
                             )}
                           </Link>
                         ) : imageUrl ? (
-                          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                          <img
+                            src={imageUrl}
+                            alt={name}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                            No image
+                          </div>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         {productPath ? (
-                          <Link to={productPath} className="block hover:underline">
-                            <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                          <Link
+                            to={productPath}
+                            className="block hover:underline"
+                          >
+                            <p className="font-bold text-black uppercase tracking-wide text-sm">
+                              {name}
+                            </p>
                           </Link>
                         ) : (
-                          <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
+                          <p className="font-bold text-black uppercase tracking-wide text-sm">
+                            {name}
+                          </p>
                         )}
-                        {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case line-clamp-2">{shortDesc}</p>}
+                        <CartItemDescription text={shortDesc} />
                         {(color || size) && (
                           <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                             {color && (
                               <span className="inline-flex items-center gap-1.5">
                                 <span
                                   className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
-                                  style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                  style={{
+                                    backgroundColor:
+                                      /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex)
+                                        ? colorHex
+                                        : "#999",
+                                  }}
                                   title={color}
                                   aria-hidden
                                 />
                                 <span>{color}</span>
                               </span>
                             )}
-                            {color && size && <span className="text-gray-400">|</span>}
+                            {color && size && (
+                              <span className="text-gray-400">|</span>
+                            )}
                             {size && <span>Size: {size}</span>}
                           </p>
                         )}
@@ -1457,111 +1862,189 @@ function CheckoutPage() {
 
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-md overflow-hidden">
-                        <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">{qty}</span>
+                        <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">
+                          {qty}
+                        </span>
                       </div>
                       <p className="text-sm font-semibold whitespace-nowrap">
-                        Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        Rs.{" "}
+                        {Number(itemTotal).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </p>
                     </div>
 
                     <p className="mt-3 text-xs uppercase tracking-wide text-gray-600">
-                      Delivery: <span className="text-gray-800">{deliveryLabel}</span>
+                      Delivery:{" "}
+                      <span className="text-gray-800">{deliveryLabel}</span>
                     </p>
                   </div>
-                )
+                );
               })}
             </div>
 
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
+              <table
+                className="w-full border-collapse"
+                style={{ borderSpacing: 0 }}
+              >
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Product</th>
-                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Quantity</th>
-                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Total</th>
-                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">Delivery time</th>
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">
+                      Product
+                    </th>
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">
+                      Quantity
+                    </th>
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">
+                      Total
+                    </th>
+                    <th className="py-3 px-4 text-xs font-semibold uppercase tracking-wider text-gray-800 border border-gray-300 text-center">
+                      Delivery time
+                    </th>
                     <th className="py-3 px-4 w-10 border border-gray-300 bg-gray-100" />
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((row) => {
-                    const item = row.itemId
-                    const name = item?.name ?? 'Product'
-                    const shortDesc = item?.shortDescription ?? ''
-                    const color = row.variant?.color ?? ''
-                    const colorHex = row.variant?.hex ?? ''
-                    const size = row.variant?.size ?? row.variant?.sizeLabel ?? ''
-                    const imageUrl = row.variant?.imageUrl ?? ''
-                    const sku = row.variant?.sku
-                    const qty = row.quantity ?? 1
-                    const unitPrice = row.unitPrice ?? (item?.discountedPrice ?? item?.price ?? 0)
-                    const itemTotal = row.itemTotal ?? unitPrice * qty
-                    const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
-                    const selectedOpt = deliveryOptions.find((d) => (d._id?.toString?.() ?? d._id) === selectedDeliveryId)
-                    const deliveryLabel = selectedOpt?.deliveryType === '90_MIN' ? '90 MIN DELIVERY' : selectedOpt?.deliveryType === 'ONE_DAY' ? '1 DAY DELIVERY' : selectedOpt?.deliveryType || 'Standard'
-                    const productId = item?._id
-                    const productPath = productId ? getProductPath(productId, name, shortDesc) : null
+                    const item = row.itemId;
+                    const name = item?.name ?? "Product";
+                    const shortDesc = item?.shortDescription ?? "";
+                    const color = row.variant?.color ?? "";
+                    const colorHex = row.variant?.hex ?? "";
+                    const size =
+                      row.variant?.size ?? row.variant?.sizeLabel ?? "";
+                    const imageUrl = row.variant?.imageUrl ?? "";
+                    const sku = row.variant?.sku;
+                    const qty = row.quantity ?? 1;
+                    const unitPrice =
+                      row.unitPrice ??
+                      item?.discountedPrice ??
+                      item?.price ??
+                      0;
+                    const itemTotal = row.itemTotal ?? unitPrice * qty;
+                    const selectedDeliveryId =
+                      row.selectedDeliveryId?.toString?.() ??
+                      row.selectedDeliveryId;
+                    const selectedOpt = deliveryOptions.find(
+                      (d) =>
+                        (d._id?.toString?.() ?? d._id) === selectedDeliveryId,
+                    );
+                    const deliveryLabel =
+                      selectedOpt?.deliveryType === "90_MIN"
+                        ? "90 MIN DELIVERY"
+                        : selectedOpt?.deliveryType === "ONE_DAY"
+                          ? "1 DAY DELIVERY"
+                          : selectedOpt?.deliveryType || "Standard";
+                    const productId = item?._id;
+                    const productPath = productId
+                      ? getProductPath(productId, name, shortDesc)
+                      : null;
 
                     return (
-                      <tr key={row._id ?? sku} className="align-middle border-b border-gray-200">
+                      <tr
+                        key={row._id ?? sku}
+                        className="align-middle border-b border-gray-200"
+                      >
                         <td className="pr-4 py-4">
                           <div className="flex gap-3">
                             <div className="w-[70px] h-[95px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
                               {productPath ? (
-                                <Link to={productPath} className="block w-full h-full">
+                                <Link
+                                  to={productPath}
+                                  className="block w-full h-full"
+                                >
                                   {imageUrl ? (
-                                    <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                                    <img
+                                      src={imageUrl}
+                                      alt={name}
+                                      className="w-full h-full object-cover"
+                                    />
                                   ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                                      No image
+                                    </div>
                                   )}
                                 </Link>
                               ) : imageUrl ? (
-                                <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                                <img
+                                  src={imageUrl}
+                                  alt={name}
+                                  className="w-full h-full object-cover"
+                                />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                                  No image
+                                </div>
                               )}
                             </div>
                             <div className="min-w-0">
                               {productPath ? (
-                                <Link to={productPath} className="block hover:underline">
-                                  <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                <Link
+                                  to={productPath}
+                                  className="block hover:underline"
+                                >
+                                  <p className="font-bold text-black uppercase tracking-wide text-sm">
+                                    {name}
+                                  </p>
+                                  <CartItemDescription text={shortDesc} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
                                         <span className="inline-flex items-center gap-1.5">
                                           <span
                                             className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
-                                            style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                            style={{
+                                              backgroundColor:
+                                                /^#([0-9A-Fa-f]{3}){1,2}$/.test(
+                                                  colorHex,
+                                                )
+                                                  ? colorHex
+                                                  : "#999",
+                                            }}
                                             title={color}
                                             aria-hidden
                                           />
                                           <span>{color}</span>
                                         </span>
                                       )}
-                                      {color && size && <span className="text-gray-400">|</span>}
+                                      {color && size && (
+                                        <span className="text-gray-400">|</span>
+                                      )}
                                       {size && <span>Size: {size}</span>}
                                     </p>
                                   )}
                                 </Link>
                               ) : (
                                 <>
-                                  <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
-                                  {shortDesc && <p className="text-gray-600 text-sm mt-0.5 normal-case">{shortDesc}</p>}
+                                  <p className="font-bold text-black uppercase tracking-wide text-sm">
+                                    {name}
+                                  </p>
+                                  <CartItemDescription text={shortDesc} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
                                         <span className="inline-flex items-center gap-1.5">
                                           <span
                                             className="w-4 h-4 rounded-full shrink-0 border border-gray-300"
-                                            style={{ backgroundColor: /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorHex) ? colorHex : '#999' }}
+                                            style={{
+                                              backgroundColor:
+                                                /^#([0-9A-Fa-f]{3}){1,2}$/.test(
+                                                  colorHex,
+                                                )
+                                                  ? colorHex
+                                                  : "#999",
+                                            }}
                                             title={color}
                                             aria-hidden
                                           />
                                           <span>{color}</span>
                                         </span>
                                       )}
-                                      {color && size && <span className="text-gray-400">|</span>}
+                                      {color && size && (
+                                        <span className="text-gray-400">|</span>
+                                      )}
                                       {size && <span>Size: {size}</span>}
                                     </p>
                                   )}
@@ -1572,16 +2055,24 @@ function CheckoutPage() {
                         </td>
                         <td className="px-2 py-4 text-center align-middle">
                           <div className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-md overflow-hidden">
-                            <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">{qty}</span>
+                            <span className="w-10 h-9 flex items-center justify-center border-x border-gray-200 text-sm bg-white">
+                              {qty}
+                            </span>
                           </div>
                         </td>
                         <td className="pl-4 py-4 text-right align-middle text-sm whitespace-nowrap">
-                          Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          Rs.{" "}
+                          {Number(itemTotal).toLocaleString("en-IN", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                         </td>
-                        <td className="pl-4 py-4 align-middle text-sm text-gray-700">{deliveryLabel}</td>
+                        <td className="pl-4 py-4 align-middle text-sm text-gray-700">
+                          {deliveryLabel}
+                        </td>
                         <td className="pl-2 py-4 align-middle" />
                       </tr>
-                    )
+                    );
                   })}
                 </tbody>
               </table>
@@ -1592,47 +2083,78 @@ function CheckoutPage() {
           <div className="lg:col-span-1 space-y-6 border border-gray-300 p-5 bg-white">
             {/* Delivery To */}
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">Delivery to:</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-black mb-3">
+                Delivery to:
+              </h2>
               {addresses.length > 0 ? (
                 <>
                   <select
-                    value={selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : '')}
+                    value={
+                      selectedAddress?._id != null
+                        ? String(selectedAddress._id)
+                        : addresses[0]?._id != null
+                          ? String(addresses[0]._id)
+                          : ""
+                    }
                     onChange={(e) => {
-                      const id = e.target.value
-                      const addr = addresses.find((a) => String(a._id ?? '') === id)
-                      console.log('[Checkout] address select changed', { id, addr: addr?._id })
-                      if (addr) setSelectedAddress(addr)
+                      const id = e.target.value;
+                      const addr = addresses.find(
+                        (a) => String(a._id ?? "") === id,
+                      );
+                      console.log("[Checkout] address select changed", {
+                        id,
+                        addr: addr?._id,
+                      });
+                      if (addr) setSelectedAddress(addr);
                     }}
                     className="w-full border border-gray-300 py-2 px-3 text-sm mb-3 bg-white rounded-none"
                   >
                     {addresses.map((addr) => (
-                      <option key={addr._id} value={String(addr._id ?? '')}>
+                      <option key={addr._id} value={String(addr._id ?? "")}>
                         {addr.name} – {addr.addressLine}
                       </option>
                     ))}
                   </select>
                   {/* Selected address details below dropdown — always visible when we have addresses */}
                   {(() => {
-                    const selectedId = selectedAddress?._id != null ? String(selectedAddress._id) : (addresses[0]?._id != null ? String(addresses[0]._id) : null)
+                    const selectedId =
+                      selectedAddress?._id != null
+                        ? String(selectedAddress._id)
+                        : addresses[0]?._id != null
+                          ? String(addresses[0]._id)
+                          : null;
                     const toShow = selectedId
-                      ? (addresses.find((a) => String(a._id ?? '') === selectedId) ?? addresses.find((a) => a.isDefault) ?? addresses[0])
-                      : (addresses.find((a) => a.isDefault) ?? addresses[0])
-                    if (!toShow) return null
+                      ? (addresses.find(
+                          (a) => String(a._id ?? "") === selectedId,
+                        ) ??
+                        addresses.find((a) => a.isDefault) ??
+                        addresses[0])
+                      : (addresses.find((a) => a.isDefault) ?? addresses[0]);
+                    if (!toShow) return null;
                     return (
                       <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
-                        <p className="font-semibold uppercase text-black">{toShow.name}</p>
-                        <p className="text-gray-700 mt-1">{formatAddress(toShow)}</p>
+                        <p className="font-semibold uppercase text-black">
+                          {toShow.name}
+                        </p>
+                        <p className="text-gray-700 mt-1">
+                          {formatAddress(toShow)}
+                        </p>
                         {(toShow.phoneNumber || toShow.countryCode) && (
                           <p className="text-xs uppercase text-gray-600 mt-1">
-                            Contact: {[toShow.countryCode, toShow.phoneNumber].filter(Boolean).join(' ')}
+                            Contact:{" "}
+                            {[toShow.countryCode, toShow.phoneNumber]
+                              .filter(Boolean)
+                              .join(" ")}
                           </p>
                         )}
                       </div>
-                    )
+                    );
                   })()}
                 </>
               ) : (
-                <p className="text-sm text-gray-500 mb-3">No address added. Add one to deliver.</p>
+                <p className="text-sm text-gray-500 mb-3">
+                  No address added. Add one to deliver.
+                </p>
               )}
               <button
                 type="button"
@@ -1645,22 +2167,60 @@ function CheckoutPage() {
 
             {/* Add / Edit Address modal */}
             {addressFormOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !addressFormLoading && setAddressFormOpen(false)}>
-                <div className="bg-white w-full max-w-md max-h-[90vh] flex flex-col shadow-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                onClick={() => !addressFormLoading && setAddressFormOpen(false)}
+              >
+                <div
+                  className="bg-white w-full max-w-md max-h-[90vh] flex flex-col shadow-lg overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">Add new address</h3>
-                    <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="p-2 text-gray-500 hover:text-black" aria-label="Close">×</button>
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">
+                      Add new address
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        !addressFormLoading && setAddressFormOpen(false)
+                      }
+                      className="p-2 text-gray-500 hover:text-black"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
                   </div>
-                  <form onSubmit={handleAddressFormSubmit} className="overflow-y-auto p-4 flex-1 space-y-3">
-                    {addressFormError && <p className="text-xs text-red-600">{addressFormError}</p>}
+                  <form
+                    onSubmit={handleAddressFormSubmit}
+                    className="overflow-y-auto p-4 flex-1 space-y-3"
+                  >
+                    {addressFormError && (
+                      <p className="text-xs text-red-600">{addressFormError}</p>
+                    )}
                     <div>
-                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Name</label>
-                      <input type="text" value={addressForm.name} onChange={(e) => handleAddressFormChange('name', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Full name" required />
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
+                        Name
+                      </label>
+                      <input
+                        type="text"
+                        value={addressForm.name}
+                        onChange={(e) =>
+                          handleAddressFormChange("name", e.target.value)
+                        }
+                        className="w-full border border-gray-300 py-2 px-3 text-sm"
+                        placeholder="Full name"
+                        required
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Phone</label>
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
+                        Phone Number
+                      </label>
                       <div className="flex border border-gray-300 overflow-hidden rounded-none">
-                        <span className="shrink-0 flex items-center border-r border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600" aria-hidden>
+                        <span
+                          className="shrink-0 flex items-center border-r border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                          aria-hidden
+                        >
                           {INDIA_PHONE_CODE}
                         </span>
                         <input
@@ -1670,8 +2230,8 @@ function CheckoutPage() {
                           value={addressForm.phoneNumber}
                           onChange={(e) =>
                             handleAddressFormChange(
-                              'phoneNumber',
-                              e.target.value.replace(/\D/g, '').slice(0, 10),
+                              "phoneNumber",
+                              e.target.value.replace(/\D/g, "").slice(0, 10),
                             )
                           }
                           className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
@@ -1686,39 +2246,118 @@ function CheckoutPage() {
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Address</label>
-                      <input type="text" value={addressForm.addressLine} onChange={(e) => handleAddressFormChange('addressLine', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Street, area, building" required />
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
+                        Address
+                      </label>
+                      <input
+                        type="text"
+                        value={addressForm.addressLine}
+                        onChange={(e) =>
+                          handleAddressFormChange("addressLine", e.target.value)
+                        }
+                        className="w-full border border-gray-300 py-2 px-3 text-sm"
+                        placeholder="Street, area, building"
+                        required
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">City</label>
-                        <input type="text" value={addressForm.city} onChange={(e) => handleAddressFormChange('city', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="City" required />
+                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={addressForm.city}
+                          onChange={(e) =>
+                            handleAddressFormChange("city", e.target.value)
+                          }
+                          className="w-full border border-gray-300 py-2 px-3 text-sm"
+                          placeholder="City"
+                          required
+                        />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">State</label>
-                        <input type="text" value={addressForm.state} onChange={(e) => handleAddressFormChange('state', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="State" required />
+                        <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          value={addressForm.state}
+                          onChange={(e) =>
+                            handleAddressFormChange("state", e.target.value)
+                          }
+                          className="w-full border border-gray-300 py-2 px-3 text-sm"
+                          placeholder="State"
+                          required
+                        />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Pincode</label>
-                      <input type="text" inputMode="numeric" value={addressForm.pinCode} onChange={(e) => handleAddressFormChange('pinCode', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm" placeholder="Pincode" required />
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
+                        Pincode
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={addressForm.pinCode}
+                        onChange={(e) =>
+                          handleAddressFormChange("pinCode", e.target.value)
+                        }
+                        className="w-full border border-gray-300 py-2 px-3 text-sm"
+                        placeholder="Pincode"
+                        required
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Type</label>
-                      <select value={addressForm.addressType} onChange={(e) => handleAddressFormChange('addressType', e.target.value)} className="w-full border border-gray-300 py-2 px-3 text-sm bg-white">
+                      <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
+                        Type
+                      </label>
+                      <select
+                        value={addressForm.addressType}
+                        onChange={(e) =>
+                          handleAddressFormChange("addressType", e.target.value)
+                        }
+                        className="w-full border border-gray-300 py-2 px-3 text-sm bg-white"
+                        required
+                      >
                         <option value="HOME">Home</option>
                         <option value="WORK">Work</option>
                         <option value="OTHER">Other</option>
                       </select>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" id="addr-default" checked={!!addressForm.isDefault} onChange={(e) => handleAddressFormChange('isDefault', e.target.checked)} className="rounded border-gray-300" />
-                      <label htmlFor="addr-default" className="text-sm text-gray-700">Set as default address</label>
+                      <input
+                        type="checkbox"
+                        id="addr-default"
+                        checked={!!addressForm.isDefault}
+                        onChange={(e) =>
+                          handleAddressFormChange("isDefault", e.target.checked)
+                        }
+                        className="rounded border-gray-300"
+                      />
+                      <label
+                        htmlFor="addr-default"
+                        className="text-sm text-gray-700"
+                      >
+                        Set as default address
+                      </label>
                     </div>
                     <div className="flex gap-2 pt-2">
-                      <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="flex-1 border border-gray-300 py-2 px-4 text-sm font-medium uppercase">Cancel</button>
-                      <button type="submit" disabled={addressFormLoading} className="flex-1 bg-black text-white py-2 px-4 text-sm font-semibold uppercase hover:bg-gray-800 disabled:opacity-60">
-                        {addressFormLoading ? 'Saving…' : 'Save address'}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          !addressFormLoading && setAddressFormOpen(false)
+                        }
+                        className="flex-1 border border-gray-300 py-2 px-4 text-sm font-medium uppercase"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={addressFormLoading}
+                        className="flex-1 bg-black text-white py-2 px-4 text-sm font-semibold uppercase hover:bg-gray-800 disabled:opacity-60"
+                      >
+                        {addressFormLoading ? "Saving…" : "Save address"}
                       </button>
                     </div>
                   </form>
@@ -1729,7 +2368,9 @@ function CheckoutPage() {
             {/* Apply Coupon — same flow as Cart: applied bar with Remove, or input + Apply; modal with Apply/Remove per coupon, grey inapplicable */}
             <section>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <h2 className="text-sm font-semibold text-black">Apply Coupon</h2>
+                <h2 className="text-sm font-semibold text-black">
+                  Apply Coupon
+                </h2>
                 <button
                   type="button"
                   onClick={openCouponModal}
@@ -1741,12 +2382,18 @@ function CheckoutPage() {
               {appliedCouponCode ? (
                 <div className="flex items-center justify-between gap-2 p-3 border border-green-600 bg-green-50/80">
                   <div className="min-w-0">
-                    <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
+                    <span className="text-sm font-medium text-green-800 uppercase">
+                      {appliedCouponCode}
+                    </span>
                     {appliedCouponDisplayText && (
-                      <p className="text-xs text-green-700 mt-0.5 normal-case">{appliedCouponDisplayText}</p>
+                      <p className="text-xs text-green-700 mt-0.5 normal-case">
+                        {appliedCouponDisplayText}
+                      </p>
                     )}
                     {autoCouponReconciling && (
-                      <p className="text-xs text-green-700 mt-0.5 normal-case">Updating coupon...</p>
+                      <p className="text-xs text-green-700 mt-0.5 normal-case">
+                        Updating coupon...
+                      </p>
                     )}
                   </div>
                   <button
@@ -1762,8 +2409,19 @@ function CheckoutPage() {
                   <div className="flex flex-wrap gap-2 items-stretch">
                     <div className="flex-1 min-w-[140px] relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                          />
                         </svg>
                       </span>
                       <input
@@ -1782,61 +2440,138 @@ function CheckoutPage() {
                       Apply
                     </button>
                   </div>
-                  {couponError && <p className="mt-1 text-xs text-red-600">{couponError}</p>}
+                  {couponError && (
+                    <p className="mt-1 text-xs text-red-600">{couponError}</p>
+                  )}
                 </>
               )}
             </section>
 
             {/* Coupons modal — larger, Apply/Remove per coupon, grey + disabled for inapplicable */}
             {couponModalOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setCouponModalOpen(false)}>
-                <div className="bg-white w-full max-w-xl max-h-[85vh] flex flex-col shadow-xl rounded-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                onClick={() => setCouponModalOpen(false)}
+              >
+                <div
+                  className="bg-white w-full max-w-xl max-h-[85vh] flex flex-col shadow-xl rounded-sm overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gray-50">
-                    <h3 className="text-base font-semibold uppercase tracking-wider text-black">Available coupons</h3>
-                    <button type="button" onClick={() => setCouponModalOpen(false)} className="p-2 text-gray-500 hover:text-black text-xl leading-none" aria-label="Close">×</button>
+                    <h3 className="text-base font-semibold uppercase tracking-wider text-black">
+                      Available coupons
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setCouponModalOpen(false)}
+                      className="p-2 text-gray-500 hover:text-black text-xl leading-none"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
                   </div>
                   <div className="overflow-y-auto flex-1 p-5 scrollbar-hide">
                     {loadingCoupons ? (
-                      <p className="text-sm text-gray-500 text-center py-10">Loading coupons…</p>
+                      <p className="text-sm text-gray-500 text-center py-10">
+                        Loading coupons…
+                      </p>
                     ) : availableCoupons.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-10">No coupons available.</p>
+                      <p className="text-sm text-gray-500 text-center py-10">
+                        No coupons available.
+                      </p>
                     ) : (
                       <ul className="space-y-4">
                         {availableCoupons.map((c) => {
-                          const code = (c.code ?? '').trim()
-                          const desc = c.description ?? ''
-                          const type = (c.discountType || '').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FLAT'
-                          const value = c.discountValue ?? 0
-                          const maxDiscount = c.maxDiscountAmount ?? c.maxDiscount
-                          const minCart = c.minCartValue ?? 0
-                          const maxCart = c.maxCartValue
-                          const perUserLimit = c.perUserUsageLimit ?? 0
-                          const expiryDate = formatCouponDate(c.expiryDate)
-                          const discountLabel = type === 'PERCENT'
-                            ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString('en-IN')})` : ''}`
-                            : `Rs ${Number(value).toLocaleString('en-IN')} off`
-                          const isApplied = appliedCouponCode && String(appliedCouponCode).toUpperCase() === String(code).toUpperCase()
-                          const applicable = isCouponApplicable(c, subTotal)
+                          const code = (c.code ?? "").trim();
+                          const desc = c.description ?? "";
+                          const type =
+                            (c.discountType || "").toUpperCase() === "PERCENT"
+                              ? "PERCENT"
+                              : "FLAT";
+                          const value = c.discountValue ?? 0;
+                          const maxDiscount =
+                            c.maxDiscountAmount ?? c.maxDiscount;
+                          const minCart = c.minCartValue ?? 0;
+                          const maxCart = c.maxCartValue;
+                          const perUserLimit = c.perUserUsageLimit ?? 0;
+                          const expiryDate = formatCouponDate(c.expiryDate);
+                          const discountLabel =
+                            type === "PERCENT"
+                              ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString("en-IN")})` : ""}`
+                              : `Rs ${Number(value).toLocaleString("en-IN")} off`;
+                          const isApplied =
+                            appliedCouponCode &&
+                            String(appliedCouponCode).toUpperCase() ===
+                              String(code).toUpperCase();
+                          const applicable = isCouponApplicable(c, subTotal);
                           return (
-                            <li key={c._id ?? code} className={isApplied ? 'ring-2 ring-green-600 ring-offset-1' : ''}>
-                              <div className={`w-full text-left border p-4 transition-colors ${applicable ? 'border-gray-300 bg-white hover:border-gray-400' : 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-75'}`}>
+                            <li
+                              key={c._id ?? code}
+                              className={
+                                isApplied
+                                  ? "ring-2 ring-green-600 ring-offset-1"
+                                  : ""
+                              }
+                            >
+                              <div
+                                className={`w-full text-left border p-4 transition-colors ${applicable ? "border-gray-300 bg-white hover:border-gray-400" : "border-gray-200 bg-gray-100 cursor-not-allowed opacity-75"}`}
+                              >
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                   <div className="flex-1 min-w-0">
-                                    <span className={`block font-semibold uppercase ${applicable ? 'text-black' : 'text-gray-500'}`}>{code}</span>
-                                    {desc && <span className={`block text-sm mt-1 ${applicable ? 'text-gray-700' : 'text-gray-500'}`}>{desc}</span>}
-                                    <span className={`block text-sm font-medium mt-1 ${applicable ? 'text-gray-800' : 'text-gray-500'}`}>{discountLabel}</span>
+                                    <span
+                                      className={`block font-semibold uppercase ${applicable ? "text-black" : "text-gray-500"}`}
+                                    >
+                                      {code}
+                                    </span>
+                                    {desc && (
+                                      <span
+                                        className={`block text-sm mt-1 ${applicable ? "text-gray-700" : "text-gray-500"}`}
+                                      >
+                                        {desc}
+                                      </span>
+                                    )}
+                                    <span
+                                      className={`block text-sm font-medium mt-1 ${applicable ? "text-gray-800" : "text-gray-500"}`}
+                                    >
+                                      {discountLabel}
+                                    </span>
                                     <div className="mt-2 space-y-0.5 text-xs text-gray-500">
-                                      {minCart > 0 && <p>Min order: Rs {Number(minCart).toLocaleString('en-IN')}</p>}
-                                      {maxCart != null && maxCart > 0 && <p>Valid on orders up to Rs {Number(maxCart).toLocaleString('en-IN')}</p>}
-                                      {expiryDate && <p>Valid till: {expiryDate}</p>}
-                                      {perUserLimit > 0 && <p>{perUserLimit === 1 ? 'One use per user' : `Use up to ${perUserLimit} times per user`}</p>}
+                                      {minCart > 0 && (
+                                        <p>
+                                          Min order: Rs{" "}
+                                          {Number(minCart).toLocaleString(
+                                            "en-IN",
+                                          )}
+                                        </p>
+                                      )}
+                                      {maxCart != null && maxCart > 0 && (
+                                        <p>
+                                          Valid on orders up to Rs{" "}
+                                          {Number(maxCart).toLocaleString(
+                                            "en-IN",
+                                          )}
+                                        </p>
+                                      )}
+                                      {expiryDate && (
+                                        <p>Valid till: {expiryDate}</p>
+                                      )}
+                                      {perUserLimit > 0 && (
+                                        <p>
+                                          {perUserLimit === 1
+                                            ? "One use per user"
+                                            : `Use up to ${perUserLimit} times per user`}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                   <div className="shrink-0">
                                     {isApplied ? (
                                       <button
                                         type="button"
-                                        onClick={() => { handleRemoveCoupon(); setCouponModalOpen(false) }}
+                                        onClick={() => {
+                                          handleRemoveCoupon();
+                                          setCouponModalOpen(false);
+                                        }}
                                         className="px-4 py-2 text-xs font-semibold uppercase border border-green-600 text-green-700 bg-white hover:bg-green-50 transition-colors"
                                       >
                                         Remove coupon
@@ -1844,7 +2579,9 @@ function CheckoutPage() {
                                     ) : applicable ? (
                                       <button
                                         type="button"
-                                        onClick={() => handleApplyCouponFromModal(code)}
+                                        onClick={() =>
+                                          handleApplyCouponFromModal(code)
+                                        }
                                         className="px-4 py-2 text-xs font-semibold uppercase bg-black text-white hover:bg-gray-800 transition-colors"
                                       >
                                         Apply
@@ -1862,7 +2599,7 @@ function CheckoutPage() {
                                 </div>
                               </div>
                             </li>
-                          )
+                          );
                         })}
                       </ul>
                     )}
@@ -1872,75 +2609,20 @@ function CheckoutPage() {
             )}
 
             {/* Donation */}
-            <section className="border border-gray-200 rounded-sm p-3.5 sm:p-4 bg-[#fafafa]">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={donationEnabled}
-                  onChange={(e) => handleDonationToggle(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-black"
-                />
-                <span className="text-sm text-gray-800">
-                  Would you like to donate ₹{DEFAULT_DONATION_AMOUNT}?
-                </span>
-              </label>
-              {donationEnabled && (
-                <div className="mt-3 pl-6 space-y-2">
-                  {!donationCustomMode ? (
-                    <p className="text-xs text-gray-600">
-                      Preset amount: ₹{DEFAULT_DONATION_AMOUNT}
-                      {' · '}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDonationCustomMode(true)
-                          setDonationPresetUsed(false)
-                          setDonationAmount('')
-                        }}
-                        className="underline text-black hover:no-underline"
-                      >
-                        Enter custom amount
-                      </button>
-                    </p>
-                  ) : (
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1" htmlFor="checkout-donation-amount">
-                        Custom amount (₹)
-                      </label>
-                      <input
-                        id="checkout-donation-amount"
-                        type="number"
-                        min="0"
-                        max={DONATION_MAX_AMOUNT}
-                        step="1"
-                        value={donationAmount}
-                        onChange={(e) => handleDonationCustomAmountChange(e.target.value)}
-                        placeholder={`e.g. ${DEFAULT_DONATION_AMOUNT}`}
-                        className="w-full max-w-[140px] border border-gray-300 px-2.5 py-1.5 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDonationCustomMode(false)
-                          setDonationPresetUsed(true)
-                          setDonationAmount(String(DEFAULT_DONATION_AMOUNT))
-                        }}
-                        className="mt-1.5 block text-xs underline text-black hover:no-underline"
-                      >
-                        Use preset ₹{DEFAULT_DONATION_AMOUNT}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-              {donationError && (
-                <p className="mt-2 text-xs text-red-600">{donationError}</p>
-              )}
-            </section>
+            <DonationPicker
+              className="border border-gray-200 rounded-sm bg-[#fafafa] p-3.5 sm:p-4"
+              donationEnabled={donationEnabled}
+              donationAmount={donationAmount}
+              donationPresetUsed={donationPresetUsed}
+              donationError={donationError}
+              onSelectPreset={handleDonationPresetSelect}
+            />
 
             {/* Bill Summary */}
             <section>
-              <h2 className="text-sm font-semibold text-black mb-3">Bill Summary</h2>
+              <h2 className="text-sm font-semibold text-black mb-3">
+                Bill Summary
+              </h2>
               {!hasSummaryFromApi && loading ? (
                 <p className="text-sm text-gray-500">Loading summary…</p>
               ) : (
@@ -1948,20 +2630,41 @@ function CheckoutPage() {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-700">Item Total</span>
                     <span className="font-medium">
-                      {coupon?.discountAmount > 0 && summary.subTotal != null && (
-                        <span className="text-gray-400 line-through mr-1">Rs {Number(summary.subTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                      )}
-                      Rs {Number(subTotalAfterDiscount ?? summary.subTotal ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                      {coupon?.discountAmount > 0 &&
+                        summary.subTotal != null && (
+                          <span className="text-gray-400 line-through mr-1">
+                            Rs{" "}
+                            {Number(summary.subTotal).toLocaleString("en-IN", {
+                              maximumFractionDigits: 0,
+                            })}
+                          </span>
+                        )}
+                      Rs{" "}
+                      {Number(
+                        subTotalAfterDiscount ?? summary.subTotal ?? 0,
+                      ).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                   {chargesList.map((c) => (
-                    <div key={c.key || c.description} className="flex justify-between items-center">
-                      <span className="text-gray-700">{c.description || c.key || 'Platform Fee'}</span>
+                    <div
+                      key={c.key || c.description}
+                      className="flex justify-between items-center"
+                    >
+                      <span className="text-gray-700">
+                        {c.description || c.key || "Platform Fee"}
+                      </span>
                       <span className="font-medium">
                         {c.amount != null && c.amount > 0 ? (
-                          <>Rs {Number(c.amount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</>
+                          <>
+                            Rs{" "}
+                            {Number(c.amount).toLocaleString("en-IN", {
+                              maximumFractionDigits: 0,
+                            })}
+                          </>
                         ) : (
-                          <span className="text-green-700 font-medium">Free</span>
+                          <span className="text-green-700 font-medium">
+                            Free
+                          </span>
                         )}
                       </span>
                     </div>
@@ -1980,26 +2683,40 @@ function CheckoutPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-700">Delivery</span>
-                    <span className="font-medium">{deliverySummary?.totalCharge != null && deliverySummary.totalCharge > 0 ? formatRs(deliverySummary.totalCharge) : <span className="text-green-700 font-medium">Free</span>}</span>
+                    <span className="font-medium">
+                      {deliverySummary?.totalCharge != null &&
+                      deliverySummary.totalCharge > 0 ? (
+                        formatRs(deliverySummary.totalCharge)
+                      ) : (
+                        <span className="text-green-700 font-medium">Free</span>
+                      )}
+                    </span>
                   </div>
                   {walletUsedFromSummary > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-700">Wallet used</span>
-                      <span className="font-medium text-green-700">−{formatRs(walletUsedFromSummary)}</span>
+                      <span className="font-medium text-green-700">
+                        −{formatRs(walletUsedFromSummary)}
+                      </span>
                     </div>
                   )}
                   {rewardPointsToEarn > 0 && (
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-700">Reward points earned</span>
+                      <span className="text-gray-700">
+                        Reward points earned
+                      </span>
                       <span className="font-medium text-green-700">
-                        +{Number(rewardPointsToEarn).toLocaleString('en-IN')} pts
+                        +{Number(rewardPointsToEarn).toLocaleString("en-IN")}{" "}
+                        pts
                       </span>
                     </div>
                   )}
                   {taxableAmount > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-700">Taxable amount</span>
-                      <span className="font-medium">{formatRs(taxableAmount)}</span>
+                      <span className="font-medium">
+                        {formatRs(taxableAmount)}
+                      </span>
                     </div>
                   )}
                   {totalGst > 0 && (
@@ -2011,16 +2728,27 @@ function CheckoutPage() {
                   {donationLineAmount > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-700">Donation</span>
-                      <span className="font-medium">{formatRs(donationLineAmount)}</span>
+                      <span className="font-medium">
+                        {formatRs(donationLineAmount)}
+                      </span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-300">
                     <span className="font-bold text-black">Total</span>
                     <span className="font-bold text-base">
-                      {coupon?.discountAmount > 0 && finalPayable < (summary.subTotal ?? 0) && (
-                        <span className="text-gray-400 line-through mr-1 text-sm">Rs {Number(summary.subTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                      )}
-                      Rs {Number(finalPayable).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                      {coupon?.discountAmount > 0 &&
+                        finalPayable < (summary.subTotal ?? 0) && (
+                          <span className="text-gray-400 line-through mr-1 text-sm">
+                            Rs{" "}
+                            {Number(summary.subTotal).toLocaleString("en-IN", {
+                              maximumFractionDigits: 0,
+                            })}
+                          </span>
+                        )}
+                      Rs{" "}
+                      {Number(finalPayable).toLocaleString("en-IN", {
+                        maximumFractionDigits: 0,
+                      })}
                     </span>
                   </div>
                 </div>
@@ -2029,18 +2757,24 @@ function CheckoutPage() {
 
             {/* Payment method */}
             <section>
-              <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-widest text-black mb-2.5 sm:mb-3">Choose delivery mode</h2>
+              <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-widest text-black mb-2.5 sm:mb-3">
+                Choose delivery mode
+              </h2>
               <div className="space-y-2">
                 <button
                   type="button"
                   onClick={() => {
-                    if (paymentMode === 'COD') return
-                    setCodWarningOpen(true)
+                    if (paymentMode === "COD") return;
+                    setCodWarningOpen(true);
                   }}
                   className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
                 >
-                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">Cash on Delivery</span>
-                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === 'COD' ? 'border-black bg-black text-white' : 'border-black text-transparent'}`}>
+                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">
+                    Cash on Delivery
+                  </span>
+                  <span
+                    className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === "COD" ? "border-black bg-black text-white" : "border-black text-transparent"}`}
+                  >
                     ✓
                   </span>
                 </button>
@@ -2048,14 +2782,18 @@ function CheckoutPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    console.log('[Checkout] paymentMode changed to RAZORPAY')
-                    setPaymentMode('RAZORPAY')
-                    setUseWalletForOnline(false)
+                    console.log("[Checkout] paymentMode changed to RAZORPAY");
+                    setPaymentMode("RAZORPAY");
+                    setUseWalletForOnline(false);
                   }}
                   className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
                 >
-                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">Online Payment</span>
-                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === 'RAZORPAY' ? 'border-black bg-black text-white' : 'border-black text-transparent'}`}>
+                  <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">
+                    Online Payment
+                  </span>
+                  <span
+                    className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${paymentMode === "RAZORPAY" ? "border-black bg-black text-white" : "border-black text-transparent"}`}
+                  >
                     ✓
                   </span>
                 </button>
@@ -2086,25 +2824,31 @@ function CheckoutPage() {
                   type="button"
                   onClick={() => {
                     if (!walletApplicable) {
-                      setPaymentMode(PAYMENT_MODES.RAZORPAY)
-                      setUseWalletForOnline(true)
-                      return
+                      setPaymentMode(PAYMENT_MODES.RAZORPAY);
+                      setUseWalletForOnline(true);
+                      return;
                     }
-                    setUseWalletForOnline((prev) => !prev)
+                    setUseWalletForOnline((prev) => !prev);
                   }}
                   className={`w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left transition-opacity ${
-                    walletApplicable ? 'opacity-100' : 'opacity-50'
+                    walletApplicable ? "opacity-100" : "opacity-50"
                   }`}
                 >
                   <span className="text-[12px] sm:text-[13px] uppercase tracking-[0.04em] text-[#5f5f5f]">
                     Use Wallet
                     <span className="ml-1.5 text-[10px] sm:text-[11px] normal-case tracking-normal text-[#666666]">
-                      {walletBalanceLoading ? '(Loading...)' : `(${formatRs(walletBalance)})`}
+                      {walletBalanceLoading
+                        ? "(Loading...)"
+                        : `(${formatRs(walletBalance)})`}
                     </span>
                   </span>
-                  <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${
-                    walletApplicable && useWalletForOnline ? 'border-black bg-black text-white' : 'border-black text-transparent'
-                  }`}>
+                  <span
+                    className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ${
+                      walletApplicable && useWalletForOnline
+                        ? "border-black bg-black text-white"
+                        : "border-black text-transparent"
+                    }`}
+                  >
                     ✓
                   </span>
                 </button>
@@ -2132,8 +2876,8 @@ function CheckoutPage() {
                     {codCouponDiscountValue > 0
                       ? `If you choose COD, your coupon discount of ${formatRs(codCouponDiscountValue)} will be removed and extra COD charges may apply.`
                       : hasAnyAppliedCoupon
-                        ? `If you choose COD, your applied coupon${codCouponOfferLabel ? ` (${codCouponOfferLabel})` : ''} will be removed and extra COD charges may apply.`
-                        : 'If you choose COD, extra COD charges may apply. Choose online payment for lower price.'}
+                        ? `If you choose COD, your applied coupon${codCouponOfferLabel ? ` (${codCouponOfferLabel})` : ""} will be removed and extra COD charges may apply.`
+                        : "If you choose COD, extra COD charges may apply. Choose online payment for lower price."}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 flex gap-2 justify-end">
                     <button
@@ -2146,22 +2890,27 @@ function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        console.log('[Checkout][Payment] COD selected from warning modal', {
-                          appliedCouponCode,
-                          autoIncludedCouponCode,
-                        })
+                        console.log(
+                          "[Checkout][Payment] COD selected from warning modal",
+                          {
+                            appliedCouponCode,
+                            autoIncludedCouponCode,
+                          },
+                        );
                         // COD should never keep any coupon discount.
                         if (appliedCouponCode) {
-                          console.log('[Checkout][Coupon] removing coupon due to COD selection')
+                          console.log(
+                            "[Checkout][Coupon] removing coupon due to COD selection",
+                          );
                         }
-                        setAppliedCouponCode(null)
-                        setAppliedCouponMeta(null)
-                        setCouponInput('')
-                        setCouponError(null)
-                        setCouponModalOpen(false)
-                        setCodWarningOpen(false)
-                        setUseWalletForOnline(false)
-                        setPaymentMode('COD')
+                        setAppliedCouponCode(null);
+                        setAppliedCouponMeta(null);
+                        setCouponInput("");
+                        setCouponError(null);
+                        setCouponModalOpen(false);
+                        setCodWarningOpen(false);
+                        setUseWalletForOnline(false);
+                        setPaymentMode("COD");
                       }}
                       className="px-4 py-2 text-sm font-semibold uppercase border border-black bg-black text-white hover:bg-gray-800 transition-colors"
                     >
@@ -2180,22 +2929,44 @@ function CheckoutPage() {
                     <button
                       type="button"
                       onClick={async () => {
-                        console.log('[Checkout] Retry verification clicked', { lastVerifyPayload: lastVerifyPayload ? { razorpay_order_id: lastVerifyPayload.razorpay_order_id } : null })
-                        setLastVerifyError(null)
-                        setPlaceOrderLoading(true)
+                        console.log("[Checkout] Retry verification clicked", {
+                          lastVerifyPayload: lastVerifyPayload
+                            ? {
+                                razorpay_order_id:
+                                  lastVerifyPayload.razorpay_order_id,
+                              }
+                            : null,
+                        });
+                        setLastVerifyError(null);
+                        setPlaceOrderLoading(true);
                         try {
-                          const verifyRes = await paymentService.verifyPayment(lastVerifyPayload)
-                          const data = verifyRes?.data?.data ?? verifyRes?.data
-                          const orderId = data?.orderId ?? data?.order?.orderId
-                          paymentSuccessHandledRef.current = true
-                          refetchCart()
-                          console.log('[Checkout] Retry verification success, navigate:', orderId)
-                          navigate(ROUTES.ORDERS, { state: { orderId, orderSuccess: true } })
+                          const verifyRes =
+                            await paymentService.verifyPayment(
+                              lastVerifyPayload,
+                            );
+                          const data = verifyRes?.data?.data ?? verifyRes?.data;
+                          const orderId = data?.orderId ?? data?.order?.orderId;
+                          paymentSuccessHandledRef.current = true;
+                          refetchCart();
+                          console.log(
+                            "[Checkout] Retry verification success, navigate:",
+                            orderId,
+                          );
+                          navigate(ROUTES.ORDERS, {
+                            state: { orderId, orderSuccess: true },
+                          });
                         } catch (err) {
-                          console.log('[Checkout] Retry verification error:', err?.response?.data ?? err?.message)
-                          setLastVerifyError(err?.response?.data?.message ?? err?.message ?? 'Payment verification failed.')
+                          console.log(
+                            "[Checkout] Retry verification error:",
+                            err?.response?.data ?? err?.message,
+                          );
+                          setLastVerifyError(
+                            err?.response?.data?.message ??
+                              err?.message ??
+                              "Payment verification failed.",
+                          );
                         } finally {
-                          setPlaceOrderLoading(false)
+                          setPlaceOrderLoading(false);
                         }
                       }}
                       disabled={placeOrderLoading}
@@ -2207,21 +2978,31 @@ function CheckoutPage() {
                 </div>
               )}
               {hasOutOfStockItem && (
-                <p className="text-sm text-red-600 font-medium mb-2">Some items in your cart are out of stock. Remove them to place your order.</p>
+                <p className="text-sm text-red-600 font-medium mb-2">
+                  Some items in your cart are out of stock. Remove them to place
+                  your order.
+                </p>
               )}
               <button
                 type="button"
                 onClick={handlePlaceOrder}
-                disabled={placeOrderLoading || checkingPaymentStatus || !selectedAddress?._id || hasOutOfStockItem}
+                disabled={
+                  placeOrderLoading ||
+                  checkingPaymentStatus ||
+                  !selectedAddress?._id ||
+                  hasOutOfStockItem
+                }
                 className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {placeOrderLoading
-                  ? (paymentMode === 'COD' ? 'Placing order…' : 'Opening payment…')
+                  ? paymentMode === "COD"
+                    ? "Placing order…"
+                    : "Opening payment…"
                   : checkingPaymentStatus
-                    ? 'Checking payment…'
+                    ? "Checking payment…"
                     : hasOutOfStockItem
-                      ? 'Remove out of stock items to continue'
-                      : 'Place order'}
+                      ? "Remove out of stock items to continue"
+                      : "Place order"}
               </button>
               <Link
                 to={ROUTES.CART}
@@ -2246,7 +3027,7 @@ function CheckoutPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default CheckoutPage
+export default CheckoutPage;

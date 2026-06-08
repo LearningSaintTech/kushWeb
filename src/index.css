@@ -51,6 +51,7 @@ body::-webkit-scrollbar {
   }
 }
 
+
 /* Search: fade-in for newly appended product cards */
 @keyframes search-card-in {
   from {
@@ -96,4 +97,168 @@ body::-webkit-scrollbar {
   .product-desc-clamp-long {
     -webkit-line-clamp: 6;
   }
+}
+
+/* Gift card home banner — red gradient card with watermark + diagonal accent */
+.gift-hero-banner {
+  background: linear-gradient(
+    90deg,
+    #1a0510 0%,
+    #6b1220 14%,
+    #e61e25 32%,
+    #ef1f26 50%,
+    #9a1524 68%,
+    #3d0a14 86%,
+    #1a0510 100%
+  );
+}
+
+.gift-hero-watermark {
+  position: absolute;
+  right: 8%;
+  top: 50%;
+  width: min(42vw, 10rem);
+  height: min(48vw, 12rem);
+  transform: translateY(-50%);
+  opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 140' fill='none'%3E%3Crect x='18' y='58' width='84' height='68' rx='6' stroke='%23fff' stroke-width='2.5'/%3E%3Cpath d='M18 58h84M60 58V30M38 42c0-10 8-16 22-16s22 6 22 16M60 58c-14 0-22-8-22-16M60 58c14 0 22-8 22-16' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M60 30c-8-12-22-10-22 0 0 10 22 12 22 28 0-16 22-18 22-28 0-10-14-12-22 0z' stroke='%23fff' stroke-width='2.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  pointer-events: none;
+}
+
+.gift-hero-sparkles {
+  position: absolute;
+  right: 6%;
+  top: 50%;
+  width: min(46vw, 12rem);
+  height: min(52vw, 14rem);
+  transform: translateY(-50%);
+  pointer-events: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0l1.2 5.8L15 8l-5.8 1.2L8 15l-1.2-5.8L1 8l5.8-1.2L8 0z' fill='%23fff' fill-opacity='0.35'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0l1.2 5.8L15 8l-5.8 1.2L8 15l-1.2-5.8L1 8l5.8-1.2L8 0z' fill='%23fff' fill-opacity='0.25'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0l1.2 5.8L15 8l-5.8 1.2L8 15l-1.2-5.8L1 8l5.8-1.2L8 0z' fill='%23fff' fill-opacity='0.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position:
+    72% 18%,
+    88% 62%,
+    58% 78%;
+  background-size:
+    0.65rem,
+    0.5rem,
+    0.55rem;
+}
+
+.gift-hero-diagonal {
+  position: absolute;
+  right: -4%;
+  top: -35%;
+  width: clamp(5.5rem, 22vw, 11rem);
+  height: 170%;
+  background: #000;
+  transform: rotate(-22deg);
+  pointer-events: none;
+}
+
+@media (min-width: 480px) {
+  .gift-hero-watermark {
+    right: 10%;
+    width: min(38vw, 12rem);
+    height: min(44vw, 14rem);
+    opacity: 0.15;
+  }
+
+  .gift-hero-sparkles {
+    right: 8%;
+    width: min(40vw, 14rem);
+    height: min(46vw, 16rem);
+    background-size:
+      0.75rem,
+      0.6rem,
+      0.65rem;
+  }
+
+  .gift-hero-diagonal {
+    right: -2%;
+    width: clamp(6.5rem, 20vw, 12rem);
+  }
+}
+
+@media (min-width: 768px) {
+  .gift-hero-watermark {
+    right: 14%;
+    top: 48%;
+    width: min(28vw, 14rem);
+    height: min(32vw, 16rem);
+    opacity: 0.13;
+  }
+
+  .gift-hero-sparkles {
+    right: 12%;
+    top: 48%;
+    width: min(30vw, 16rem);
+    height: min(34vw, 18rem);
+  }
+
+  .gift-hero-diagonal {
+    right: 0;
+    width: clamp(7.5rem, 18vw, 13rem);
+    transform: rotate(-24deg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .gift-hero-watermark {
+    right: 18%;
+    top: 46%;
+    width: min(22vw, 16rem);
+    height: min(26vw, 18rem);
+    opacity: 0.12;
+  }
+
+  .gift-hero-sparkles {
+    right: 16%;
+    top: 46%;
+    width: min(24vw, 18rem);
+    height: min(28vw, 20rem);
+    background-size:
+      0.85rem,
+      0.7rem,
+      0.75rem;
+  }
+
+  .gift-hero-diagonal {
+    right: 2%;
+    width: clamp(8.5rem, 16vw, 14rem);
+    transform: rotate(-26deg);
+  }
+}
+
+@media (min-width: 1536px) {
+  .gift-hero-watermark {
+    right: 20%;
+    width: min(18vw, 18rem);
+    height: min(22vw, 20rem);
+  }
+
+  .gift-hero-sparkles {
+    right: 18%;
+    width: min(20vw, 20rem);
+    height: min(24vw, 22rem);
+  }
+
+  .gift-hero-diagonal {
+    right: 4%;
+    width: clamp(9.5rem, 14vw, 15rem);
+  }
+}
+
+/* Special discount — full banner visible at every breakpoint (no object-cover crop) */
+.special-discount-hero-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: middle;
 }

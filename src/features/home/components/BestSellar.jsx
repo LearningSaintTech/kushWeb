@@ -5,6 +5,7 @@ import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
+import { getItemStockTotal } from '../../../utils/productStock.js'
 
 const GAP = 24
 const SECTION_PAGE_SIZE = 10
@@ -46,6 +47,7 @@ function mapItemToCard(item, deliveryTypeFallback) {
     hoverImage: hoverUrl || hoverProductImage,
     title: item.name ?? '',
     shortDescription: item.shortDescription ?? '',
+    stock: getItemStockTotal(item),
     price,
     originalPrice,
     delivery,
@@ -71,6 +73,7 @@ function BestSellar({ section }) {
         hoverImage: item.thumbnail || hoverProductImage,
         title: item.name || '',
         shortDescription: item.shortDescription || '',
+        stock: getItemStockTotal(item),
         price,
         originalPrice,
         delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',

@@ -123,8 +123,8 @@ const Coins = () => {
   const renderedHistory = useMemo(() => historyItems.slice(0, 6), [historyItems])
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 mt-20">
-      <h1 className="font-inter text-3xl font-semibold text-black">Redeem Coins</h1>
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 mt-20">
+      <h1 className="font-inter text-3xl uppercase font-normal text-black">Redeem Coins</h1>
 
       <section className="relative mt-4 overflow-hidden rounded-lg border border-[#d6d6d6] bg-white p-5">
         <div className="absolute -left-3 -top-3 h-12 w-12 rounded-full bg-black/5" />
@@ -134,7 +134,7 @@ const Coins = () => {
           <div>
             <div className="flex items-center gap-2">
               <CoinsBadgeIcon />
-              <p className="font-inter text-3xl font-semibold text-black">AVAILABLE COINS</p>
+              <p className="font-inter text-3xl font-normal text-black">AVAILABLE COINS</p>
             </div>
             <p className="mt-1 pl-8 font-['Rubik'] text-4xl text-[#5c5c5c]">{Number(coins || 0).toLocaleString('en-IN')}</p>
           </div>
