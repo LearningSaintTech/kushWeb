@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
+import { useSupportChat } from "../../app/context/SupportChatContext";
 import { orderService } from "../../services/order.service.js";
 import { itemsService } from "../../services/items.service.js";
 import { cancellationService } from "../../services/cancellation.service.js";
@@ -600,6 +601,7 @@ function isExchangeInProgress(exchange) {
 export default function TrackOrderPage() {
   const { orderId, itemId } = useParams();
   const { user, isAuthenticated } = useAuth();
+  const { openSupportChat } = useSupportChat();
   const pincodeRedux = useSelector((s) => s?.location?.pincode) ?? null;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1328,6 +1330,48 @@ export default function TrackOrderPage() {
                   Payment status: {getPaymentStatusLabel(data)}
                 </p>
               )}
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const resolvedItemId = data.itemId ?? itemId;
+                    let supportIssueType = "ORDER_ISSUE";
+                    if (inExchangeFlow) {
+                      supportIssueType = "EXCHANGE";
+                    } else if (
+                      ["SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(currentStatus)
+                    ) {
+                      supportIssueType = "DELIVERY";
+                    }
+                    openSupportChat({
+                      orderId,
+                      itemId: resolvedItemId,
+                      orderCode: orderNo,
+                      productName: name,
+                      issueType: supportIssueType,
+                      subject: `Help with order ${orderNo}`,
+                      description: `I need help with "${name}" from order ${orderNo}. Current status: ${currentStatus.replaceAll("_", " ")}.`,
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-sm border border-black bg-black px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-gray-800"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
+                  </svg>
+                  Chat with us
+                </button>
+              </div>
               {/* {data?.item?.paymentStatus && (
                 <p className="text-gray-600 text-sm mt-1">
                   Payment status :{" "}

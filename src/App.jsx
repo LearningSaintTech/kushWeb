@@ -2,6 +2,7 @@ import Routes from './app/routes'
 import { AuthProvider, useAuth } from './app/context/AuthContext'
 import { CartWishlistProvider } from './app/context/CartWishlistContext'
 import { NotificationProvider, useNotificationSocket } from './app/context/NotificationContext'
+import { SupportChatProvider } from './app/context/SupportChatContext'
 import { usePushSubscribe } from './app/hooks/usePushSubscribe'
 import { useLocationOnLoad } from './app/hooks/useLocationOnLoad'
 import { useEffect, useRef } from 'react'
@@ -70,11 +71,13 @@ function AppContent() {
     <AuthProvider>
       <CartWishlistProvider>
         <NotificationProvider>
-          <AnalyticsSessionConnector />
-          <LocationOnLoadConnector />
-          <NotificationSocketConnector />
-          <PushSubscribeConnector />
-          <Routes />
+          <SupportChatProvider>
+            <AnalyticsSessionConnector />
+            <LocationOnLoadConnector />
+            <NotificationSocketConnector />
+            <PushSubscribeConnector />
+            <Routes />
+          </SupportChatProvider>
         </NotificationProvider>
       </CartWishlistProvider>
     </AuthProvider>
