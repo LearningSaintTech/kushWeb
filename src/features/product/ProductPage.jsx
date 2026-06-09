@@ -18,21 +18,15 @@ import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
 import { trackEvent } from "../../analytics";
 import {
-  getUrlFromMediaEntry,
-  isVideoMediaEntry,
+  getMediaTypeFromEntry,
   isVideoUrlString,
 } from "../../utils/mediaUrl.js";
-
-function getMediaType(entry) {
-  if (entry?.type === "video" || entry?.type === "image") return entry.type;
-  return isVideoUrlString(entry?.url) ? "video" : "image";
-}
 
 function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const pincode = useSelector((s) => s?.location?.pincode) ?? null;
-  const { isAuthenticated, user, openAuthModal } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const [addedToCart, setAddedToCart] = useState(false);
   const [cartError, setCartError] = useState(null);
@@ -195,7 +189,7 @@ function ProductPage() {
     );
     return sorted
       .filter((m) => m?.url)
-      .map((m) => ({ url: m.url, type: getMediaType(m) }));
+      .map((m) => ({ url: m.url, type: getMediaTypeFromEntry(m) }));
   }, [selectedVariant, item?.thumbnail]);
 
   // First non-video URL — used for cart/wishlist thumbnails so they never receive an mp4 source.
@@ -204,7 +198,7 @@ function ProductPage() {
       (a, b) => (a.order ?? 0) - (b.order ?? 0),
     );
     const firstImg = variantSorted.find(
-      (m) => m?.url && getMediaType(m) === "image",
+      (m) => m?.url && getMediaTypeFromEntry(m) === "image",
     );
     if (firstImg?.url) return firstImg.url;
     if (item?.thumbnail && !isVideoUrlString(item.thumbnail)) return item.thumbnail;
@@ -216,7 +210,7 @@ function ProductPage() {
       (a, b) => (a.order ?? 0) - (b.order ?? 0),
     );
     const imageEntries = variantSorted.filter(
-      (m) => m?.url && getMediaType(m) === "image",
+      (m) => m?.url && getMediaTypeFromEntry(m) === "image",
     );
     return imageEntries[1]?.url ?? firstImageUrl;
   }, [selectedVariant, firstImageUrl]);
@@ -485,12 +479,6 @@ function ProductPage() {
   const currentUserId = user?._id ?? user?.id ?? null;
 
   const handleOpenWriteReview = () => {
-    if (!isAuthenticated) {
-      openAuthModal(
-        `${window.location.pathname}${window.location.search}`,
-      );
-      return;
-    }
     setReviewModalOpen(true);
   };
 
@@ -1205,8 +1193,9 @@ function ProductPage() {
                 Customer feedback
               </p>
               <p className="mt-1 text-xs text-gray-600 sm:text-sm">
-                Share an honest rating and review after your purchase. Photos
-                are optional.
+                {isAuthenticated
+                  ? "Share an honest rating and review after your purchase. Photos are optional."
+                  : "Share your rating and review — no account needed. Add your name and email. Photos are optional."}
               </p>
             </div>
             <button
@@ -1225,6 +1214,7 @@ function ProductPage() {
           onClose={() => setReviewModalOpen(false)}
           itemId={item._id}
           productName={item.name}
+          isAuthenticated={isAuthenticated}
           currentUserId={currentUserId}
           onSubmitted={() => setReviewsRefreshKey((k) => k + 1)}
         />

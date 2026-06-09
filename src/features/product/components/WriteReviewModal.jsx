@@ -5,6 +5,15 @@ import { reviewsService } from "../../../services/reviews.service.js";
 /** Max total attachments (photos + videos combined). */
 const MAX_MEDIA = 5;
 const MAX_REVIEW_LENGTH = 2000;
+const GUEST_REVIEW_EMAIL_KEY = "khush_guest_review_email";
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function getGuestEmailFromReview(review) {
+  return String(review?.email ?? "").trim().toLowerCase();
+}
 
 /** Allowed MIME types (plus extension fallback when type is empty). */
 const ALLOWED_MIME =
@@ -80,6 +89,7 @@ export default function WriteReviewModal({
   onClose,
   itemId,
   productName,
+  isAuthenticated = false,
   currentUserId,
   onSubmitted,
 }) {
@@ -93,8 +103,15 @@ export default function WriteReviewModal({
   const [existingReview, setExistingReview] = useState(null);
   const [rating, setRating] = useState(5);
   const [description, setDescription] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestCountryCode, setGuestCountryCode] = useState("+91");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [guestReviewLocked, setGuestReviewLocked] = useState(false);
   /** @type {{ file: File; url: string }[]} */
   const [mediaItems, setMediaItems] = useState([]);
+
+  const isGuestMode = !isAuthenticated || !currentUserId;
 
   useEffect(() => {
     mediaUrlsRef.current = mediaItems.map((m) => m.url);
@@ -129,6 +146,11 @@ export default function WriteReviewModal({
     setExistingReview(null);
     setRating(5);
     setDescription("");
+    setGuestName("");
+    setGuestEmail("");
+    setGuestCountryCode("+91");
+    setGuestPhone("");
+    setGuestReviewLocked(false);
     setError(null);
     setLoading(false);
     setSubmitting(false);
@@ -136,10 +158,6 @@ export default function WriteReviewModal({
 
   useEffect(() => {
     if (!open || !itemId) return;
-    if (!currentUserId) {
-      setLoading(false);
-      return;
-    }
 
     let cancelled = false;
     setLoading(true);
@@ -149,6 +167,17 @@ export default function WriteReviewModal({
       revokeItemUrls(prev);
       return [];
     });
+
+    const storedGuestEmail =
+      typeof window !== "undefined"
+        ? String(localStorage.getItem(GUEST_REVIEW_EMAIL_KEY) || "")
+            .trim()
+            .toLowerCase()
+        : "";
+
+    if (isGuestMode && storedGuestEmail) {
+      setGuestEmail(storedGuestEmail);
+    }
 
     reviewsService
       .getByItem(itemId, { page: 1, limit: 50 })
@@ -160,6 +189,35 @@ export default function WriteReviewModal({
           : Array.isArray(payload.data)
             ? payload.data
             : [];
+
+        if (isGuestMode) {
+          const emailToMatch = storedGuestEmail || guestEmail.trim().toLowerCase();
+          const mine = emailToMatch
+            ? list.find(
+                (r) =>
+                  (r.reviewerType === "guest" || r.isGuestReviewer) &&
+                  getGuestEmailFromReview(r) === emailToMatch,
+              )
+            : null;
+
+          if (mine) {
+            setExistingReview(mine);
+            setGuestReviewLocked(true);
+            setRating(Number(mine.rating) || 5);
+            setDescription(mine.description ?? "");
+            setGuestName(mine.name ?? mine.reviewerName ?? "");
+            setGuestEmail(getGuestEmailFromReview(mine) || emailToMatch);
+            if (mine.phoneNumber) setGuestPhone(String(mine.phoneNumber));
+            if (mine.countryCode) setGuestCountryCode(String(mine.countryCode));
+          } else {
+            setExistingReview(null);
+            setGuestReviewLocked(false);
+            setRating(5);
+            setDescription("");
+          }
+          return;
+        }
+
         const mine = list.find(
           (r) => getUserIdFromReview(r) === String(currentUserId),
         );
@@ -189,7 +247,7 @@ export default function WriteReviewModal({
     return () => {
       cancelled = true;
     };
-  }, [open, itemId, currentUserId]);
+  }, [open, itemId, currentUserId, isGuestMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -252,7 +310,20 @@ export default function WriteReviewModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!itemId || submitting) return;
+    if (!itemId || submitting || guestReviewLocked) return;
+
+    if (isGuestMode) {
+      const name = guestName.trim();
+      const email = guestEmail.trim().toLowerCase();
+      if (!name) {
+        setError("Please enter your name.");
+        return;
+      }
+      if (!isValidEmail(email)) {
+        setError("Please enter a valid email address.");
+        return;
+      }
+    }
 
     setSubmitting(true);
     setError(null);
@@ -264,12 +335,33 @@ export default function WriteReviewModal({
       files,
     };
 
-    const promise = existingReview
-      ? reviewsService.update(existingReview._id ?? existingReview.id, payload)
-      : reviewsService.create({ ...payload, itemId });
+    let promise;
+    if (isGuestMode) {
+      promise = reviewsService.createGuest({
+        ...payload,
+        itemId,
+        name: guestName.trim(),
+        email: guestEmail.trim().toLowerCase(),
+        countryCode: guestCountryCode.trim() || "+91",
+        phoneNumber: guestPhone.trim(),
+      });
+    } else if (existingReview) {
+      promise = reviewsService.update(
+        existingReview._id ?? existingReview.id,
+        payload,
+      );
+    } else {
+      promise = reviewsService.create({ ...payload, itemId });
+    }
 
     promise
       .then(() => {
+        if (isGuestMode && typeof window !== "undefined") {
+          localStorage.setItem(
+            GUEST_REVIEW_EMAIL_KEY,
+            guestEmail.trim().toLowerCase(),
+          );
+        }
         onSubmitted?.();
         onClose?.();
       })
@@ -348,11 +440,12 @@ export default function WriteReviewModal({
                 <p className="mt-1 truncate text-xs text-zinc-400 sm:text-sm">
                   {productName}
                 </p>
-              ) : (
-                <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-                  Share your experience to help other shoppers.
-                </p>
-              )}
+              ) : null}
+              <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
+                {isGuestMode
+                  ? "Post as a guest — no account required."
+                  : "Share your experience to help other shoppers."}
+              </p>
             </div>
             <button
               type="button"
@@ -385,6 +478,94 @@ export default function WriteReviewModal({
             </div>
           ) : (
             <form id="write-review-form" onSubmit={handleSubmit} className="space-y-6">
+              {guestReviewLocked ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  You already submitted a review for this product with this email.
+                  Thank you for your feedback.
+                </p>
+              ) : null}
+
+              {isGuestMode ? (
+                <div className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/60 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Your details
+                  </p>
+                  <div>
+                    <label
+                      htmlFor="guest-review-name"
+                      className="mb-1.5 block text-xs font-medium text-zinc-700"
+                    >
+                      Full name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="guest-review-name"
+                      type="text"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="Your name"
+                      disabled={submitting || guestReviewLocked}
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900/20 disabled:opacity-60"
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="guest-review-email"
+                      className="mb-1.5 block text-xs font-medium text-zinc-700"
+                    >
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="guest-review-email"
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      disabled={submitting || guestReviewLocked}
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900/20 disabled:opacity-60"
+                      autoComplete="email"
+                    />
+                  </div>
+                  <div className="grid grid-cols-[88px_1fr] gap-2">
+                    <div>
+                      <label
+                        htmlFor="guest-review-country"
+                        className="mb-1.5 block text-xs font-medium text-zinc-700"
+                      >
+                        Code
+                      </label>
+                      <input
+                        id="guest-review-country"
+                        type="text"
+                        value={guestCountryCode}
+                        onChange={(e) => setGuestCountryCode(e.target.value)}
+                        placeholder="+91"
+                        disabled={submitting || guestReviewLocked}
+                        className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900/20 disabled:opacity-60"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="guest-review-phone"
+                        className="mb-1.5 block text-xs font-medium text-zinc-700"
+                      >
+                        Phone <span className="text-zinc-400">(optional)</span>
+                      </label>
+                      <input
+                        id="guest-review-phone"
+                        type="tel"
+                        value={guestPhone}
+                        onChange={(e) => setGuestPhone(e.target.value)}
+                        placeholder="9876543210"
+                        disabled={submitting || guestReviewLocked}
+                        className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900/20 disabled:opacity-60"
+                        autoComplete="tel"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                   Overall rating
@@ -392,7 +573,7 @@ export default function WriteReviewModal({
                 <InteractiveStars
                   value={rating}
                   onChange={setRating}
-                  disabled={submitting}
+                  disabled={submitting || guestReviewLocked}
                 />
                 <p className="mt-2 text-xs text-zinc-500">
                   Tap a star to set your rating. You can change it before submitting.
@@ -420,13 +601,14 @@ export default function WriteReviewModal({
                   rows={4}
                   placeholder="Fit, fabric quality, styling — what stood out for you?"
                   className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900/20"
-                  disabled={submitting}
+                  disabled={submitting || guestReviewLocked}
                 />
                 <p className="mt-1.5 text-right text-[11px] text-zinc-400">
                   {description.length} / {MAX_REVIEW_LENGTH}
                 </p>
               </div>
 
+              {!guestReviewLocked ? (
               <div>
                 <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
                   Photos &amp; videos{" "}
@@ -549,6 +731,7 @@ export default function WriteReviewModal({
                   </ul>
                 )}
               </div>
+              ) : null}
 
               {error ? (
                 <p
@@ -566,7 +749,7 @@ export default function WriteReviewModal({
           <footer className="shrink-0 border-t border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                {existingReview ? (
+                {!isGuestMode && existingReview ? (
                   <button
                     type="button"
                     onClick={handleDelete}
@@ -575,9 +758,15 @@ export default function WriteReviewModal({
                   >
                     Delete review
                   </button>
+                ) : guestReviewLocked ? (
+                  <p className="text-[11px] text-zinc-500">
+                    Guest reviews cannot be edited after submission.
+                  </p>
                 ) : (
                   <p className="text-[11px] text-zinc-500">
-                    You can edit or remove your review anytime.
+                    {isGuestMode
+                      ? "One review per email per product."
+                      : "You can edit or remove your review anytime."}
                   </p>
                 )}
               </div>
@@ -587,22 +776,24 @@ export default function WriteReviewModal({
                   onClick={() => !submitting && onClose?.()}
                   className="min-h-11 flex-1 rounded-full border border-zinc-300 bg-white px-4 text-xs font-semibold uppercase tracking-wide text-zinc-800 transition hover:bg-zinc-50 sm:flex-initial sm:min-w-[100px]"
                 >
-                  Cancel
+                  {guestReviewLocked ? "Close" : "Cancel"}
                 </button>
-                <button
-                  type="submit"
-                  form="write-review-form"
-                  disabled={submitting}
-                  className="min-h-11 flex-1 rounded-full bg-zinc-950 px-6 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-initial"
-                >
-                  {submitting
-                    ? existingReview
-                      ? "Saving…"
-                      : "Posting…"
-                    : existingReview
-                      ? "Update review"
-                      : "Submit review"}
-                </button>
+                {!guestReviewLocked ? (
+                  <button
+                    type="submit"
+                    form="write-review-form"
+                    disabled={submitting}
+                    className="min-h-11 flex-1 rounded-full bg-zinc-950 px-6 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-initial"
+                  >
+                    {submitting
+                      ? existingReview && !isGuestMode
+                        ? "Saving…"
+                        : "Posting…"
+                      : existingReview && !isGuestMode
+                        ? "Update review"
+                        : "Submit review"}
+                  </button>
+                ) : null}
               </div>
             </div>
           </footer>

@@ -27,6 +27,28 @@ export const reviewsService = {
     });
   },
 
+  /**
+   * Public guest review (no login). Stores GuestUser + Review.
+   * body: { itemId, name, email, countryCode?, phoneNumber?, rating, description?, files? }
+   */
+  createGuest: (body) => {
+    const formData = new FormData();
+    if (body?.itemId != null) formData.append('itemId', body.itemId);
+    if (body?.name) formData.append('name', body.name);
+    if (body?.email) formData.append('email', body.email);
+    if (body?.countryCode) formData.append('countryCode', body.countryCode);
+    if (body?.phoneNumber) formData.append('phoneNumber', body.phoneNumber);
+    if (body?.rating != null) formData.append('rating', String(body.rating));
+    if (body?.description) formData.append('description', body.description);
+    const files = Array.isArray(body?.files) ? body.files : [];
+    files.forEach((file) => {
+      if (file) formData.append('images', file);
+    });
+    return client.post(`${BASE}/guest/create`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   getByItem: (itemId, params = {}) =>
     client.get(`${BASE}/getAll/${itemId}`, { params: { page: params.page, limit: params.limit } }),
 

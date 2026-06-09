@@ -40,6 +40,7 @@ export { faqService, faqApiMessage } from './faq.service.js';
 export { walletService } from './wallet.service.js';
 export { giftcardService } from './giftcard.service.js';
 export { chatbotService } from './chatbot.service.js';
+export { supportTicketService } from './supportTicket.service.js';
 export { referralService, unwrapReferralResponse } from './referral.service.js';
 
 export { getCurrentPosition, reverseGeocode, getCurrentLocationPincode } from './geo.service.js';

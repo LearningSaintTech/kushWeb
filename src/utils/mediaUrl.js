@@ -14,13 +14,20 @@ export function isVideoUrlString(url) {
  */
 export function isVideoMediaEntry(entry) {
   if (!entry) return false;
+  const url = typeof entry === "string" ? entry : entry?.url;
+  // File extension wins — API may send type:"image" for .mp4 URLs.
+  if (isVideoUrlString(url)) return true;
   if (typeof entry === "object" && entry.type) {
     const t = String(entry.type).toLowerCase();
     if (t === "video") return true;
     if (t === "image") return false;
   }
-  const url = typeof entry === "string" ? entry : entry?.url;
-  return isVideoUrlString(url);
+  return false;
+}
+
+/** @param {string|{ url?: string, type?: string }} entry */
+export function getMediaTypeFromEntry(entry) {
+  return isVideoMediaEntry(entry) ? "video" : "image";
 }
 
 /**

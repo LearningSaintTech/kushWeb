@@ -4,6 +4,7 @@ import { paymentService } from '../../services/payment.service.js'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import { ROUTES } from '../../utils/constants'
 import { PAYMENT_MODES } from '../../utils/paymentMode'
+import { navigateToOrderFailed, navigateToThankYou } from './orderConversion.js'
 
 import { buildNimbblVerifyBody } from './paymentCheckout.js'
 
@@ -39,17 +40,36 @@ export default function NimbleCallbackPage() {
         if (cancelled) return
         await refetchCart()
         setStatus('success')
-        setMessage('Payment confirmed! Redirecting to your orders…')
+        setMessage('Payment confirmed! Redirecting…')
         setTimeout(() => {
-          navigate(ROUTES.ORDERS, {
-            state: { orderId, orderSuccess: true, paymentMode: PAYMENT_MODES.NIMBLE },
-            replace: true,
-          })
+          navigateToThankYou(
+            navigate,
+            {
+              orderId,
+              paymentMode: PAYMENT_MODES.NIMBLE,
+              value: order?.finalPayable ?? order?.totalAmount ?? 0,
+            },
+            { replace: true },
+          )
         }, 1200)
       } catch (err) {
         if (cancelled) return
+        const failMessage =
+          err?.response?.data?.message ?? err?.message ?? 'Payment verification failed.'
         setStatus('error')
-        setMessage(err?.response?.data?.message ?? err?.message ?? 'Payment verification failed.')
+        setMessage(failMessage)
+        setTimeout(() => {
+          navigateToOrderFailed(
+            navigate,
+            {
+              orderId: queryPayload.invoice_id ?? queryPayload.order_id,
+              paymentMode: PAYMENT_MODES.NIMBLE,
+              reason: 'verification_failed',
+              message: failMessage,
+            },
+            { replace: true },
+          )
+        }, 1200)
       }
     })()
 

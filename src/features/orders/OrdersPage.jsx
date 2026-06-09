@@ -2,8 +2,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
+<<<<<<< HEAD
 import { ROUTES, getOrderTrackPath, getProductPath } from '../../utils/constants'
 import { formatPaymentLine, PAYMENT_MODES } from '../../utils/paymentMode'
+=======
+import { ROUTES, getOrderTrackPath } from '../../utils/constants'
+import { formatPaymentLine } from '../../utils/paymentMode'
+>>>>>>> 82ef9358c261855aced52dc1cad2869309763a8a
 
 const LOG = (...args) => {
   if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
