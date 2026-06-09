@@ -1,2 +1,5 @@
 export { default as CheckoutPage } from './CheckoutPage'
 export { default as NimbleCallbackPage } from './NimbleCallbackPage'
+export { default as ThankYouPage } from './ThankYouPage'
+export { default as OrderFailedPage } from './OrderFailedPage'
+export { default as OrderCancelledPage } from './OrderCancelledPage'

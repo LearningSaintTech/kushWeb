@@ -13,6 +13,7 @@ import { ROUTES, getProductPath } from "../../utils/constants";
 import { PAYMENT_MODES } from "../../utils/paymentMode";
 import { trackEvent } from "../../analytics";
 import { loadRazorpayScript } from "./paymentCheckout.js";
+import { navigateToOrderFailed, navigateToThankYou } from "./orderConversion.js";
 // Pay later (Nimbbl) — disabled for now
 // import {
 //   formatNimblePayLaterUnavailableMessage,
@@ -873,18 +874,6 @@ function CheckoutPage() {
         const res = await orderService.create(createReq);
         console.log("[Checkout] RES orderService.create (COD):", res?.data);
         const data = res?.data?.data ?? res?.data;
-        if (window.fbq) {
-          window.fbq("track", "Purchase", {
-            value: Number(finalPayable || 0),
-            currency: "INR",
-            content_type: "product",
-            contents: items.map((item) => ({
-              id: item.itemId?._id,
-              quantity: item.quantity,
-            })),
-            num_items: items.length,
-          });
-        }
         const order = data?.order ?? data;
         const orderId = order?.orderId;
         trackEvent({
@@ -899,12 +888,11 @@ function CheckoutPage() {
           orderId,
         );
         refetchCart();
-        navigate(ROUTES.ORDERS, {
-          state: {
-            orderId,
-            orderSuccess: true,
-            paymentMode: PAYMENT_MODES.COD,
-          },
+        navigateToThankYou(navigate, {
+          orderId,
+          paymentMode: PAYMENT_MODES.COD,
+          value: finalPayable,
+          items,
         });
         return;
       }
@@ -1001,17 +989,6 @@ function CheckoutPage() {
               "[Checkout] RES paymentService.verifyPayment:",
               verifyRes?.data,
             );
-            window.fbq("track", "Purchase", {
-              value: Number(finalPayable || 0),
-              currency: "INR",
-              content_type: "product",
-              content_ids: items.map((i) => i.itemId?._id),
-              contents: items.map((i) => ({
-                id: i.itemId?._id,
-                quantity: i.quantity,
-              })),
-              num_items: items.length,
-            });
             trackEvent({
               eventType: "payment_success",
               orderId: businessOrderId ? String(businessOrderId) : undefined,
@@ -1033,12 +1010,11 @@ function CheckoutPage() {
               "[Checkout] verifyPayment success, navigate to orders:",
               businessOrderId,
             );
-            navigate(ROUTES.ORDERS, {
-              state: {
-                orderId: businessOrderId,
-                orderSuccess: true,
-                paymentMode: PAYMENT_MODES.RAZORPAY,
-              },
+            navigateToThankYou(navigate, {
+              orderId: businessOrderId,
+              paymentMode: PAYMENT_MODES.RAZORPAY,
+              value: finalPayable,
+              items,
             });
           } catch (verifyErr) {
             console.log(
@@ -1065,6 +1041,13 @@ function CheckoutPage() {
               "Payment verification failed.";
             setLastVerifyError(msg);
             setLastVerifyPayload(verifyReq);
+            navigateToOrderFailed(navigate, {
+              orderId: businessOrderId,
+              paymentMode: PAYMENT_MODES.RAZORPAY,
+              reason: "verification_failed",
+              message: msg,
+              value: finalPayable,
+            });
           } finally {
             setPlaceOrderLoading(false);
           }
@@ -1128,6 +1111,28 @@ function CheckoutPage() {
                     ordStatus,
                     statusData,
                   });
+                  if (
+                    pStatus === "FAILED" ||
+                    ordStatus === "FAILED" ||
+                    ordStatus === "CANCELLED"
+                  ) {
+                    if (pollingIntervalRef.current) {
+                      clearInterval(pollingIntervalRef.current);
+                      pollingIntervalRef.current = null;
+                    }
+                    setCheckingPaymentStatus(false);
+                    setStatusMessage(null);
+                    navigateToOrderFailed(navigate, {
+                      orderId: businessOrderId,
+                      paymentMode: PAYMENT_MODES.RAZORPAY,
+                      reason:
+                        ordStatus === "CANCELLED"
+                          ? "payment_cancelled"
+                          : "payment_failed",
+                      value: finalPayable,
+                    });
+                    return;
+                  }
                   if (pStatus === "SUCCESS" || ordStatus === "CONFIRMED") {
                     if (pollingIntervalRef.current) {
                       clearInterval(pollingIntervalRef.current);
@@ -1141,12 +1146,11 @@ function CheckoutPage() {
                       "[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:",
                       businessOrderId,
                     );
-                    navigate(ROUTES.ORDERS, {
-                      state: {
-                        orderId: businessOrderId,
-                        orderSuccess: true,
-                        paymentMode: PAYMENT_MODES.RAZORPAY,
-                      },
+                    navigateToThankYou(navigate, {
+                      orderId: businessOrderId,
+                      paymentMode: PAYMENT_MODES.RAZORPAY,
+                      value: finalPayable,
+                      items,
                     });
                     return;
                   }
@@ -1161,12 +1165,16 @@ function CheckoutPage() {
                       pollingIntervalRef.current = null;
                     }
                     setCheckingPaymentStatus(false);
-                    setStatusMessage(
-                      "Payment not completed. You can try again.",
-                    );
+                    setStatusMessage(null);
                     console.log(
                       "[Checkout] polling: still PENDING/CREATED after few attempts, stop and allow retry",
                     );
+                    navigateToOrderFailed(navigate, {
+                      orderId: businessOrderId,
+                      paymentMode: PAYMENT_MODES.RAZORPAY,
+                      reason: "payment_incomplete",
+                      value: finalPayable,
+                    });
                     return;
                   }
                 } catch (err) {
@@ -1217,8 +1225,16 @@ function CheckoutPage() {
               reason: response?.error?.description || "razorpay_failed",
             },
           });
-          setError("Payment failed or was cancelled.");
           setPlaceOrderLoading(false);
+          navigateToOrderFailed(navigate, {
+            orderId: businessOrderId,
+            paymentMode: PAYMENT_MODES.RAZORPAY,
+            reason: "payment_failed",
+            message:
+              response?.error?.description ||
+              "Payment failed or was cancelled.",
+            value: finalPayable,
+          });
         });
         console.log("[Checkout] Razorpay rzp.open()");
         rzp.open();
@@ -1297,12 +1313,11 @@ function CheckoutPage() {
           stopNimblePolling()
           paymentSuccessHandledRef.current = true
           refetchCart()
-          navigate(ROUTES.ORDERS, {
-            state: {
-              orderId: businessOrderId,
-              orderSuccess: true,
-              paymentMode: PAYMENT_MODES.NIMBLE,
-            },
+          navigateToThankYou(navigate, {
+            orderId: businessOrderId,
+            paymentMode: PAYMENT_MODES.NIMBLE,
+            value: finalPayable,
+            items,
           })
         }
 
@@ -1491,7 +1506,16 @@ function CheckoutPage() {
         err?.response?.data?.message ??
         err?.message ??
         "Failed to place order.";
-      setError(msg);
+      if (paymentMode === "RAZORPAY") {
+        navigateToOrderFailed(navigate, {
+          paymentMode: PAYMENT_MODES.RAZORPAY,
+          reason: "order_create_failed",
+          message: msg,
+          value: finalPayable,
+        });
+      } else {
+        setError(msg);
+      }
     } finally {
       if (paymentMode === "COD") setPlaceOrderLoading(false);
     }
@@ -2952,8 +2976,11 @@ function CheckoutPage() {
                             "[Checkout] Retry verification success, navigate:",
                             orderId,
                           );
-                          navigate(ROUTES.ORDERS, {
-                            state: { orderId, orderSuccess: true },
+                          navigateToThankYou(navigate, {
+                            orderId,
+                            paymentMode: PAYMENT_MODES.RAZORPAY,
+                            value: finalPayable,
+                            items,
                           });
                         } catch (err) {
                           console.log(

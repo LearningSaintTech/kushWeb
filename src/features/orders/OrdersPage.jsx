@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
 import { ROUTES, getOrderTrackPath } from '../../utils/constants'
-import { formatPaymentLine, PAYMENT_MODES } from '../../utils/paymentMode'
+import { formatPaymentLine } from '../../utils/paymentMode'
 
 const LOG = (...args) => {
   if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
@@ -278,28 +278,6 @@ function OrdersPage() {
     <div className="min-h-screen bg-white text-black pt-30 pb-12 font-sans">
       <div className=" px-4 sm:px-6 md:px-8 ">
         <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-wider text-gray-800 mb-6 sm:mb-8">My orders</h1>
-
-        {orderSuccessFromState && orderIdFromState && (
-          <div className="mb-6 sm:mb-8 p-4 sm:p-6 border border-green-200 bg-green-50 rounded-lg">
-            <p className="font-semibold text-green-800 uppercase text-sm sm:text-base">Order placed successfully</p>
-            <p className="mt-1 text-xs sm:text-sm text-gray-700">
-              Order ID: <span className="font-mono font-medium">{orderIdFromState}</span>
-            </p>
-            {location.state?.paymentMode === PAYMENT_MODES.NIMBLE && (
-              <p className="mt-1 text-xs sm:text-sm text-gray-600">
-                Paid with Buy now, pay later. Your EMI schedule is managed by our payment partner.
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-2 sm:gap-3">
-              <Link to={ROUTES.SEARCH} className="inline-block px-4 py-2 bg-black text-white text-xs sm:text-sm font-medium uppercase hover:bg-gray-800">
-                Continue shopping
-              </Link>
-              <Link to={ROUTES.HOME} className="inline-block px-4 py-2 border border-black text-black text-xs sm:text-sm font-medium uppercase hover:bg-gray-50">
-                Back to home
-              </Link>
-            </div>
-          </div>
-        )}
 
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 

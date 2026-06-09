@@ -5,7 +5,12 @@ import { CartPage } from '../../features/cart'
 import { WishlistPage } from '../../features/wishlist'
 import { ProductPage } from '../../features/product'
 import { AuthPage } from '../../features/auth'
-import { CheckoutPage } from '../../features/checkout'
+import {
+  CheckoutPage,
+  ThankYouPage,
+  OrderFailedPage,
+  OrderCancelledPage,
+} from '../../features/checkout'
 import NimbleCallbackPage from '../../features/checkout/NimbleCallbackPage'
 import { OrdersPage, TrackOrderPage } from '../../features/orders'
 import { NotificationsPage } from '../../features/notifications'
@@ -45,6 +50,9 @@ const router = createBrowserRouter([
       { path: 'product/:id', element: <ProductPage /> },
       { path: 'checkout', element: <CheckoutPage /> },
       { path: 'checkout/nimble/callback', element: <NimbleCallbackPage /> },
+      { path: 'order/thank-you', element: <ThankYouPage /> },
+      { path: 'order/failed', element: <OrderFailedPage /> },
+      { path: 'order/cancelled', element: <OrderCancelledPage /> },
       { path: 'orders', element: <OrdersPage /> },
       { path: 'orders/track/:orderId/:itemId', element: <TrackOrderPage /> },
       { path: 'notifications', element: <NotificationsPage /> },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
 import { orderService } from "../../services/order.service.js";
 import { itemsService } from "../../services/items.service.js";
@@ -13,7 +13,9 @@ import {
   getPaymentStatus,
   getPaymentStatusLabel,
   isCodPayment,
+  resolvePaymentMode,
 } from "../../utils/paymentMode";
+import { navigateToOrderCancelled } from "../checkout/orderConversion.js";
 import { reviewsService } from "../../services/reviews.service.js";
 import { trackEvent } from "../../analytics";
 
@@ -430,6 +432,7 @@ function isExchangeInProgress(exchange) {
 
 export default function TrackOrderPage() {
   const { orderId, itemId } = useParams();
+  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const pincodeRedux = useSelector((s) => s?.location?.pincode) ?? null;
   const [data, setData] = useState(null);
@@ -755,7 +758,15 @@ export default function TrackOrderPage() {
           couponIssued: true,
         })
         .then(() => {
-          setCancelStep(3);
+          setCancelStep(0);
+          setCancelError(null);
+          navigateToOrderCancelled(navigate, {
+            orderId,
+            itemId: selectedCancelItemId,
+            reason: cancelReason,
+            paymentMode: resolvePaymentMode(data),
+            isCod: isCodPayment(data),
+          });
         })
         .catch((err) => {
           setCancelError(
