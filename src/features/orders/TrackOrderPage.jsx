@@ -1254,7 +1254,7 @@ export default function TrackOrderPage() {
                         Downloading…
                       </>
                     ) : (
-                      <>↓ Download invoice</>
+                      <>↓ Download invoice </>
                     )}
                   </button>
                 </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
-import { ROUTES, getOrderTrackPath } from '../../utils/constants'
+import { ROUTES, getOrderTrackPath, getProductPath } from '../../utils/constants'
 import { formatPaymentLine, PAYMENT_MODES } from '../../utils/paymentMode'
 
 const LOG = (...args) => {
@@ -320,11 +320,14 @@ function OrdersPage() {
             {sortedOrderItems.map((oi, idx) => {
               const item = oi.item ?? {}
               const name = item?.name ?? 'Product'
+              const shortDesc = item?.shortDescription ?? ''
               const brand = item?.brand ?? item?.productId ?? '—'
               const color = item?.variant?.color ?? ''
               const imageUrl = item?.variant?.imageUrl ?? ''
               const quantity = item?.quantity ?? 1
               const price = item?.finalPayable ?? item?.itemSubtotal ?? (item?.unitPrice ?? 0) * quantity
+              const productId = item?.itemId ?? oi.productItemId
+              const productPath = productId ? getProductPath(productId, name, shortDesc) : null
               const trackingId = oi.latestStatusHistory?.trackingId ?? null
               const statusDisplay = getStatusDisplay(oi)
               const orderId = oi.orderId ?? ''
@@ -339,7 +342,21 @@ function OrdersPage() {
                   {/* Product */}
                   <div className="flex gap-3 sm:gap-4 min-w-0 md:col-span-6">
                     <div className="w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden p-2">
-                      {imageUrl ? (
+                      {productPath ? (
+                        <Link to={productPath} className="block w-full h-full flex items-center justify-center">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={name}
+                              loading="eager"
+                              decoding="async"
+                              className="max-h-full max-w-full object-contain object-center"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
+                          )}
+                        </Link>
+                      ) : imageUrl ? (
                         <img
                           src={imageUrl}
                           alt={name}
@@ -353,7 +370,13 @@ function OrdersPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       {/* <p className="font-bold text-gray-900 uppercase text-xs sm:text-sm truncate">{brand}</p> */}
-                      <p className="text-gray-700 text-xs sm:text-sm mt-0.5 normal-case line-clamp-2">{name}{color ? ` ${color}` : ''}</p>
+                      {productPath ? (
+                        <Link to={productPath} className="block hover:underline">
+                          <p className="text-gray-700 text-xs sm:text-sm mt-0.5 normal-case line-clamp-2">{name}{color ? ` ${color}` : ''}</p>
+                        </Link>
+                      ) : (
+                        <p className="text-gray-700 text-xs sm:text-sm mt-0.5 normal-case line-clamp-2">{name}{color ? ` ${color}` : ''}</p>
+                      )}
                       {trackingId && (
                         <p className="text-gray-500 text-[11px] sm:text-xs mt-1">Tracking ID: #{trackingId}</p>
                       )}
@@ -447,7 +470,7 @@ function OrdersPage() {
 
         <div className="mt-6 sm:mt-8">
           <Link to={ROUTES.HOME} className="text-xs sm:text-sm font-medium uppercase text-gray-700 hover:text-black hover:underline">
-            ← Back to home
+            ← Back to home 
           </Link>
         </div>
       </div>

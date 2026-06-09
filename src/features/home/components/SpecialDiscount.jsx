@@ -235,7 +235,7 @@ function SpecialDiscount({ section }) {
         : ROUTES.SEARCH
 
     return (
-        <section className="w-full overflow-x-hidden py-5 sm:py-8 md:py-10 lg:py-12">
+        <section className="w-full overflow-x-hidden bg-black  py-5 sm:py-8 md:py-10 lg:py-12">
             <div className="mx-auto w-full max-w-[1920px] px-3 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
                 <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_2px_16px_rgba(0,0,0,0.06)] sm:max-w-[640px] md:max-w-[768px] lg:max-w-none lg:rounded-[1.75rem] lg:border-0 lg:bg-transparent lg:shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
                     <BannerHero bannerSrc={bannerSrc} alt={section?.title || 'Special offer'}>
@@ -257,7 +257,7 @@ function SpecialDiscount({ section }) {
                     </BannerHero>
 
                     {/* Phone & tablet: products below banner */}
-                    <div className="relative z-20 bg-white px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5 md:px-5 md:pb-5 md:pt-0 lg:hidden">
+                    <div className="relative z-20   text-white px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5 md:px-5 md:pb-5 md:pt-0 lg:hidden">
                         <div className="md:-mt-10">
                             <div className="md:hidden">
                                 <GalleryThumbs images={galleryImages} variant="grid" />
