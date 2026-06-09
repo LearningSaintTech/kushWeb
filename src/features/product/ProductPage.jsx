@@ -32,7 +32,7 @@ function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const pincode = useSelector((s) => s?.location?.pincode) ?? null;
-  const { isAuthenticated, user, openAuthModal } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { cart, addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
   const [addedToCart, setAddedToCart] = useState(false);
   const [cartError, setCartError] = useState(null);
@@ -485,12 +485,6 @@ function ProductPage() {
   const currentUserId = user?._id ?? user?.id ?? null;
 
   const handleOpenWriteReview = () => {
-    if (!isAuthenticated) {
-      openAuthModal(
-        `${window.location.pathname}${window.location.search}`,
-      );
-      return;
-    }
     setReviewModalOpen(true);
   };
 
@@ -1205,8 +1199,9 @@ function ProductPage() {
                 Customer feedback
               </p>
               <p className="mt-1 text-xs text-gray-600 sm:text-sm">
-                Share an honest rating and review after your purchase. Photos
-                are optional.
+                {isAuthenticated
+                  ? "Share an honest rating and review after your purchase. Photos are optional."
+                  : "Share your rating and review — no account needed. Add your name and email. Photos are optional."}
               </p>
             </div>
             <button
@@ -1225,6 +1220,7 @@ function ProductPage() {
           onClose={() => setReviewModalOpen(false)}
           itemId={item._id}
           productName={item.name}
+          isAuthenticated={isAuthenticated}
           currentUserId={currentUserId}
           onSubmitted={() => setReviewsRefreshKey((k) => k + 1)}
         />

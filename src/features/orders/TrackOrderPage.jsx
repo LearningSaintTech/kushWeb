@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
+import { useSupportChat } from "../../app/context/SupportChatContext";
 import { orderService } from "../../services/order.service.js";
 import { itemsService } from "../../services/items.service.js";
 import { cancellationService } from "../../services/cancellation.service.js";
@@ -173,7 +174,7 @@ function isNormalDeliveryType(v) {
   return String(v || "").toUpperCase() === "NORMAL";
 }
 
-/** Local exchange stepper (black bar) only for quick delivery; NORMAL (Shiprocket) uses Shiprocket tracking only. */
+/** Local exchange stepper (black bar) only for quick delivery; NORMAL uses carrier tracking link when available. */
 function isQuickDeliveryTypeForExchangeStepper(v) {
   const u = String(v || "")
     .trim()
@@ -182,46 +183,151 @@ function isQuickDeliveryTypeForExchangeStepper(v) {
   return u === "ONE_DAY" || u === "90_MIN";
 }
 
-function getShiprocketFromOrderItem(data) {
+const INTEGRATOR_COURIER_LABELS = new Set([
+  "delhivery",
+  "shiprocket",
+]);
+
+function displayCourierName(name) {
+  const label = String(name || "").trim();
+  if (!label) return null;
+  if (INTEGRATOR_COURIER_LABELS.has(label.toLowerCase())) return null;
+  return label;
+}
+
+function resolveTrackingUrl(url, trackingNumber, provider) {
+  const p = String(provider || "").toUpperCase();
+  if (p === "SELF_SHIPPING") return null;
+
+  const safeUrl = typeof url === "string" ? url.trim() : "";
+  if (safeUrl) return safeUrl;
+  if (!trackingNumber) return null;
+  if (p === "SHIPROCKET") {
+    return `https://shiprocket.co/tracking/${encodeURIComponent(String(trackingNumber))}`;
+  }
+  return null;
+}
+
+function isSelfShippingDelivery(data) {
   const item = data?.item || {};
-  const sr = item?.shiprocket || data?.shiprocket || {};
-  const awb =
+  const shipment = data?.shipment || {};
+  const provider = String(
+    item.shippingProvider || shipment.shippingProvider || "",
+  ).toUpperCase();
+  if (provider === "SELF_SHIPPING") return true;
+  const courier = String(item.courier || shipment.courier || "").toLowerCase();
+  return courier.includes("self shipping") || courier.includes("self-shipping");
+}
+
+/** Unified shipment tracking for NORMAL delivery (Shiprocket, Delhivery, self shipping, or generic trackingId). */
+function getCourierTrackingFromOrderItem(data) {
+  const item = data?.item || {};
+  const shipment = data?.shipment || {};
+  const provider = String(
+    item.shippingProvider || shipment.shippingProvider || "",
+  ).toUpperCase();
+  const itemStatus = String(data?.status || item.status || "").toUpperCase();
+
+  const dl = item.delhivery || shipment.delhivery || {};
+  const sr = item.shiprocket || shipment.shiprocket || data?.shiprocket || {};
+
+  // Self shipping: reference ID only — never expose an external tracking URL.
+  if (isSelfShippingDelivery(data)) {
+    const trackingNumber =
+      item.trackingId || data?.trackingId || shipment.trackingId || null;
+    const hasProgress =
+      trackingNumber ||
+      (itemStatus &&
+        !["CREATED", "CONFIRMED", "CANCELLED"].includes(itemStatus));
+    if (!hasProgress) return null;
+    return {
+      trackingNumber,
+      trackingUrl: null,
+      status: data?.status || item.status || null,
+      courier: null,
+      selfShipping: true,
+    };
+  }
+
+  if (provider === "DELHIVERY" || dl?.waybill) {
+    const trackingNumber =
+      dl.waybill ||
+      item.trackingId ||
+      data?.trackingId ||
+      shipment.trackingId ||
+      null;
+    const trackingUrl = resolveTrackingUrl(
+      dl.trackingUrl,
+      trackingNumber,
+      "DELHIVERY",
+    );
+    const hasAny = Boolean(
+      trackingNumber ||
+      trackingUrl ||
+      (dl?.status && String(dl.status).trim()),
+    );
+    if (!hasAny) return null;
+    return {
+      trackingNumber,
+      trackingUrl,
+      status: dl.status || null,
+      courier: displayCourierName(item.courier),
+    };
+  }
+
+  if (
+    provider === "SHIPROCKET" ||
     sr?.awbCode ||
-    item?.trackingId ||
-    data?.trackingId ||
-    data?.shipment?.trackingId ||
-    null;
-  const trackingUrl =
-    sr?.trackingUrl ||
-    (awb
-      ? `https://shiprocket.co/tracking/${encodeURIComponent(String(awb))}`
-      : null);
-  const hasAny = Boolean(
-    awb ||
-    trackingUrl ||
     sr?.orderId != null ||
-    sr?.shipmentId != null ||
-    (sr?.status && String(sr.status).trim()) ||
-    (item?.courier && String(item.courier).trim()),
+    sr?.shipmentId != null
+  ) {
+    const trackingNumber =
+      sr.awbCode ||
+      item.trackingId ||
+      data?.trackingId ||
+      shipment.trackingId ||
+      null;
+    const trackingUrl = resolveTrackingUrl(
+      sr.trackingUrl,
+      trackingNumber,
+      "SHIPROCKET",
+    );
+    const hasAny = Boolean(
+      trackingNumber ||
+      trackingUrl ||
+      sr?.orderId != null ||
+      sr?.shipmentId != null ||
+      (sr?.status && String(sr.status).trim()),
+    );
+    if (!hasAny) return null;
+    return {
+      trackingNumber,
+      trackingUrl,
+      status: sr.status || null,
+      courier: displayCourierName(item.courier),
+    };
+  }
+
+  const trackingNumber =
+    item.trackingId || data?.trackingId || shipment.trackingId || null;
+  const trackingUrl =
+    resolveTrackingUrl(
+      dl.trackingUrl || sr.trackingUrl,
+      trackingNumber,
+      provider || (isSelfShippingDelivery(data) ? "SELF_SHIPPING" : ""),
+    ) || null;
+  const hasAny = Boolean(
+    trackingNumber ||
+    trackingUrl ||
+    (item?.courier && displayCourierName(item.courier)),
   );
   if (!hasAny) return null;
   return {
-    awb,
+    trackingNumber,
     trackingUrl,
-    status: sr?.status || null,
-    orderId: sr?.orderId ?? null,
-    shipmentId: sr?.shipmentId ?? null,
-    courier: item?.courier || null,
-    labelUrl: sr?.labelUrl || null,
-    invoiceUrl: sr?.invoiceUrl || null,
+    status: dl.status || sr.status || null,
+    courier: displayCourierName(item.courier),
   };
-}
-
-function normalizeTrackingLink(url, awb) {
-  const safeUrl = typeof url === "string" ? url.trim() : "";
-  if (safeUrl) return safeUrl;
-  if (!awb) return null;
-  return `https://shiprocket.co/tracking/${encodeURIComponent(String(awb))}`;
 }
 
 function getLatestExchangeRecord(exchange) {
@@ -239,32 +345,34 @@ function getLatestExchangeRecord(exchange) {
   return sorted[0] || null;
 }
 
-function getExchangeShiprocketInfo(data) {
+function getExchangeShipmentTracking(data) {
   const latestExchange = getLatestExchangeRecord(data?.exchange) || {};
   const sr = latestExchange?.shiprocket || {};
   const returnOrder = sr?.returnOrder || null;
   const forwardOrder = sr?.forwardOrder || null;
 
-  const returnAwb = returnOrder?.awbCode || null;
-  const forwardAwb = forwardOrder?.awbCode || null;
+  const returnNumber = returnOrder?.awbCode || null;
+  const forwardNumber = forwardOrder?.awbCode || null;
 
-  const returnTrackingUrl = normalizeTrackingLink(
+  const returnTrackingUrl = resolveTrackingUrl(
     returnOrder?.trackingUrl,
-    returnAwb,
+    returnNumber,
+    "SHIPROCKET",
   );
-  const forwardTrackingUrl = normalizeTrackingLink(
+  const forwardTrackingUrl = resolveTrackingUrl(
     forwardOrder?.trackingUrl,
-    forwardAwb,
+    forwardNumber,
+    "SHIPROCKET",
   );
 
   const hasReturn = Boolean(
-    returnAwb ||
+    returnNumber ||
     returnTrackingUrl ||
     returnOrder?.orderId != null ||
     returnOrder?.shipmentId != null,
   );
   const hasForward = Boolean(
-    forwardAwb ||
+    forwardNumber ||
     forwardTrackingUrl ||
     forwardOrder?.orderId != null ||
     forwardOrder?.shipmentId != null,
@@ -275,31 +383,31 @@ function getExchangeShiprocketInfo(data) {
   return {
     returnOrder: hasReturn
       ? {
-          awb: returnAwb,
+          trackingNumber: returnNumber,
           status: returnOrder?.status || null,
-          courier: returnOrder?.courierName || null,
+          courier: displayCourierName(returnOrder?.courierName),
           trackingUrl: returnTrackingUrl,
         }
       : null,
     forwardOrder: hasForward
       ? {
-          awb: forwardAwb,
+          trackingNumber: forwardNumber,
           status: forwardOrder?.status || null,
-          courier: forwardOrder?.courierName || null,
+          courier: displayCourierName(forwardOrder?.courierName),
           trackingUrl: forwardTrackingUrl,
         }
       : null,
   };
 }
 
-function getPrimaryExchangeLeg(exchangeShiprocket, currentStatus) {
+function getPrimaryExchangeLeg(exchangeTracking, currentStatus) {
   const forwardHasTracking = Boolean(
-    exchangeShiprocket?.forwardOrder?.trackingUrl ||
-    exchangeShiprocket?.forwardOrder?.awb,
+    exchangeTracking?.forwardOrder?.trackingUrl ||
+    exchangeTracking?.forwardOrder?.trackingNumber,
   );
   const returnHasTracking = Boolean(
-    exchangeShiprocket?.returnOrder?.trackingUrl ||
-    exchangeShiprocket?.returnOrder?.awb,
+    exchangeTracking?.returnOrder?.trackingUrl ||
+    exchangeTracking?.returnOrder?.trackingNumber,
   );
 
   // If backend has already created forward tracking, prefer that for primary tracking display.
@@ -420,6 +528,68 @@ function isDeliveryStepperRelevant(currentStatus) {
   return true;
 }
 
+function ShipmentTrackingPanel({
+  tracking,
+  title = "Shipment tracking",
+  subtitle,
+  emptyMessage = "Tracking will appear here once your order is shipped.",
+  compact = false,
+}) {
+  const boxClass = compact
+    ? "mt-3 rounded border border-gray-200 bg-gray-50 px-4 py-3"
+    : "py-4 mb-6 rounded border border-gray-200 bg-gray-50 px-4";
+
+  return (
+    <div className={boxClass}>
+      <p className="text-[11px] font-bold tracking-wider text-gray-900 uppercase">
+        {title}
+      </p>
+      {subtitle ? (
+        <p className="text-xs text-gray-600 mt-1">{subtitle}</p>
+      ) : null}
+      {tracking ? (
+        <div className={`space-y-1 text-sm text-gray-700 ${subtitle ? "mt-2" : "mt-2"}`}>
+          {tracking.trackingNumber && (
+            <p>
+              {tracking.selfShipping && !tracking.trackingUrl
+                ? "Reference"
+                : "Tracking number"}{" "}
+              : <strong className="font-mono">{tracking.trackingNumber}</strong>
+            </p>
+          )}
+          {tracking.status && (
+            <p>
+              Shipment status :{" "}
+              <strong className="uppercase">{String(tracking.status)}</strong>
+            </p>
+          )}
+          {tracking.courier && !tracking.selfShipping && (
+            <p>
+              Carrier : <strong>{tracking.courier}</strong>
+            </p>
+          )}
+          {tracking.trackingUrl ? (
+            <a
+              href={tracking.trackingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={
+                compact
+                  ? "inline-block mt-1 text-black font-semibold uppercase text-xs hover:underline"
+                  : "inline-block mt-2 bg-black text-white px-4 py-2 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
+              }
+            >
+              Track shipment
+            </a>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-gray-700">{emptyMessage}</p>
+      )}
+    </div>
+  );
+}
+
 function isExchangeInProgress(exchange) {
   const latestExchange = getLatestExchangeRecord(exchange);
   if (!exchange?.hasExchange || !latestExchange?.status) return false;
@@ -434,6 +604,7 @@ export default function TrackOrderPage() {
   const { orderId, itemId } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { openSupportChat } = useSupportChat();
   const pincodeRedux = useSelector((s) => s?.location?.pincode) ?? null;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -989,39 +1160,52 @@ export default function TrackOrderPage() {
     null;
   const isNormalDelivery = isNormalDeliveryType(deliveryType);
   const currentStatus = (data.status || "").toUpperCase();
-  const exchangeShiprocket = getExchangeShiprocketInfo(data);
+  const exchangeTracking = getExchangeShipmentTracking(data);
   const latestExchange = getLatestExchangeRecord(data?.exchange);
   const inExchangeFlow = EXCHANGE_STATUSES.includes(currentStatus);
   const primaryExchangeLeg = getPrimaryExchangeLeg(
-    exchangeShiprocket,
+    exchangeTracking,
     currentStatus,
   );
   const primaryExchangeOrder =
     primaryExchangeLeg === "forward"
-      ? exchangeShiprocket?.forwardOrder
-      : exchangeShiprocket?.returnOrder;
+      ? exchangeTracking?.forwardOrder
+      : exchangeTracking?.returnOrder;
 
   // Override normal tracking with exchange tracking once exchange flow starts.
   const trackingId = inExchangeFlow
-    ? primaryExchangeOrder?.awb || baseTrackingId || null
+    ? primaryExchangeOrder?.trackingNumber || baseTrackingId || null
     : baseTrackingId;
 
-  const shiprocket = inExchangeFlow
+  const normalCourierTracking = isNormalDelivery
+    ? getCourierTrackingFromOrderItem(data)
+    : null;
+  const isSelfShippedOrder = isNormalDelivery && isSelfShippingDelivery(data);
+
+  const shipmentTracking = inExchangeFlow
     ? primaryExchangeOrder
       ? {
-          awb: primaryExchangeOrder.awb,
+          trackingNumber: primaryExchangeOrder.trackingNumber,
           trackingUrl: primaryExchangeOrder.trackingUrl,
           status: primaryExchangeOrder.status || null,
-          orderId: null,
-          shipmentId: null,
           courier: primaryExchangeOrder.courier || null,
-          labelUrl: null,
-          invoiceUrl: null,
         }
       : null
-    : isNormalDelivery
-      ? getShiprocketFromOrderItem(data)
-      : null;
+    : normalCourierTracking;
+
+  const shipmentTrackingSubtitle = inExchangeFlow
+    ? shipmentTracking?.trackingUrl
+      ? "Track your exchange shipment using the link below."
+      : "Exchange shipment updates appear in the status timeline below."
+    : isSelfShippedOrder
+      ? shipmentTracking?.trackingNumber
+        ? "Use your reference below for delivery updates from our team."
+        : "Order updates appear in the status timeline below."
+      : isNormalDelivery
+        ? shipmentTracking?.trackingUrl
+          ? "Your package is shipped with our delivery partner. Use the link below for live updates."
+          : "Shipment updates appear in the status timeline below."
+        : undefined;
   const orderNo = data.orderId || "—";
   const statusHistory = data.statusHistory || [];
   const otherItems = data.otherItemsInOrder || [];
@@ -1058,8 +1242,7 @@ export default function TrackOrderPage() {
   const exchangeInProgress = isExchangeInProgress(data.exchange);
   const showExchangeButton =
     isExchangeable && !exchangeInProgress && currentStatus === "DELIVERED";
-  const showDeliveryStepper =
-    !isNormalDelivery && isDeliveryStepperRelevant(currentStatus);
+  const showDeliveryStepper = isDeliveryStepperRelevant(currentStatus);
   const showExchangeStepper =
     currentStatus !== "CANCELLED" &&
     EXCHANGE_STATUSES.includes(currentStatus) &&
@@ -1075,13 +1258,14 @@ export default function TrackOrderPage() {
     primaryExchangeLeg,
     baseTrackingId,
     activeTrackingId: trackingId,
-    activeTrackingUrl: shiprocket?.trackingUrl || null,
-    normalShiprocket: getShiprocketFromOrderItem(data),
+    activeTrackingUrl: shipmentTracking?.trackingUrl || null,
+    normalCourierTracking,
+    isSelfShippedOrder,
     latestExchangeSource: data?.exchange?.latestExchange
       ? "latestExchange"
       : "exchanges[]",
     latestExchangeStatus: latestExchange?.status || null,
-    exchangeShiprocket,
+    exchangeTracking,
   });
 
   // Delivery boy from API (returned for SHIPPED / OUT_FOR_DELIVERY or exchange pickup/delivery when driver assigned)
@@ -1133,59 +1317,12 @@ export default function TrackOrderPage() {
             <div className="min-w-0">
               {/* <p className="font-bold text-black uppercase">{brand}</p> */}
               <p className="text-gray-800 mt-1 normal-case">{name}</p>
-              {trackingId && (
+              {trackingId &&
+                (!isSelfShippedOrder || normalCourierTracking?.trackingNumber) && (
                 <p className="text-gray-600 text-sm mt-2">
-                  Tracking ID : <strong>#{trackingId}</strong>
+                  {isSelfShippedOrder ? "Reference" : "Tracking ID"} :{" "}
+                  <strong>#{trackingId}</strong>
                 </p>
-              )}
-              {(isNormalDelivery || inExchangeFlow) && (
-                <div className="mt-3 rounded border border-sky-200 bg-sky-50 px-4 py-3">
-                  <p className="text-[11px] font-bold tracking-wider text-sky-900 uppercase">
-                    {inExchangeFlow
-                      ? `Shiprocket tracking (${primaryExchangeLeg === "forward" ? "forward replacement" : "return pickup"})`
-                      : "Shiprocket tracking (normal delivery)"}
-                  </p>
-                  {shiprocket ? (
-                    <div className="mt-2 space-y-1 text-sm">
-                      {shiprocket.awb && (
-                        <p className="text-gray-700">
-                          AWB :{" "}
-                          <strong className="font-mono">
-                            {shiprocket.awb}
-                          </strong>
-                        </p>
-                      )}
-                      {shiprocket.status && (
-                        <p className="text-gray-600 text-sm">
-                          Status :{" "}
-                          <strong className="uppercase">
-                            {String(shiprocket.status)}
-                          </strong>
-                        </p>
-                      )}
-                      {shiprocket.courier && (
-                        <p className="text-gray-600 text-sm">
-                          Courier : <strong>{shiprocket.courier}</strong>
-                        </p>
-                      )}
-                      {shiprocket.trackingUrl && (
-                        <a
-                          href={shiprocket.trackingUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-block mt-1 text-black font-semibold uppercase text-xs hover:underline"
-                        >
-                          Track on Shiprocket
-                        </a>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-gray-700">
-                      Shipment not created yet. Tracking will appear here once
-                      shipped.
-                    </p>
-                  )}
-                </div>
               )}
               <p className="text-gray-600 text-sm mt-0.5">
                 Order No : <strong>{orderNo}</strong>
@@ -1204,6 +1341,48 @@ export default function TrackOrderPage() {
                   Payment status: {getPaymentStatusLabel(data)}
                 </p>
               )}
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const resolvedItemId = data.itemId ?? itemId;
+                    let supportIssueType = "ORDER_ISSUE";
+                    if (inExchangeFlow) {
+                      supportIssueType = "EXCHANGE";
+                    } else if (
+                      ["SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(currentStatus)
+                    ) {
+                      supportIssueType = "DELIVERY";
+                    }
+                    openSupportChat({
+                      orderId,
+                      itemId: resolvedItemId,
+                      orderCode: orderNo,
+                      productName: name,
+                      issueType: supportIssueType,
+                      subject: `Help with order ${orderNo}`,
+                      description: `I need help with "${name}" from order ${orderNo}. Current status: ${currentStatus.replaceAll("_", " ")}.`,
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-sm border border-black bg-black px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-gray-800"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
+                  </svg>
+                  Chat with us
+                </button>
+              </div>
               {/* {data?.item?.paymentStatus && (
                 <p className="text-gray-600 text-sm mt-1">
                   Payment status :{" "}
@@ -1358,47 +1537,25 @@ export default function TrackOrderPage() {
           </h2>
           <p className="text-gray-600 text-sm mb-6">ORDER #{orderNo}</p>
 
-          {/* NORMAL delivery: hide local track bar and show Shiprocket info */}
           {(isNormalDelivery || inExchangeFlow) && (
-            <div className="py-4 mb-6 rounded border border-sky-200 bg-sky-50 px-4">
-              <p className="text-sky-900 font-semibold uppercase text-sm">
-                {inExchangeFlow
-                  ? `Exchange ${primaryExchangeLeg === "forward" ? "forward replacement" : "return pickup"} (Shiprocket)`
-                  : "Normal delivery (Shiprocket)"}
-              </p>
-              {shiprocket ? (
-                <div className="mt-2 space-y-1 text-sm text-gray-700">
-                  {shiprocket.awb && (
-                    <p>
-                      AWB :{" "}
-                      <strong className="font-mono">{shiprocket.awb}</strong>
-                    </p>
-                  )}
-                  {shiprocket.status && (
-                    <p>
-                      Status :{" "}
-                      <strong className="uppercase">
-                        {String(shiprocket.status)}
-                      </strong>
-                    </p>
-                  )}
-                  {shiprocket.trackingUrl && (
-                    <a
-                      href={shiprocket.trackingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-block mt-1 bg-black text-white px-4 py-2 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
-                    >
-                      Track on Shiprocket
-                    </a>
-                  )}
-                </div>
-              ) : (
-                <p className="text-gray-700 text-sm mt-1">
-                  Shiprocket details are not available yet.
-                </p>
-              )}
-            </div>
+            <ShipmentTrackingPanel
+              tracking={shipmentTracking}
+              title={
+                inExchangeFlow
+                  ? primaryExchangeLeg === "forward"
+                    ? "Replacement shipment"
+                    : "Return pickup shipment"
+                  : isNormalDelivery
+                    ? "Standard delivery tracking"
+                    : "Shipment tracking"
+              }
+              subtitle={shipmentTrackingSubtitle}
+              emptyMessage={
+                isSelfShippedOrder
+                  ? "Shipment details will appear here once your order is on the way."
+                  : "Tracking will appear here once your order is shipped."
+              }
+            />
           )}
 
           {/* Status: Cancelled */}
@@ -1436,105 +1593,39 @@ export default function TrackOrderPage() {
           )}
 
           {/* Exchange tracking (pickup/return + replacement forward). */}
-          {!isNormalDelivery && exchangeShiprocket && (
-            <div className="py-4 mb-6 rounded border border-purple-200 bg-purple-50 px-4">
-              <p className="text-purple-900 font-semibold uppercase text-sm">
-                Exchange tracking
+          {!isNormalDelivery && exchangeTracking && (
+            <div className="py-4 mb-6 rounded border border-gray-200 bg-gray-50 px-4">
+              <p className="text-gray-900 font-semibold uppercase text-sm">
+                Exchange shipments
               </p>
-              <p className="text-xs text-purple-800 mt-1">
-                Track pickup return and replacement shipment from Shiprocket.
+              <p className="text-xs text-gray-600 mt-1">
+                Track return pickup and replacement delivery separately.
               </p>
 
               <div className="mt-3 space-y-3">
-                {exchangeShiprocket.returnOrder && (
+                {exchangeTracking.returnOrder && (
                   <div
-                    className={`rounded border px-3 py-2 ${primaryExchangeLeg === "return" ? "border-purple-400 bg-white" : "border-purple-200 bg-white/70"}`}
+                    className={`rounded border px-3 py-2 ${primaryExchangeLeg === "return" ? "border-gray-400 bg-white" : "border-gray-200 bg-white/70"}`}
                   >
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-800">
-                      Return pickup order
-                    </p>
-                    <div className="mt-1 space-y-1 text-sm text-gray-700">
-                      {exchangeShiprocket.returnOrder.awb && (
-                        <p>
-                          AWB :{" "}
-                          <strong className="font-mono">
-                            {exchangeShiprocket.returnOrder.awb}
-                          </strong>
-                        </p>
-                      )}
-                      {exchangeShiprocket.returnOrder.status && (
-                        <p>
-                          Status :{" "}
-                          <strong className="uppercase">
-                            {String(exchangeShiprocket.returnOrder.status)}
-                          </strong>
-                        </p>
-                      )}
-                      {exchangeShiprocket.returnOrder.courier && (
-                        <p>
-                          Courier :{" "}
-                          <strong>
-                            {exchangeShiprocket.returnOrder.courier}
-                          </strong>
-                        </p>
-                      )}
-                      {exchangeShiprocket.returnOrder.trackingUrl && (
-                        <a
-                          href={exchangeShiprocket.returnOrder.trackingUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-block mt-1 bg-black text-white px-4 py-2 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
-                        >
-                          Track return pickup
-                        </a>
-                      )}
-                    </div>
+                    <ShipmentTrackingPanel
+                      compact
+                      tracking={exchangeTracking.returnOrder}
+                      title="Return pickup"
+                      emptyMessage="Return pickup tracking is not available yet."
+                    />
                   </div>
                 )}
 
-                {exchangeShiprocket.forwardOrder && (
+                {exchangeTracking.forwardOrder && (
                   <div
-                    className={`rounded border px-3 py-2 ${primaryExchangeLeg === "forward" ? "border-purple-400 bg-white" : "border-purple-200 bg-white/70"}`}
+                    className={`rounded border px-3 py-2 ${primaryExchangeLeg === "forward" ? "border-gray-400 bg-white" : "border-gray-200 bg-white/70"}`}
                   >
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-800">
-                      Forward replacement order
-                    </p>
-                    <div className="mt-1 space-y-1 text-sm text-gray-700">
-                      {exchangeShiprocket.forwardOrder.awb && (
-                        <p>
-                          AWB :{" "}
-                          <strong className="font-mono">
-                            {exchangeShiprocket.forwardOrder.awb}
-                          </strong>
-                        </p>
-                      )}
-                      {exchangeShiprocket.forwardOrder.status && (
-                        <p>
-                          Status :{" "}
-                          <strong className="uppercase">
-                            {String(exchangeShiprocket.forwardOrder.status)}
-                          </strong>
-                        </p>
-                      )}
-                      {exchangeShiprocket.forwardOrder.courier && (
-                        <p>
-                          Courier :{" "}
-                          <strong>
-                            {exchangeShiprocket.forwardOrder.courier}
-                          </strong>
-                        </p>
-                      )}
-                      {exchangeShiprocket.forwardOrder.trackingUrl && (
-                        <a
-                          href={exchangeShiprocket.forwardOrder.trackingUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-block mt-1 bg-black text-white px-4 py-2 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
-                        >
-                          Track replacement delivery
-                        </a>
-                      )}
-                    </div>
+                    <ShipmentTrackingPanel
+                      compact
+                      tracking={exchangeTracking.forwardOrder}
+                      title="Replacement delivery"
+                      emptyMessage="Replacement tracking is not available yet."
+                    />
                   </div>
                 )}
               </div>

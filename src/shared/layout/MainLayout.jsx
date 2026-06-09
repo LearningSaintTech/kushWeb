@@ -1,17 +1,17 @@
 import { Outlet } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import ScrollToTop from '../components/ScrollToTop'
 import AuthModal from '../../features/auth/AuthModal'
 import { trackPageView } from '../../analytics'
-import ChatbotModal from '../../features/chatbot/ChatbotModal'
+import { useSupportChat } from '../../app/context/SupportChatContext'
 import chatFabImage from '../../assets/images/chat-fab.svg'
 
 function MainLayout() {
   const location = useLocation();
-  const [chatOpen, setChatOpen] = useState(false);
+  const { openSupportChat } = useSupportChat();
 
   useEffect(() => {
     trackPageView({
@@ -28,9 +28,9 @@ function MainLayout() {
       </main>
       <button
         type="button"
-        onClick={() => setChatOpen(true)}
+        onClick={() => openSupportChat()}
         className="fixed bottom-5 right-4 z-40 rounded-full p-0 shadow-lg transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:bottom-6 sm:right-6"
-        aria-label="Open shopping assistant"
+        aria-label="Open support chat"
       >
         <img
           src={chatFabImage}
@@ -41,7 +41,6 @@ function MainLayout() {
           draggable={false}
         />
       </button>
-      <ChatbotModal open={chatOpen} onClose={() => setChatOpen(false)} />
       <Footer />
       <AuthModal />
     </div>
