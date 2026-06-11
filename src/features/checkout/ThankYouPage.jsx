@@ -72,7 +72,7 @@ export default function ThankYouPage() {
                 Thank You
               </h1>
               <p className="mt-3 text-sm text-white/80 sm:text-base">
-                Thank you for ordering from Khush.
+                Thank you for ordering from Khush!!.
               </p>
             </div>
 
@@ -82,7 +82,7 @@ export default function ThankYouPage() {
                 and delivery.
               </p>
 
-              <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 sm:p-5">
+              <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 sm:p-5">
                 <dl className="space-y-3 text-sm">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <dt className="font-medium uppercase tracking-wider text-gray-500">
