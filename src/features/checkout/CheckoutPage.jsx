@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
@@ -56,6 +56,80 @@ function formatAddress(addr) {
     Boolean,
   );
   return parts.join(", ");
+}
+
+/** Strip duplicate +91 / leading 0 so stored numbers match the 10-digit national format. */
+function normalizeIndianPhoneDigits(
+  phoneNumber,
+  countryCode = INDIA_PHONE_CODE,
+) {
+  let digits = String(phoneNumber || "").replace(/\D/g, "");
+  const codeDigits = String(countryCode || INDIA_PHONE_CODE).replace(/\D/g, "");
+  if (codeDigits === "91" && digits.length === 12 && digits.startsWith("91")) {
+    digits = digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+  return digits;
+}
+
+function formatIndianPhoneForDisplay(
+  phoneNumber,
+  countryCode = INDIA_PHONE_CODE,
+) {
+  const digits = normalizeIndianPhoneDigits(phoneNumber, countryCode);
+  if (digits.length !== 10) return null;
+  return `${countryCode || INDIA_PHONE_CODE} ${digits}`;
+}
+
+function getIndianPhoneCorrectionNote(
+  phoneNumber,
+  countryCode = INDIA_PHONE_CODE,
+) {
+  const raw = String(phoneNumber || "").replace(/\D/g, "");
+  const codeDigits = String(countryCode || INDIA_PHONE_CODE).replace(/\D/g, "");
+  if (codeDigits === "91" && raw.length === 12 && raw.startsWith("91")) {
+    return "Your saved number included the country code twice. Please confirm the corrected number below.";
+  }
+  return null;
+}
+
+function validateDeliveryAddress(addr) {
+  if (!addr?._id) {
+    return {
+      valid: false,
+      error:
+        "Please add and select a delivery address before placing your order.",
+    };
+  }
+  const phoneDigits = normalizeIndianPhoneDigits(
+    addr.phoneNumber,
+    addr.countryCode,
+  );
+  if (
+    !phoneDigits ||
+    phoneDigits.length !== 10 ||
+    /^0{10}$/.test(phoneDigits)
+  ) {
+    return {
+      valid: false,
+      error:
+        "Please add a valid 10-digit mobile number to your delivery address.",
+    };
+  }
+  return {
+    valid: true,
+    phoneDigits,
+    displayPhone: formatIndianPhoneForDisplay(
+      addr.phoneNumber,
+      addr.countryCode || INDIA_PHONE_CODE,
+    ),
+    phoneCorrectionNote: getIndianPhoneCorrectionNote(
+      addr.phoneNumber,
+      addr.countryCode,
+    ),
+  };
 }
 
 function formatCouponDate(dateVal) {
@@ -178,6 +252,7 @@ function CheckoutPage() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
   const [codWarningOpen, setCodWarningOpen] = useState(false);
+  const [addressConfirmOpen, setAddressConfirmOpen] = useState(false);
   const [placeOrderLoading, setPlaceOrderLoading] = useState(false);
   const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
@@ -198,6 +273,10 @@ function CheckoutPage() {
   const addressId = selectedAddress?._id;
   const pincode = selectedAddress?.pinCode ?? null;
   const walletApplicable = paymentMode === PAYMENT_MODES.RAZORPAY;
+  const deliveryAddressCheck = useMemo(
+    () => validateDeliveryAddress(selectedAddress),
+    [selectedAddress],
+  );
 
   const refetchAddresses = useCallback(async () => {
     const req = { page: 1, limit: 50 };
@@ -815,7 +894,23 @@ function CheckoutPage() {
     }
   };
 
+  const handlePlaceOrderClick = () => {
+    const check = validateDeliveryAddress(selectedAddress);
+    if (!check.valid) {
+      setError(check.error);
+      return;
+    }
+    setError(null);
+    setAddressConfirmOpen(true);
+  };
+
   const handlePlaceOrder = async () => {
+    setAddressConfirmOpen(false);
+    const addressCheck = validateDeliveryAddress(selectedAddress);
+    if (!addressCheck.valid) {
+      setError(addressCheck.error);
+      return;
+    }
     if (window.fbq) {
       window.fbq("track", "AddPaymentInfo", {
         value: Number(finalPayable || 0),
@@ -832,20 +927,6 @@ function CheckoutPage() {
       useWalletForOnline,
       addressId: selectedAddress?._id,
     });
-    if (!selectedAddress?._id) {
-      console.log("[Checkout] handlePlaceOrder: no address selected");
-      setError("Please select a delivery address.");
-      return;
-    }
-    const selectedPhoneDigits = String(
-      selectedAddress?.phoneNumber || "",
-    ).replace(/\D/g, "");
-    if (!selectedPhoneDigits || selectedPhoneDigits.length !== 10) {
-      setError(
-        "Please add a valid 10-digit phone number to your delivery address.",
-      );
-      return;
-    }
     setPlaceOrderLoading(true);
     setError(null);
     const addressId = selectedAddress._id;
@@ -2155,6 +2236,10 @@ function CheckoutPage() {
                         addresses[0])
                       : (addresses.find((a) => a.isDefault) ?? addresses[0]);
                     if (!toShow) return null;
+                    const contactPhone = formatIndianPhoneForDisplay(
+                      toShow.phoneNumber,
+                      toShow.countryCode,
+                    );
                     return (
                       <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
                         <p className="font-semibold uppercase text-black">
@@ -2163,12 +2248,9 @@ function CheckoutPage() {
                         <p className="text-gray-700 mt-1">
                           {formatAddress(toShow)}
                         </p>
-                        {(toShow.phoneNumber || toShow.countryCode) && (
+                        {contactPhone && (
                           <p className="text-xs uppercase text-gray-600 mt-1">
-                            Contact:{" "}
-                            {[toShow.countryCode, toShow.phoneNumber]
-                              .filter(Boolean)
-                              .join(" ")}
+                            Contact: {contactPhone}
                           </p>
                         )}
                       </div>
@@ -2945,6 +3027,90 @@ function CheckoutPage() {
               </div>
             )}
 
+            {addressConfirmOpen && selectedAddress && deliveryAddressCheck.valid && (
+              <div
+                className="fixed inset-0 z-120 flex items-center justify-center p-4 bg-gray-900/60"
+                onClick={() =>
+                  !placeOrderLoading && setAddressConfirmOpen(false)
+                }
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="address-confirm-title"
+              >
+                <div
+                  className="w-full max-w-md bg-white shadow-2xl overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+                    <h3
+                      id="address-confirm-title"
+                      className="text-sm font-semibold uppercase tracking-wider text-black"
+                    >
+                      Confirm delivery address
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Please verify your address and mobile number before
+                      placing the order.
+                    </p>
+                  </div>
+                  <div className="px-5 py-4 text-sm text-gray-800 space-y-3">
+                    {deliveryAddressCheck.phoneCorrectionNote && (
+                      <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2">
+                        {deliveryAddressCheck.phoneCorrectionNote}
+                      </p>
+                    )}
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Deliver to
+                      </p>
+                      <p className="mt-1 font-semibold text-black uppercase">
+                        {selectedAddress.name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Address
+                      </p>
+                      <p className="mt-1 text-gray-700">
+                        {formatAddress(selectedAddress)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Mobile number
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-black tracking-wide">
+                        {deliveryAddressCheck.displayPhone}
+                      </p>
+                    </div>
+                    {selectedAddress.addressType && (
+                      <p className="text-xs uppercase text-gray-500">
+                        {selectedAddress.addressType}
+                      </p>
+                    )}
+                  </div>
+                  <div className="px-5 py-4 border-t border-gray-200 flex flex-col sm:flex-row gap-2 sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setAddressConfirmOpen(false)}
+                      disabled={placeOrderLoading}
+                      className="px-4 py-2.5 text-sm font-semibold uppercase border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                    >
+                      Change address
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePlaceOrder}
+                      disabled={placeOrderLoading}
+                      className="px-4 py-2.5 text-sm font-semibold uppercase border border-black bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-60"
+                    >
+                      {placeOrderLoading ? "Placing order…" : "Confirm & place order"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="pt-4 border-t border-gray-200">
               {lastVerifyError && (
                 <div className="mb-4 p-3 border border-amber-200 bg-amber-50 rounded">
@@ -3010,13 +3176,23 @@ function CheckoutPage() {
                   your order.
                 </p>
               )}
+              {addresses.length === 0 && (
+                <p className="text-sm text-red-600 font-medium mb-2">
+                  Add a delivery address to place your order.
+                </p>
+              )}
+              {!deliveryAddressCheck.valid && selectedAddress?._id && (
+                <p className="text-sm text-red-600 font-medium mb-2">
+                  {deliveryAddressCheck.error}
+                </p>
+              )}
               <button
                 type="button"
-                onClick={handlePlaceOrder}
+                onClick={handlePlaceOrderClick}
                 disabled={
                   placeOrderLoading ||
                   checkingPaymentStatus ||
-                  !selectedAddress?._id ||
+                  !deliveryAddressCheck.valid ||
                   hasOutOfStockItem
                 }
                 className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
