@@ -1131,10 +1131,10 @@ function ProductPage() {
               </div>
             </div> */}
 
-            <div className="mt-4 sm:mt-6 md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
+            <div className="mt-4 sm:mt-6  md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
               {inCart || addedToCart ? (
                 <>
-                  <p className="h-10 w-full flex items-center justify-center border border-black text-xs font-medium uppercase tracking-wider text-black sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px]">
+                  <p className="h-10 w-full  flex items-center justify-center border border-black text-xs font-medium uppercase tracking-wider text-black sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px]">
                     Already in the cart
                   </p>
                   <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3 md:gap-3 lg:gap-[25px]">

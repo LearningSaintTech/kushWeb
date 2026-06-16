@@ -5,8 +5,13 @@ import botAvatar from '../../assets/temporary/Avatar.svg'
 import {
   ACTIVE_STATUSES,
   ISSUE_TYPES,
+  MAX_CHAT_IMAGES,
+  MAX_CHAT_VIDEOS,
   ORDER_LINKED_ISSUES,
   formatChatTime,
+  isAllowedChatMediaFile,
+  isVideoFile,
+  revokeObjectUrls,
   statusLabel,
 } from './supportShared'
 
@@ -18,6 +23,128 @@ function SendIcon() {
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
     </svg>
+  )
+}
+
+function AttachIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"
+      />
+    </svg>
+  )
+}
+
+function collectMessageMedia(message) {
+  const images = [...(message?.images || [])]
+  const videos = [...(message?.videos || [])]
+  for (const row of message?.attachments || []) {
+    if (!row?.url) continue
+    const type = String(row.type || '').toLowerCase()
+    if (type.startsWith('video/')) videos.push(row)
+    else images.push(row)
+  }
+  return { images, videos }
+}
+
+function MessageMedia({ message }) {
+  const { images, videos } = collectMessageMedia(message)
+  if (!images.length && !videos.length) return null
+
+  return (
+    <div className="mt-2 space-y-2">
+      {images.map((item, index) =>
+        item?.url ? (
+          <a key={`img-${index}`} href={item.url} target="_blank" rel="noopener noreferrer">
+            <img
+              src={item.url}
+              alt=""
+              className="max-h-48 w-full rounded-lg object-cover"
+              loading="lazy"
+            />
+          </a>
+        ) : null,
+      )}
+      {videos.map((item, index) =>
+        item?.url ? (
+          <video
+            key={`vid-${index}`}
+            src={item.url}
+            controls
+            playsInline
+            preload="metadata"
+            className="max-h-48 w-full rounded-lg bg-black/10"
+          />
+        ) : null,
+      )}
+    </div>
+  )
+}
+
+function MediaPreviewStrip({ items, onRemove, disabled }) {
+  if (!items.length) return null
+
+  return (
+    <div className="mb-2 flex flex-wrap gap-2">
+      {items.map((item, index) => (
+        <div key={`${item.file.name}-${index}`} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+          {item.kind === 'video' ? (
+            <video src={item.url} className="h-full w-full object-cover" muted playsInline />
+          ) : (
+            <img src={item.url} alt="" className="h-full w-full object-cover" />
+          )}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onRemove(index)}
+            className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px] font-bold text-white disabled:opacity-50"
+            aria-label="Remove attachment"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TicketMediaBlock({ images = [], videos = [] }) {
+  if (!images.length && !videos.length) return null
+
+  return (
+    <div className="mt-2 space-y-2">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Attached proof</p>
+      <div className="flex flex-wrap gap-2">
+        {images.map((item, index) =>
+          item?.url ? (
+            <a
+              key={`ticket-img-${index}`}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block h-20 w-20 overflow-hidden rounded-lg border border-zinc-200"
+            >
+              <img src={item.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+            </a>
+          ) : null,
+        )}
+        {videos.map((item, index) =>
+          item?.url ? (
+            <video
+              key={`ticket-vid-${index}`}
+              src={item.url}
+              controls
+              playsInline
+              preload="metadata"
+              className="h-20 w-32 rounded-lg border border-zinc-200 bg-black/5 object-cover"
+            />
+          ) : null,
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -59,10 +186,26 @@ export default function SupportChat({
   })
   const [orderItems, setOrderItems] = useState([])
   const [loadingOrders, setLoadingOrders] = useState(false)
+  /** @type {{ file: File, url: string, kind: 'image' | 'video' }[]} */
+  const [pendingMedia, setPendingMedia] = useState([])
+  /** @type {{ file: File, url: string, kind: 'image' | 'video' }[]} */
+  const [raiseMedia, setRaiseMedia] = useState([])
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const scrollRef = useRef(null)
+  const imageInputRef = useRef(null)
+  const videoInputRef = useRef(null)
+  const raiseImageInputRef = useRef(null)
+  const raiseVideoInputRef = useRef(null)
+  const pendingMediaRef = useRef(pendingMedia)
+  const raiseMediaRef = useRef(raiseMedia)
+
+  const pendingImageCount = pendingMedia.filter((m) => m.kind === 'image').length
+  const pendingVideoCount = pendingMedia.filter((m) => m.kind === 'video').length
+  const raiseImageCount = raiseMedia.filter((m) => m.kind === 'image').length
+  const raiseVideoCount = raiseMedia.filter((m) => m.kind === 'video').length
 
   const isModal = variant === 'modal'
-  const canSend = input.trim().length > 0 && !sending
+  const canSend = (input.trim().length > 0 || pendingMedia.length > 0) && !sending
   const isTerminal = activeTicket && ['CLOSED'].includes(String(activeTicket.status || '').toUpperCase())
   const needsOrderLink = ORDER_LINKED_ISSUES.has(raiseForm.issueType)
 
@@ -156,7 +299,86 @@ export default function SupportChat({
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, sending, scrollToBottom])
+  }, [messages, sending, pendingMedia, scrollToBottom])
+
+  useEffect(() => {
+    pendingMediaRef.current = pendingMedia
+  }, [pendingMedia])
+
+  useEffect(() => {
+    raiseMediaRef.current = raiseMedia
+  }, [raiseMedia])
+
+  useEffect(() => {
+    return () => {
+      revokeObjectUrls(pendingMediaRef.current)
+      revokeObjectUrls(raiseMediaRef.current)
+    }
+  }, [])
+
+  const addMediaFiles = (files, target) => {
+    const list = Array.from(files || [])
+    if (!list.length) return
+
+    const setter = target === 'raise' ? setRaiseMedia : setPendingMedia
+
+    setter((current) => {
+      let imageCount = current.filter((m) => m.kind === 'image').length
+      let videoCount = current.filter((m) => m.kind === 'video').length
+      const next = [...current]
+      let skipped = false
+
+      for (const file of list) {
+        if (!isAllowedChatMediaFile(file)) {
+          skipped = true
+          continue
+        }
+        const kind = isVideoFile(file) ? 'video' : 'image'
+        if (kind === 'image' && imageCount >= MAX_CHAT_IMAGES) {
+          skipped = true
+          continue
+        }
+        if (kind === 'video' && videoCount >= MAX_CHAT_VIDEOS) {
+          skipped = true
+          continue
+        }
+        next.push({ file, url: URL.createObjectURL(file), kind })
+        if (kind === 'image') imageCount += 1
+        else videoCount += 1
+      }
+
+      if (skipped) {
+        setError(
+          `Use up to ${MAX_CHAT_IMAGES} images and ${MAX_CHAT_VIDEOS} videos (JPG, PNG, GIF, WebP, MP4, WebM, MOV).`,
+        )
+      }
+      return next
+    })
+  }
+
+  const removeMediaAt = (index, target) => {
+    const setter = target === 'raise' ? setRaiseMedia : setPendingMedia
+    const current = target === 'raise' ? raiseMedia : pendingMedia
+    const item = current[index]
+    if (item?.url) {
+      try {
+        URL.revokeObjectURL(item.url)
+      } catch {
+        /* ignore */
+      }
+    }
+    setter(current.filter((_, i) => i !== index))
+  }
+
+  const clearPendingMedia = () => {
+    revokeObjectUrls(pendingMedia)
+    setPendingMedia([])
+  }
+
+  const clearRaiseMedia = () => {
+    revokeObjectUrls(raiseMedia)
+    setRaiseMedia([])
+  }
 
   useEffect(() => {
     if (view !== 'chat' || !activeTicket?._id) return undefined
@@ -211,8 +433,11 @@ export default function SupportChat({
         payload.orderId = raiseForm.orderMongoId
         payload.itemId = raiseForm.itemId
       }
-      const data = await supportTicketService.raiseTicket(payload)
+      const images = raiseMedia.filter((m) => m.kind === 'image').map((m) => m.file)
+      const videos = raiseMedia.filter((m) => m.kind === 'video').map((m) => m.file)
+      const data = await supportTicketService.raiseTicket(payload, { images, videos })
       const ticket = data?.ticket || data
+      clearRaiseMedia()
       setActiveTicket(ticket)
       setView('chat')
       setMessages([])
@@ -227,16 +452,21 @@ export default function SupportChat({
   const handleSend = async (e) => {
     e?.preventDefault?.()
     const text = input.trim()
-    if (!text || sending || !activeTicket?._id || isTerminal) return
+    const images = pendingMedia.filter((m) => m.kind === 'image').map((m) => m.file)
+    const videos = pendingMedia.filter((m) => m.kind === 'video').map((m) => m.file)
+    if ((!text && !images.length && !videos.length) || sending || !activeTicket?._id || isTerminal) return
     setSending(true)
     setError('')
     setInput('')
+    const savedMedia = pendingMedia
+    clearPendingMedia()
     try {
-      await supportTicketService.sendMessage(activeTicket._id, text)
+      await supportTicketService.sendMessage(activeTicket._id, { message: text, images, videos })
       await loadMessages(activeTicket._id)
     } catch (err) {
       setError(err?.message || 'Send failed')
       setInput(text)
+      setPendingMedia(savedMedia)
     } finally {
       setSending(false)
     }
@@ -254,6 +484,25 @@ export default function SupportChat({
       setError(err?.message || 'Could not close ticket')
     }
   }
+
+  const startNewRequest = () => {
+    clearRaiseMedia()
+    clearPendingMedia()
+    setAttachMenuOpen(false)
+    setError('')
+    setActiveTicket(null)
+    setMessages([])
+    setRaiseForm({
+      issueType: 'OTHER',
+      subject: '',
+      description: '',
+      orderMongoId: '',
+      itemId: '',
+    })
+    setView('raise')
+  }
+
+  const showHeaderNew = view === 'chat' || view === 'list'
 
   if (isModal && !open) return null
 
@@ -298,6 +547,15 @@ export default function SupportChat({
                 All chats
               </button>
             ) : null}
+            {showHeaderNew ? (
+              <button
+                type="button"
+                onClick={startNewRequest}
+                className="rounded-lg border border-white/30 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/20"
+              >
+                New
+              </button>
+            ) : null}
             {isModal ? (
               <button
                 type="button"
@@ -336,16 +594,7 @@ export default function SupportChat({
               <p className="text-sm text-zinc-600">{STARTER}</p>
               <button
                 type="button"
-                onClick={() => {
-                  setRaiseForm({
-                    issueType: 'OTHER',
-                    subject: '',
-                    description: '',
-                    orderMongoId: '',
-                    itemId: '',
-                  })
-                  setView('raise')
-                }}
+                onClick={startNewRequest}
                 className="w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white"
               >
                 New support request
@@ -442,6 +691,57 @@ export default function SupportChat({
                   required
                 />
               </label>
+              <div className="space-y-2">
+                <span className="text-xs font-medium text-zinc-700">Photos &amp; videos (optional)</span>
+                <p className="text-[11px] text-zinc-500">
+                  Up to {MAX_CHAT_IMAGES} images and {MAX_CHAT_VIDEOS} videos to help us understand the issue.
+                </p>
+                <MediaPreviewStrip
+                  items={raiseMedia}
+                  disabled={sending}
+                  onRemove={(index) => removeMediaAt(index, 'raise')}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={raiseImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addMediaFiles(e.target.files, 'raise')
+                      e.target.value = ''
+                    }}
+                  />
+                  <input
+                    ref={raiseVideoInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addMediaFiles(e.target.files, 'raise')
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={sending || raiseImageCount >= MAX_CHAT_IMAGES}
+                    onClick={() => raiseImageInputRef.current?.click()}
+                    className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 disabled:opacity-50"
+                  >
+                    Add photos ({raiseImageCount}/{MAX_CHAT_IMAGES})
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sending || raiseVideoCount >= MAX_CHAT_VIDEOS}
+                    onClick={() => raiseVideoInputRef.current?.click()}
+                    className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 disabled:opacity-50"
+                  >
+                    Add videos ({raiseVideoCount}/{MAX_CHAT_VIDEOS})
+                  </button>
+                </div>
+              </div>
               <button
                 type="submit"
                 disabled={sending}
@@ -460,6 +760,7 @@ export default function SupportChat({
                 {activeTicket.description ? (
                   <p className="mt-1 text-xs text-zinc-600">{activeTicket.description}</p>
                 ) : null}
+                <TicketMediaBlock images={activeTicket.images} videos={activeTicket.videos} />
                 {String(activeTicket.status).toUpperCase() === 'RESOLVED' ? (
                   <button
                     type="button"
@@ -478,6 +779,21 @@ export default function SupportChat({
               ) : (
                 messages.map((m) => {
                   const isUser = String(m.senderType || '').toUpperCase() === 'USER'
+                  const isSystem = String(m.senderType || '').toUpperCase() === 'SYSTEM'
+                  const { images, videos } = collectMessageMedia(m)
+                  const hasMedia = images.length > 0 || videos.length > 0
+                  const showText = m.message && (!hasMedia || m.message !== '(media)')
+
+                  if (isSystem) {
+                    return (
+                      <div key={m._id} className="flex justify-center">
+                        <p className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] text-zinc-500">
+                          {m.message}
+                        </p>
+                      </div>
+                    )
+                  }
+
                   return (
                     <div key={m._id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                       <div
@@ -485,7 +801,8 @@ export default function SupportChat({
                           isUser ? 'rounded-br-md bg-black text-white' : 'rounded-bl-md bg-zinc-100 text-zinc-900'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{m.message}</p>
+                        {showText ? <p className="whitespace-pre-wrap">{m.message}</p> : null}
+                        <MessageMedia message={m} />
                         <p className={`mt-1 text-[10px] ${isUser ? 'text-white/70' : 'text-zinc-500'}`}>
                           {formatChatTime(m.createdAt)}
                         </p>
@@ -508,24 +825,91 @@ export default function SupportChat({
 
         {view === 'chat' && activeTicket && !isTerminal ? (
           <div className="shrink-0 border-t border-zinc-200 bg-white p-3 sm:p-4">
-            <form onSubmit={handleSend} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message…"
-                className="min-h-[48px] flex-1 rounded-full border border-zinc-200 px-5 py-3 text-sm outline-none focus:border-zinc-400"
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                addMediaFiles(e.target.files, 'chat')
+                e.target.value = ''
+              }}
+            />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                addMediaFiles(e.target.files, 'chat')
+                e.target.value = ''
+              }}
+            />
+            <form onSubmit={handleSend} className="space-y-2">
+              <MediaPreviewStrip
+                items={pendingMedia}
+                disabled={sending}
+                onRemove={(index) => removeMediaAt(index, 'chat')}
               />
-              <button
-                type="submit"
-                disabled={!canSend}
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white ${
-                  canSend ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300'
-                }`}
-                aria-label="Send"
-              >
-                <SendIcon />
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    type="button"
+                    disabled={sending}
+                    onClick={() => setAttachMenuOpen((open) => !open)}
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+                    aria-label="Attach photo or video"
+                    aria-expanded={attachMenuOpen}
+                  >
+                    <AttachIcon />
+                  </button>
+                  {attachMenuOpen ? (
+                    <div className="absolute bottom-full left-0 z-10 mb-2 min-w-[9rem] overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
+                      <button
+                        type="button"
+                        disabled={pendingImageCount >= MAX_CHAT_IMAGES}
+                        onClick={() => {
+                          imageInputRef.current?.click()
+                          setAttachMenuOpen(false)
+                        }}
+                        className="block w-full px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                      >
+                        Photo ({pendingImageCount}/{MAX_CHAT_IMAGES})
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pendingVideoCount >= MAX_CHAT_VIDEOS}
+                        onClick={() => {
+                          videoInputRef.current?.click()
+                          setAttachMenuOpen(false)
+                        }}
+                        className="block w-full px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                      >
+                        Video ({pendingVideoCount}/{MAX_CHAT_VIDEOS})
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type a message…"
+                  className="min-h-[48px] flex-1 rounded-full border border-zinc-200 px-5 py-3 text-sm outline-none focus:border-zinc-400"
+                />
+                <button
+                  type="submit"
+                  disabled={!canSend}
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white ${
+                    canSend ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300'
+                  }`}
+                  aria-label="Send"
+                >
+                  <SendIcon />
+                </button>
+              </div>
             </form>
             {error ? <p className="mt-2 text-center text-[11px] text-rose-600">{error}</p> : null}
           </div>

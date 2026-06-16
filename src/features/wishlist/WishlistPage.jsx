@@ -7,6 +7,7 @@ import { ROUTES } from '../../utils/constants'
 // import wishlistBanner from '../../assets/temporary/collection.png'
 
 const PAGE_SIZE = 12
+const PAGE_INSET = 'mx-0 lg:mx-12 xl:mx-auto xl:max-w-[1400px]'
 
 function WishlistPage() {
   const { wishlist, wishlistCount, wishlistLoading } = useCartWishlist()
@@ -45,9 +46,9 @@ function WishlistPage() {
     }`
   }
   const breadcrumb = (
-    <div className="bg-white my-4">
-      <div className="mx-10 py-4">
-        <nav className="flex flex-wrap items-center justify-between gap-3 font-inter text-sm" aria-label="Breadcrumb">
+    <div className="bg-white my-3 sm:my-4">
+      <div className={`${PAGE_INSET} py-3 sm:py-4`}>
+        <nav className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 font-inter text-xs sm:text-sm" aria-label="Breadcrumb">
           <div className="flex flex-wrap items-center gap-2">
             {breadcrumbSegments.map((seg, i) => (
               <span key={i} className="flex items-center gap-2">
@@ -101,17 +102,17 @@ function WishlistPage() {
     WISHLIST
   </h1>
 </div> */}
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">
+        <div className={`${PAGE_INSET} px-2 sm:px-0 py-12 sm:py-16 text-center`}>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             Your Khushlist is empty
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-sm sm:text-base text-gray-600 max-w-md mx-auto">
             Save items you like by clicking the heart on product cards.
           </p>
 
           <Link
             to={ROUTES.SEARCH}
-            className="mt-6 inline-block px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+            className="mt-6 inline-block w-full max-w-xs sm:w-auto px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm sm:text-base"
           >
             Explore products
           </Link>
@@ -131,8 +132,8 @@ function WishlistPage() {
     WISHLIST
   </h1>
 </div> */}
-        <div className="py-8 flex items-center justify-center min-h-[200px]">
-          <p className="text-gray-500">Loading wishlist…</p>
+        <div className={`${PAGE_INSET} py-12 sm:py-16 flex items-center justify-center min-h-[200px]`}>
+          <p className="text-sm sm:text-base text-gray-500">Loading wishlist…</p>
         </div>
       </div>
     )
@@ -143,12 +144,12 @@ function WishlistPage() {
     <div>
       {/* {banner} */}
       {breadcrumb}
-      <div className="mx-4 sm:mx-6 md:mx-10">
-        <div className="flex flex-col gap-2 border-b border-neutral-100 bg-neutral-50/60 px-4 py-4 sm:px-6">
-          <h1 className="text-2xl sm:text-3xl font-bold uppercase tracking-wide text-black">
+      <div className={PAGE_INSET}>
+        <div className="flex flex-col gap-1 border-b border-neutral-100 bg-neutral-50/60 px-3 py-2.5 sm:py-3 md:px-4 md:py-3 lg:px-6 lg:py-4">
+          <h1 className="text-lg sm:text-xl mt-6   md:text-xl lg:text-3xl font-bold uppercase tracking-wide text-black">
             KHUSHLIST
           </h1>
-          <p className="text-sm text-neutral-600">
+          <p className="text-[11px] sm:text-xs md:text-[11px] lg:text-sm text-neutral-600">
             <span className="font-semibold tabular-nums text-neutral-900">
               {wishlist.length}
             </span>{' '}
@@ -157,26 +158,35 @@ function WishlistPage() {
         </div>
       </div>
 
-      <div className="mx-4 py-8 sm:mx-6 md:mx-10">
-       
-
+      <div className={`${PAGE_INSET} px-2 py-4 sm:px-3 sm:py-6 md:px-3 md:py-4 lg:px-0 lg:py-10`}>
         <div
           ref={listRef}
-          className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-6 md:grid-cols-3 md:gap-x-5 md:gap-y-7 lg:grid-cols-4 lg:gap-x-3 lg:gap-y-8"
+          className="grid grid-cols-2 gap-x-2 gap-y-3 sm:gap-x-2.5 sm:gap-y-4 md:grid-cols-3 md:gap-x-2 md:gap-y-4 lg:grid-cols-3 lg:gap-x-4 xl:grid-cols-4 xl:gap-x-5 lg:gap-y-8"
         >
           {displayedItems.map((item) => (
-            <div key={item.id} className="flex flex-col">
+            <div key={item.id} className="flex min-w-0 flex-col">
               <ProductCard
                 id={item.id}
                 image={item.image}
                 hoverImage={item.hoverImage}
                 title={item.title}
+                shortDescription={item.shortDescription ?? item.description ?? ''}
+                stock={item.stock}
                 price={item.price}
+                originalPrice={item.originalPrice}
                 delivery={item.delivery}
                 rating={item.rating}
+                outOfStock={item.inStock === false}
                 rounded="none"
                 revealActionsOnHover
                 showOnlyWishlistIconWhenIdle
+                stackRatingOnMobile
+                compactImageOverlaysOnMobile
+                imageClassName="w-full max-lg:aspect-[3/4] max-lg:h-auto lg:h-[440px] xl:h-[480px] object-cover object-top lg:object-center"
+                infoClassName="px-2 py-2 md:px-2.5 md:py-2.5 lg:px-6 lg:py-5"
+                titleClassName="text-[10px] tracking-[0.1em] md:text-[11px] md:tracking-[0.12em] lg:text-lg lg:tracking-widest"
+                descriptionClassName="text-[8px] md:text-[9px] lg:text-xs"
+                priceRowClassName="mt-1 text-[9px] md:text-[10px] lg:mt-2 lg:text-sm"
               />
             </div>
           ))}
@@ -184,19 +194,19 @@ function WishlistPage() {
 
         {totalPages > 1 && (
           <nav
-            className="mt-8 flex flex-wrap items-center justify-center gap-2"
+            className="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2"
             aria-label="Wishlist pagination"
           >
             <button
               type="button"
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage <= 1}
-              className="min-w-10 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              className="min-w-9 sm:min-w-10 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 text-gray-700 text-xs sm:text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
               aria-label="Previous page"
             >
-              Previous
+              Prev
             </button>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-center gap-1">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <button
                   key={p}
@@ -204,7 +214,7 @@ function WishlistPage() {
                   onClick={() => goToPage(p)}
                   aria-label={`Page ${p}`}
                   aria-current={p === currentPage ? 'page' : undefined}
-                  className={`min-w-10 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`min-w-9 sm:min-w-10 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                     p === currentPage
                       ? 'bg-black text-white'
                       : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -218,7 +228,7 @@ function WishlistPage() {
               type="button"
               onClick={() => goToPage(currentPage + 1)}
               disabled={currentPage >= totalPages}
-              className="min-w-10 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              className="min-w-9 sm:min-w-10 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 text-gray-700 text-xs sm:text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
               aria-label="Next page"
             >
               Next
@@ -226,10 +236,10 @@ function WishlistPage() {
           </nav>
         )}
 
-        <div className="mt-8 flex justify-center">
+        <div className="mt-6 sm:mt-8 flex justify-center px-2 sm:px-0">
           <Link
             to={ROUTES.SEARCH}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-black text-white font-medium hover:bg-gray-800 transition-colors"
+            className="inline-flex w-full max-w-xs sm:w-auto items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-black text-white text-sm sm:text-base font-medium hover:bg-gray-800 transition-colors"
           >
             Continue shopping
           </Link>

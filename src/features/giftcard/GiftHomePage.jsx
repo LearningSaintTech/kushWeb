@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import giftCardTitle from '../../assets/images/giftcard/gift card.svg'
+import giftCardTitle from '../../assets/images/giftcard/giftcardhearder.png'
 import giftHeroBg from '../../assets/images/giftcard/giftcard-bg.png'
 import { giftcardService } from '../../services/giftcard.service.js'
 import { ROUTES } from '../../utils/constants'
@@ -73,7 +73,7 @@ export default function GiftHomePage() {
                 if (rules?.image) setGiftCardImage(rules.image)
                 if (rules?.name) setGiftCardName(rules.name)
             })
-            .catch(() => {})
+            .catch(() => { })
         return () => {
             cancelled = true
         }
@@ -87,11 +87,11 @@ export default function GiftHomePage() {
 
     return (
         <section
-            className="w-full overflow-x-hidden py-3 sm:py-6 md:py-8 lg:py-10 xl:py-12 2xl:py-14"
+            className="w-full mt-10 overflow-x-hidden py-3 sm:py-6 md:py-12 lg:py-15 xl:py-20 2xl:py-14"
             aria-label="Gift card promotion"
         >
-            <div className="mx-auto w-full max-w-[1920px] px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
-                <h2 className="mb-2.5 text-center sm:mb-4 md:mb-5">
+            <div className="mx-auto w-full max-w-[1920px] px-3 sm:px-9 md:px-15 lg:px-18 xl:px-30 2xl:px-50">
+                <h2 className="mb-2.5 text-center sm:mb-4 md:mb-9 lg:mb-14 xl:mb-18 2xl:mb-18">
                     <img
                         src={giftCardTitle}
                         alt="Gift Card"
@@ -115,7 +115,7 @@ export default function GiftHomePage() {
                     className="group block cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-black/30 focus-visible:ring-offset-2"
                     aria-label="Buy a gift card — Gift more, get more"
                 >
-                    <div className="relative min-h-[clamp(11.5rem,42vw,18rem)] overflow-hidden rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.22)] transition-opacity duration-200 group-hover:opacity-[0.98] group-active:opacity-95 sm:rounded-[1.25rem] lg:rounded-3xl xl:rounded-[1.75rem]">
+                    <div className="relative  min-h-[clamp(11.5rem,42vw,18rem)] overflow-hidden rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.22)] transition-opacity duration-200 group-hover:opacity-[0.98] group-active:opacity-95 sm:rounded-[1.25rem] lg:rounded-3xl xl:rounded-[1.75rem]">
                         <img
                             src={giftHeroBg}
                             alt=""
@@ -131,7 +131,7 @@ export default function GiftHomePage() {
                                     <span className="block text-[clamp(1.05rem,4.5vw,2rem)] font-bold">
                                         GIFT MORE.
                                     </span>
-                                    <span className="mt-0.5 block text-[clamp(0.95rem,3.8vw,1.65rem)] pl-20 font-normal">
+                                    <span className="mt-0.5 font-inter block text-[clamp(0.85rem,3.1vw,1.45rem)]  tracking-[0.20em] pl-14 font-normal ">
                                         GET MORE.
                                     </span>
                                 </h3>
@@ -141,27 +141,27 @@ export default function GiftHomePage() {
                                     aria-hidden
                                 />
 
-                                <p className="mt-2.5 font-inter text-[clamp(0.625rem,2.2vw,0.8125rem)] font-normal uppercase leading-snug tracking-[0.06em] text-white sm:mt-3 md:mt-3.5">
+                                <p className="mt-2.5 font-inter text-[clamp(0.625rem,2.2vw,0.8125rem)] font-normal uppercase  tracking-[0.06em] text-white sm:mt-3 md:mt-3.5">
                                     Extra Value On{' '}
                                     <span className="font-bold">Every Purchase</span>
                                 </p>
 
-                                <div className="mt-3 flex items-center gap-2.5 sm:mt-4 sm:gap-3 md:mt-5">
+                                <div className="  flex items-center gap-2.5 sm:mt-4 sm:gap-3 md:mt-5">
                                     <GiftBoxCircleIcon />
-                                    <p className="font-inter text-[clamp(0.5625rem,1.9vw,0.75rem)] font-normal uppercase leading-snug tracking-[0.05em] text-white/95">
-                                        The Joy Of Gifting - Now Even Better.
+                                    <p className="  font-inter text-[clamp(0.5625rem,1.9vw,0.75rem)] font-normal uppercase  tracking-[0.05em] text-white/95">
+                                        The Joy Of Gifting - Now Even <br /> Better.
                                     </p>
                                 </div>
 
-                                <BuyGiftCta className="mt-4 sm:mt-5 md:mt-6 lg:mt-7" />
+                                <BuyGiftCta className="mt-8 sm:mt-5 md:mt-6 lg:mt-7" />
                             </div>
 
                             {giftCardImage ? (
-                                <div className="flex w-[34%] max-w-[7.5rem] shrink-0 items-center justify-center sm:w-[38%] sm:max-w-none md:w-[40%] lg:w-[42%]">
+                                <div className= "  flex w-[34%] max-w-[7.5rem] shrink-0 items-center justify-center sm:w-[38%] sm:max-w-none md:w-[40%] lg:w-[42%]">
                                     <img
                                         src={giftCardImage}
                                         alt={giftCardName}
-                                        className="h-auto w-full max-h-[min(8.5rem,32vw)] object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)] sm:max-h-[min(11rem,36vw)] md:max-h-[13rem] lg:max-h-[15rem]"
+                                        className="h-auto w-full  max-h-[min(8.5rem,32vw)] object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)] sm:max-h-[min(11rem,36vw)] md:max-h-[13rem] lg:max-h-[15rem]"
                                         decoding="async"
                                         draggable={false}
                                     />

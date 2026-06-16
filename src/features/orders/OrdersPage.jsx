@@ -2,13 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
-<<<<<<< HEAD
 import { ROUTES, getOrderTrackPath, getProductPath } from '../../utils/constants'
-import { formatPaymentLine, PAYMENT_MODES } from '../../utils/paymentMode'
-=======
-import { ROUTES, getOrderTrackPath } from '../../utils/constants'
 import { formatPaymentLine } from '../../utils/paymentMode'
->>>>>>> 82ef9358c261855aced52dc1cad2869309763a8a
 
 const LOG = (...args) => {
   if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
@@ -284,28 +279,6 @@ function OrdersPage() {
       <div className=" px-4 sm:px-6 md:px-8 ">
         <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-wider text-gray-800 mb-6 sm:mb-8">My orders</h1>
 
-        {orderSuccessFromState && orderIdFromState && (
-          <div className="mb-6 sm:mb-8 p-4 sm:p-6 border border-green-200 bg-green-50 rounded-lg">
-            <p className="font-semibold text-green-800 uppercase text-sm sm:text-base">Order placed successfully</p>
-            <p className="mt-1 text-xs sm:text-sm text-gray-700">
-              Order ID: <span className="font-mono font-medium">{orderIdFromState}</span>
-            </p>
-            {location.state?.paymentMode === PAYMENT_MODES.NIMBLE && (
-              <p className="mt-1 text-xs sm:text-sm text-gray-600">
-                Paid with Buy now, pay later. Your EMI schedule is managed by our payment partner.
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-2 sm:gap-3">
-              <Link to={ROUTES.SEARCH} className="inline-block px-4 py-2 bg-black text-white text-xs sm:text-sm font-medium uppercase hover:bg-gray-800">
-                Continue shopping
-              </Link>
-              <Link to={ROUTES.HOME} className="inline-block px-4 py-2 border border-black text-black text-xs sm:text-sm font-medium uppercase hover:bg-gray-50">
-                Back to home
-              </Link>
-            </div>
-          </div>
-        )}
-
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
         {loading ? (
@@ -329,10 +302,14 @@ function OrdersPage() {
               const brand = item?.brand ?? item?.productId ?? '—'
               const color = item?.variant?.color ?? ''
               const imageUrl = item?.variant?.imageUrl ?? ''
+              const productId =
+                oi.itemId ??
+                oi.productItemId ??
+                item?._id ??
+                item?.id
+              const productPath = productId ? getProductPath(productId, name, shortDesc) : null
               const quantity = item?.quantity ?? 1
               const price = item?.finalPayable ?? item?.itemSubtotal ?? (item?.unitPrice ?? 0) * quantity
-              const productId = item?.itemId ?? oi.productItemId
-              const productPath = productId ? getProductPath(productId, name, shortDesc) : null
               const trackingId = oi.latestStatusHistory?.trackingId ?? null
               const statusDisplay = getStatusDisplay(oi)
               const orderId = oi.orderId ?? ''
@@ -348,7 +325,7 @@ function OrdersPage() {
                   <div className="flex gap-3 sm:gap-4 min-w-0 md:col-span-6">
                     <div className="w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden p-2">
                       {productPath ? (
-                        <Link to={productPath} className="block w-full h-full flex items-center justify-center">
+                        <Link to={productPath} className="block w-full h-full flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity">
                           {imageUrl ? (
                             <img
                               src={imageUrl}
@@ -376,7 +353,7 @@ function OrdersPage() {
                     <div className="min-w-0 flex-1">
                       {/* <p className="font-bold text-gray-900 uppercase text-xs sm:text-sm truncate">{brand}</p> */}
                       {productPath ? (
-                        <Link to={productPath} className="block hover:underline">
+                        <Link to={productPath} className="block cursor-pointer hover:underline">
                           <p className="text-gray-700 text-xs sm:text-sm mt-0.5 normal-case line-clamp-2">{name}{color ? ` ${color}` : ''}</p>
                         </Link>
                       ) : (
@@ -431,15 +408,14 @@ function OrdersPage() {
                         )}
                         <p className="text-gray-500 text-[10px] sm:text-[11px]">Payment: {formatPaymentLine(oi)}</p>
                         <p
-                          className={`font-bold uppercase text-[11px] sm:text-xs px-2 py-1 rounded inline-block border ${
-                            statusDisplay.type === 'cancelled'
+                          className={`font-bold uppercase text-[11px] sm:text-xs px-2 py-1 rounded inline-block border ${statusDisplay.type === 'cancelled'
                               ? 'border-red-500 text-red-600'
                               : statusDisplay.type === 'delivered'
                                 ? 'border-green-500 text-green-700'
                                 : statusDisplay.type === 'exchanged' || statusDisplay.type === 'exchange_process'
                                   ? 'border-blue-500 text-blue-700'
                                   : 'border-gray-300 text-gray-900'
-                          }`}
+                            }`}
                         >
                           {statusDisplay.statusLabel ?? statusDisplay.label}
                         </p>
@@ -475,7 +451,7 @@ function OrdersPage() {
 
         <div className="mt-6 sm:mt-8">
           <Link to={ROUTES.HOME} className="text-xs sm:text-sm font-medium uppercase text-gray-700 hover:text-black hover:underline">
-            ← Back to home 
+            ← Back to home
           </Link>
         </div>
       </div>

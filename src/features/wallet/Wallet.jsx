@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { walletService } from '../../services/wallet.service.js'
+
+const PAGE_SIZE = 6
 
 function WalletBadgeIcon() {
   return (
@@ -72,37 +74,75 @@ const Wallet = () => {
   const [inputAmount, setInputAmount] = useState('')
   const [walletBalance, setWalletBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasNextPage, setHasNextPage] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [transactionsLoading, setTransactionsLoading] = useState(true)
   const [error, setError] = useState('')
+  const historyRef = useRef(null)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [lastAddedAmount, setLastAddedAmount] = useState(0)
   const quickAmounts = ['3500', '4750', '5200', '6200']
 
-  const fetchWalletData = useCallback(async () => {
-    setLoading(true)
+  const fetchBalance = useCallback(async () => {
+    const balanceRes = await walletService.getCashBalance()
+    const balanceData = balanceRes?.data?.data ?? {}
+    setWalletBalance(Number(balanceData?.balance || 0))
+  }, [])
+
+  const fetchTransactions = useCallback(async (page = 1) => {
+    setTransactionsLoading(true)
     setError('')
     try {
-      const [balanceRes, txRes] = await Promise.all([
-        walletService.getCashBalance(),
-        walletService.getCashTransactions({ page: 1, limit: 10 }),
-      ])
-      const balanceData = balanceRes?.data?.data ?? {}
+      const txRes = await walletService.getCashTransactions({ page, limit: PAGE_SIZE })
       const txData = txRes?.data?.data ?? {}
       const txList = Array.isArray(txData?.transactions) ? txData.transactions : []
-      setWalletBalance(Number(balanceData?.balance || 0))
       setTransactions(txList)
+      setHasNextPage(txList.length === PAGE_SIZE)
     } catch (err) {
-      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load wallet data')
+      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load wallet transactions')
       setTransactions([])
+      setHasNextPage(false)
     } finally {
-      setLoading(false)
+      setTransactionsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchWalletData()
-  }, [fetchWalletData])
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        await fetchBalance()
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load wallet balance')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [fetchBalance])
+
+  useEffect(() => {
+    fetchTransactions(currentPage)
+  }, [currentPage, fetchTransactions])
+
+  useEffect(() => {
+    if (currentPage > 1 && historyRef.current) {
+      historyRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [currentPage])
+
+  const goToPage = (page) => {
+    const next = Math.max(1, page)
+    if (next === currentPage) return
+    setCurrentPage(next)
+  }
 
   const handleAddBalance = async () => {
     const manualAmount = String(inputAmount || '').trim()
@@ -149,7 +189,8 @@ const Wallet = () => {
       setLastAddedAmount(amount)
       setShowAddBalanceModal(false)
       setShowSuccessModal(true)
-      await fetchWalletData()
+      setCurrentPage(1)
+      await Promise.all([fetchBalance(), fetchTransactions(1)])
     } catch (err) {
       setPaymentError(err?.response?.data?.message ?? err?.message ?? 'Unable to add balance')
     } finally {
@@ -167,7 +208,7 @@ const Wallet = () => {
     setShowSuccessModal(false)
   }
 
-  const renderedTransactions = useMemo(() => transactions.slice(0, 6), [transactions])
+  const showPagination = currentPage > 1 || hasNextPage
 
   return (
     <div className="mx-auto mt-16 w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6 md:mt-20 md:px-6">
@@ -207,17 +248,19 @@ const Wallet = () => {
         </div>
       </section>
 
-      <section className="mt-8">
+      <section ref={historyRef} className="mt-8">
         <h2 className="font-inter text-2xl font-semibold text-black sm:text-3xl md:text-4xl">
           Last Transaction
         </h2>
         {error && <p className="mt-3 font-inter text-sm text-red-600">{error}</p>}
-        {loading && <p className="mt-3 font-inter text-sm text-gray-500">Loading transactions...</p>}
-        {!loading && renderedTransactions.length === 0 && (
+        {(loading || transactionsLoading) && (
+          <p className="mt-3 font-inter text-sm text-gray-500">Loading transactions...</p>
+        )}
+        {!loading && !transactionsLoading && transactions.length === 0 && (
           <p className="mt-3 font-inter text-sm text-gray-500">No wallet transactions found.</p>
         )}
         <div className="mt-4 space-y-4">
-          {renderedTransactions.map((transaction) => (
+          {transactions.map((transaction) => (
             <article
               key={transaction?._id}
               className="flex w-full items-start justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-4 shadow-[0_1px_6px_rgba(0,0,0,0.06)] sm:items-center sm:gap-4 sm:px-5 md:px-6"
@@ -252,6 +295,33 @@ const Wallet = () => {
             </article>
           ))}
         </div>
+
+        {showPagination && !transactionsLoading ? (
+          <nav
+            className="mt-6 flex flex-wrap items-center justify-center gap-3"
+            aria-label="Wallet transaction pagination"
+          >
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className="min-w-24 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40"
+              aria-label="Previous page"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">Page {currentPage}</span>
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={!hasNextPage}
+              className="min-w-24 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40"
+              aria-label="Next page"
+            >
+              Next
+            </button>
+          </nav>
+        ) : null}
       </section>
 
       {showAddBalanceModal && (

@@ -72,10 +72,14 @@ function mapWishlistItem(item, deliveryOptions = []) {
   else if (deliveryFromItem === 'ONE_DAY') deliveryText = '1 day'
   else if (deliveryFromItem) deliveryText = String(deliveryFromItem)
   else if (deliveryOptions?.length > 0) deliveryText = formatDeliveryOption(deliveryOptions[0])
+  const availableQuantity = item?.availableQuantity ?? item?.itemId?.availableQuantity
   return {
     id,
     title: name || 'Product',
     shortDescription,
+    description: shortDescription,
+    stock: availableQuantity,
+    inStock: item?.inStock ?? item?.itemId?.inStock,
     price: priceStr,
     originalPrice: originalPriceStr,
     image: imageUrl,
@@ -474,7 +478,7 @@ export function CartWishlistProvider({ children }) {
   const addToWishlist = useCallback(
     async (product) => {
       const id = product?.id ?? product?._id
-      const { title, price, originalPrice, image, hoverImage, delivery, rating } = product ?? {}
+      const { title, price, originalPrice, image, hoverImage, delivery, rating, shortDescription } = product ?? {}
       if (isAuthenticated) {
         if (wishlistIds.some((wid) => String(wid) === String(id))) return
         try {
@@ -499,7 +503,7 @@ export function CartWishlistProvider({ children }) {
       }
       setWishlist((prev) => {
         if (prev.some((item) => item.id === id)) return prev
-        return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating }]
+        return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating, shortDescription }]
       })
       emitWishlistAnalytics('wishlist_add', product)
     },
@@ -566,9 +570,9 @@ export function CartWishlistProvider({ children }) {
       const targetId = String(id)
       const inList = prev.some((item) => String(item.id) === targetId)
       if (inList) return prev.filter((item) => String(item.id) !== targetId)
-      const { title, price, originalPrice, image, hoverImage, delivery, rating } = typeof product === 'object' ? product : {}
+      const { title, price, originalPrice, image, hoverImage, delivery, rating, shortDescription } = typeof product === 'object' ? product : {}
       if (typeof product !== 'object' || !title) return prev
-      return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating }]
+      return [...prev, { id, title, price, originalPrice, image, hoverImage, delivery, rating, shortDescription }]
     })
     emitWishlistAnalytics(eventType, typeof product === 'object' ? product : { id })
   }, [isAuthenticated, pincode, wishlistIds, wishlist])

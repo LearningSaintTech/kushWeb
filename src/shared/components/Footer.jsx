@@ -530,7 +530,7 @@ function Footer() {
               ✕
             </button>
             <h2 className="text-xl sm:text-2xl font-semibold mb-4 tracking-wide">
-              Contact Us
+             Share Your Feedback
             </h2>
             <p className="text-sm text-gray-600 mb-6">
               Share your query or feedback and our team will get back to you.
@@ -598,7 +598,7 @@ function Footer() {
                     value={contactForm.phone}
                     onChange={handleContactChange}
                     onBlur={handleContactBlur}
-                    maxLength={15}
+                    maxLength={10}
                     autoComplete="tel"
                     aria-invalid={contactFieldErrors.phone ? true : undefined}
                     aria-describedby={contactFieldErrors.phone ? "footer-contact-phone-error" : undefined}

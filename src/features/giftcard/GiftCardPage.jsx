@@ -18,6 +18,8 @@ import GiftCardAlreadyRedeemedModal from './GiftCardAlreadyRedeemedModal.jsx'
 const PRESET_AMOUNTS = [500, 1000, 2000, 3000]
 
 const INFO_POINTS = [
+  
+  'Get an extra 25% bonus value for purchases between ₹1 and ₹1000000 (Gifting Slab).' ,
   'Khush Gift Cards can be purchased instantly by entering your preferred amount.',
   'Redeem gift card balance easily during checkout on eligible products.',
   'Gift cards and wallet transactions are secured with encrypted payment and account protection systems.',
