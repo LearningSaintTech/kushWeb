@@ -23,7 +23,7 @@ const WEB_ORDER_TO_COMPONENT = {
   6: OurProduct,
 }
 
-const HOME_SLOT_ORDERS = [1, 4, 5, 6]
+const HOME_SLOT_ORDERS = [1,  5, 6]
 
 function getSectionWebOrder(section) {
   let order = section.webOrder ?? section.webinfo?.webOrder ?? 999

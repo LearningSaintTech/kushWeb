@@ -8,6 +8,40 @@ import {
   isVideoUrlString,
 } from '../../../utils/mediaUrl.js'
 
+const PREVIEW_REVIEWS_LIMIT = 2
+const LOAD_MORE_BATCH_SIZE = 8
+const REVIEW_ACCENT = '#e07a5f'
+
+function mergeReviewLists(existing, incoming) {
+  const seen = new Set(
+    existing.map((review) => String(review._id ?? review.id ?? '')),
+  )
+  const merged = [...existing]
+  incoming.forEach((review) => {
+    const id = String(review._id ?? review.id ?? '')
+    if (!id || seen.has(id)) return
+    seen.add(id)
+    merged.push(review)
+  })
+  return merged
+}
+
+function formatReviewDate(review) {
+  const raw =
+    review?.createdAt ??
+    review?.created_at ??
+    review?.updatedAt ??
+    review?.date
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
 /** Display name from API (fake user or real user). */
 function formatReviewerName(review) {
   const raw =
@@ -159,6 +193,7 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
  */
 function ReviewCard({ review, onOpenLightbox }) {
   const name = formatReviewerName(review)
+  const reviewDate = formatReviewDate(review)
   const rating = review.rating != null ? Number(review.rating).toFixed(1) : '—'
   const mediaList = useMemo(
     () => buildReviewMediaList(review),
@@ -174,8 +209,9 @@ function ReviewCard({ review, onOpenLightbox }) {
   return (
     <article className="border-b border-gray-200 py-4 sm:py-6 first:pt-0 last:border-b-0 font-inter">
       <div className="relative flex flex-wrap items-start justify-between gap-1 sm:gap-2">
-        <p className="text-xs sm:text-sm font-medium text-black pr-14 sm:pr-20 min-w-0 break-words">
+        <p className="text-xs sm:text-sm font-medium text-gray-700 pr-14 sm:pr-20 min-w-0 break-words">
           {name}
+          {reviewDate ? ` | ${reviewDate}` : ''}
         </p>
         <span className="absolute top-0 right-0 inline-flex items-center gap-0.5 rounded-md bg-black px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-medium text-white shrink-0">
           ★{rating}
@@ -223,7 +259,7 @@ function ReviewCard({ review, onOpenLightbox }) {
  * Reviews section: title "REVIEWS" + list of reviews from API (by itemId).
  * Matches layout: bold uppercase title; each review with name, rating badge, image, text.
  */
-const INITIAL_VISIBLE = 3
+const SUMMARY_FETCH_LIMIT = 200
 
 /** Format count with commas e.g. 2256896 → "2,256,896" */
 function formatCount(n) {
@@ -251,86 +287,125 @@ function StarDisplay({ avg }) {
   )
 }
 
-export default function ReviewRating({ itemId, refreshKey = 0 }) {
-  const [data, setData] = useState({ reviews: [], pagination: null })
+function buildRatingsSummary(reviews, fallbackAvg = null) {
+  if (!Array.isArray(reviews) || reviews.length === 0) {
+    const avg = Number(fallbackAvg)
+    return {
+      avg: Number.isFinite(avg) && avg > 0 ? avg : 0,
+      counts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+    }
+  }
+  let sum = 0
+  const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+  reviews.forEach((r) => {
+    const star = Math.round(Number(r.rating))
+    if (star >= 1 && star <= 5) counts[star] += 1
+    sum += Number(r.rating) || 0
+  })
+  const computedAvg = sum / reviews.length
+  const avg =
+    Number.isFinite(Number(fallbackAvg)) && Number(fallbackAvg) > 0
+      ? Number(fallbackAvg)
+      : computedAvg
+  return { avg, counts }
+}
+
+export default function ReviewRating({ itemId, refreshKey = 0, avgRating = null }) {
+  const [reviews, setReviews] = useState([])
+  const [pagination, setPagination] = useState(null)
+  const [summaryReviews, setSummaryReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [showAll, setShowAll] = useState(false)
   const [lightbox, setLightbox] = useState(null) // { images: [], currentIndex: 0 } or null
+  const [expanded, setExpanded] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageLoading, setPageLoading] = useState(false)
+
+  useEffect(() => {
+    if (!itemId) {
+      setSummaryReviews([])
+      return
+    }
+    let cancelled = false
+    reviewsService
+      .getByItem(itemId, { page: 1, limit: SUMMARY_FETCH_LIMIT })
+      .then((res) => {
+        if (cancelled) return
+        const payload = res?.data?.data ?? res?.data ?? {}
+        const list = Array.isArray(payload.reviews) ? payload.reviews : []
+        setSummaryReviews(list)
+      })
+      .catch(() => {
+        if (!cancelled) setSummaryReviews([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [itemId, refreshKey])
+
+  useEffect(() => {
+    setExpanded(false)
+    setPage(1)
+  }, [itemId, refreshKey])
 
   useEffect(() => {
     if (!itemId) {
       setLoading(false)
+      setReviews([])
+      setPagination(null)
       return
     }
-    setLoading(true)
+    let cancelled = false
+    const isPreview = !expanded
+    const fetchPage = isPreview ? 1 : page
+    const limit = isPreview ? PREVIEW_REVIEWS_LIMIT : LOAD_MORE_BATCH_SIZE
+    const isReplace = isPreview || page === 1
+
+    if (isPreview) {
+      setLoading(true)
+    } else {
+      setPageLoading(true)
+    }
     setError(null)
     reviewsService
-      .getByItem(itemId, { page: 1, limit: 20 })
+      .getByItem(itemId, { page: fetchPage, limit })
       .then((res) => {
-        console.log('[ReviewRating] API response', {
-          itemId,
-          status: res?.status,
-          success: res?.data?.success,
-          message: res?.data?.message,
-          topLevelKeys: res?.data ? Object.keys(res.data) : [],
-          dataKeys: res?.data?.data ? Object.keys(res.data.data) : [],
-        })
+        if (cancelled) return
         const payload = res?.data?.data ?? res?.data ?? {}
-        const reviews = Array.isArray(payload.reviews) ? payload.reviews : []
-        console.log('[ReviewRating] parsed reviews', {
-          itemId,
-          count: reviews.length,
-          pagination: payload.pagination ?? null,
-          sample: reviews.slice(0, 3).map((r) => ({
-            _id: r._id ?? r.id,
-            reviewerType: r.reviewerType,
-            name: r.name,
-            reviewerName: r.reviewerName,
-            isFakeReviewer: r.isFakeReviewer,
-            fakeUserId: r.fakeUserId,
-            userId: r.userId,
-            displayName: formatReviewerName(r),
-          })),
-        })
-        setData({
-          reviews,
-          pagination: payload.pagination ?? null,
-        })
+        const list = Array.isArray(payload.reviews) ? payload.reviews : []
+        setReviews((prev) => (isReplace ? list : mergeReviewLists(prev, list)))
+        setPagination(payload.pagination ?? null)
       })
       .catch((err) => {
-        console.error('[ReviewRating] fetch failed', {
-          itemId,
-          message: err?.message,
-          status: err?.response?.status,
-          data: err?.response?.data,
-        })
+        if (cancelled) return
         setError(err?.response?.data?.message || err?.message || 'Failed to load reviews')
-        setData({ reviews: [], pagination: null })
+        if (isReplace) {
+          setReviews([])
+          setPagination(null)
+        }
       })
-      .finally(() => setLoading(false))
-  }, [itemId, refreshKey])
+      .finally(() => {
+        if (cancelled) return
+        setLoading(false)
+        setPageLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [itemId, refreshKey, expanded, page])
 
-  const totalReviews = data.pagination?.totalItems ?? data.reviews?.length ?? 0
-  const ratingsSummary = useMemo(() => {
-    const reviews = data.reviews ?? []
-    if (reviews.length === 0) return { avg: 0, counts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } }
-    let sum = 0
-    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
-    reviews.forEach((r) => {
-      const star = Math.round(Number(r.rating))
-      if (star >= 1 && star <= 5) counts[star] += 1
-      sum += Number(r.rating) || 0
-    })
-    const avg = sum / reviews.length
-    return { avg, counts }
-  }, [data.reviews])
+  const totalReviews = pagination?.totalItems ?? reviews.length ?? 0
+  const showViewAllLink = !expanded && totalReviews > PREVIEW_REVIEWS_LIMIT
+  const hasMoreReviews = expanded && reviews.length < totalReviews
+  const remainingReviews = Math.max(0, totalReviews - reviews.length)
+
+  const ratingsSummary = useMemo(
+    () => buildRatingsSummary(summaryReviews, avgRating),
+    [summaryReviews, avgRating],
+  )
 
   if (!itemId) return null
 
-  const reviews = data.reviews
-  const visibleReviews = showAll ? reviews : reviews.slice(0, INITIAL_VISIBLE)
-  const hasMore = reviews.length > INITIAL_VISIBLE && !showAll
   const maxBarCount = Math.max(1, ...Object.values(ratingsSummary.counts))
 
   return (
@@ -354,7 +429,7 @@ export default function ReviewRating({ itemId, refreshKey = 0 }) {
               Verified reviews from customers who bought this product.
             </p>
 
-            {reviews.length > 0 ? (
+            {totalReviews > 0 ? (
               <>
                 <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row sm:items-start sm:gap-6 md:gap-8">
                   <div className="flex flex-col">
@@ -395,12 +470,15 @@ export default function ReviewRating({ itemId, refreshKey = 0 }) {
             <h2 className="text-lg font-bold uppercase tracking-wide text-gray-900 sm:text-xl md:text-2xl">
               Reviews
             </h2>
-            {reviews.length === 0 ? (
+            {reviews.length === 0 && !loading ? (
               <p className="mt-3 sm:mt-4 text-xs sm:text-sm text-gray-500">No reviews yet.</p>
             ) : (
               <>
-                <div className="mt-4 sm:mt-6">
-                  {visibleReviews.map((review) => (
+                <div
+                  className={`mt-4 sm:mt-6 transition-opacity ${pageLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                  aria-busy={pageLoading}
+                >
+                  {reviews.map((review) => (
                     <ReviewCard
                       key={review._id ?? review.id}
                       review={review}
@@ -408,23 +486,57 @@ export default function ReviewRating({ itemId, refreshKey = 0 }) {
                     />
                   ))}
                 </div>
+                {showViewAllLink && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpanded(true)
+                      setPage(1)
+                    }}
+                    className="mt-4 w-full border-t border-gray-200 pt-4 text-left text-sm font-bold transition hover:underline focus:outline-none focus-visible:ring-2 touch-manipulation"
+                    style={{ color: REVIEW_ACCENT }}
+                  >
+                    View all {formatCount(totalReviews)} reviews
+                  </button>
+                )}
+                {expanded && (
+                  <div className="mt-4 border-t border-gray-200 pt-4 space-y-3">
+                    {hasMoreReviews && (
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => p + 1)}
+                        disabled={pageLoading}
+                        className="w-full border border-gray-300 bg-white py-2.5 text-sm font-semibold uppercase tracking-wide text-gray-900 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 touch-manipulation"
+                      >
+                        {pageLoading
+                          ? 'Loading more reviews…'
+                          : `Load more reviews (${formatCount(remainingReviews)} left)`}
+                      </button>
+                    )}
+                    {!hasMoreReviews && totalReviews > PREVIEW_REVIEWS_LIMIT && (
+                      <p className="text-xs text-gray-500 sm:text-sm">
+                        Showing all {formatCount(totalReviews)} reviews
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpanded(false)
+                        setPage(1)
+                      }}
+                      className="text-left text-sm font-bold transition hover:underline focus:outline-none focus-visible:ring-2 touch-manipulation"
+                      style={{ color: REVIEW_ACCENT }}
+                    >
+                      Show less
+                    </button>
+                  </div>
+                )}
                 {lightbox && (
                   <ImageLightbox
                     images={lightbox.images}
                     initialIndex={lightbox.currentIndex}
                     onClose={() => setLightbox(null)}
                   />
-                )}
-                {hasMore && (
-                  <div className="mt-6 sm:mt-8 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setShowAll(true)}
-                      className="font-inter rounded border-2 border-gray-300 bg-white px-5 py-2.5 sm:px-8 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wide text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer touch-manipulation"
-                    >
-                      See more reviews
-                    </button>
-                  </div>
                 )}
               </>
             )}

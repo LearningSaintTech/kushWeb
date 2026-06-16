@@ -80,41 +80,30 @@ export function trackOrderConversion(conversion) {
     conversion.numItems ??
     contents.reduce((sum, row) => sum + (row.quantity || 1), 0)
 
-  if (typeof window !== 'undefined' && window.fbq) {
-    window.fbq('track', 'Purchase', {
+ 
+if (typeof window !== 'undefined' && window.fbq) {
+  console.log('META_PURCHASE', {
+    orderId,
+    value,
+    currency
+  })
+
+  window.fbq(
+    'track',
+    'Purchase',
+    {
       value,
       currency,
       content_type: 'product',
       content_ids: contentIds,
       contents,
       num_items: numItems,
-    })
-  }
-
-  if (typeof window !== 'undefined') {
-    window.dataLayer = window.dataLayer || []
-    window.dataLayer.push({
-      event: 'purchase',
-      ecommerce: {
-        transaction_id: String(orderId),
-        value,
-        currency,
-        items: items.map((row, index) => ({
-          item_id: row.id,
-          item_name: row.name,
-          price: row.price,
-          quantity: row.quantity ?? 1,
-          index,
-        })),
-      },
-      meta: {
-        orderId: String(orderId),
-        value,
-        currency,
-        num_items: numItems,
-      },
-    })
-  }
+    },
+    {
+      eventID: String(orderId),
+    }
+  )
+}
 
   trackEvent({
     eventType: 'order_conversion',
