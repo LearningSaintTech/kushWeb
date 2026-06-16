@@ -4,6 +4,25 @@ import { useAuth } from '../../app/context/AuthContext'
 import { authService } from '../../services/auth.service.js'
 import { ROUTES } from '../../utils/constants'
 
+const LETTERS_ONLY = /^[A-Za-z\s]+$/
+const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+const EMAIL_INPUT = /[^A-Za-z0-9@._%+-]/g
+
+function validateProfileForm(form) {
+  const name = (form.name || '').trim()
+  const email = (form.email || '').trim()
+  const city = (form.city || '').trim()
+  const pin = (form.pinCode || '').trim()
+
+  if (!name) return 'Name is required'
+  if (!LETTERS_ONLY.test(name)) return 'Name should contain letters only'
+  if (email && !EMAIL_PATTERN.test(email)) return 'Please enter a valid email address'
+  if (city && !LETTERS_ONLY.test(city)) return 'City should contain letters only'
+  if (pin && !/^\d{6}$/.test(pin)) return 'Pin code must be exactly 6 digits'
+
+  return null
+}
+
 export default function ProfileUpdatePage() {
   const navigate = useNavigate()
   const { user, isAuthenticated, authChecked, refreshUser, openAuthModal } = useAuth()
@@ -63,7 +82,17 @@ export default function ProfileUpdatePage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
+    let nextValue = value
+
+    if (name === 'name' || name === 'city') {
+      nextValue = value.replace(/[^A-Za-z\s]/g, '')
+    } else if (name === 'pinCode') {
+      nextValue = value.replace(/\D/g, '').slice(0, 6)
+    } else if (name === 'email') {
+      nextValue = value.replace(EMAIL_INPUT, '')
+    }
+
+    setForm((prev) => ({ ...prev, [name]: nextValue }))
     setError(null)
   }
 
@@ -84,6 +113,13 @@ export default function ProfileUpdatePage() {
     e.preventDefault()
     setError(null)
     setSuccess(false)
+
+    const validationError = validateProfileForm(form)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
     setSubmitting(true)
     try {
       const formData = new FormData()
@@ -193,6 +229,8 @@ export default function ProfileUpdatePage() {
               type="text"
               value={form.name}
               onChange={handleChange}
+              pattern="[A-Za-z\s]+"
+              title="Letters only"
               className="font-inter w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
               placeholder="Your name"
             />
@@ -200,14 +238,18 @@ export default function ProfileUpdatePage() {
 
           <div>
             <label htmlFor="email" className="font-inter block text-sm font-medium text-black uppercase tracking-wider mb-1">
-              Email
+              Email <span className="normal-case font-normal text-gray-500"></span>
             </label>
             <input
               id="email"
               name="email"
-              type="email"
+              type="text"
+              inputMode="email"
+              autoComplete="email"
               value={form.email}
               onChange={handleChange}
+              pattern="[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+              title="Enter a valid email address"
               className="font-inter w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
               placeholder="your@email.com"
             />
@@ -239,6 +281,8 @@ export default function ProfileUpdatePage() {
                 type="text"
                 value={form.city}
                 onChange={handleChange}
+                pattern="[A-Za-z\s]+"
+                title="Letters only"
                 className="font-inter w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
                 placeholder="City"
               />
@@ -252,10 +296,13 @@ export default function ProfileUpdatePage() {
                 name="pinCode"
                 type="text"
                 inputMode="numeric"
+                maxLength={6}
                 value={form.pinCode}
                 onChange={handleChange}
+                pattern="\d{6}"
+                title="Enter a 6-digit pin code"
                 className="font-inter w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                placeholder="Pin code"
+                placeholder="6-digit pin code"
               />
             </div>
           </div>
@@ -264,7 +311,7 @@ export default function ProfileUpdatePage() {
             <button
               type="submit"
               disabled={submitting}
-              className="font-inter px-6 py-3 bg-black text-white text-sm font-semibold uppercase tracking-wide hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              className="font-inter cursor-pointer px-6 py-3 bg-black text-white text-sm font-semibold uppercase tracking-wide hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? 'Saving…' : 'Save changes'}
             </button>

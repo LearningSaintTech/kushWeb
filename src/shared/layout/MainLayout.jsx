@@ -20,7 +20,7 @@ function MainLayout() {
   }, [location.pathname, location.search]);
 
   return (
-    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-gray-100 max-w-full">
+    <div className="flex min-h-dvh flex-col overflow-x-hidden  max-w-full">
       <ScrollToTop />
       <Header />
       <main className="flex-1">
