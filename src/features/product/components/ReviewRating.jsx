@@ -26,22 +26,6 @@ function mergeReviewLists(existing, incoming) {
   return merged
 }
 
-function formatReviewDate(review) {
-  const raw =
-    review?.createdAt ??
-    review?.created_at ??
-    review?.updatedAt ??
-    review?.date
-  if (!raw) return null
-  const d = new Date(raw)
-  if (Number.isNaN(d.getTime())) return null
-  return d.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
-}
-
 /** Display name from API (fake user or real user). */
 function formatReviewerName(review) {
   const raw =
@@ -189,11 +173,10 @@ function ImageLightbox({ images, initialIndex = 0, onClose }) {
 }
 
 /**
- * Single review card: reviewer name, rating badge (top-right), images, review text.
+ * Single review card: reviewer name only, rating badge, images, review text.
  */
 function ReviewCard({ review, onOpenLightbox }) {
   const name = formatReviewerName(review)
-  const reviewDate = formatReviewDate(review)
   const rating = review.rating != null ? Number(review.rating).toFixed(1) : '—'
   const mediaList = useMemo(
     () => buildReviewMediaList(review),
@@ -211,7 +194,6 @@ function ReviewCard({ review, onOpenLightbox }) {
       <div className="relative flex flex-wrap items-start justify-between gap-1 sm:gap-2">
         <p className="text-xs sm:text-sm font-medium text-gray-700 pr-14 sm:pr-20 min-w-0 break-words">
           {name}
-          {reviewDate ? ` | ${reviewDate}` : ''}
         </p>
         <span className="absolute top-0 right-0 inline-flex items-center gap-0.5 rounded-md bg-black px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-medium text-white shrink-0">
           ★{rating}

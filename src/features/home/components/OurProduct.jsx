@@ -122,9 +122,7 @@ function OurProduct({ section }) {
         }))
       : CATEGORIES.map((label) => ({ id: null, label }));
 
-  const [activeCategoryId, setActiveCategoryId] = useState(
-    ALL_CATEGORY_KEY,
-  );
+  const [activeCategoryId, setActiveCategoryId] = useState(ALL_CATEGORY_KEY);
   const [categoryProducts, setCategoryProducts] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -163,7 +161,9 @@ function OurProduct({ section }) {
           itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i),
         );
 
-        setCategoryProducts((prev) => (page === 1 ? items : [...prev, ...items]));
+        setCategoryProducts((prev) =>
+          page === 1 ? items : [...prev, ...items],
+        );
         setCurrentPage(page);
         setHasMore(items.length === CATEGORY_PRODUCT_LIMIT);
       } catch {
@@ -177,40 +177,45 @@ function OurProduct({ section }) {
     [pincode],
   );
 
-  const fetchAllVersion2 = useCallback(async (page = 1) => {
-    if (page === 1) setLoadingInitial(true);
-    else setLoadingMore(true);
-    try {
-      const params = {
-        isActive: true,
-        page,
-        limit: CATEGORY_PRODUCT_LIMIT,
-      };
-      if (pincode) params.pinCode = String(pincode);
-      const res = await itemsService.getAllVersion2({
-        ...params,
-      });
-      const data = res?.data?.data ?? res?.data;
-      const items = (data?.items ?? []).map((item, i) =>
-        itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i),
-      );
-      const totalPages = Number(data?.pagination?.totalPages || 0);
+  const fetchAllVersion2 = useCallback(
+    async (page = 1) => {
+      if (page === 1) setLoadingInitial(true);
+      else setLoadingMore(true);
+      try {
+        const params = {
+          isActive: true,
+          page,
+          limit: CATEGORY_PRODUCT_LIMIT,
+        };
+        if (pincode) params.pinCode = String(pincode);
+        const res = await itemsService.getAllVersion2({
+          ...params,
+        });
+        const data = res?.data?.data ?? res?.data;
+        const items = (data?.items ?? []).map((item, i) =>
+          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i),
+        );
+        const totalPages = Number(data?.pagination?.totalPages || 0);
 
-      setCategoryProducts((prev) => (page === 1 ? items : [...prev, ...items]));
-      setCurrentPage(page);
-      if (totalPages > 0) {
-        setHasMore(page < totalPages);
-      } else {
-        setHasMore(items.length === CATEGORY_PRODUCT_LIMIT);
+        setCategoryProducts((prev) =>
+          page === 1 ? items : [...prev, ...items],
+        );
+        setCurrentPage(page);
+        if (totalPages > 0) {
+          setHasMore(page < totalPages);
+        } else {
+          setHasMore(items.length === CATEGORY_PRODUCT_LIMIT);
+        }
+      } catch {
+        if (page === 1) setCategoryProducts([]);
+        setHasMore(false);
+      } finally {
+        if (page === 1) setLoadingInitial(false);
+        else setLoadingMore(false);
       }
-    } catch {
-      if (page === 1) setCategoryProducts([]);
-      setHasMore(false);
-    } finally {
-      if (page === 1) setLoadingInitial(false);
-      else setLoadingMore(false);
-    }
-  }, [pincode]);
+    },
+    [pincode],
+  );
 
   const loadMoreByActiveTab = useCallback(
     async (nextPage) => {
@@ -263,7 +268,12 @@ function OurProduct({ section }) {
       setHasMore(false);
       loadingMoreLockRef.current = false;
     }
-  }, [activeCategoryId, listFromSection.length, fetchByCategory, fetchAllVersion2]);
+  }, [
+    activeCategoryId,
+    listFromSection.length,
+    fetchByCategory,
+    fetchAllVersion2,
+  ]);
 
   useEffect(() => {
     if (
@@ -366,36 +376,45 @@ function OurProduct({ section }) {
               ))}
             </div>
           </div>
-
         </div>
 
-        {/* ================= PRODUCT GRID (1 card on mobile) ================= */}
+        {/* ================= PRODUCT GRID (2 cards on phone) ================= */}
         {loadingInitial && (
           <div className="text-center py-8 text-gray-500 text-sm">
             Loading...
           </div>
         )}
-<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">          {!loadingInitial &&
+        <div className="grid grid-cols-2 items-stretch gap-x-2 gap-y-3 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 lg:grid-cols-4 md:gap-3">
+          {!loadingInitial &&
             productsToShow.map((product, idx) => (
-              <ProductCard
-                key={product.id ?? idx}
-                {...product}
-                rounded="none"
-                showBuyNowOnHover
-              />
+              <div key={product.id ?? idx} className="flex min-w-0 h-full flex-col">
+                <ProductCard
+                  {...product}
+                  rounded="none"
+                  showBuyNowOnHover
+                  revealActionsOnHover
+                  showOnlyWishlistIconWhenIdle
+                  stackRatingOnMobile
+                  compactImageOverlaysOnMobile
+                  imageClassName="w-full max-lg:aspect-[3/4] max-lg:h-auto lg:h-[520px] object-cover object-top lg:object-center"
+                  infoClassName="px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4 lg:px-6 lg:py-5"
+                  titleClassName="text-[10px] tracking-[0.1em] sm:text-xs sm:tracking-[0.14em] md:text-sm md:tracking-widest lg:text-lg"
+                  priceRowClassName="mt-1 text-[9px] sm:text-[10px] md:mt-2 md:text-sm"
+                />
+              </div>
             ))}
         </div>
-        {(activeCategoryId === ALL_CATEGORY_KEY || listFromSection.length === 0) &&
+        {(activeCategoryId === ALL_CATEGORY_KEY ||
+          listFromSection.length === 0) &&
           activeCategoryId &&
-          hasMore && (
-          <div ref={loadMoreRef} className="h-2 w-full" />
-        )}
-        {(activeCategoryId === ALL_CATEGORY_KEY || listFromSection.length === 0) &&
+          hasMore && <div ref={loadMoreRef} className="h-2 w-full" />}
+        {(activeCategoryId === ALL_CATEGORY_KEY ||
+          listFromSection.length === 0) &&
           loadingMore && (
-          <div className="text-center py-6 text-gray-500 text-sm">
-            Loading more products...
-          </div>
-        )}
+            <div className="text-center py-6 text-gray-500 text-sm">
+              Loading more products...
+            </div>
+          )}
       </div>
     </section>
   );

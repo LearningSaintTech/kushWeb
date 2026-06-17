@@ -26,7 +26,7 @@ export default function TermsConditionsPage() {
         </p>
       </section>
 
-      <section className="mt-6 space-y-2">
+      {/* <section className="mt-6 space-y-2">
         <h2 className="text-lg font-semibold text-black">2. Eligibility</h2>
         <p>To use our platform, you must:</p>
         <ul className="list-disc ml-5 space-y-1">
@@ -34,7 +34,7 @@ export default function TermsConditionsPage() {
           <li>Provide accurate and complete information</li>
           <li>Use the website only for lawful purposes</li>
         </ul>
-      </section>
+      </section> */}
 
       <section className="mt-6 space-y-2">
         <h2 className="text-lg font-semibold text-black">3. Products &amp; Pricing</h2>

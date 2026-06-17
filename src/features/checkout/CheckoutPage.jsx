@@ -3041,17 +3041,28 @@ function CheckoutPage() {
                   className="w-full max-w-md bg-white shadow-2xl overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
-                    <h3
-                      id="address-confirm-title"
-                      className="text-sm font-semibold uppercase tracking-wider text-black"
+                  <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-200 bg-gray-50">
+                    <div className="min-w-0">
+                      <h3
+                        id="address-confirm-title"
+                        className="text-sm font-semibold uppercase tracking-wider text-black"
+                      >
+                        Confirm delivery address
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-600">
+                        Please verify your address and mobile number before
+                        placing the order.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAddressConfirmOpen(false)}
+                      disabled={placeOrderLoading}
+                      className="shrink-0 flex h-8 w-8 items-center justify-center text-xl leading-none text-gray-600 hover:bg-gray-200 hover:text-black transition-colors disabled:opacity-60"
+                      aria-label="Close"
                     >
-                      Confirm delivery address
-                    </h3>
-                    <p className="mt-1 text-xs text-gray-600">
-                      Please verify your address and mobile number before
-                      placing the order.
-                    </p>
+                      ×
+                    </button>
                   </div>
                   <div className="px-5 py-4 text-sm text-gray-800 space-y-3">
                     {deliveryAddressCheck.phoneCorrectionNote && (
@@ -3092,7 +3103,10 @@ function CheckoutPage() {
                   <div className="px-5 py-4 border-t border-gray-200 flex flex-col sm:flex-row gap-2 sm:justify-end">
                     <button
                       type="button"
-                      onClick={() => setAddressConfirmOpen(false)}
+                      onClick={() => {
+                        setAddressConfirmOpen(false);
+                        navigate(ROUTES.ADDRESS);
+                      }}
                       disabled={placeOrderLoading}
                       className="px-4 py-2.5 text-sm font-semibold uppercase border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
                     >

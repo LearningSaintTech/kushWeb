@@ -521,6 +521,121 @@ function getCurrentExchangeStepIndex(currentStatus) {
   return 0;
 }
 
+function OrderStatusStepper({
+  steps,
+  currentStepIndex,
+  statusHistory,
+  currentStatus,
+  resolveStepStatus,
+}) {
+  const progressPercent =
+    steps.length > 0 ? ((currentStepIndex + 1) / steps.length) * 100 : 0;
+  const horizontalMinWidth = Math.max(640, steps.length * 96);
+
+  const renderCircle = (reached) => (
+    <div
+      className={`w-5 h-5 rounded-full shrink-0 border-2 flex items-center justify-center ${
+        reached ? "bg-black border-black" : "bg-gray-300 border-gray-400"
+      }`}
+    >
+      {reached && (
+        <span className="text-white text-[10px] font-bold leading-none">✓</span>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      {/* Phone: vertical timeline — readable at 320px without overlapping labels */}
+      <div className="mb-8 md:hidden">
+        <ol className="m-0 list-none p-0">
+          {steps.map((step, idx) => {
+            const reached = currentStepIndex >= idx;
+            const { date } = resolveStepStatus(
+              statusHistory,
+              currentStatus,
+              step,
+            );
+            const isLast = idx === steps.length - 1;
+            return (
+              <li key={step.key} className="flex gap-3">
+                <div className="flex w-5 flex-col items-center self-stretch">
+                  {renderCircle(reached)}
+                  {!isLast && (
+                    <div
+                      className={`my-1 w-0.5 flex-1 min-h-5 rounded-full ${
+                        currentStepIndex > idx ? "bg-black" : "bg-gray-200"
+                      }`}
+                    />
+                  )}
+                </div>
+                <div className={`min-w-0 flex-1 ${isLast ? "" : "pb-3"}`}>
+                  <p
+                    className={`text-xs font-medium leading-snug ${
+                      reached ? "text-black" : "text-gray-500"
+                    }`}
+                  >
+                    {step.label}
+                  </p>
+                  {date && reached && (
+                    <p className="mt-0.5 text-[10px] leading-snug text-gray-500">
+                      {date}
+                    </p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      {/* md+: horizontal stepper; scroll on narrower tablets */}
+      <div className="mb-8 hidden overflow-x-auto pb-1 md:block lg:overflow-visible -mx-1 px-1">
+        <div
+          className="relative lg:min-w-0"
+          style={{ minWidth: horizontalMinWidth }}
+        >
+          <div className="absolute left-0 right-0 top-[10px] h-2 w-full -translate-y-1/2 rounded-full bg-gray-200" />
+          <div
+            className="absolute left-0 top-[10px] h-2 -translate-y-1/2 rounded-full bg-black transition-all duration-500 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+          <div className="relative z-10 flex flex-nowrap justify-between gap-0">
+            {steps.map((step, idx) => {
+              const reached = currentStepIndex >= idx;
+              const { date } = resolveStepStatus(
+                statusHistory,
+                currentStatus,
+                step,
+              );
+              return (
+                <div
+                  key={step.key}
+                  className="flex w-[5.5rem] shrink-0 flex-col items-center px-0.5 lg:min-w-0 lg:w-auto lg:flex-1"
+                >
+                  {renderCircle(reached)}
+                  <p
+                    className={`mt-1.5 text-center text-[10px] font-medium leading-tight lg:text-xs ${
+                      reached ? "text-black" : "text-gray-500"
+                    }`}
+                  >
+                    {step.label}
+                  </p>
+                  {date && reached && (
+                    <p className="mt-0.5 text-center text-[9px] leading-tight text-gray-500 lg:text-[10px]">
+                      {date}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function isDeliveryStepperRelevant(currentStatus) {
   const statusUpper = (currentStatus || "").toUpperCase();
   if (statusUpper === "CANCELLED") return false;
@@ -1286,10 +1401,10 @@ export default function TrackOrderPage() {
     deliveryStatusesShowDriver.includes(currentStatus);
 
   return (
-    <div className="min-h-screen mt-20 bg-gray-100 pt-24 pb-12">
-      <div className=" px-4 ">
+    <div className="min-h-screen bg-gray-100 pt-26 pb-12">
+      <div className="px-4">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-black uppercase">
             HI {String(userName).toUpperCase()},
           </h1>
@@ -1632,128 +1747,25 @@ export default function TrackOrderPage() {
             </div>
           )}
 
-          {/* Exchange flow progress bar (same style as delivery) */}
-          {showExchangeStepper &&
-            (() => {
-              const currentStepIndex =
-                getCurrentExchangeStepIndex(currentStatus);
-              const progressPercent =
-                EXCHANGE_STEPPER.length > 0
-                  ? ((currentStepIndex + 1) / EXCHANGE_STEPPER.length) * 100
-                  : 0;
-              return (
-                <div className="mb-8 overflow-x-auto md:overflow-visible -mx-1 px-1">
-                  <div className="relative min-w-[720px] md:min-w-0">
-                    <div className="absolute left-0 right-0 top-[10px] h-2 w-full rounded-full bg-gray-200 -translate-y-1/2" />
-                    <div
-                      className="absolute left-0 top-[10px] h-2 rounded-full bg-black -translate-y-1/2 transition-all duration-500 ease-out"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                    <div className="flex flex-nowrap justify-between gap-0 relative z-10">
-                      {EXCHANGE_STEPPER.map((step, idx) => {
-                        const reached = currentStepIndex >= idx;
-                        const { date } = getExchangeStepStatus(
-                          statusHistory,
-                          currentStatus,
-                          step,
-                        );
-                        return (
-                          <div
-                            key={step.key}
-                            className="flex flex-col items-center shrink-0 w-20 md:w-auto md:min-w-0 md:flex-1 px-0.5"
-                          >
-                            <div
-                              className={`w-5 h-5 rounded-full shrink-0 border-2 flex items-center justify-center ${
-                                reached
-                                  ? "bg-black border-black"
-                                  : "bg-gray-300 border-gray-400"
-                              }`}
-                            >
-                              {reached && (
-                                <span className="text-white text-[10px] font-bold">
-                                  ✓
-                                </span>
-                              )}
-                            </div>
-                            <p
-                              className={`text-xs font-medium text-center mt-1.5 ${reached ? "text-black" : "text-gray-500"}`}
-                            >
-                              {step.label}
-                            </p>
-                            {date && reached && (
-                              <p className="text-[10px] text-gray-500 mt-0.5 text-center">
-                                {date}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+          {showExchangeStepper && (
+            <OrderStatusStepper
+              steps={EXCHANGE_STEPPER}
+              currentStepIndex={getCurrentExchangeStepIndex(currentStatus)}
+              statusHistory={statusHistory}
+              currentStatus={currentStatus}
+              resolveStepStatus={getExchangeStepStatus}
+            />
+          )}
 
-          {/* E-commerce style progress bar: each status name directly under its circle */}
-          {showDeliveryStepper &&
-            (() => {
-              const currentStepIndex = getCurrentStepIndex(currentStatus);
-              const progressPercent =
-                STEPPER.length > 0
-                  ? ((currentStepIndex + 1) / STEPPER.length) * 100
-                  : 0;
-              return (
-                <div className="mb-8 relative">
-                  {/* Track + fill bar (positioned behind circles) */}
-                  <div className="absolute left-0 right-0 top-[10px] h-2 w-full rounded-full bg-gray-200 -translate-y-1/2" />
-                  <div
-                    className="absolute left-0 top-[10px] h-2 rounded-full bg-black -translate-y-1/2 transition-all duration-500 ease-out"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                  {/* One column per step: circle then label under it so they align */}
-                  <div className="flex justify-between relative z-10">
-                    {STEPPER.map((step, idx) => {
-                      const reached = currentStepIndex >= idx;
-                      const { date } = getStepStatus(
-                        statusHistory,
-                        currentStatus,
-                        step,
-                      );
-                      return (
-                        <div
-                          key={step.key}
-                          className="flex flex-col items-center min-w-0 flex-1 px-0.5"
-                        >
-                          <div
-                            className={`w-5 h-5 rounded-full shrink-0 border-2 flex items-center justify-center ${
-                              reached
-                                ? "bg-black border-black"
-                                : "bg-gray-300 border-gray-400"
-                            }`}
-                          >
-                            {reached && (
-                              <span className="text-white text-[10px] font-bold">
-                                ✓
-                              </span>
-                            )}
-                          </div>
-                          <p
-                            className={`text-xs font-medium text-center mt-1.5 ${reached ? "text-black" : "text-gray-500"}`}
-                          >
-                            {step.label}
-                          </p>
-                          {date && reached && (
-                            <p className="text-[10px] text-gray-500 mt-0.5 text-center">
-                              {date}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
+          {showDeliveryStepper && (
+            <OrderStatusStepper
+              steps={STEPPER}
+              currentStepIndex={getCurrentStepIndex(currentStatus)}
+              statusHistory={statusHistory}
+              currentStatus={currentStatus}
+              resolveStepStatus={getStepStatus}
+            />
+          )}
 
           {/* Contact delivery partner (delivery or exchange pickup/delivery when driver assigned) + Cancel + Exchange */}
           <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-gray-200">

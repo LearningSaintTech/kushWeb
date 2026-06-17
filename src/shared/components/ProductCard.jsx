@@ -3,6 +3,7 @@ import React, {
   useRef,
   useEffect,
   useLayoutEffect,
+  useMemo,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
@@ -114,7 +115,7 @@ const ProductCard = React.memo(function ProductCard({
   price,
   originalPrice,
   delivery,
-  
+
   rating,
   rounded = "lg",
   roundedTop,
@@ -141,10 +142,19 @@ const ProductCard = React.memo(function ProductCard({
   compactImageOverlaysOnMobile = false,
 }) {
   const navigate = useNavigate();
-  const { addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
+  const { cart, addToCart, removeFromCart, toggleWishlist, isInWishlist } =
+    useCartWishlist();
+  const idStr = id != null ? String(id) : null;
+  const inCart = useMemo(
+    () =>
+      idStr != null && (cart || []).some((item) => String(item?.id) === idStr),
+    [cart, idStr],
+  );
   const inWishlist = id != null && isInWishlist(id);
   const [cartError, setCartError] = useState(null);
+  const [addedToCartToast, setAddedToCartToast] = useState(false);
   const cartErrorTimeoutRef = useRef(null);
+  const addedToCartToastTimeoutRef = useRef(null);
   const [hoverImageLoaded, setHoverImageLoaded] = useState(false);
   const [titleExpanded, setTitleExpanded] = useState(false);
   const [titleExceedsTwoLines, setTitleExceedsTwoLines] = useState(false);
@@ -154,6 +164,8 @@ const ProductCard = React.memo(function ProductCard({
     return () => {
       if (cartErrorTimeoutRef.current)
         clearTimeout(cartErrorTimeoutRef.current);
+      if (addedToCartToastTimeoutRef.current)
+        clearTimeout(addedToCartToastTimeoutRef.current);
     };
   }, []);
 
@@ -244,7 +256,7 @@ const ProductCard = React.memo(function ProductCard({
         }
       : {};
 
-  const cardClassName = `group bg-white overflow-hidden ${isNumeric ? "" : roundedClass}`;
+  const cardClassName = `group flex h-full flex-col bg-white overflow-hidden ${isNumeric ? "" : roundedClass}`;
 
   const imageRoundedClass =
     `${imageIsNumeric ? "" : roundedTopClass} ${imageIsNumeric ? "" : roundedBottomClass}`.trim();
@@ -290,7 +302,9 @@ const ProductCard = React.memo(function ProductCard({
       className={`${id != null ? "block " : ""}${cardClassName} relative`}
       style={cardStyle}
     >
-      <div className={outOfStock ? "select-none" : ""}>
+      <div
+        className={`flex h-full min-h-0 flex-1 flex-col ${outOfStock ? "select-none" : ""}`}
+      >
         {/* IMAGE */}
         <div
           className={`relative overflow-hidden ${imageRoundedClass}`}
@@ -409,9 +423,18 @@ const ProductCard = React.memo(function ProductCard({
                   e.preventDefault();
                   e.stopPropagation();
                   setCartError(null);
+                  setAddedToCartToast(false);
                   if (cartErrorTimeoutRef.current) {
                     clearTimeout(cartErrorTimeoutRef.current);
                     cartErrorTimeoutRef.current = null;
+                  }
+                  if (addedToCartToastTimeoutRef.current) {
+                    clearTimeout(addedToCartToastTimeoutRef.current);
+                    addedToCartToastTimeoutRef.current = null;
+                  }
+                  if (inCart) {
+                    await removeFromCart(id);
+                    return;
                   }
                   const result = await addToCart({
                     id,
@@ -430,14 +453,20 @@ const ProductCard = React.memo(function ProductCard({
                       () => setCartError(null),
                       4000,
                     );
+                    return;
                   }
+                  setAddedToCartToast(true);
+                  addedToCartToastTimeoutRef.current = setTimeout(
+                    () => setAddedToCartToast(false),
+                    2000,
+                  );
                 }}
                 className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-200 hover:scale-105 cursor-pointer ${actionIconClass()}`}
-                aria-label="Add to cart"
+                aria-label={inCart ? "Remove from cart" : "Add to cart"}
               >
                 <svg
-                  className={`${imageActionIconClass} text-gray-700`}
-                  fill="none"
+                  className={`${imageActionIconClass} ${inCart ? "text-black fill-black" : "text-gray-700"}`}
+                  fill={inCart ? "currentColor" : "none"}
                   stroke="currentColor"
                   strokeWidth="2"
                   viewBox="0 0 24 24"
@@ -449,6 +478,19 @@ const ProductCard = React.memo(function ProductCard({
                   />
                 </svg>
               </button>
+              {/* {addedToCartToast && (
+                <div
+                  className={`absolute z-30 bg-black text-white rounded-md shadow-lg ${
+                    compactImageOverlaysOnMobile
+                      ? "top-2 right-0 max-w-[min(100%,9rem)] px-2 py-1 text-[9px] leading-tight lg:top-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:max-w-none lg:px-5 lg:py-2 lg:text-sm"
+                      : "top-4 left-1/2 -translate-x-1/2 px-5 py-2 text-sm"
+                  }`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  Added to cart
+                </div>
+              )} */}
               {cartError && (
                 <div
                   className={`absolute z-30 bg-black text-white rounded-md shadow-lg ${
@@ -482,17 +524,17 @@ const ProductCard = React.memo(function ProductCard({
 
         {/* INFO STRIP — on phone + Buy Now below, bottom radius moves to the button row */}
         <div
-          className={`px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${
+          className={`flex flex-1 flex-col px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${
             showBuyNowOnHover ? "max-sm:rounded-b-none" : ""
           } ${infoIsNumeric ? "" : infoRoundedBottomClass} ${infoClassName}`}
           style={infoBottomStyle}
         >
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h3
               ref={titleRef}
               className={`break-words uppercase tracking-[0.2em] sm:tracking-widest text-sm sm:text-base md:text-lg text-black leading-snug ${
                 !titleExpanded ? "line-clamp-2" : ""
-              } ${titleClassName}`}
+              } ${stackRatingOnMobile ? "max-lg:min-h-[2.6em]" : ""} ${titleClassName}`}
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
               {title}
@@ -514,12 +556,16 @@ const ProductCard = React.memo(function ProductCard({
             {(shortDescText || lowStockLabel) && (
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 {shortDescText ? (
-                  <p className={`min-w-0 flex-1 line-clamp-1 font-inter text-[10px] font-normal normal-case tracking-normal text-gray-500 sm:text-xs ${descriptionClassName}`}>
+                  <p
+                    className={`min-w-0 flex-1 line-clamp-1 font-inter text-[10px] font-normal normal-case tracking-normal text-gray-500 sm:text-xs ${descriptionClassName}`}
+                  >
                     {shortDescText}
                   </p>
                 ) : null}
                 {lowStockLabel ? (
-                  <span className={`shrink-0 font-inter text-[10px] font-semibold uppercase tracking-wide text-[#C45C26] sm:text-xs ${descriptionClassName}`}>
+                  <span
+                    className={`shrink-0 font-inter text-[10px] font-semibold uppercase tracking-wide text-[#C45C26] sm:text-xs ${descriptionClassName}`}
+                  >
                     {lowStockLabel}
                   </span>
                 ) : null}
@@ -602,7 +648,7 @@ const ProductCard = React.memo(function ProductCard({
         {/* Phone: full-width Buy It Now at bottom of card (below title/price) */}
         {id != null && showBuyNowOnHover && (
           <div
-            className={`sm:hidden border-t border-gray-100 bg-white px-3 pb-3 pt-3 ${
+            className={`mt-auto shrink-0 sm:hidden border-t border-gray-100 bg-white px-3 pb-3 pt-3 ${
               infoIsNumeric ? "" : infoRoundedBottomClass
             }`}
             style={infoBottomStyle}
@@ -614,32 +660,32 @@ const ProductCard = React.memo(function ProductCard({
                 e.stopPropagation();
                 navigate(getProductPath(id, title, shortDescription));
               }}
-              className="flex h-11 w-full max-w-full items-center justify-center rounded-full bg-black px-4 text-xs font-medium uppercase tracking-wider text-white cursor-pointer touch-manipulation hover:bg-neutral-900 active:bg-neutral-800"
+              className="flex h-9 sm:h-11 w-full max-w-full items-center justify-center rounded-full bg-black px-3 sm:px-4 text-[10px] sm:text-xs font-medium uppercase tracking-wide sm:tracking-wider text-white cursor-pointer touch-manipulation hover:bg-neutral-900 active:bg-neutral-800"
             >
               Buy It Now
             </button>
           </div>
         )}
       </div>
-    {outOfStock && (
-  <div
-    className={`absolute z-20 pointer-events-none ${
-      compactImageOverlaysOnMobile
-        ? "top-1.5 left-1.5 lg:top-3 lg:left-3"
-        : "top-3 left-3"
-    }`}
-  >
-    <span
-      className={`bg-black text-white font-medium uppercase tracking-wider ${
-        compactImageOverlaysOnMobile
-          ? "px-1.5 py-0.5 text-[7px] leading-tight lg:px-3 lg:py-2 lg:text-[10px]"
-          : "px-3 py-2 text-[10px]"
-      }`}
-    >
-      OUT OF STOCK
-    </span>
-  </div>
-)}
+      {outOfStock && (
+        <div
+          className={`absolute z-20 pointer-events-none ${
+            compactImageOverlaysOnMobile
+              ? "top-1.5 left-1.5 lg:top-3 lg:left-3"
+              : "top-3 left-3"
+          }`}
+        >
+          <span
+            className={`bg-black text-white font-medium uppercase tracking-wider ${
+              compactImageOverlaysOnMobile
+                ? "px-1.5 py-0.5 text-[7px] leading-tight lg:px-3 lg:py-2 lg:text-[10px]"
+                : "px-3 py-2 text-[10px]"
+            }`}
+          >
+            OUT OF STOCK
+          </span>
+        </div>
+      )}
     </CardWrapper>
   );
 });

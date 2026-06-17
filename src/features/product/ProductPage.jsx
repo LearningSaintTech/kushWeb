@@ -1194,7 +1194,7 @@ function ProductPage() {
               </p>
               <p className="mt-1 text-xs text-gray-600 sm:text-sm">
                 {isAuthenticated
-                  ? "Share an honest rating and review after your purchase. Photos are optional."
+                  ? "We value your feedback. Let us know what you loved, and help other shoppers make confident choices."
                   : "Share your rating and review — no account needed. Add your name and email. Photos are optional."}
               </p>
             </div>

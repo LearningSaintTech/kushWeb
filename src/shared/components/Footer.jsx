@@ -207,7 +207,7 @@ function Footer() {
     const result = validateContactForm(contactForm, { phoneRequired: false });
     if (!result.valid) {
       setContactFieldErrors(result.errors);
-      setContactStatus({ type: "error", text: "Please fix the errors below." });
+      setContactStatus({ type: "error", text: "Please fix the error above." });
       return;
     }
 
