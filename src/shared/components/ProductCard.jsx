@@ -278,6 +278,12 @@ const ProductCard = React.memo(function ProductCard({
   const actionIconClass = () =>
     revealActionsOnHover ? revealOnHoverClass : "opacity-100";
 
+  const wishlistIconClass = () => {
+    if (revealActionsOnHover) return actionIconClass();
+    if (showOnlyWishlistIconWhenIdle) return "opacity-100";
+    return actionIconClass();
+  };
+
   const imageActionsWrapClass = compactImageOverlaysOnMobile
     ? "top-1.5 right-1.5 gap-1.5 lg:top-6 lg:right-6 lg:gap-4"
     : "top-6 right-6 gap-4";
@@ -366,11 +372,7 @@ const ProductCard = React.memo(function ProductCard({
                     rating,
                   });
                 }}
-                className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${
-                  showOnlyWishlistIconWhenIdle
-                    ? "opacity-100"
-                    : actionIconClass()
-                }`}
+                className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${wishlistIconClass()}`}
                 aria-label={
                   inWishlist ? "Remove from wishlist" : "Add to wishlist"
                 }

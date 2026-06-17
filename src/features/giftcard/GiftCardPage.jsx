@@ -343,6 +343,7 @@ function GiftCardPurchasePanel({
   theyGet,
   multiplier,
   bannerImage,
+  bannerRulesLoaded,
   initialRedeemCode,
   previewLoading,
   redeemInputResetKey = 0,
@@ -365,7 +366,11 @@ function GiftCardPurchasePanel({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-md sm:p-5">
-      <GiftCardPromoBanner className="px-1 pb-4 sm:pb-5" imageUrl={bannerImage} />
+      <GiftCardPromoBanner
+        className="px-1 pb-4 sm:pb-5"
+        imageUrl={bannerImage}
+        rulesLoaded={bannerRulesLoaded}
+      />
 
       <div className="space-y-5 px-1 pb-1 sm:px-2">
         <div className="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
@@ -483,6 +488,7 @@ const GiftCardPage = () => {
   const [theyGet, setTheyGet] = useState(1000)
   const [multiplier, setMultiplier] = useState(2)
   const [bannerImage, setBannerImage] = useState('')
+  const [bannerRulesLoaded, setBannerRulesLoaded] = useState(false)
   const [buying, setBuying] = useState(false)
   const [redeeming, setRedeeming] = useState(false)
   const [listLoading, setListLoading] = useState(false)
@@ -545,7 +551,6 @@ const GiftCardPage = () => {
       const data = await giftcardService.previewBuy(amount)
       const m = data.multiplier ?? multiplierRef.current ?? 2
       setTheyGet(data.cardValue ?? amount * m)
-      if (data.image) setBannerImage(data.image)
     } catch {
       setTheyGet(amount * (multiplierRef.current || 2))
     } finally {
@@ -568,6 +573,9 @@ const GiftCardPage = () => {
         if (rules?.image) setBannerImage(rules.image)
       })
       .catch(() => { })
+      .finally(() => {
+        if (!cancelled) setBannerRulesLoaded(true)
+      })
     return () => {
       cancelled = true
     }
@@ -784,6 +792,7 @@ const GiftCardPage = () => {
       theyGet={theyGet}
       multiplier={multiplier}
       bannerImage={bannerImage}
+      bannerRulesLoaded={bannerRulesLoaded}
       initialRedeemCode={urlRedeemCode}
       previewLoading={previewLoading}
       redeemInputResetKey={redeemInputResetKey}

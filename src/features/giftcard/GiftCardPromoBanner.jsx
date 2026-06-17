@@ -7,7 +7,22 @@ const SIZE_CLASSES = {
     'max-w-[12rem] sm:max-w-[14rem] md:max-w-[16rem]',
 }
 
-export default function GiftCardPromoBanner({ className = '', id, size = 'default', imageUrl }) {
+export default function GiftCardPromoBanner({
+  className = '',
+  id,
+  size = 'default',
+  imageUrl,
+  rulesLoaded = true,
+}) {
+  if (!rulesLoaded) {
+    return (
+      <div
+        className={`mx-auto block h-[min(12rem,42vw)] w-full max-w-[14rem] animate-pulse rounded-lg bg-gray-100 sm:max-w-[16rem] md:max-w-[18rem] lg:max-w-[20rem] ${className}`}
+        aria-hidden
+      />
+    )
+  }
+
   const src = imageUrl || giftCardPromo
   return (
     <div className={`w-full text-center ${className}`}>

@@ -112,7 +112,7 @@ const NAV_ITEMS = [
  
   { label: 'Coupons', to: ROUTES.COUPONS, icon: TagIcon },
   { label: 'Wallet', to: ROUTES.WALLET, icon: WalletIcon },
-  { label: 'Gift Card', to: ROUTES.GIFTCARD, icon: Gift },
+  { label: 'Gift Cards', to: ROUTES.GIFTCARD, icon: Gift },
   { label: 'Refer and Earn', to: ROUTES.REFER_EARN, icon: HandCoins },
   { label: 'Redeem Coins', to: ROUTES.REDEEM_COINS, icon: CoinsIcon },
 

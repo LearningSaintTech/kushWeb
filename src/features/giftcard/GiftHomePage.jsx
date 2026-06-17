@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import giftCardTitle from '../../assets/images/giftcard/giftcardhearder.png'
-import giftHeroBg from '../../assets/images/giftcard/giftcard-bg.png'
+import giftHeroBg from '../../assets/images/giftcard/giftbg.png'
 import { giftcardService } from '../../services/giftcard.service.js'
 import { ROUTES } from '../../utils/constants'
 

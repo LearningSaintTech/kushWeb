@@ -282,6 +282,7 @@ function BestSellar({ section }) {
                       {...product}
                       roundedTop="3xl"
                       shouldRenderImage={shouldRenderProduct(idx)}
+                      revealActionsOnHover
                     />
                   </div>
                 ))}
@@ -384,6 +385,7 @@ function BestSellar({ section }) {
                         {...product}
                         roundedTop="3xl"
                         shouldRenderImage={shouldRenderProduct(idx)}
+                        revealActionsOnHover
                       />
                     </div>
                   ))}
