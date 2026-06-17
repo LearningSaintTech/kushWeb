@@ -219,7 +219,7 @@ export default function ProfileModal({ open, onClose }) {
               <p className="font-['Roboto'] font-bold text-white uppercase tracking-wide truncate">
                 {displayName}
               </p>
-              <p className="font-inter text-sm text-white/90 truncate">Style Preference Here</p>
+              {/* <p className="font-inter text-sm text-white/90 truncate">Style Preference Here</p> */}
             </div>
           </div>
 
