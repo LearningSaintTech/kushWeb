@@ -1,51 +1,50 @@
 const META_PIXEL_ID = import.meta.env.VITE_META_PIXEL_ID || "";
 
 function loadMetaPixel(pixelId) {
-  if (typeof window === "undefined" || !pixelId || window.fbq) return;
+  if (typeof window === "undefined" || !pixelId) return;
+  if (window.__KHUSH_META_PIXEL_ID__ === pixelId) return;
 
-  const n = window;
-  const t = document;
-  const s = "script";
-  const id = pixelId;
-
-  n.fbq =
-    n.fbq ||
-    function fbq(...args) {
+  if (!window.fbq) {
+    const n = window;
+    n.fbq = function fbq(...args) {
       (n.fbq.q = n.fbq.q || []).push(args);
     };
-  n._fbq = n._fbq || n.fbq;
-  n.fbq.loaded = true;
-  n.fbq.version = "2.0";
-  n.fbq.queue = n.fbq.q || [];
+    n._fbq = n._fbq || n.fbq;
+    n.fbq.loaded = true;
+    n.fbq.version = "2.0";
+    n.fbq.queue = n.fbq.q || [];
 
-  const script = t.createElement(s);
-  script.async = true;
-  script.src = "https://connect.facebook.net/en_US/fbevents.js";
-  const first = t.getElementsByTagName(s)[0];
-  first?.parentNode?.insertBefore(script, first);
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://connect.facebook.net/en_US/fbevents.js";
+    const first = document.getElementsByTagName("script")[0];
+    first?.parentNode?.insertBefore(script, first);
+  }
 
-  window.fbq("init", id);
+  window.fbq("init", pixelId);
   window.fbq("track", "PageView");
+  window.__KHUSH_META_PIXEL_ID__ = pixelId;
 
   if (import.meta.env.DEV) {
-    console.info("[Pixels] Meta Pixel initialized", id);
+    console.info("[Meta Pixel] Initialized", pixelId);
   }
 }
 
+/** Fallback if index.html injection did not run (e.g. missing env at dev server start). */
 export function initMarketingPixels() {
   if (typeof window === "undefined") return;
 
-  window.dataLayer = window.dataLayer || [];
-
   if (META_PIXEL_ID) {
+    if (window.__KHUSH_META_PIXEL_ID__ === META_PIXEL_ID) {
+      if (import.meta.env.DEV) {
+        console.info("[Meta Pixel] Active", META_PIXEL_ID);
+      }
+      return;
+    }
     loadMetaPixel(META_PIXEL_ID);
   } else if (import.meta.env.DEV) {
     console.warn(
-      "[Pixels] Meta Pixel not loaded. Add VITE_META_PIXEL_ID to .env (Events Manager → Pixel ID).",
+      "[Meta Pixel] Not loaded — set VITE_META_PIXEL_ID in .env and restart npm run dev.",
     );
-  }
-
-  if (import.meta.env.DEV) {
-    console.info("[Pixels] Dev logging on — watch [Pixels:dataLayer|meta|snap] in console.");
   }
 }

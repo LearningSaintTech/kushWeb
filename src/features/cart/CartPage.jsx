@@ -9,7 +9,7 @@ import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
-import { trackEvent, pushToDataLayer, cartRowToEcommerceItem, trackPixelAddToCart, trackPixelViewCart, trackPixelBeginCheckoutOnce } from '../../analytics'
+import { trackEvent, cartRowToEcommerceItem, trackPixelAddToCart, trackPixelViewCart, trackPixelBeginCheckoutOnce, trackPixelRemoveFromCart } from '../../analytics'
 import {
   DEFAULT_DONATION_AMOUNT,
   DONATION_MAX_AMOUNT,
@@ -119,13 +119,12 @@ function formatDeliveryDuration(dur, fallbackLabel = '') {
 }
 
 function pushRemoveFromCartEvent(row, quantity = 1) {
-  pushToDataLayer({ ecommerce: null })
-  pushToDataLayer({
-    event: 'remove_from_cart',
-    ecommerce: {
-      currency: 'INR',
-      items: [cartRowToEcommerceItem({ ...row, quantity })],
-    },
+  const product = row?.itemId
+  trackPixelRemoveFromCart({
+    id: product?._id ?? product?.id ?? row?.guestProductId ?? row?.id,
+    name: product?.name ?? row?.title,
+    price: row?.unitPrice,
+    quantity,
   })
 }
 

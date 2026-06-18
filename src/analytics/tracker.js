@@ -34,12 +34,6 @@ function parseJwtUserId(token) {
   }
 }
 
-export function pushToDataLayer(payload) {
-  if (typeof window === "undefined") return;
-  window.dataLayer = window.dataLayer || [];
-  window.dataLayer.push(payload);
-}
-
 function buildBasePayload() {
   const token = getAuthToken();
   const userId = parseJwtUserId(token);

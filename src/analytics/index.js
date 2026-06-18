@@ -4,7 +4,6 @@ export {
   trackSessionStart,
   trackRouteChange,
   trackSessionEnd,
-  pushToDataLayer,
 } from "./tracker.js";
 
 export {
@@ -15,6 +14,7 @@ export {
   trackPixelViewItem,
   trackPixelAddToCart,
   trackPixelViewCart,
+  trackPixelRemoveFromCart,
   trackPixelBeginCheckout,
   trackPixelBeginCheckoutOnce,
   trackPixelAddPaymentInfo,
