@@ -9,6 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { getProductPath } from "../../utils/constants";
 import { getLowStockLabel } from "../../utils/productStock.js";
+import { trackPixelAddToCart } from "../../analytics";
 
 const ROUNDED_CLASSES = {
   none: "",
@@ -457,6 +458,12 @@ const ProductCard = React.memo(function ProductCard({
                     );
                     return;
                   }
+                  trackPixelAddToCart({
+                    id,
+                    name: title,
+                    price,
+                    quantity: 1,
+                  });
                   setAddedToCartToast(true);
                   addedToCartToastTimeoutRef.current = setTimeout(
                     () => setAddedToCartToast(false),

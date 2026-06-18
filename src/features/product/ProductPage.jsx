@@ -16,7 +16,7 @@ import WriteReviewModal from "./components/WriteReviewModal";
 import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
-import { trackEvent } from "../../analytics";
+import { trackEvent, trackPixelAddToCart, trackPixelViewItem } from "../../analytics";
 import {
   getMediaTypeFromEntry,
   isVideoUrlString,
@@ -370,21 +370,12 @@ function ProductPage() {
     if (!productForCart || !selectedSizeObj?.inStock) return;
 
     // 🔥 ADD THIS (IMPORTANT)
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({
-      event: "add_to_cart",
-      ecommerce: {
-        currency: "INR",
-        value: Number(productForCart.price?.replace("₹", "")) || 0,
-        items: [
-          {
-            item_id: productForCart.id,
-            item_name: productForCart.title,
-            price: Number(productForCart.price?.replace("₹", "")) || 0,
-            quantity: 1,
-          },
-        ],
-      },
+    trackPixelAddToCart({
+      id: productForCart.id,
+      name: productForCart.title,
+      price: productForCart.price,
+      quantity: 1,
+      sku: productForCart.sku,
     });
 
     trackEvent({
@@ -452,18 +443,24 @@ function ProductPage() {
 
   useEffect(() => {
     if (!item?._id) return;
+    const price =
+      item.discountedPrice != null
+        ? Number(item.discountedPrice)
+        : item.price != null
+          ? Number(item.price)
+          : undefined;
+    trackPixelViewItem({
+      id: String(item._id),
+      name: item.name,
+      price,
+    });
     trackEvent({
       eventType: "product_view",
       itemId: String(item._id),
-      price:
-        item.discountedPrice != null
-          ? Number(item.discountedPrice)
-          : item.price != null
-            ? Number(item.price)
-            : undefined,
+      price,
       currency: "INR",
     });
-  }, [item?._id]);
+  }, [item?._id, item?.name, item?.discountedPrice, item?.price]);
 
   const toggleSection = (key) => {
     setExpandedSection((prev) => (prev === key ? null : key));

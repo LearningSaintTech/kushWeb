@@ -1,22 +1,27 @@
 import { Outlet } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import ScrollToTop from '../components/ScrollToTop'
 import AuthModal from '../../features/auth/AuthModal'
-import { trackPageView } from '../../analytics'
+import { trackPageView, trackPixelPageView } from '../../analytics'
 import { useSupportChat } from '../../app/context/SupportChatContext'
 import chatFabImage from '../../assets/images/chat-fab.svg'
 
 function MainLayout() {
   const location = useLocation();
   const { openSupportChat } = useSupportChat();
+  const initialRouteRef = useRef(true);
 
   useEffect(() => {
-    trackPageView({
-      path: `${location.pathname}${location.search}`,
-    });
+    const path = `${location.pathname}${location.search}`;
+    trackPageView({ path });
+    if (initialRouteRef.current) {
+      initialRouteRef.current = false;
+      return;
+    }
+    trackPixelPageView(path);
   }, [location.pathname, location.search]);
 
   return (
