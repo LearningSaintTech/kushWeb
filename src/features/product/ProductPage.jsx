@@ -441,8 +441,14 @@ function ProductPage() {
     navigate(ROUTES.CART);
   };
 
+  const productViewTrackedRef = useRef(null);
+
   useEffect(() => {
     if (!item?._id) return;
+    const id = String(item._id);
+    if (productViewTrackedRef.current === id) return;
+    productViewTrackedRef.current = id;
+
     const price =
       item.discountedPrice != null
         ? Number(item.discountedPrice)
@@ -450,17 +456,17 @@ function ProductPage() {
           ? Number(item.price)
           : undefined;
     trackPixelViewItem({
-      id: String(item._id),
+      id,
       name: item.name,
       price,
     });
     trackEvent({
       eventType: "product_view",
-      itemId: String(item._id),
+      itemId: id,
       price,
       currency: "INR",
     });
-  }, [item?._id, item?.name, item?.discountedPrice, item?.price]);
+  }, [item]);
 
   const toggleSection = (key) => {
     setExpandedSection((prev) => (prev === key ? null : key));

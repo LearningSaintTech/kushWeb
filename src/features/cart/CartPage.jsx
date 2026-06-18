@@ -118,6 +118,17 @@ function formatDeliveryDuration(dur, fallbackLabel = '') {
   return `${min}-${max} ${unitLabel}`
 }
 
+function pushRemoveFromCartEvent(row, quantity = 1) {
+  pushToDataLayer({ ecommerce: null })
+  pushToDataLayer({
+    event: 'remove_from_cart',
+    ecommerce: {
+      currency: 'INR',
+      items: [cartRowToEcommerceItem({ ...row, quantity })],
+    },
+  })
+}
+
 function parseGuestPrice(priceStr) {
   if (typeof priceStr === 'number' && !Number.isNaN(priceStr)) return priceStr
   const n = Number(String(priceStr ?? '').replace(/[^0-9.]/g, ''))
@@ -446,13 +457,7 @@ function CartPage() {
     }
     try {
       await cartService.decreaseQty(sku)
-      pushToDataLayer({
-        event: 'remove_from_cart',
-        ecommerce: {
-          currency: 'INR',
-          items: [cartRowToEcommerceItem({ ...row, quantity: 1 })],
-        },
-      })
+      pushRemoveFromCartEvent(row, 1)
       refetchCart({ addressId })
       const next = await fetchCart()
       if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
@@ -463,25 +468,13 @@ function CartPage() {
     if (row?.isGuest && row.guestProductId != null) {
       try {
         await removeFromCart(row.guestProductId)
-        pushToDataLayer({
-          event: 'remove_from_cart',
-          ecommerce: {
-            currency: 'INR',
-            items: [cartRowToEcommerceItem(row)],
-          },
-        })
+        pushRemoveFromCartEvent(row)
       } catch (_) { }
       return
     }
     try {
       await removeFromCart(sku)
-      pushToDataLayer({
-        event: 'remove_from_cart',
-        ecommerce: {
-          currency: 'INR',
-          items: [cartRowToEcommerceItem(row)],
-        },
-      })
+      pushRemoveFromCartEvent(row)
       refetchCart({ addressId })
       const next = await fetchCart()
       setCartData(next)

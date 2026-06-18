@@ -2,6 +2,11 @@ import { pushToDataLayer } from "./tracker.js";
 
 const BEGIN_CHECKOUT_KEY = "khush_begin_checkout_tracked";
 
+function logPixel(channel, event, payload) {
+  if (!import.meta.env.DEV) return;
+  console.info(`[Pixels:${channel}]`, event, payload ?? "");
+}
+
 export function parsePrice(value) {
   if (typeof value === "number" && !Number.isNaN(value)) return value;
   const n = Number(String(value ?? "").replace(/[^\d.]/g, ""));
@@ -31,30 +36,49 @@ export function cartRowToEcommerceItem(row) {
   });
 }
 
+/** GA4 requires clearing ecommerce before each new ecommerce event in dataLayer. */
+function pushEcommerceEvent(payload) {
+  pushToDataLayer({ ecommerce: null });
+  pushToDataLayer(payload);
+  logPixel("dataLayer", payload?.event, payload);
+}
+
 function trackSnap(event, payload = {}) {
   if (typeof window !== "undefined" && typeof window.snaptr === "function") {
     window.snaptr("track", event, payload);
+    logPixel("snap", event, payload);
+  } else if (import.meta.env.DEV) {
+    logPixel("snap", `${event} (snaptr missing)`, payload);
   }
 }
 
-function trackMeta(event, payload = {}, options = undefined) {
+function trackMeta(event, payload = {}, options) {
   if (typeof window !== "undefined" && typeof window.fbq === "function") {
-    window.fbq("track", event, payload, options);
+    if (options) {
+      window.fbq("track", event, payload, options);
+    } else {
+      window.fbq("track", event, payload);
+    }
+    logPixel("meta", event, payload);
+  } else if (import.meta.env.DEV) {
+    logPixel("meta", `${event} (fbq missing)`, payload);
   }
 }
 
 export function trackPixelPageView(pagePath) {
-  pushToDataLayer({
+  const payload = {
     event: "page_view",
     page_path: pagePath,
-  });
+  };
+  pushToDataLayer(payload);
+  logPixel("dataLayer", payload.event, payload);
   trackSnap("PAGE_VIEW");
 }
 
 export function trackPixelViewItem({ id, name, price, currency = "INR" }) {
   const value = parsePrice(price);
   const item = buildEcommerceItem({ id, name, price: value, quantity: 1 });
-  pushToDataLayer({
+  pushEcommerceEvent({
     event: "view_item",
     ecommerce: { currency, value, items: [item] },
   });
@@ -90,7 +114,7 @@ export function trackPixelAddToCart({
     quantity: qty,
     variant: sku,
   });
-  pushToDataLayer({
+  pushEcommerceEvent({
     event: "add_to_cart",
     ecommerce: { currency, value, items: [item] },
   });
@@ -110,7 +134,7 @@ export function trackPixelAddToCart({
 }
 
 export function trackPixelViewCart({ items, value, currency = "INR" }) {
-  pushToDataLayer({
+  pushEcommerceEvent({
     event: "view_cart",
     ecommerce: {
       currency,
@@ -132,7 +156,7 @@ export function trackPixelBeginCheckout({
     (Array.isArray(items)
       ? items.reduce((sum, row) => sum + (Number(row?.quantity) || 1), 0)
       : 0);
-  pushToDataLayer({
+  pushEcommerceEvent({
     event: "begin_checkout",
     ecommerce: {
       currency,
@@ -162,7 +186,12 @@ export function trackPixelBeginCheckout({
 /** GTM + Meta + Snap begin_checkout once per checkout session. */
 export function trackPixelBeginCheckoutOnce(params) {
   if (typeof sessionStorage !== "undefined") {
-    if (sessionStorage.getItem(BEGIN_CHECKOUT_KEY)) return false;
+    if (sessionStorage.getItem(BEGIN_CHECKOUT_KEY)) {
+      if (import.meta.env.DEV) {
+        logPixel("skip", "begin_checkout already tracked this session");
+      }
+      return false;
+    }
     sessionStorage.setItem(BEGIN_CHECKOUT_KEY, "1");
   }
   trackPixelBeginCheckout(params);
@@ -199,7 +228,7 @@ export function trackPixelPurchase(conversion) {
     conversion?.numItems ??
     contents.reduce((sum, row) => sum + (row.quantity || 1), 0);
 
-  pushToDataLayer({
+  pushEcommerceEvent({
     event: "purchase",
     ecommerce: {
       transaction_id: conversion?.orderId,

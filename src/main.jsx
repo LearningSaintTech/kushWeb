@@ -8,6 +8,9 @@ import { store, persistor } from './app/store'
 
 import './index.css'
 import App from './App.jsx'
+import { initMarketingPixels } from './analytics/pixelBootstrap.js'
+
+initMarketingPixels()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
