@@ -21,6 +21,7 @@ function loadMetaPixel(pixelId) {
     first?.parentNode?.insertBefore(script, first);
   }
 
+  window.fbq("set", "autoConfig", false, pixelId);
   window.fbq("init", pixelId);
   window.fbq("track", "PageView");
   window.__KHUSH_META_PIXEL_ID__ = pixelId;

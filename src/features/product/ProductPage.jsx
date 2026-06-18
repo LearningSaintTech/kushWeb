@@ -369,7 +369,13 @@ function ProductPage() {
     console.log("Add to cart clicked", productForCart, selectedSizeObj);
     if (!productForCart || !selectedSizeObj?.inStock) return;
 
-    // 🔥 ADD THIS (IMPORTANT)
+    const result = await addToCart(productForCart, pincode);
+
+    if (result?.success === false && result?.message) {
+      setCartError(result.message);
+      return;
+    }
+
     trackPixelAddToCart({
       id: productForCart.id,
       name: productForCart.title,
@@ -386,13 +392,6 @@ function ProductPage() {
       price: Number(productForCart.price?.replace(/[^\d.]/g, "")) || 0,
       currency: "INR",
     });
-
-    const result = await addToCart(productForCart, pincode);
-
-    if (result?.success === false && result?.message) {
-      setCartError(result.message);
-      return;
-    }
 
     setAddedToCart(true);
   };
@@ -437,6 +436,13 @@ function ProductPage() {
         setTimeout(() => setCartError(null), 4000);
         return;
       }
+      trackPixelAddToCart({
+        id: productForCart.id,
+        name: productForCart.title,
+        price: productForCart.price,
+        quantity: 1,
+        sku: productForCart.sku,
+      });
     }
     navigate(ROUTES.CART);
   };

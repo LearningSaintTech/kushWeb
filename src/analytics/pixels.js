@@ -1,4 +1,20 @@
 const BEGIN_CHECKOUT_KEY = "khush_begin_checkout_tracked";
+const ADD_TO_CART_DEDUPE_MS = 5000;
+
+/**
+ * Meta Pixel events are fired here via fbq (not Meta Event Setup Tool button rules).
+ * autoConfig is disabled in index.html so Meta does not auto-track button clicks (duplicates).
+ * In Events Manager → delete any automatic "Event Setup Tool" rules to avoid duplicates.
+ *
+ * Funnel mapping:
+ * - PageView        → every route (MainLayout)
+ * - ViewContent     → product page
+ * - AddToCart       → "Add To Cart" + "Buy It Now" on PDP; cart icon on product cards
+ * - ViewCart        → /cart
+ * - InitiateCheckout→ cart "Checkout" button (not "Add new address")
+ * - AddPaymentInfo  → place order on /checkout
+ * - Purchase        → /order/thank-you (NOT /orders)
+ */
 
 function logPixel(event, payload) {
   if (!import.meta.env.DEV) return;
@@ -82,17 +98,40 @@ export function trackPixelAddToCart({
   quantity = 1,
   currency = "INR",
 }) {
-  const unitPrice = parsePrice(price);
+  const productId = id != null ? String(id) : "unknown";
   const qty = Number(quantity) || 1;
+  const dedupeKey = `khush_atc_${productId}_${qty}`;
+  const now = Date.now();
+
+  try {
+    const last = sessionStorage.getItem(dedupeKey);
+    if (last && now - Number(last) < ADD_TO_CART_DEDUPE_MS) {
+      if (import.meta.env.DEV) {
+        logPixel("AddToCart skipped (dedupe)", { id: productId, quantity: qty });
+      }
+      return;
+    }
+    sessionStorage.setItem(dedupeKey, String(now));
+  } catch {
+    // ignore storage errors
+  }
+
+  const unitPrice = parsePrice(price);
   const value = unitPrice * qty;
-  trackMeta("AddToCart", {
-    content_type: "product",
-    content_ids: id ? [String(id)] : [],
-    contents: id ? [{ id: String(id), quantity: qty }] : [],
-    content_name: name,
-    value,
-    currency,
-  });
+  const eventID = `add_to_cart_${productId}_${Math.floor(now / ADD_TO_CART_DEDUPE_MS)}`;
+
+  trackMeta(
+    "AddToCart",
+    {
+      content_type: "product",
+      content_ids: id ? [productId] : [],
+      contents: id ? [{ id: productId, quantity: qty }] : [],
+      content_name: name,
+      value,
+      currency,
+    },
+    { eventID },
+  );
 }
 
 export function trackPixelViewCart({ items, value, currency = "INR" }) {
