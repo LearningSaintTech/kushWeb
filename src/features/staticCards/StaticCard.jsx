@@ -4,7 +4,7 @@ import saleTag from "../../assets/images/staticCards/sale-tag.png";
 export const STATIC_CARDS = [
     {
         id: 1,
-        title: "90 MIN EXPRESS DELIVERY",
+        title: "EXPRESS DELIVERY",
         icon: (
             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="38" viewBox="0 0 64 38" fill="none">
                 <path d="M27.82 27.5699C27.7677 26.5032 27.307 25.4975 26.5336 24.761C25.7601 24.0246 24.733 23.6138 23.665 23.6138C22.597 23.6138 21.5699 24.0246 20.7964 24.761C20.023 25.4975 19.5623 26.5032 19.51 27.5699C19.4956 28.1162 19.5889 28.66 19.7846 29.1703C19.9803 29.6805 20.2746 30.1472 20.6507 30.5437C21.0267 30.9402 21.4772 31.2588 21.9764 31.4812C22.4756 31.7036 23.0137 31.8255 23.56 31.8399C24.6633 31.8691 25.733 31.4588 26.5338 30.6993C27.3346 29.9397 27.8008 28.8932 27.83 27.7899C27.83 27.7299 27.83 27.6499 27.82 27.5699ZM22.87 29.3499C22.6022 29.2218 22.3747 29.0225 22.2124 28.7738C22.0502 28.5252 21.9594 28.2367 21.95 27.9399C21.936 27.817 21.936 27.6929 21.95 27.5699C22.0048 27.1592 22.2068 26.7823 22.5186 26.5093C22.8303 26.2364 23.2306 26.0859 23.645 26.0859C24.0594 26.0859 24.4597 26.2364 24.7714 26.5093C25.0832 26.7823 25.2852 27.1592 25.34 27.5699C25.3472 27.6498 25.3472 27.7301 25.34 27.8099C25.336 28.0996 25.2594 28.3837 25.1171 28.6361C24.9747 28.8884 24.7713 29.101 24.5255 29.2543C24.2796 29.4076 23.9992 29.4967 23.7099 29.5134C23.4207 29.5301 23.1319 29.4739 22.87 29.3499ZM54.26 27.5699C54.2076 26.5032 53.747 25.4975 52.9736 24.761C52.2001 24.0246 51.173 23.6138 50.105 23.6138C49.037 23.6138 48.0099 24.0246 47.2364 24.761C46.463 25.4975 46.0023 26.5032 45.95 27.5699C45.9356 28.1162 46.0289 28.66 46.2246 29.1703C46.4203 29.6805 46.7146 30.1472 47.0907 30.5437C47.4667 30.9402 47.9172 31.2588 48.4164 31.4812C48.9156 31.7036 49.4537 31.8255 50 31.8399C51.1033 31.8691 52.173 31.4588 52.9738 30.6993C53.7746 29.9397 54.2408 28.8932 54.27 27.7899C54.27 27.7299 54.27 27.6499 54.26 27.5699ZM49.31 29.3499C49.0422 29.2218 48.8147 29.0225 48.6524 28.7738C48.4902 28.5252 48.3994 28.2367 48.39 27.9399C48.376 27.817 48.376 27.6929 48.39 27.5699C48.4448 27.1592 48.6468 26.7823 48.9586 26.5093C49.2703 26.2364 49.6706 26.0859 50.085 26.0859C50.4994 26.0859 50.8996 26.2364 51.2114 26.5093C51.5232 26.7823 51.7252 27.1592 51.78 27.5699C51.7872 27.6498 51.7872 27.7301 51.78 27.8099C51.776 28.0996 51.6994 28.3837 51.5571 28.6361C51.4147 28.8884 51.2113 29.101 50.9655 29.2543C50.7196 29.4076 50.4392 29.4967 50.1499 29.5134C49.8607 29.5301 49.5719 29.4739 49.31 29.3499ZM24.84 13.9199C24.58 14.7533 24.27 15.6033 23.91 16.4699H24.84C24.7969 15.6205 24.7969 14.7694 24.84 13.9199Z" fill="#DD8560" />
@@ -17,7 +17,7 @@ export const STATIC_CARDS = [
         id: 2,
         title: "EARN REWARDS ON REFERRALS",
         icon: (
-            <img src={saleTag} alt="" className="!h-[6.5vh] !w-[6.5vh] max-h-7 max-w-7 object-contain" />
+            <img src={saleTag} alt="" className="!h-[5vh] !w-[5vh] max-h-5 max-w-5 object-contain" />
         ),
     },
     {
@@ -42,19 +42,19 @@ export const STATIC_CARDS = [
 
 const StaticCard = () => {
     return (
-        <section className="w-full bg-white py-4 sm:py-5 md:py-6 lg:py-7">
-            <div className="mx-auto w-full max-w-[1920px] px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16">
-                <div className="grid grid-cols-2 gap-2.5 auto-rows-fr sm:gap-3 md:gap-4 lg:grid-cols-4 lg:gap-5">
+        <section className="w-full mt-25 bg-white py-3 sm:py-2 md:py-1 lg:py-3 xl:py-4">
+            <div className="w-full max-w-[1024px] mx-auto px-3 sm:px-20 md:px-35 lg:px-25 xl:px-24">
+                <div className="grid grid-cols-2 gap-2 auto-rows-fr sm:gap-1.5 md:gap-3.5 lg:grid-cols-4 lg:gap-4.5">
                     {STATIC_CARDS.map((card) => (
                         <div
                             key={card.id}
-                            className="flex min-h-[clamp(7rem,32vw,10rem)] flex-col items-center justify-center rounded-2xl border border-[#DD856033] bg-[#DD85600F] p-3 text-center shadow-[0_2px_10px_rgba(221,133,96,0.06)] sm:min-h-[8.25rem] sm:rounded-[1.25rem] sm:p-4 md:min-h-[9rem] md:p-5 lg:min-h-[9.5rem] lg:p-6"
+                            className="flex min-h-[clamp(5.25rem,24vw,7.5rem)] flex-col items-center justify-center rounded-xl border border-[#DD856033] bg-[#DD85600F] p-2 text-center shadow-[0_2px_8px_rgba(221,133,96,0.05)] sm:min-h-[6.25rem] sm:rounded-2xl sm:p-2.5 md:min-h-[6.75rem] md:p-3 lg:min-h-[7.25rem] lg:p-3.5"
                         >
-                            <div className="flex h-[clamp(2.25rem,9vw,3rem)] w-[clamp(2.25rem,9vw,3rem)] shrink-0 items-center justify-center sm:h-12 sm:w-12 md:h-14 md:w-14 [&_img]:h-full [&_img]:w-full [&_img]:object-contain [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full">
+                            <div className="flex h-[clamp(1.75rem,7vw,2.25rem)] w-[clamp(1.75rem,7vw,2.25rem)] shrink-0 items-center justify-center sm:h-9 sm:w-9 md:h-10 md:w-10 [&_img]:h-full [&_img]:w-full [&_img]:object-contain [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full">
                                 {card.icon}
                             </div>
 
-                            <h3 className="mt-2 max-w-[11rem] font-inter text-[clamp(0.5625rem,2.6vw,0.8125rem)] font-semibold uppercase leading-[1.25] tracking-[0.02em] text-black sm:mt-2.5 sm:max-w-none sm:text-[11px] sm:leading-snug md:mt-3 md:text-xs lg:text-[13px] xl:text-sm">
+                            <h3 className="mt-1.5 max-w-[9.5rem] font-inter text-[clamp(0.5rem,2.2vw,0.6875rem)] font-semibold uppercase leading-[1.2] tracking-[0.02em] text-black sm:mt-2 sm:max-w-none sm:text-[10px] sm:leading-snug md:mt-2 md:text-[11px] lg:text-xs">
                                 {card.title}
                             </h3>
                         </div>

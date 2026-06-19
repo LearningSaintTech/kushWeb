@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Helmet } from "react-helmet-async"
 import { useSelector } from 'react-redux'
 import Banner from './components/Banner'
-import SpecialDiscount from './components/SpecialDiscount'
+// import SpecialDiscount from './components/SpecialDiscount'
 import LimitedEdition from './components/LimitedEdition'
 import OurProduct from './components/OurProduct'
 // import Collection from './components/Collection'

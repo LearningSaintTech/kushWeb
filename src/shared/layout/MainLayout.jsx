@@ -5,7 +5,7 @@ import Header from '../components/Header'
 import Footer from '../components/Footer'
 import ScrollToTop from '../components/ScrollToTop'
 import AuthModal from '../../features/auth/AuthModal'
-import { trackPageView } from '../../analytics'
+import { trackPageView, trackPixelPageView } from '../../analytics'
 import { useSupportChat } from '../../app/context/SupportChatContext'
 import chatFabImage from '../../assets/images/chat-fab.svg'
 
@@ -14,13 +14,13 @@ function MainLayout() {
   const { openSupportChat } = useSupportChat();
 
   useEffect(() => {
-    trackPageView({
-      path: `${location.pathname}${location.search}`,
-    });
+    const path = `${location.pathname}${location.search}`;
+    trackPageView({ path });
+    trackPixelPageView(path);
   }, [location.pathname, location.search]);
 
   return (
-    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-gray-100 max-w-full">
+    <div className="flex min-h-dvh flex-col overflow-x-hidden  max-w-full">
       <ScrollToTop />
       <Header />
       <main className="flex-1">

@@ -4,5 +4,19 @@ export {
   trackSessionStart,
   trackRouteChange,
   trackSessionEnd,
-  pushToDataLayer,
 } from "./tracker.js";
+
+export {
+  parsePrice,
+  buildEcommerceItem,
+  cartRowToEcommerceItem,
+  trackPixelPageView,
+  trackPixelViewItem,
+  trackPixelAddToCart,
+  trackPixelViewCart,
+  trackPixelRemoveFromCart,
+  trackPixelBeginCheckout,
+  trackPixelBeginCheckoutOnce,
+  trackPixelAddPaymentInfo,
+  trackPixelPurchase,
+} from "./pixels.js";

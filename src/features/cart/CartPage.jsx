@@ -9,7 +9,7 @@ import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
-import { trackEvent } from '../../analytics'
+import { trackEvent, cartRowToEcommerceItem, trackPixelAddToCart, trackPixelViewCart, trackPixelBeginCheckoutOnce, trackPixelRemoveFromCart } from '../../analytics'
 import {
   DEFAULT_DONATION_AMOUNT,
   DONATION_MAX_AMOUNT,
@@ -118,23 +118,14 @@ function formatDeliveryDuration(dur, fallbackLabel = '') {
   return `${min}-${max} ${unitLabel}`
 }
 
-function pushDataLayer(payload) {
-  if (typeof window === 'undefined') return
-  window.dataLayer = window.dataLayer || []
-  window.dataLayer.push(payload)
-}
-
-/** Build GA4-friendly cart line item for dataLayer (GTM) */
-function cartRowToEcommerceItem(row) {
-  const item = row?.itemId
-  const id = item?._id ?? item?.id
-  return {
-    item_id: id != null ? String(id) : undefined,
-    item_name: item?.name ?? undefined,
-    price: row?.unitPrice != null ? Number(row.unitPrice) : undefined,
-    quantity: row?.quantity != null ? Number(row.quantity) : 1,
-    item_variant: row?.variant?.sku != null ? String(row.variant.sku) : undefined,
-  }
+function pushRemoveFromCartEvent(row, quantity = 1) {
+  const product = row?.itemId
+  trackPixelRemoveFromCart({
+    id: product?._id ?? product?.id ?? row?.guestProductId ?? row?.id,
+    name: product?.name ?? row?.title,
+    price: row?.unitPrice,
+    quantity,
+  })
 }
 
 function parseGuestPrice(priceStr) {
@@ -220,18 +211,30 @@ function CartPage() {
   const [donationCustomMode, setDonationCustomMode] = useState(false)
   const [donationError, setDonationError] = useState(null)
   const donationInitializedRef = useRef(false)
+  const cartViewTrackedRef = useRef(false)
 
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? pincodeRedux
-
-  useEffect(() => {
-    trackEvent({ eventType: 'cart_view' })
-  }, [])
 
   const lineItems = useMemo(() => {
     if (isAuthenticated) return cartData?.items ?? []
     return guestCartToRows(guestCartFromContext)
   }, [isAuthenticated, cartData?.items, guestCartFromContext])
+
+  useEffect(() => {
+    if (cartViewTrackedRef.current || !lineItems.length) return
+    cartViewTrackedRef.current = true
+    const ecommerceItems = lineItems.map((row) => cartRowToEcommerceItem(row))
+    const cartValue = lineItems.reduce((sum, row) => {
+      const unitPrice =
+        row?.unitPrice != null
+          ? Number(row.unitPrice)
+          : parseGuestPrice(row?.itemId?.price ?? row?.price)
+      return sum + unitPrice * (row?.quantity ?? 1)
+    }, 0)
+    trackPixelViewCart({ items: ecommerceItems, value: cartValue })
+    trackEvent({ eventType: 'cart_view', cartValue, currency: 'INR' })
+  }, [lineItems])
 
   const guestSubTotal = useMemo(() => {
     if (isAuthenticated) return 0
@@ -432,13 +435,13 @@ function CartPage() {
     }
     try {
       await cartService.increaseQty(sku)
-      pushDataLayer({
-        event: 'add_to_cart',
-        ecommerce: {
-          currency: 'INR',
-          value: row?.unitPrice != null ? Number(row.unitPrice) : undefined,
-          items: [cartRowToEcommerceItem({ ...row, quantity: 1 })],
-        },
+      const product = row?.itemId
+      trackPixelAddToCart({
+        id: product?._id ?? product?.id ?? row?.guestProductId,
+        name: product?.name ?? row?.title,
+        price: row?.unitPrice,
+        quantity: 1,
+        sku: row?.variant?.sku,
       })
       refetchCart({ addressId })
       const next = await fetchCart()
@@ -453,13 +456,7 @@ function CartPage() {
     }
     try {
       await cartService.decreaseQty(sku)
-      pushDataLayer({
-        event: 'remove_from_cart',
-        ecommerce: {
-          currency: 'INR',
-          items: [cartRowToEcommerceItem({ ...row, quantity: 1 })],
-        },
-      })
+      pushRemoveFromCartEvent(row, 1)
       refetchCart({ addressId })
       const next = await fetchCart()
       if (next?.items?.length) fetchPriceSummary(appliedCouponCode || null)
@@ -470,25 +467,13 @@ function CartPage() {
     if (row?.isGuest && row.guestProductId != null) {
       try {
         await removeFromCart(row.guestProductId)
-        pushDataLayer({
-          event: 'remove_from_cart',
-          ecommerce: {
-            currency: 'INR',
-            items: [cartRowToEcommerceItem(row)],
-          },
-        })
+        pushRemoveFromCartEvent(row)
       } catch (_) { }
       return
     }
     try {
       await removeFromCart(sku)
-      pushDataLayer({
-        event: 'remove_from_cart',
-        ecommerce: {
-          currency: 'INR',
-          items: [cartRowToEcommerceItem(row)],
-        },
-      })
+      pushRemoveFromCartEvent(row)
       refetchCart({ addressId })
       const next = await fetchCart()
       setCartData(next)
@@ -1506,13 +1491,12 @@ function CartPage() {
                     donation: donationForCheckout,
                   }}
                   onClick={() => {
-                    pushDataLayer({
-                      event: 'begin_checkout',
-                      ecommerce: {
-                        currency: 'INR',
-                        value: finalPayable != null ? Number(finalPayable) : undefined,
-                        items: items.map((row) => cartRowToEcommerceItem(row)),
-                      },
+                    const ecommerceItems = items.map((row) => cartRowToEcommerceItem(row))
+                    trackPixelBeginCheckoutOnce({
+                      items: ecommerceItems,
+                      value: finalPayable != null ? Number(finalPayable) : undefined,
+                      currency: 'INR',
+                      numItems: items.reduce((sum, row) => sum + Number(row?.quantity || 0), 0),
                     })
                     trackEvent({
                       eventType: 'checkout_started',

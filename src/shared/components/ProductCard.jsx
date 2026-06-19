@@ -3,11 +3,13 @@ import React, {
   useRef,
   useEffect,
   useLayoutEffect,
+  useMemo,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { getProductPath } from "../../utils/constants";
 import { getLowStockLabel } from "../../utils/productStock.js";
+import { trackPixelAddToCart } from "../../analytics";
 
 const ROUNDED_CLASSES = {
   none: "",
@@ -114,7 +116,7 @@ const ProductCard = React.memo(function ProductCard({
   price,
   originalPrice,
   delivery,
-  
+
   rating,
   rounded = "lg",
   roundedTop,
@@ -128,12 +130,32 @@ const ProductCard = React.memo(function ProductCard({
   revealActionsOnHover = true,
   /** When `revealActionsOnHover`, keep only heart visible until hover/focus. */
   showOnlyWishlistIconWhenIdle = false,
+  /** Override default product image sizing (e.g. wishlist grid). */
+  imageClassName = "w-full h-[520px] object-cover object-center",
+  /** Optional class overrides (e.g. wishlist compact tablet layout). */
+  infoClassName = "",
+  titleClassName = "",
+  descriptionClassName = "",
+  priceRowClassName = "",
+  /** Phone portrait: price on one row, rating on the next (e.g. wishlist 2-col grid). */
+  stackRatingOnMobile = false,
+  /** Smaller action icons + badge, tucked to top-right on phone (e.g. wishlist). */
+  compactImageOverlaysOnMobile = false,
 }) {
   const navigate = useNavigate();
-  const { addToCart, toggleWishlist, isInWishlist } = useCartWishlist();
+  const { cart, addToCart, removeFromCart, toggleWishlist, isInWishlist } =
+    useCartWishlist();
+  const idStr = id != null ? String(id) : null;
+  const inCart = useMemo(
+    () =>
+      idStr != null && (cart || []).some((item) => String(item?.id) === idStr),
+    [cart, idStr],
+  );
   const inWishlist = id != null && isInWishlist(id);
   const [cartError, setCartError] = useState(null);
+  const [addedToCartToast, setAddedToCartToast] = useState(false);
   const cartErrorTimeoutRef = useRef(null);
+  const addedToCartToastTimeoutRef = useRef(null);
   const [hoverImageLoaded, setHoverImageLoaded] = useState(false);
   const [titleExpanded, setTitleExpanded] = useState(false);
   const [titleExceedsTwoLines, setTitleExceedsTwoLines] = useState(false);
@@ -143,6 +165,8 @@ const ProductCard = React.memo(function ProductCard({
     return () => {
       if (cartErrorTimeoutRef.current)
         clearTimeout(cartErrorTimeoutRef.current);
+      if (addedToCartToastTimeoutRef.current)
+        clearTimeout(addedToCartToastTimeoutRef.current);
     };
   }, []);
 
@@ -233,7 +257,7 @@ const ProductCard = React.memo(function ProductCard({
         }
       : {};
 
-  const cardClassName = `group bg-white overflow-hidden ${isNumeric ? "" : roundedClass}`;
+  const cardClassName = `group flex h-full flex-col bg-white overflow-hidden ${isNumeric ? "" : roundedClass}`;
 
   const imageRoundedClass =
     `${imageIsNumeric ? "" : roundedTopClass} ${imageIsNumeric ? "" : roundedBottomClass}`.trim();
@@ -255,6 +279,24 @@ const ProductCard = React.memo(function ProductCard({
   const actionIconClass = () =>
     revealActionsOnHover ? revealOnHoverClass : "opacity-100";
 
+  const wishlistIconClass = () => {
+    if (revealActionsOnHover) return actionIconClass();
+    if (showOnlyWishlistIconWhenIdle) return "opacity-100";
+    return actionIconClass();
+  };
+
+  const imageActionsWrapClass = compactImageOverlaysOnMobile
+    ? "top-1.5 right-1.5 gap-1.5 lg:top-6 lg:right-6 lg:gap-4"
+    : "top-6 right-6 gap-4";
+
+  const imageActionBtnClass = compactImageOverlaysOnMobile
+    ? "w-8 h-8 lg:w-11 lg:h-11"
+    : "w-11 h-11";
+
+  const imageActionIconClass = compactImageOverlaysOnMobile
+    ? "w-3.5 h-3.5 lg:w-5 lg:h-5"
+    : "w-5 h-5";
+
   return (
     <CardWrapper
       {...wrapperProps}
@@ -267,7 +309,9 @@ const ProductCard = React.memo(function ProductCard({
       className={`${id != null ? "block " : ""}${cardClassName} relative`}
       style={cardStyle}
     >
-      <div className={outOfStock ? "select-none" : ""}>
+      <div
+        className={`flex h-full min-h-0 flex-1 flex-col ${outOfStock ? "select-none" : ""}`}
+      >
         {/* IMAGE */}
         <div
           className={`relative overflow-hidden ${imageRoundedClass}`}
@@ -279,14 +323,14 @@ const ProductCard = React.memo(function ProductCard({
               alt={title}
               width={400}
               height={520}
-              className="w-full h-[520px] object-cover object-center"
+              className={imageClassName}
               decoding="async"
               loading={imageLoading}
               fetchPriority={imageLoading === "eager" ? "high" : "auto"}
             />
           ) : (
             // Keep card layout stable, but avoid remote image fetch/decoding.
-            <div className="w-full h-[520px] bg-gray-100 object-cover object-center" />
+            <div className={`${imageClassName} bg-gray-100`} />
           )}
 
           {shouldRenderImage && showHoverImage && (
@@ -306,7 +350,7 @@ const ProductCard = React.memo(function ProductCard({
           {/* ACTION ICONS */}
           {id != null && (
             <div
-              className="absolute top-6 right-6 flex flex-col gap-4 z-10"
+              className={`absolute flex flex-col z-10 ${imageActionsWrapClass}`}
               onClick={(e) => e.stopPropagation()}
               role="group"
               aria-label="Product actions"
@@ -329,17 +373,13 @@ const ProductCard = React.memo(function ProductCard({
                     rating,
                   });
                 }}
-                className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${
-                  showOnlyWishlistIconWhenIdle
-                    ? "opacity-100"
-                    : actionIconClass()
-                }`}
+                className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${wishlistIconClass()}`}
                 aria-label={
                   inWishlist ? "Remove from wishlist" : "Add to wishlist"
                 }
               >
                 <svg
-                  className={`w-5 h-5 ${inWishlist ? "text-black fill-black" : "text-gray-700"}`}
+                  className={`${imageActionIconClass} ${inWishlist ? "text-black fill-black" : "text-gray-700"}`}
                   fill={inWishlist ? "currentColor" : "none"}
                   stroke="currentColor"
                   strokeWidth="2"
@@ -361,11 +401,11 @@ const ProductCard = React.memo(function ProductCard({
                   e.stopPropagation();
                   navigate(getProductPath(id, title, shortDescription));
                 }}
-                className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-100 hover:scale-105 cursor-pointer ${actionIconClass()}`}
+                className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-100 hover:scale-105 cursor-pointer ${actionIconClass()}`}
                 aria-label="View product"
               >
                 <svg
-                  className="w-5 h-5 text-gray-700"
+                  className={`${imageActionIconClass} text-gray-700`}
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
@@ -386,9 +426,18 @@ const ProductCard = React.memo(function ProductCard({
                   e.preventDefault();
                   e.stopPropagation();
                   setCartError(null);
+                  setAddedToCartToast(false);
                   if (cartErrorTimeoutRef.current) {
                     clearTimeout(cartErrorTimeoutRef.current);
                     cartErrorTimeoutRef.current = null;
+                  }
+                  if (addedToCartToastTimeoutRef.current) {
+                    clearTimeout(addedToCartToastTimeoutRef.current);
+                    addedToCartToastTimeoutRef.current = null;
+                  }
+                  if (inCart) {
+                    await removeFromCart(id);
+                    return;
                   }
                   const result = await addToCart({
                     id,
@@ -407,14 +456,26 @@ const ProductCard = React.memo(function ProductCard({
                       () => setCartError(null),
                       4000,
                     );
+                    return;
                   }
+                  trackPixelAddToCart({
+                    id,
+                    name: title,
+                    price,
+                    quantity: 1,
+                  });
+                  setAddedToCartToast(true);
+                  addedToCartToastTimeoutRef.current = setTimeout(
+                    () => setAddedToCartToast(false),
+                    2000,
+                  );
                 }}
-                className={`w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-200 hover:scale-105 cursor-pointer ${actionIconClass()}`}
-                aria-label="Add to cart"
+                className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-200 hover:scale-105 cursor-pointer ${actionIconClass()}`}
+                aria-label={inCart ? "Remove from cart" : "Add to cart"}
               >
                 <svg
-                  className="w-5 h-5 text-gray-700"
-                  fill="none"
+                  className={`${imageActionIconClass} ${inCart ? "text-black fill-black" : "text-gray-700"}`}
+                  fill={inCart ? "currentColor" : "none"}
                   stroke="currentColor"
                   strokeWidth="2"
                   viewBox="0 0 24 24"
@@ -426,8 +487,27 @@ const ProductCard = React.memo(function ProductCard({
                   />
                 </svg>
               </button>
+              {/* {addedToCartToast && (
+                <div
+                  className={`absolute z-30 bg-black text-white rounded-md shadow-lg ${
+                    compactImageOverlaysOnMobile
+                      ? "top-2 right-0 max-w-[min(100%,9rem)] px-2 py-1 text-[9px] leading-tight lg:top-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:max-w-none lg:px-5 lg:py-2 lg:text-sm"
+                      : "top-4 left-1/2 -translate-x-1/2 px-5 py-2 text-sm"
+                  }`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  Added to cart
+                </div>
+              )} */}
               {cartError && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-black text-white px-5 py-2 rounded-md text-sm shadow-lg">
+                <div
+                  className={`absolute z-30 bg-black text-white rounded-md shadow-lg ${
+                    compactImageOverlaysOnMobile
+                      ? "top-2 right-0 max-w-[min(100%,9rem)] px-2 py-1 text-[9px] leading-tight lg:top-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:max-w-none lg:px-5 lg:py-2 lg:text-sm"
+                      : "top-4 left-1/2 -translate-x-1/2 px-5 py-2 text-sm"
+                  }`}
+                >
                   {cartError}
                 </div>
               )}
@@ -453,17 +533,17 @@ const ProductCard = React.memo(function ProductCard({
 
         {/* INFO STRIP — on phone + Buy Now below, bottom radius moves to the button row */}
         <div
-          className={`px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${
+          className={`flex flex-1 flex-col px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${
             showBuyNowOnHover ? "max-sm:rounded-b-none" : ""
-          } ${infoIsNumeric ? "" : infoRoundedBottomClass}`}
+          } ${infoIsNumeric ? "" : infoRoundedBottomClass} ${infoClassName}`}
           style={infoBottomStyle}
         >
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h3
               ref={titleRef}
               className={`break-words uppercase tracking-[0.2em] sm:tracking-widest text-sm sm:text-base md:text-lg text-black leading-snug ${
                 !titleExpanded ? "line-clamp-2" : ""
-              }`}
+              } ${stackRatingOnMobile ? "max-lg:min-h-[2.6em]" : ""} ${titleClassName}`}
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
               {title}
@@ -485,12 +565,16 @@ const ProductCard = React.memo(function ProductCard({
             {(shortDescText || lowStockLabel) && (
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 {shortDescText ? (
-                  <p className="min-w-0 flex-1 line-clamp-1 font-inter text-[10px] font-normal normal-case tracking-normal text-gray-500 sm:text-xs">
+                  <p
+                    className={`min-w-0 flex-1 line-clamp-1 font-inter text-[10px] font-normal normal-case tracking-normal text-gray-500 sm:text-xs ${descriptionClassName}`}
+                  >
                     {shortDescText}
                   </p>
                 ) : null}
                 {lowStockLabel ? (
-                  <span className="shrink-0 font-inter text-[10px] font-semibold uppercase tracking-wide text-[#C45C26] sm:text-xs">
+                  <span
+                    className={`shrink-0 font-inter text-[10px] font-semibold uppercase tracking-wide text-[#C45C26] sm:text-xs ${descriptionClassName}`}
+                  >
                     {lowStockLabel}
                   </span>
                 ) : null}
@@ -498,8 +582,14 @@ const ProductCard = React.memo(function ProductCard({
             )}
           </div>
 
-          {/* One row: price (left) · delivery + clock (center) · 5 stars only (right) — matches product card reference */}
-          <div className="mt-1.5 flex w-full min-w-0 items-center gap-x-2 text-[11px] sm:mt-2 sm:text-xs md:text-sm">
+          {/* Price row; optional stacked rating below on phone portrait (wishlist). */}
+          <div
+            className={`mt-1.5 flex w-full min-w-0 gap-x-2 text-[11px] sm:mt-2 lg:items-center lg:text-sm ${
+              stackRatingOnMobile
+                ? "max-lg:flex-col max-lg:items-start max-lg:gap-y-1"
+                : "items-center"
+            } ${priceRowClassName}`}
+          >
             <div
               className="flex shrink-0 items-center gap-1.5"
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
@@ -520,7 +610,9 @@ const ProductCard = React.memo(function ProductCard({
 
             {delivery ? (
               <div
-                className="flex min-h-[1.25rem] min-w-0 flex-1 items-center justify-center gap-1 px-0.5 text-black"
+                className={`flex min-h-[1.25rem] min-w-0 flex-1 items-center justify-center gap-1 px-0.5 text-black ${
+                  stackRatingOnMobile ? "max-lg:hidden" : ""
+                }`}
                 style={{ fontFamily: "'Baloo 2', sans-serif" }}
               >
                 {/* <svg
@@ -542,11 +634,20 @@ const ProductCard = React.memo(function ProductCard({
                 </span> */}
               </div>
             ) : (
-              <div className="min-w-0 flex-1" aria-hidden />
+              <div
+                className={`min-w-0 flex-1 ${
+                  stackRatingOnMobile ? "max-lg:hidden" : ""
+                }`}
+                aria-hidden
+              />
             )}
 
             {rating != null && rating !== "" && Number(rating) > 0 && (
-              <div className="shrink-0">
+              <div
+                className={`shrink-0 ${
+                  stackRatingOnMobile ? "max-lg:w-full" : ""
+                }`}
+              >
                 <ProductCardStarRating value={rating} />
               </div>
             )}
@@ -556,7 +657,7 @@ const ProductCard = React.memo(function ProductCard({
         {/* Phone: full-width Buy It Now at bottom of card (below title/price) */}
         {id != null && showBuyNowOnHover && (
           <div
-            className={`sm:hidden border-t border-gray-100 bg-white px-3 pb-3 pt-3 ${
+            className={`mt-auto shrink-0 sm:hidden border-t border-gray-100 bg-white px-3 pb-3 pt-3 ${
               infoIsNumeric ? "" : infoRoundedBottomClass
             }`}
             style={infoBottomStyle}
@@ -568,20 +669,32 @@ const ProductCard = React.memo(function ProductCard({
                 e.stopPropagation();
                 navigate(getProductPath(id, title, shortDescription));
               }}
-              className="flex h-11 w-full max-w-full items-center justify-center rounded-full bg-black px-4 text-xs font-medium uppercase tracking-wider text-white cursor-pointer touch-manipulation hover:bg-neutral-900 active:bg-neutral-800"
+              className="flex h-9 sm:h-11 w-full max-w-full items-center justify-center rounded-full bg-black px-3 sm:px-4 text-[10px] sm:text-xs font-medium uppercase tracking-wide sm:tracking-wider text-white cursor-pointer touch-manipulation hover:bg-neutral-900 active:bg-neutral-800"
             >
               Buy It Now
             </button>
           </div>
         )}
       </div>
-    {outOfStock && (
-  <div className="absolute top-3 left-3 z-20 pointer-events-none">
-    <span className="bg-black text-white px-3 py-2 text-[10px] font-medium uppercase tracking-wider">
-      OUT OF STOCK
-    </span>
-  </div>
-)}
+      {outOfStock && (
+        <div
+          className={`absolute z-20 pointer-events-none ${
+            compactImageOverlaysOnMobile
+              ? "top-1.5 left-1.5 lg:top-3 lg:left-3"
+              : "top-3 left-3"
+          }`}
+        >
+          <span
+            className={`bg-black text-white font-medium uppercase tracking-wider ${
+              compactImageOverlaysOnMobile
+                ? "px-1.5 py-0.5 text-[7px] leading-tight lg:px-3 lg:py-2 lg:text-[10px]"
+                : "px-3 py-2 text-[10px]"
+            }`}
+          >
+            OUT OF STOCK
+          </span>
+        </div>
+      )}
     </CardWrapper>
   );
 });

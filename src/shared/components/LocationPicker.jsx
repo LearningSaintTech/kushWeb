@@ -137,8 +137,8 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
         type="button"
         className={
           iconOnly
-            ? `flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full ${isLight ? 'bg-[#F5F5F5]' : 'bg-white/20'} ${error ? 'ring-1 ring-amber-400/80' : ''}`
-            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-2 py-1 md:gap-[0.83vw] md:px-[0.83vw] md:py-[0.3vw] ${bgClass} ${
+            ? `flex h-10 w-10 shrink-0 cursor-pointer   items-center justify-center rounded-full ${isLight ? 'bg-[#F5F5F5]' : 'bg-white/20'} ${error ? 'ring-1 ring-amber-400/80' : ''}`
+            : `flex min-w-0 flex-1 cursor-pointer   items-center gap-2 rounded-full px-2 py-1 md:gap-[0.83vw] md:px-[0.83vw] md:py-[0.3vw] ${bgClass} ${
                 compact ? 'w-full md:w-[18.1vw]' : ''
               } ${error ? 'ring-1 ring-amber-400/80' : ''}`
         }
@@ -173,7 +173,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           {/* Phone: dim background + bottom sheet (avoids narrow in-row popover) */}
           <button
             type="button"
-            className={`fixed inset-0 z-55 bg-black/45 backdrop-blur-[3px] transition-opacity duration-200 md:hidden ${
+            className={`fixed  inset-0 z-55 bg-black/45 backdrop-blur-[3px] transition-opacity  duration-200 md:hidden  ${
               panelAnimateOpen ? 'opacity-100' : 'opacity-0'
             }`}
             aria-label="Close delivery location"
@@ -181,21 +181,21 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           />
           <div
             id="location-listbox"
-            className={`z-60 flex flex-col overflow-hidden overscroll-contain border border-neutral-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.04)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:duration-200 md:ease-[cubic-bezier(0.16,1,0.3,1)]
+            className={`z-60 flex cursor-pointer flex-col overflow-hidden overscroll-contain border border-neutral-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.04)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:duration-200 md:ease-[cubic-bezier(0.16,1,0.3,1)]
               fixed inset-x-0 bottom-0 max-h-[min(88dvh,calc(100dvh-4.5rem))] rounded-t-3xl pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]
               md:absolute md:inset-x-auto md:bottom-auto md:left-0 md:top-full md:mt-2 md:max-h-none md:w-[min(100%,18rem)] md:rounded-2xl md:pb-0 md:min-w-[20rem] md:max-w-88
               ${panelAnimateOpen ? 'translate-y-0 opacity-100 md:translate-y-0 md:scale-100' : 'translate-y-full opacity-100 md:-translate-y-1 md:scale-[0.98] md:opacity-0'}
             `}
             role="listbox"
           >
-          <div className="mx-auto mt-2.5 h-1 w-11 shrink-0 rounded-full bg-neutral-200/90 md:hidden" aria-hidden />
+          <div className="mx-auto  mt-2.5 h-1 w-11 shrink-0 rounded-full bg-neutral-200/90 md:hidden" aria-hidden />
           <div className="relative shrink-0 px-4 pt-2 pb-3 border-b border-neutral-100 bg-linear-to-b from-neutral-50/90 to-white md:pt-4">
             <p className="font-inter text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-neutral-400">
               Delivery location
             </p>
             {resolvedLabel ? (
               <p
-                className="font-inter mt-1.5 text-sm font-medium leading-snug text-neutral-900 line-clamp-2"
+                className="font-inter   mt-1.5 text-sm font-medium leading-snug text-neutral-900 line-clamp-2"
                 title={resolvedLabel}
               >
                 {resolvedLabel}
@@ -207,7 +207,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
             )}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-0 md:flex-none md:overflow-visible">
+          <div className="min-h-0 flex-1  overflow-y-auto overflow-x-hidden px-0 md:flex-none md:overflow-visible">
           <div className="p-2 md:p-2">
             <button
               type="button"
@@ -215,7 +215,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
               disabled={isLoading || usingCurrent}
               className="font-inter group flex w-full items-center gap-3 rounded-xl bg-neutral-900 px-3.5 py-3 text-left text-sm font-medium text-white shadow-sm transition-all hover:bg-neutral-800 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-55"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10 transition-colors group-hover:bg-white/15">
+              <span className="flex h-10 w-10  shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10 transition-colors group-hover:bg-white/15">
                 <LocationIcon className="h-5 w-5 text-white" />
               </span>
               <span className="min-w-0 flex-1">
@@ -230,8 +230,8 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           {isAuthenticated && (
             <>
               {savedAddressesLoading ? (
-                <div className="px-4 pb-3">
-                  <div className="flex items-center gap-2 rounded-xl bg-neutral-50 px-3 py-2.5">
+                <div className="px-4  pb-3">
+                  <div className="flex  items-center gap-2 rounded-xl bg-neutral-50 px-3 py-2.5">
                     <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-neutral-300" />
                     <p className="font-inter text-xs text-neutral-500">Loading your saved addresses…</p>
                   </div>
@@ -241,7 +241,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
                   <p className="font-inter px-2 pt-3 pb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-neutral-400">
                     Saved addresses
                   </p>
-                  <ul className="max-h-[40vh] space-y-0.5 overflow-y-auto overscroll-contain pr-0.5 md:max-h-46">
+                  <ul className="max-h-[40vh]  space-y-0.5 overflow-y-auto overscroll-contain pr-0.5 md:max-h-46">
                     {savedAddresses.slice(0, 5).map((addr) => {
                       const label = formatAddressLabel(addr)
                       const pinStr = addr.pinCode != null ? String(addr.pinCode) : ''

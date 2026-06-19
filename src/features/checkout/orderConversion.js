@@ -1,4 +1,4 @@
-import { trackEvent } from '../../analytics'
+import { trackEvent, trackPixelPurchase } from '../../analytics'
 import { ROUTES } from '../../utils/constants'
 
 /**
@@ -56,7 +56,7 @@ function purchaseStorageKey(orderId) {
 }
 
 /**
- * Fire Meta Pixel Purchase + GTM dataLayer purchase (once per order per session).
+ * Fire Meta Pixel Purchase (once per order per session).
  */
 export function trackOrderConversion(conversion) {
   const orderId = conversion?.orderId
@@ -68,42 +68,15 @@ export function trackOrderConversion(conversion) {
     sessionStorage.setItem(key, '1')
   }
 
+  trackPixelPurchase(conversion)
+
   const value = Number(conversion.value || 0)
   const currency = conversion.currency || 'INR'
   const items = Array.isArray(conversion.items) ? conversion.items : []
-  const contents = items.map((row) => ({
-    id: row.id,
-    quantity: row.quantity ?? 1,
-  }))
   const contentIds = items.map((row) => row.id).filter(Boolean)
   const numItems =
     conversion.numItems ??
-    contents.reduce((sum, row) => sum + (row.quantity || 1), 0)
-
- 
-if (typeof window !== 'undefined' && window.fbq) {
-  console.log('META_PURCHASE', {
-    orderId,
-    value,
-    currency
-  })
-
-  window.fbq(
-    'track',
-    'Purchase',
-    {
-      value,
-      currency,
-      content_type: 'product',
-      content_ids: contentIds,
-      contents,
-      num_items: numItems,
-    },
-    {
-      eventID: String(orderId),
-    }
-  )
-}
+    items.reduce((sum, row) => sum + (row.quantity || 1), 0)
 
   trackEvent({
     eventType: 'order_conversion',
@@ -167,17 +140,6 @@ export function trackOrderFailedEvent(payload = {}) {
     sessionStorage.setItem(key, '1')
   }
 
-  if (typeof window !== 'undefined') {
-    window.dataLayer = window.dataLayer || []
-    window.dataLayer.push({
-      event: 'order_failed',
-      order_id: orderId ? String(orderId) : undefined,
-      reason,
-      payment_mode: payload?.paymentMode,
-      message: payload?.message,
-    })
-  }
-
   trackEvent({
     eventType: 'order_failed',
     orderId: orderId ? String(orderId) : undefined,
@@ -202,17 +164,6 @@ export function trackOrderCancelledEvent(payload = {}) {
   if (key && typeof sessionStorage !== 'undefined') {
     if (sessionStorage.getItem(key)) return
     sessionStorage.setItem(key, '1')
-  }
-
-  if (typeof window !== 'undefined') {
-    window.dataLayer = window.dataLayer || []
-    window.dataLayer.push({
-      event: 'order_cancelled',
-      order_id: orderId ? String(orderId) : undefined,
-      item_id: itemId ? String(itemId) : undefined,
-      reason: payload?.reason,
-      payment_mode: payload?.paymentMode,
-    })
   }
 
   trackEvent({

@@ -16,7 +16,7 @@ import WriteReviewModal from "./components/WriteReviewModal";
 import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
-import { trackEvent } from "../../analytics";
+import { trackEvent, trackPixelAddToCart, trackPixelViewItem } from "../../analytics";
 import {
   getMediaTypeFromEntry,
   isVideoUrlString,
@@ -369,22 +369,19 @@ function ProductPage() {
     console.log("Add to cart clicked", productForCart, selectedSizeObj);
     if (!productForCart || !selectedSizeObj?.inStock) return;
 
-    // 🔥 ADD THIS (IMPORTANT)
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({
-      event: "add_to_cart",
-      ecommerce: {
-        currency: "INR",
-        value: Number(productForCart.price?.replace("₹", "")) || 0,
-        items: [
-          {
-            item_id: productForCart.id,
-            item_name: productForCart.title,
-            price: Number(productForCart.price?.replace("₹", "")) || 0,
-            quantity: 1,
-          },
-        ],
-      },
+    const result = await addToCart(productForCart, pincode);
+
+    if (result?.success === false && result?.message) {
+      setCartError(result.message);
+      return;
+    }
+
+    trackPixelAddToCart({
+      id: productForCart.id,
+      name: productForCart.title,
+      price: productForCart.price,
+      quantity: 1,
+      sku: productForCart.sku,
     });
 
     trackEvent({
@@ -395,13 +392,6 @@ function ProductPage() {
       price: Number(productForCart.price?.replace(/[^\d.]/g, "")) || 0,
       currency: "INR",
     });
-
-    const result = await addToCart(productForCart, pincode);
-
-    if (result?.success === false && result?.message) {
-      setCartError(result.message);
-      return;
-    }
 
     setAddedToCart(true);
   };
@@ -446,24 +436,43 @@ function ProductPage() {
         setTimeout(() => setCartError(null), 4000);
         return;
       }
+      trackPixelAddToCart({
+        id: productForCart.id,
+        name: productForCart.title,
+        price: productForCart.price,
+        quantity: 1,
+        sku: productForCart.sku,
+      });
     }
     navigate(ROUTES.CART);
   };
 
+  const productViewTrackedRef = useRef(null);
+
   useEffect(() => {
     if (!item?._id) return;
+    const id = String(item._id);
+    if (productViewTrackedRef.current === id) return;
+    productViewTrackedRef.current = id;
+
+    const price =
+      item.discountedPrice != null
+        ? Number(item.discountedPrice)
+        : item.price != null
+          ? Number(item.price)
+          : undefined;
+    trackPixelViewItem({
+      id,
+      name: item.name,
+      price,
+    });
     trackEvent({
       eventType: "product_view",
-      itemId: String(item._id),
-      price:
-        item.discountedPrice != null
-          ? Number(item.discountedPrice)
-          : item.price != null
-            ? Number(item.price)
-            : undefined,
+      itemId: id,
+      price,
       currency: "INR",
     });
-  }, [item?._id]);
+  }, [item]);
 
   const toggleSection = (key) => {
     setExpandedSection((prev) => (prev === key ? null : key));
@@ -1131,10 +1140,10 @@ function ProductPage() {
               </div>
             </div> */}
 
-            <div className="mt-4 sm:mt-6 md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
+            <div className="mt-4 sm:mt-6  md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
               {inCart || addedToCart ? (
                 <>
-                  <p className="h-10 w-full flex items-center justify-center border border-black text-xs font-medium uppercase tracking-wider text-black sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px]">
+                  <p className="h-10 w-full  flex items-center justify-center border border-black text-xs font-medium uppercase tracking-wider text-black sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px]">
                     Already in the cart
                   </p>
                   <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3 md:gap-3 lg:gap-[25px]">
@@ -1194,8 +1203,8 @@ function ProductPage() {
               </p>
               <p className="mt-1 text-xs text-gray-600 sm:text-sm">
                 {isAuthenticated
-                  ? "Share an honest rating and review after your purchase. Photos are optional."
-                  : "Share your rating and review — no account needed. Add your name and email. Photos are optional."}
+                  ? "We value your feedback. Let us know what you loved, and help other shoppers make confident choices."
+                  : "We value your feedback. Let us know what you loved, and help other shoppers make confident choices"}
               </p>
             </div>
             <button

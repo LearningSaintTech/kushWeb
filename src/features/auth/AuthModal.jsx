@@ -150,31 +150,38 @@ export default function AuthModal() {
   }
 
   const otpValue = otpDigits.join('')
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault()
-    if (!userId || otpValue.length < 4) {
-      setError('Please enter the OTP you received')
-      return
-    }
-    setError('')
-    setLoading(true)
-    try {
-      await verifyOtp({ userId, otp: otpValue.trim() })
-      trackEvent({
-        eventType: mode === 'register' ? 'auth_signup_success' : 'auth_login_success',
-        meta: { source: 'auth_modal' },
-      })
-    } catch (err) {
-      trackEvent({
-        eventType: 'auth_login_failed',
-        meta: { source: 'auth_modal', reason: err?.response?.data?.message || err?.message || 'verify_failed' },
-      })
-      setError(err?.response?.data?.message || err?.message || 'Invalid OTP')
-    } finally {
-      setLoading(false)
-    }
+ const handleVerifyOtp = async (e) => {
+  e.preventDefault();
+
+  if (!userId || otpValue.length < 4) {
+    setError("Please enter the OTP you received");
+    return;
   }
 
+  setError("");
+  setLoading(true);
+
+  try {
+    await verifyOtp({
+      userId,
+      otp: otpValue.trim(),
+    });
+
+    trackEvent({
+      eventType:
+        mode === "register"
+          ? "auth_signup_success"
+          : "auth_login_success",
+      meta: { source: "auth_modal" },
+    });
+  } catch (err) {
+    console.error("OTP Verify Error:", err);
+
+    setError("Invalid OTP");
+  } finally {
+    setLoading(false);
+  }
+};
   const handleResendOtp = useCallback(async () => {
     if (resendCooldown > 0) return
     setError('')
