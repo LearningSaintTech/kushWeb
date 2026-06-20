@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import giftCardTitle from '../../assets/images/giftcard/giftcardhearder.png'
-import giftHeroBg from '../../assets/images/giftcard/giftbg.png'
+import giftHeroBg from '../../assets/images/giftcard/giftcard-bg.png'
 import { giftcardService } from '../../services/giftcard.service.js'
 import { ROUTES } from '../../utils/constants'
 
@@ -95,7 +95,7 @@ export default function GiftHomePage() {
                     <img
                         src={giftCardTitle}
                         alt="Gift Card"
-                        className="mx-auto block h-auto w-full max-w-[11rem] sm:max-w-[16rem] md:max-w-[20rem] lg:max-w-[24rem] xl:max-w-[26rem] 2xl:max-w-[28rem]"
+                        className="mx-auto block h-auto w-full max-w-[10rem] sm:max-w-[16rem] md:max-w-[20rem] lg:max-w-[20rem] xl:max-w-[20rem] 2xl:max-w-[20rem]"
                         decoding="async"
                         loading="lazy"
                         draggable={false}

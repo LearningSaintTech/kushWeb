@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { getProductPath, ROUTES } from '../../../utils/constants'
 import { getPublicImageUrl } from '../../../services/config.js'
-import bgHero from '../../../assets/images/special-discount/bg-hero.png'
+import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
 import thumb1 from '../../../assets/images/special-discount/thumb-1.png'
 import thumb2 from '../../../assets/images/special-discount/thumb-2.png'
 import thumb3 from '../../../assets/images/special-discount/thumb-3.png'
@@ -181,7 +181,7 @@ function ExploreButton({ to, variant = 'desktop' }) {
             }
             aria-label="Explore special offers"
         >
-            Explore
+            Buy Now
             <span className="text-sm leading-none sm:text-base" aria-hidden>
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
