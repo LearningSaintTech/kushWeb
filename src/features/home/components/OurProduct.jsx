@@ -6,6 +6,7 @@ import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
 import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
 import { getItemStockTotal } from "../../../utils/productStock.js";
+import { listingBindOfferProps } from "../../../utils/bindOffer.js";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const ALL_CATEGORY_KEY = "__ALL__";
@@ -29,7 +30,16 @@ const PRODUCTS_STATIC = Array.from({ length: 8 }, (_, i) => ({
   rating: 4.5,
 }));
 
-function itemToCardProps(item, index) {
+function sectionProductItem(product) {
+  const item = product?.item;
+  if (!item) return null;
+  return {
+    ...item,
+    bindOffer: item.bindOffer ?? product.bindOffer ?? null,
+  };
+}
+
+function itemToCardProps(item, index, section = null) {
   const id = item._id ?? item.id ?? index;
   const variants = item.variants ?? [];
   const firstVariant = variants[0];
@@ -67,6 +77,7 @@ function itemToCardProps(item, index) {
     delivery,
     rating: item.avgRating ?? 4.5,
     outOfStock: item.inStock === false,
+    ...listingBindOfferProps(item, section),
   };
 }
 
@@ -136,10 +147,43 @@ function OurProduct({ section }) {
   const listFromSection =
     section?.products
       ?.filter((p) => p?.item)
-      ?.map((p, i) => ({
-        ...itemToCardProps(p.item, i),
-        outOfStock: p.inStock === false,
-      })) ?? [];
+      ?.map((p, i) => {
+        const item = sectionProductItem(p);
+        return {
+          ...itemToCardProps(item, i, section),
+          outOfStock: p.inStock === false,
+        };
+      }) ?? [];
+
+  useEffect(() => {
+    if (import.meta.env.PROD) return;
+    const rawProducts = section?.products ?? [];
+    const withItem = rawProducts.filter((p) => p?.item);
+    console.log("[OurProduct] section meta:", {
+      _id: section?._id,
+      title: section?.title,
+      type: section?.type,
+      webOrder: section?.webOrder ?? section?.webinfo?.webOrder,
+      bindOffer: section?.bindOffer,
+      categoryId: section?.categoryId,
+    });
+    console.log("[OurProduct] section products:", {
+      total: rawProducts.length,
+      withItem: withItem.length,
+      offerBadges: withItem.map((p) => {
+        const item = sectionProductItem(p);
+        const props = listingBindOfferProps(item, section);
+        return {
+          itemId: item?._id,
+          name: item?.name,
+          itemBindOffer: item?.bindOffer,
+          productBindOffer: p?.bindOffer,
+          ...props,
+        };
+      }),
+    });
+    console.log("[OurProduct] listFromSection count:", listFromSection.length);
+  }, [section, listFromSection.length]);
 
   const fetchByCategory = useCallback(
     async (categoryId, page = 1) => {
@@ -158,7 +202,7 @@ function OurProduct({ section }) {
         const res = await itemsService.search(params);
         const data = res?.data?.data ?? res?.data;
         const items = (data?.items ?? []).map((item, i) =>
-          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i),
+          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
         );
 
         setCategoryProducts((prev) =>
@@ -174,7 +218,7 @@ function OurProduct({ section }) {
         else setLoadingMore(false);
       }
     },
-    [pincode],
+    [pincode, section],
   );
 
   const fetchAllVersion2 = useCallback(
@@ -193,7 +237,7 @@ function OurProduct({ section }) {
         });
         const data = res?.data?.data ?? res?.data;
         const items = (data?.items ?? []).map((item, i) =>
-          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i),
+          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
         );
         const totalPages = Number(data?.pagination?.totalPages || 0);
 
@@ -214,7 +258,7 @@ function OurProduct({ section }) {
         else setLoadingMore(false);
       }
     },
-    [pincode],
+    [pincode, section],
   );
 
   const loadMoreByActiveTab = useCallback(
@@ -386,7 +430,16 @@ function OurProduct({ section }) {
         )}
         <div className="grid grid-cols-2 items-stretch gap-x-2 gap-y-3 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 lg:grid-cols-4 md:gap-3">
           {!loadingInitial &&
-            productsToShow.map((product, idx) => (
+            productsToShow.map((product, idx) => {
+              if (!import.meta.env.PROD && (product.bindOffer || product.offerBadge)) {
+                console.log("[OurProduct][ProductCard] offer props", {
+                  id: product.id,
+                  title: product.title,
+                  bindOffer: product.bindOffer,
+                  offerBadge: product.offerBadge,
+                });
+              }
+              return (
               <div key={product.id ?? idx} className="flex min-w-0 h-full flex-col">
                 <ProductCard
                   {...product}
@@ -402,7 +455,8 @@ function OurProduct({ section }) {
                   priceRowClassName="mt-1 text-[9px] sm:text-[10px] md:mt-2 md:text-sm"
                 />
               </div>
-            ))}
+            );
+            })}
         </div>
         {(activeCategoryId === ALL_CATEGORY_KEY ||
           listFromSection.length === 0) &&

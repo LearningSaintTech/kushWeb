@@ -18,17 +18,26 @@ const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
   // 2: Couples,
   // 3: OurCategory,
-   4: SpecialDiscount,
+  4: SpecialDiscount,
   5: LimitedEdition,
   6: OurProduct,
+  9: SpecialDiscount,
 }
 
-const HOME_SLOT_ORDERS = [1, 4, 5, 6]
+/** Render order on home; slot 9 = Fathers Day / special offer (falls back to webOrder 4). */
+const HOME_SLOT_ORDERS = [1, 9, 5, 6]
+
+const HOME_WEB_ORDERS = new Set([1, 4, 5, 6, 9, 10])
 
 function getSectionWebOrder(section) {
   let order = section.webOrder ?? section.webinfo?.webOrder ?? 999
   if (order === 0) order = 1
   return order
+}
+
+function resolveSectionForHomeSlot(order, sectionsByOrder) {
+  if (order === 9) return sectionsByOrder[9] ?? sectionsByOrder[4]
+  return sectionsByOrder[order]
 }
 
 function HomePage() {
@@ -58,7 +67,7 @@ function HomePage() {
         const byOrder = {}
         sorted.forEach((s) => {
           const order = getSectionWebOrder(s)
-          if (order >= 1 && order <= 6) byOrder[order] = s
+          if (HOME_WEB_ORDERS.has(order)) byOrder[order] = s
         })
         console.log('[HomePage] sections by slot (webOrder):', byOrder)
         setSectionsByOrder(byOrder)
@@ -122,7 +131,7 @@ function HomePage() {
           <div className="pt-8 md:pt-12 lg:pt-16 space-y-8 md:space-y-12 lg:space-y-16">
             {HOME_SLOT_ORDERS.map((order) => {
               const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
-              const section = sectionsByOrder[order]
+              const section = resolveSectionForHomeSlot(order, sectionsByOrder)
               if (!SectionComponent) return null
               return (
                 <SectionComponent

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { IoChevronForwardOutline } from 'react-icons/io5'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import ProductCard from '../../shared/components/ProductCard'
+import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { ROUTES } from '../../utils/constants'
 // import wishlistBanner from '../../assets/temporary/collection.png'
 
@@ -163,7 +164,17 @@ function WishlistPage() {
           ref={listRef}
           className="grid grid-cols-2 gap-x-2 gap-y-3 sm:gap-x-2.5 sm:gap-y-4 md:grid-cols-3 md:gap-x-2 md:gap-y-4 lg:grid-cols-3 lg:gap-x-4 xl:grid-cols-4 xl:gap-x-5 lg:gap-y-8"
         >
-          {displayedItems.map((item) => (
+          {displayedItems.map((item) => {
+            const offerProps = listingBindOfferProps(item)
+            if (import.meta.env.DEV) {
+              console.log('[Wishlist][ProductCard] offer props', {
+                itemId: item.id,
+                title: item.title,
+                bindOffer: item.bindOffer,
+                offerProps,
+              })
+            }
+            return (
             <div key={item.id} className="flex min-w-0 flex-col">
               <ProductCard
                 id={item.id}
@@ -187,9 +198,11 @@ function WishlistPage() {
                 titleClassName="text-[10px] tracking-[0.1em] md:text-[11px] md:tracking-[0.12em] lg:text-lg lg:tracking-widest"
                 descriptionClassName="text-[8px] md:text-[9px] lg:text-xs"
                 priceRowClassName="mt-1 text-[9px] md:text-[10px] lg:mt-2 lg:text-sm"
+                {...offerProps}
               />
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {totalPages > 1 && (

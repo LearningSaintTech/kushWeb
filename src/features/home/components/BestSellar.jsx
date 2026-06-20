@@ -6,6 +6,7 @@ import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { getItemStockTotal } from '../../../utils/productStock.js'
+import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 
 const GAP = 24
 const SECTION_PAGE_SIZE = 10
@@ -20,7 +21,7 @@ const BEST_SELLER_PRODUCTS = Array.from({ length: 20 }, (_, i) => ({
   rating: 4.5,
 }))
 
-function mapItemToCard(item, deliveryTypeFallback) {
+function mapItemToCard(item, deliveryTypeFallback, section = null) {
   const id = item._id ?? item.id
   const variants = item.variants ?? []
   const firstVariant = variants[0]
@@ -53,6 +54,7 @@ function mapItemToCard(item, deliveryTypeFallback) {
     delivery,
     rating: item.avgRating ?? 4.5,
     outOfStock: item.inStock === false,
+    ...listingBindOfferProps(item, section),
   }
 }
 
@@ -79,6 +81,7 @@ function BestSellar({ section }) {
         delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
         rating: item.avgRating ?? 4.5,
         outOfStock: p.inStock === false,
+        ...listingBindOfferProps(item, section),
       }
     }) || []
 
@@ -125,7 +128,7 @@ function BestSellar({ section }) {
       const data = res?.data?.data ?? res?.data
       const items = data?.items ?? []
       const pag = data?.pagination ?? {}
-      const mapped = items.map((it) => mapItemToCard(it, section.deliveryType))
+      const mapped = items.map((it) => mapItemToCard(it, section.deliveryType, section))
       setSectionList((prev) => (page === 1 ? mapped : [...prev, ...mapped]))
       setSectionPage(page)
       const totalPages = Math.max(1, pag.totalPages ?? 1)

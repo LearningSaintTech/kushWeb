@@ -5,6 +5,7 @@ import { useAuth } from '../../app/context/AuthContext'
 import { setLocation } from '../../app/store/slices/locationSlice'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
 import { cartService } from '../../services/cart.service.js'
+import { sectionsService } from '../../services/content.service.js'
 import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
@@ -19,6 +20,20 @@ import {
 } from '../../utils/donation.js'
 import DonationPicker from '../../shared/components/DonationPicker.jsx'
 import CartItemDescription from '../../shared/components/CartItemDescription.jsx'
+import {
+  BindOfferBillRows,
+  BindOfferLineNote,
+  BindOfferProgressBanner,
+  BillSummaryItemTotal,
+  CartLineOfferPrice,
+} from '../../shared/components/BindOfferCartExtras.jsx'
+import {
+  enrichCartRowsWithPriceSummary,
+  enrichCartRowsWithSectionBindOffers,
+  getSectionBindProductIds,
+  hasBindOffer,
+  resolveCartBindOffers,
+} from '../../utils/bindOffer.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -75,6 +90,11 @@ function validateAddressForm(form) {
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return 'Rs 0'
   return `Rs ${Number(num).toLocaleString('en-IN', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`
+}
+
+function formatRsDiscount(num) {
+  const formatted = formatRs(num)
+  return formatted.startsWith('−') ? formatted : `−${formatted}`
 }
 
 function formatAddress(addr) {
@@ -181,6 +201,7 @@ function CartPage() {
   const [selectedAddress, setSelectedAddress] = useState(null)
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState([])
   const [priceSummary, setPriceSummary] = useState(null)
+  const [offerSections, setOfferSections] = useState([])
   const [couponInput, setCouponInput] = useState('')
   const [appliedCouponCode, setAppliedCouponCode] = useState(null)
   const [couponModalOpen, setCouponModalOpen] = useState(false)
@@ -217,9 +238,90 @@ function CartPage() {
   const pincode = selectedAddress?.pinCode ?? pincodeRedux
 
   const lineItems = useMemo(() => {
-    if (isAuthenticated) return cartData?.items ?? []
-    return guestCartToRows(guestCartFromContext)
-  }, [isAuthenticated, cartData?.items, guestCartFromContext])
+    if (!isAuthenticated) return guestCartToRows(guestCartFromContext)
+    let rows = cartData?.items ?? []
+    if (priceSummary?.items?.length) {
+      rows = enrichCartRowsWithPriceSummary(rows, priceSummary)
+    } else {
+      rows = rows.map((row) => ({
+        ...row,
+        bindOffer: row.bindOffer ?? row.itemId?.bindOffer ?? null,
+      }))
+    }
+    return enrichCartRowsWithSectionBindOffers(rows, offerSections)
+  }, [isAuthenticated, cartData?.items, guestCartFromContext, priceSummary, offerSections])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setOfferSections([])
+      return
+    }
+  let cancelled = false
+
+  async function loadOfferSections() {
+    // productLimit: 0 strips section.products — IDs are required to match cart lines
+    const params = { isWeb: true, limit: 50, productLimit: 100 }
+    if (pincode) params.pinCode = String(pincode)
+
+    try {
+      const res = await sectionsService.getActive(params)
+      const raw = res?.data?.data?.items ?? res?.data?.items ?? []
+      const withOffer = raw.filter((s) => hasBindOffer(s?.bindOffer))
+
+      const detailed = await Promise.all(
+        withOffer.map(async (section) => {
+          if (getSectionBindProductIds(section).size > 0) return section
+          if (!section?._id) return section
+          try {
+            const oneRes = await sectionsService.getOne(section._id)
+            const full = oneRes?.data?.data ?? oneRes?.data
+            return full && hasBindOffer(full?.bindOffer) ? full : section
+          } catch {
+            return section
+          }
+        }),
+      )
+
+      if (!cancelled) setOfferSections(detailed)
+    } catch {
+      if (!cancelled) setOfferSections([])
+    }
+  }
+
+  loadOfferSections()
+  return () => {
+    cancelled = true
+  }
+}, [isAuthenticated, pincode])
+
+  useEffect(() => {
+    if (import.meta.env.PROD || !isAuthenticated || loading) return
+    if (!cartData) return
+    const resolvedBindOffers = resolveCartBindOffers(priceSummary, lineItems)
+    console.log('[CartPage] cart /cart/my items:', (cartData?.items ?? []).map((row) => ({
+      sku: row?.variant?.sku,
+      quantity: row?.quantity,
+      bindOffer: row?.bindOffer ?? row?.itemId?.bindOffer ?? null,
+    })))
+    console.log('[CartPage] price-summary bindOffers (raw):', priceSummary?.summary?.bindOffers ?? null)
+    console.log('[CartPage] offer sections loaded:', offerSections.map((s) => ({
+      _id: s._id,
+      title: s.title,
+      offerType: s.bindOffer?.offerType,
+      label: s.bindOffer?.label,
+      productIds: [...getSectionBindProductIds(s)],
+      cartItemIds: (cartData?.items ?? []).map((row) =>
+        String(row?.itemId?._id ?? row?.itemId ?? ''),
+      ),
+    })))
+    console.log('[CartPage] resolved bindOffers (UI):', resolvedBindOffers)
+    console.log('[CartPage] merged lineItems:', lineItems.map((row) => ({
+      sku: row?.variant?.sku,
+      quantity: row?.quantity,
+      bindOffer: row?.bindOffer,
+      itemSubtotal: row?.itemSubtotal,
+    })))
+  }, [isAuthenticated, loading, cartData, priceSummary, lineItems, offerSections])
 
   useEffect(() => {
     if (cartViewTrackedRef.current || !lineItems.length) return
@@ -662,6 +764,10 @@ function CartPage() {
   }
 
   const summary = isAuthenticated ? (priceSummary?.summary ?? {}) : {}
+  const bindOffers = useMemo(
+    () => resolveCartBindOffers(priceSummary, lineItems),
+    [priceSummary, lineItems],
+  )
   const subTotal = isAuthenticated
     ? (cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0)
     : guestSubTotal
@@ -742,6 +848,7 @@ function CartPage() {
                 const selectedDeliveryId = row.selectedDeliveryId?.toString?.() ?? row.selectedDeliveryId
                 const productId = item?._id
                 const productPath = productId ? getProductPath(productId, name, shortDesc) : null
+                const lineBindOffer = row.bindOffer ?? null
 
                 return (
                   <div key={row._id ?? sku} className="border border-gray-200 p-3 bg-white">
@@ -770,6 +877,7 @@ function CartPage() {
                           <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
                         )}
                         <CartItemDescription text={shortDesc} />
+                        <BindOfferLineNote bindOffer={lineBindOffer} />
                         {(color || size) && (
                           <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                             {color && (
@@ -810,9 +918,12 @@ function CartPage() {
                           +
                         </button>
                       </div>
-                      <p className="text-sm font-semibold whitespace-nowrap">
-                        Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
+                      <CartLineOfferPrice
+                        unitPrice={unitPrice}
+                        quantity={qty}
+                        itemSubtotal={row.itemSubtotal ?? itemTotal}
+                        bindOffer={lineBindOffer}
+                      />
                     </div>
 
                     <div className="mt-3 flex items-center gap-2">
@@ -885,6 +996,7 @@ function CartPage() {
 
                     const productId = item?._id
                     const productPath = productId ? getProductPath(productId, name, shortDesc) : null
+                    const lineBindOffer = row.bindOffer ?? null
 
                     return (
                       <tr key={row._id ?? sku} className="align-middle border-b border-gray-200">
@@ -910,6 +1022,7 @@ function CartPage() {
                                 <Link to={productPath} className="block hover:underline">
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
                                   <CartItemDescription text={shortDesc} />
+                                  <BindOfferLineNote bindOffer={lineBindOffer} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
@@ -932,6 +1045,7 @@ function CartPage() {
                                 <>
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
                                   <CartItemDescription text={shortDesc} />
+                                  <BindOfferLineNote bindOffer={lineBindOffer} />
                                   {(color || size) && (
                                     <p className="text-gray-600 text-xs mt-1 normal-case flex items-center gap-1.5 flex-wrap">
                                       {color && (
@@ -976,7 +1090,13 @@ function CartPage() {
                           </div>
                         </td>
                         <td className="pl-4 py-4 text-right align-middle text-sm whitespace-nowrap">
-                          Rs. {Number(itemTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <CartLineOfferPrice
+                            unitPrice={unitPrice}
+                            quantity={qty}
+                            itemSubtotal={row.itemSubtotal ?? itemTotal}
+                            bindOffer={lineBindOffer}
+                            className="text-sm font-semibold whitespace-nowrap text-right"
+                          />
                         </td>
                         <td className="pl-4 py-4 align-middle">
                           {row.isGuest ? (
@@ -1400,16 +1520,15 @@ function CartPage() {
             {/* Bill Summary */}
             <section>
               <h2 className="text-sm font-semibold text-black mb-3">Bill Summary</h2>
+              {isAuthenticated ? (
+                <BindOfferProgressBanner bindOffers={bindOffers} className="mb-3" />
+              ) : null}
               <div className="space-y-2.5 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Item Total</span>
-                  <span className="font-medium">
-                    {coupon?.discountAmount > 0 && summary.subTotal != null && (
-                      <span className="text-gray-400 line-through mr-1">Rs {Number(summary.subTotal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                    )}
-                    Rs {Number(subTotalAfterDiscount ?? summary.subTotal ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                  </span>
-                </div>
+                <BillSummaryItemTotal
+                  summary={summary}
+                  bindOffers={bindOffers}
+                  subTotalAfterDiscount={subTotalAfterDiscount}
+                />
                 {chargesList.map((c) => (
                   <div key={c.key || c.description} className="flex justify-between items-center">
                     <span className="text-gray-700">{c.description || c.key || 'Platform Fee'}</span>
@@ -1422,13 +1541,16 @@ function CartPage() {
                     </span>
                   </div>
                 ))}
+                {isAuthenticated ? (
+                  <BindOfferBillRows bindOffers={bindOffers} formatRsFn={formatRsDiscount} />
+                ) : null}
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Discount</span>
+                  <span className="text-gray-700">Coupon</span>
                   <span className="font-medium">
                     {coupon?.discountAmount > 0 ? (
                       <>−{formatRs(coupon.discountAmount)}</>
                     ) : (
-                      <span className="text-green-700 font-medium">Free</span>
+                      <span className="text-gray-500 font-normal">—</span>
                     )}
                   </span>
                 </div>

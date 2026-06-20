@@ -86,6 +86,7 @@ function mapWishlistItem(item, deliveryOptions = []) {
     hoverImage: firstVariant?.images?.[1]?.url ?? imageUrl,
     delivery: deliveryText,
     rating: 4,
+    bindOffer: item?.itemId?.bindOffer ?? item?.bindOffer ?? null,
   }
 }
 

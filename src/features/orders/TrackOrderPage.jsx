@@ -20,6 +20,11 @@ import {
 import { navigateToOrderCancelled } from "../checkout/orderConversion.js";
 import { reviewsService } from "../../services/reviews.service.js";
 import { trackEvent } from "../../analytics";
+import { getOfferBadgeText } from "../../utils/bindOffer.js";
+import {
+  BindOfferBillRows,
+  BindOfferLineNote,
+} from "../../shared/components/BindOfferCartExtras.jsx";
 
 const QUANTITY_LABELS = {
   1: "One",
@@ -1900,6 +1905,15 @@ export default function TrackOrderPage() {
             <div className="min-w-0">
               {/* <p className="font-bold text-black uppercase">{brand}</p> */}
               <p className="text-gray-800 mt-1 normal-case">{name}</p>
+              {getOfferBadgeText(item?.bindOffer) ? (
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-violet-700">
+                  {getOfferBadgeText(item.bindOffer)}
+                </p>
+              ) : null}
+              <BindOfferLineNote
+                bindOffer={item?.bindOffer}
+                className="normal-case tracking-normal"
+              />
               {isExchangeReplacement ? <ReplacementOrderPriceMark compact /> : null}
               {isExternalSelfShippingOrder && normalCourierTracking?.courier ? (
                 <p className="text-gray-600 text-sm mt-2">
@@ -2079,6 +2093,12 @@ export default function TrackOrderPage() {
                       ).toFixed(2)}
                     </span>
                   </div>
+                  <BindOfferBillRows
+                    bindOffers={data?.pricing?.bindOffers}
+                    formatRsFn={(amount) =>
+                      `- ₹${Number(amount).toFixed(2)}`
+                    }
+                  />
                   {data.item.delivery?.charge != null &&
                     Number(data.item.delivery.charge) !== 0 && (
                       <div className="flex justify-between text-sm">

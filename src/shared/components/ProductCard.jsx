@@ -9,7 +9,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { getProductPath } from "../../utils/constants";
 import { getLowStockLabel } from "../../utils/productStock.js";
+import { getProductCardOfferBadge, getOfferHint } from "../../utils/bindOffer.js";
 import { trackPixelAddToCart } from "../../analytics";
+import BindOfferBadge from "./BindOfferBadge.jsx";
 
 const ROUNDED_CLASSES = {
   none: "",
@@ -141,6 +143,10 @@ const ProductCard = React.memo(function ProductCard({
   stackRatingOnMobile = false,
   /** Smaller action icons + badge, tucked to top-right on phone (e.g. wishlist). */
   compactImageOverlaysOnMobile = false,
+  /** Section bind-offer payload from API (`item.bindOffer`). */
+  bindOffer = null,
+  /** BOGO / bind-offer chip; overrides `bindOffer` when set. */
+  offerBadge = null,
 }) {
   const navigate = useNavigate();
   const { cart, addToCart, removeFromCart, toggleWishlist, isInWishlist } =
@@ -152,6 +158,20 @@ const ProductCard = React.memo(function ProductCard({
     [cart, idStr],
   );
   const inWishlist = id != null && isInWishlist(id);
+
+  const displayOfferBadge = useMemo(
+    () => offerBadge || getProductCardOfferBadge(bindOffer),
+    [offerBadge, bindOffer],
+  );
+
+  const offerHint = useMemo(() => {
+    if (!displayOfferBadge || !bindOffer?.offerType) return null;
+    if (bindOffer.isEligible === false) return null;
+    const hint = getOfferHint(bindOffer);
+    if (!hint || hint === displayOfferBadge) return null;
+    return hint;
+  }, [bindOffer, displayOfferBadge]);
+
   const [cartError, setCartError] = useState(null);
   const [addedToCartToast, setAddedToCartToast] = useState(false);
   const cartErrorTimeoutRef = useRef(null);
@@ -346,6 +366,17 @@ const ProductCard = React.memo(function ProductCard({
               fetchPriority="low"
             />
           )}
+
+          {displayOfferBadge ? (
+            <div
+              className={`absolute z-20 max-w-[calc(100%-3rem)] ${
+                compactImageOverlaysOnMobile ? "top-1.5 left-1.5 lg:top-4 lg:left-4" : "top-4 left-4"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <BindOfferBadge text={displayOfferBadge} />
+            </div>
+          ) : null}
 
           {/* ACTION ICONS */}
           {id != null && (
@@ -652,6 +683,12 @@ const ProductCard = React.memo(function ProductCard({
               </div>
             )}
           </div>
+
+          {offerHint ? (
+            <p className="mt-1 line-clamp-2 font-inter text-[9px] font-medium leading-snug text-violet-700 sm:text-[10px]">
+              {offerHint}
+            </p>
+          ) : null}
         </div>
 
         {/* Phone: full-width Buy It Now at bottom of card (below title/price) */}

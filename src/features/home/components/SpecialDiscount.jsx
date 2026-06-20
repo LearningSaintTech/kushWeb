@@ -1,11 +1,16 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getProductPath, ROUTES } from '../../../utils/constants'
+import { ROUTES, getSectionExplorePath, getProductPath } from '../../../utils/constants'
 import { getPublicImageUrl } from '../../../services/config.js'
 import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
 import thumb1 from '../../../assets/images/special-discount/thumb-1.png'
 import thumb2 from '../../../assets/images/special-discount/thumb-2.png'
 import thumb3 from '../../../assets/images/special-discount/thumb-3.png'
 import thumb4 from '../../../assets/images/special-discount/thumb-4.png'
+import { getSectionOfferHeadline } from '../../../utils/bindOffer.js'
+
+const BADGE_GOLD = '#D4AF37'
+const PRODUCT_CARD_LIMIT = 4
 
 const GALLERY_IMAGES = [
     { src: thumb1, alt: 'Woman in tan coat and sunglasses' },
@@ -13,8 +18,6 @@ const GALLERY_IMAGES = [
     { src: thumb3, alt: 'Woman in red tomato soup sweatshirt' },
     { src: thumb4, alt: 'Models in streetwear against orange background' },
 ]
-
-const BADGE_GOLD = '#C5A059'
 
 function formatDiscountPercent(section) {
     const value = section?.discount?.value
@@ -27,47 +30,26 @@ function resolveBannerSrc(section) {
     return desktopRaw ? getPublicImageUrl(desktopRaw) : bgHero
 }
 
-function resolveProductImage(item) {
-    if (!item) return null
-
-    const variants = item.variants ?? []
-    for (const variant of variants) {
-        const images = variant?.images ?? []
-        const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        const url = sorted.find((img) => img?.url)?.url ?? sorted[0]?.url
-        if (url) return getPublicImageUrl(url)
-    }
-
-    if (item.thumbnail) return getPublicImageUrl(item.thumbnail)
-    return null
-}
-
-function resolveGalleryImages(section) {
+function resolveSectionProductThumbs(section, limit = PRODUCT_CARD_LIMIT) {
     const fromProducts =
         section?.products
-            ?.slice(0, 4)
-            ?.map((p, i) => {
-                const item = p?.item ?? p
-                const src = resolveProductImage(item)
-                if (!src) return null
-
+            ?.filter((p) => p?.item)
+            ?.slice(0, limit)
+            ?.map((p) => {
+                const item = p.item
+                const id = item._id ?? p.itemId
+                const imageUrl = item.thumbnail || ''
                 return {
-                    src,
-                    alt: item.name || `Product ${i + 1}`,
-                    productId: item._id ?? p.itemId ?? item?.id,
+                    id,
+                    src: imageUrl ? getPublicImageUrl(imageUrl) : GALLERY_IMAGES[0].src,
+                    alt: item.name || 'Product',
                     name: item.name || '',
                     shortDescription: item.shortDescription || '',
                 }
             })
-            .filter(Boolean) ?? []
+            .filter((thumb) => thumb.id) ?? []
 
-    if (fromProducts.length > 0) {
-        while (fromProducts.length < 4 && fromProducts.length < GALLERY_IMAGES.length) {
-            fromProducts.push(GALLERY_IMAGES[fromProducts.length])
-        }
-        return fromProducts.slice(0, 4)
-    }
-    return GALLERY_IMAGES
+    return fromProducts
 }
 
 function DiscountBlock({ percent, className = '' }) {
@@ -118,52 +100,40 @@ function SpecialOfferHeader({ title, subtitle, className = '' }) {
     )
 }
 
-function GalleryThumbs({ images, variant = 'row' }) {
+function SectionProductThumbs({ thumbs, variant = 'row' }) {
+    if (!thumbs?.length) return null
+
     const containerClass =
         variant === 'grid'
-            ? 'grid grid-cols-2 gap-2 sm:gap-2.5'
+            ? 'grid grid-cols-2 gap-2.5 sm:gap-3'
             : variant === 'tablet'
-                ? 'grid grid-cols-4 gap-2.5 md:gap-3'
-                : 'flex flex-row items-center gap-2.5 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6'
+              ? 'grid grid-cols-4 gap-2.5 md:gap-3'
+              : 'flex flex-row items-stretch justify-end gap-2.5 sm:gap-3 md:gap-3.5 lg:gap-4'
 
     const cellClass =
-        variant === 'grid' || variant === 'tablet'
-            ? 'aspect-[3/4] w-full overflow-hidden rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.12)] sm:rounded-2xl'
-            : 'aspect-[3/4] w-[4.5rem] shrink-0 overflow-hidden rounded-xl shadow-[0_6px_18px_rgba(0,0,0,0.2)] sm:w-[5.5rem] sm:rounded-2xl md:w-[7rem] lg:w-[8.25rem] xl:w-[9.5rem] 2xl:w-[10.5rem]'
+        variant === 'row'
+            ? 'aspect-[3/4] w-[5.5rem] shrink-0 overflow-hidden rounded-xl shadow-[0_6px_18px_rgba(0,0,0,0.2)] sm:w-[6.25rem] sm:rounded-2xl md:w-[7.25rem] lg:w-[8.5rem] xl:w-[9.25rem] 2xl:w-[10rem]'
+            : 'aspect-[3/4] w-full max-w-[9.5rem] mx-auto overflow-hidden rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.12)] sm:rounded-2xl md:max-w-none'
 
     return (
         <div className={containerClass} role="list">
-            {images.map((item, index) => {
-                const image = (
+            {thumbs.map((thumb) => (
+                <Link
+                    key={String(thumb.id)}
+                    to={getProductPath(thumb.id, thumb.name, thumb.shortDescription)}
+                    role="listitem"
+                    className={`${cellClass} block transition-opacity hover:opacity-90`}
+                    aria-label={thumb.alt}
+                >
                     <img
-                        src={item.src}
-                        alt={item.alt}
-                        className="h-full w-full object-cover"
+                        src={thumb.src}
+                        alt={thumb.alt}
+                        className="h-full w-full object-cover object-top"
                         loading="lazy"
                         decoding="async"
                     />
-                )
-
-                if (item.productId) {
-                    return (
-                        <Link
-                            key={String(item.productId)}
-                            to={getProductPath(item.productId, item.name, item.shortDescription)}
-                            role="listitem"
-                            className={`${cellClass} block transition-opacity hover:opacity-90`}
-                            aria-label={item.alt}
-                        >
-                            {image}
-                        </Link>
-                    )
-                }
-
-                return (
-                    <div key={`${item.alt}-${index}`} role="listitem" className={cellClass}>
-                        {image}
-                    </div>
-                )
-            })}
+                </Link>
+            ))}
         </div>
     )
 }
@@ -227,43 +197,73 @@ function BannerHero({ bannerSrc, alt, children }) {
 
 function SpecialDiscount({ section }) {
     const bannerSrc = resolveBannerSrc(section)
-    const galleryImages = resolveGalleryImages(section)
-    const discountPercent = formatDiscountPercent(section)
-    const subtitle = section?.text?.trim() || 'Grab Your Discounts!'
-    const exploreTo = section?._id
-        ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}`
-        : ROUTES.SEARCH
+    const productThumbs = resolveSectionProductThumbs(section)
+    const offerHeadline = getSectionOfferHeadline(section)
+    const exploreTo = section?._id ? getSectionExplorePath(section._id) : ROUTES.SEARCH
+
+    useEffect(() => {
+        const rawProducts = section?.products ?? []
+        const withItem = rawProducts.filter((p) => p?.item)
+        const withoutItem = rawProducts.filter((p) => !p?.item)
+        const thumbs = resolveSectionProductThumbs(section)
+        const headline = getSectionOfferHeadline(section)
+        const banner = resolveBannerSrc(section)
+        const explore = section?._id ? getSectionExplorePath(section._id) : ROUTES.SEARCH
+
+        console.log('[SpecialDiscount] section prop:', section)
+        console.log('[SpecialDiscount] section meta:', {
+            _id: section?._id,
+            title: section?.title,
+            type: section?.type,
+            webOrder: section?.webOrder ?? section?.webinfo?.webOrder,
+            bindOffer: section?.bindOffer,
+        })
+        console.log('[SpecialDiscount] products:', {
+            total: rawProducts.length,
+            withItem: withItem.length,
+            withoutItem: withoutItem.length,
+            withoutItemSample: withoutItem.slice(0, 3),
+            itemIds: withItem.map((p) => p?.item?._id ?? p?.itemId),
+        })
+        console.log('[SpecialDiscount] derived:', {
+            bannerSrc: banner,
+            offerHeadline: headline,
+            exploreTo: explore,
+            productThumbCount: thumbs.length,
+            productThumbs: thumbs,
+        })
+    }, [section])
 
     return (
         <section className="w-full overflow-x-hidden bg-black  py-5 sm:py-8 md:py-10 lg:bg-transparent lg:py-12">
             <div className="mx-auto w-full max-w-[1920px] px-3 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
                 <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_2px_16px_rgba(0,0,0,0.06)] sm:max-w-[640px] md:max-w-[768px] lg:max-w-none lg:rounded-[1.75rem] lg:border-0 lg:bg-transparent lg:shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
                     <BannerHero bannerSrc={bannerSrc} alt={section?.title || 'Special offer'}>
-                        <div className="absolute inset-0 z-10 flex flex-col justify-between p-3 sm:p-4 md:p-5 lg:p-9 xl:p-10">
+                        <div className="absolute inset-0 z-10 flex flex-col justify-between p-3 pb-2 sm:p-4 sm:pb-3 md:p-5 md:pb-4 lg:px-9 lg:pt-9 lg:pb-6 xl:px-10 xl:pt-10 xl:pb-7">
                             <div className="flex w-full min-w-0 items-start justify-between gap-2 sm:gap-3 md:gap-4 lg:ml-auto lg:w-auto lg:max-w-[68%] lg:justify-end lg:gap-10">
-                                {/* <DiscountBlock percent={discountPercent} className="max-w-[42%] sm:max-w-none" />
-                                <SpecialOfferHeader
-                                    title={section?.title || 'Special Offer'}
-                                    subtitle={subtitle}
-                                /> */}
+                                {offerHeadline ? (
+                                    <p className="rounded-sm bg-violet-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white sm:text-xs">
+                                        {offerHeadline}
+                                    </p>
+                                ) : null}
                             </div>
 
                             {/* Desktop: products + CTA over banner */}
-                            <div className="hidden  flex-col items-end gap-4 lg:flex">
-                                <GalleryThumbs images={galleryImages} variant="row" />
+                            <div className="hidden flex-col items-end gap-2.5 lg:flex lg:-translate-y-2 xl:-translate-y-3">
+                                <SectionProductThumbs thumbs={productThumbs} variant="row" />
                                 <ExploreButton to={exploreTo} variant="desktop" />
                             </div>
                         </div>
                     </BannerHero>
 
                     {/* Phone & tablet: products below banner */}
-                    <div className="relative z-20   rounded-b-2xl text-white px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5 md:px-5 md:pb-5 md:pt-0 lg:hidden">
+                    <div className="relative z-20 rounded-b-2xl text-white px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5 md:px-5 md:pb-5 md:pt-2 lg:hidden">
                         <div className="md:-mt-10">
                             <div className="md:hidden">
-                                <GalleryThumbs images={galleryImages} variant="grid" />
+                                <SectionProductThumbs thumbs={productThumbs} variant="grid" />
                             </div>
                             <div className="hidden md:block">
-                                <GalleryThumbs images={galleryImages} variant="tablet" />
+                                <SectionProductThumbs thumbs={productThumbs} variant="tablet" />
                             </div>
                         </div>
                         <div className="mt-3 sm:mt-4 md:mt-5">

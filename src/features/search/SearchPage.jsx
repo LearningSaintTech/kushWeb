@@ -16,6 +16,7 @@ import { sectionsService } from '../../services/content.service.js'
 import { filtersService } from '../../services/filters.service.js'
 import Filter from "../../assets/temporary/filtericon.svg"
 import { trackEvent } from '../../analytics'
+import { listingBindOfferProps } from '../../utils/bindOffer.js'
 const DEFAULT_LIMIT = 12
 
 /** Same chevron for category dropdowns and styled selects (outline, matches breadcrumb weight). */
@@ -122,6 +123,7 @@ function itemToCardProps(item) {
   const rawRating = item.rating ?? item.averageRating
   const rating = rawRating != null && rawRating !== '' && Number(rawRating) > 0 ? Number(rawRating) : undefined
   const outOfStock = item.inStock === false || !hasAnyStock(item)
+  const offerProps = listingBindOfferProps(item)
   return {
     id,
     image: imageUrl || 'https://placehold.co/400x520?text=Product',
@@ -134,6 +136,7 @@ function itemToCardProps(item) {
     delivery,
     ...(rating != null ? { rating } : {}),
     outOfStock,
+    ...offerProps,
   }
 }
 

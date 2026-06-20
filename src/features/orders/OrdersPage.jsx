@@ -4,6 +4,8 @@ import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
 import { ROUTES, getOrderTrackPath, getProductPath } from '../../utils/constants'
 import { formatPaymentLine } from '../../utils/paymentMode'
+import { getOfferBadgeText } from '../../utils/bindOffer.js'
+import { BindOfferLineNote } from '../../shared/components/BindOfferCartExtras.jsx'
 
 const LOG = (...args) => {
   if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
@@ -441,7 +443,18 @@ function OrdersPage() {
                       {isExchangeReplacement ? (
                         <ReplacementOrderPriceMark />
                       ) : (
-                        formatPrice(price)
+                        <>
+                          {formatPrice(price)}
+                          {getOfferBadgeText(item?.bindOffer) ? (
+                            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+                              {getOfferBadgeText(item.bindOffer)}
+                            </span>
+                          ) : null}
+                          <BindOfferLineNote
+                            bindOffer={item?.bindOffer}
+                            className="normal-case tracking-normal"
+                          />
+                        </>
                       )}
                     </div>
                   </div>

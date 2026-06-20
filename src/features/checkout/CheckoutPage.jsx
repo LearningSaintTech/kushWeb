@@ -36,6 +36,11 @@ import {
   getActiveDonationAmount,
 } from "../../utils/donation.js";
 import DonationPicker from "../../shared/components/DonationPicker.jsx";
+import {
+  BindOfferBillRows,
+  BindOfferProgressBanner,
+  BillSummaryItemTotal,
+} from "../../shared/components/BindOfferCartExtras.jsx";
 import CartItemDescription from "../../shared/components/CartItemDescription.jsx";
 
 /** Delivery is India-only; API still expects countryCode. */
@@ -48,6 +53,11 @@ const POLL_MAX_ATTEMPTS = 40;
 function formatRs(num) {
   if (num == null || Number.isNaN(num)) return "Rs 0";
   return `Rs ${Number(num).toLocaleString("en-IN", { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`;
+}
+
+function formatRsDiscount(num) {
+  const formatted = formatRs(num);
+  return formatted.startsWith("−") ? formatted : `−${formatted}`;
 }
 
 function formatAddress(addr) {
@@ -1608,6 +1618,7 @@ function CheckoutPage() {
   const subTotal = cartData?.summary?.subTotal ?? summary.subTotal ?? 0;
   const finalPayable = summary.finalPayable ?? subTotal;
   const coupon = summary.coupon;
+  const bindOffers = summary.bindOffers ?? null;
   const couponDiscountFromSummary = Number(coupon?.discountAmount ?? 0);
   const inferredDiscountFromTotals = Math.max(
     0,
@@ -2727,28 +2738,16 @@ function CheckoutPage() {
               <h2 className="text-sm font-semibold text-black mb-3">
                 Bill Summary
               </h2>
+              <BindOfferProgressBanner bindOffers={bindOffers} className="mb-3" />
               {!hasSummaryFromApi && loading ? (
                 <p className="text-sm text-gray-500">Loading summary…</p>
               ) : (
                 <div className="space-y-2.5 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Item Total</span>
-                    <span className="font-medium">
-                      {coupon?.discountAmount > 0 &&
-                        summary.subTotal != null && (
-                          <span className="text-gray-400 line-through mr-1">
-                            Rs{" "}
-                            {Number(summary.subTotal).toLocaleString("en-IN", {
-                              maximumFractionDigits: 0,
-                            })}
-                          </span>
-                        )}
-                      Rs{" "}
-                      {Number(
-                        subTotalAfterDiscount ?? summary.subTotal ?? 0,
-                      ).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                    </span>
-                  </div>
+                  <BillSummaryItemTotal
+                    summary={summary}
+                    bindOffers={bindOffers}
+                    subTotalAfterDiscount={subTotalAfterDiscount}
+                  />
                   {chargesList.map((c) => (
                     <div
                       key={c.key || c.description}
@@ -2773,15 +2772,16 @@ function CheckoutPage() {
                       </span>
                     </div>
                   ))}
+                  <BindOfferBillRows bindOffers={bindOffers} formatRsFn={formatRsDiscount} />
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Discount</span>
+                    <span className="text-gray-700">Coupon</span>
                     <span className="font-medium">
                       {autoCouponReconciling ? (
                         <span className="text-gray-500">Updating...</span>
                       ) : coupon?.discountAmount > 0 ? (
                         <>−{formatRs(coupon.discountAmount)}</>
                       ) : (
-                        <span className="text-green-700 font-medium">Free</span>
+                        <span className="text-gray-500 font-normal">—</span>
                       )}
                     </span>
                   </div>

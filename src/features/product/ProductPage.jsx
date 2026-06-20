@@ -21,6 +21,8 @@ import {
   getMediaTypeFromEntry,
   isVideoUrlString,
 } from "../../utils/mediaUrl.js";
+import BindOfferBadge from "../../shared/components/BindOfferBadge.jsx";
+import { getProductCardOfferBadge, getOfferHint } from "../../utils/bindOffer.js";
 
 function ProductPage() {
   const { id } = useParams();
@@ -154,6 +156,14 @@ function ProductPage() {
 
   const item = itemData?.item;
   const deliveries = itemData?.deliveries ?? [];
+  const bindOfferBadge = useMemo(
+    () => getProductCardOfferBadge(item?.bindOffer),
+    [item?.bindOffer],
+  );
+  const bindOfferHint = useMemo(
+    () => getOfferHint(item?.bindOffer),
+    [item?.bindOffer],
+  );
 
   const colors = useMemo(() => {
     if (!item?.variants?.length) return [];
@@ -746,6 +756,17 @@ function ProductPage() {
                     </button>
                   )}
                 </div>
+
+                {(bindOfferBadge || bindOfferHint) && (
+                  <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center">
+                    {bindOfferBadge ? <BindOfferBadge text={bindOfferBadge} /> : null}
+                    {bindOfferHint ? (
+                      <p className="text-[11px] font-medium text-violet-800 sm:text-xs">
+                        {bindOfferHint}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
               </div>
               <button
                 type="button"

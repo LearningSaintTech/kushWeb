@@ -7,10 +7,11 @@ import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
 import { ROUTES, getSearchPath } from '../../utils/constants'
 import { getItemStockTotal } from '../../utils/productStock.js'
+import { listingBindOfferProps } from '../../utils/bindOffer.js'
 
 const DEFAULT_LIMIT = 12
 
-function itemToCardProps(item) {
+function itemToCardProps(item, section = null) {
   const id = item._id ?? item.id
   const variants = item.variants ?? []
   const firstVariant = variants[0]
@@ -31,6 +32,7 @@ function itemToCardProps(item) {
     : item.deliveryType === 'ONE_DAY'
       ? '1 day'
       : item.deliveryType ? String(item.deliveryType) : '—'
+  const offerProps = listingBindOfferProps(item, section)
   return {
     id,
     image: imageUrl || 'https://placehold.co/400x520?text=Product',
@@ -42,6 +44,7 @@ function itemToCardProps(item) {
     originalPrice,
     delivery,
     rating: 4,
+    ...offerProps,
   }
 }
 
@@ -194,7 +197,7 @@ export function SectionExplorePage() {
       const rawItems = data?.items ?? []
       console.log('[SectionExplore] products raw items:', rawItems)
       console.log('[SectionExplore] products pagination:', data?.pagination)
-      const items = rawItems.map(itemToCardProps)
+      const items = rawItems.map((item) => itemToCardProps(item, section))
       setProducts(items)
       setPagination(data?.pagination ?? null)
     } catch (e) {
