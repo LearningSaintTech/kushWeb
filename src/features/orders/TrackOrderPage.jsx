@@ -7,6 +7,7 @@ import { orderService } from "../../services/order.service.js";
 import { itemsService } from "../../services/items.service.js";
 import { cancellationService } from "../../services/cancellation.service.js";
 import { exchangeService } from "../../services/exchange.service.js";
+import { returnService } from "../../services/return.service.js";
 import { policyService } from "../../services/policy.service.js";
 import { ROUTES, getOrderTrackPath } from "../../utils/constants";
 import {
@@ -57,6 +58,36 @@ const FALLBACK_EXCHANGE_REASONS = [
   "Changed my mind",
   "Other",
 ];
+
+const FALLBACK_RETURN_REASONS = [
+  { key: "SIZE", label: "Size-related issues", requiresUnboxingVideo: false },
+  { key: "COLOR", label: "Color-related issues", requiresUnboxingVideo: false },
+  {
+    key: "MANUFACTURING_DEFECT",
+    label: "Manufacturing defects",
+    requiresUnboxingVideo: true,
+  },
+];
+
+const RETURN_ITEM_STATUSES = new Set([
+  "RETURN_REQUESTED",
+  "RETURN_APPROVED",
+  "RETURN_PICKUP_SCHEDULED",
+  "RETURNED",
+  "REFUNDED",
+]);
+
+const RETURN_STATUS_LABELS = {
+  returnRequested: "Return requested",
+  returnApproved: "Return approved",
+  pickupScheduled: "Pickup scheduled",
+  pickedUp: "Picked up",
+  inTransit: "In transit to warehouse",
+  receivedAtWarehouse: "Received at warehouse",
+  qualityCheck: "Quality check",
+  refundProcessed: "Refund processed",
+  returnRejected: "Return rejected",
+};
 
 // Delivery lifecycle from ORDER_STATUS_ENUM (order.model.js) — used for progress bar
 const DELIVERY_STATUS_ORDER = [
@@ -174,13 +205,72 @@ function isNormalDeliveryType(v) {
   return String(v || "").toUpperCase() === "NORMAL";
 }
 
-/** Local exchange stepper (black bar) only for quick delivery; NORMAL uses carrier tracking link when available. */
-function isQuickDeliveryTypeForExchangeStepper(v) {
-  const u = String(v || "")
-    .trim()
-    .toUpperCase()
-    .replace(/-/g, "_");
-  return u === "ONE_DAY" || u === "90_MIN";
+function getReturnPickupTracking(returnDoc) {
+  if (!returnDoc) return null;
+  const provider = String(
+    returnDoc.returnPickupProvider ||
+      returnDoc.originalShippingProvider ||
+      "",
+  ).toUpperCase();
+  const awb =
+    returnDoc?.shadowfax?.returnPickup?.awb ||
+    returnDoc?.delhivery?.returnPickup?.waybill ||
+    returnDoc?.returnPickup?.manualTrackingId ||
+    null;
+  if (!awb) return null;
+  const trackingUrl = resolveTrackingUrl(
+    returnDoc?.shadowfax?.returnPickup?.trackingUrl ||
+      returnDoc?.delhivery?.returnPickup?.trackingUrl ||
+      null,
+    awb,
+    provider === "SHADOWFAX"
+      ? "SHADOWFAX"
+      : provider === "DELHIVERY"
+        ? "DELHIVERY"
+        : "SHIPROCKET",
+  );
+  return { trackingNumber: awb, trackingUrl };
+}
+
+function getReturnReasonOptions(returnPolicy) {
+  const fromPolicy = (returnPolicy?.returnReasons || []).filter(
+    (r) => r?.key && r?.label,
+  );
+  return fromPolicy.length ? fromPolicy : FALLBACK_RETURN_REASONS;
+}
+
+function isReturnInProgressStatus(statusUpper) {
+  return RETURN_ITEM_STATUSES.has(statusUpper);
+}
+
+function isExchangeReplacementOrder(data) {
+  if ((data?.orderType || "STANDARD") === "EXCHANGE") return true;
+  if (data?.exchangeMeta?.originalOrderId) return true;
+  const lineStatus = String(data?.status || "").toUpperCase();
+  const linePayable = Number(
+    data?.item?.finalPayable ?? data?.item?.itemSubtotal ?? NaN,
+  );
+  if (
+    data?.item?.exchangeId &&
+    linePayable === 0 &&
+    !lineStatus.startsWith("EXCHANGE_")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function ReplacementOrderPriceMark({ compact = false }) {
+  return (
+    <div
+      className={`inline-flex flex-col ${compact ? "gap-0.5" : "gap-1"} mt-2`}
+    >
+      <span className="inline-block w-fit rounded border border-blue-500 bg-blue-50 px-2 py-0.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-blue-800">
+        Replacement order
+      </span>
+      <span className="text-xs text-gray-500 uppercase">No charge</span>
+    </div>
+  );
 }
 
 const INTEGRATOR_COURIER_LABELS = new Set([
@@ -205,6 +295,12 @@ function resolveTrackingUrl(url, trackingNumber, provider) {
   if (p === "SHIPROCKET") {
     return `https://shiprocket.co/tracking/${encodeURIComponent(String(trackingNumber))}`;
   }
+  if (p === "DELHIVERY") {
+    return `https://www.delhivery.com/track/package/${encodeURIComponent(String(trackingNumber))}`;
+  }
+  if (p === "SHADOWFAX") {
+    return `https://tracker.shadowfax.in/${encodeURIComponent(String(trackingNumber))}`;
+  }
   return null;
 }
 
@@ -219,6 +315,92 @@ function isSelfShippingDelivery(data) {
   return courier.includes("self shipping") || courier.includes("self-shipping");
 }
 
+function getSelfShippingDetails(data) {
+  const item = data?.item || {};
+  const shipment = data?.shipment || {};
+  return item.selfShipping || shipment.selfShipping || {};
+}
+
+function isExternalSelfShipping(data) {
+  const selfShip = getSelfShippingDetails(data);
+  const mode = String(selfShip.mode || "").toUpperCase();
+  if (mode === "EXTERNAL") return true;
+  if (mode === "INTERNAL") return false;
+  return Boolean(
+    String(selfShip.carrierName || "").trim() ||
+      String(selfShip.trackingUrl || "").trim(),
+  );
+}
+
+function mapCarrierTrackingSnapshot(snapshot, data = null) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  let trackingNumber = snapshot.trackingId
+    ? String(snapshot.trackingId).trim()
+    : null;
+  const trackingUrl =
+    typeof snapshot.trackingUrl === "string" && snapshot.trackingUrl.trim()
+      ? snapshot.trackingUrl.trim()
+      : null;
+  const status = snapshot.status ? String(snapshot.status).trim() : null;
+  let courier = snapshot.courier
+    ? displayCourierName(snapshot.courier) || String(snapshot.courier).trim()
+    : null;
+  let resolvedTrackingUrl = trackingUrl;
+  if (snapshot.selfShipping && data) {
+    const selfShip = getSelfShippingDetails(data);
+    if (!courier) {
+      courier =
+        displayCourierName(
+          selfShip.carrierName ||
+            data?.item?.courier ||
+            data?.shipment?.courier,
+        ) ||
+        (selfShip.carrierName ? String(selfShip.carrierName).trim() : null);
+    }
+    if (!resolvedTrackingUrl && typeof selfShip.trackingUrl === "string") {
+      resolvedTrackingUrl = selfShip.trackingUrl.trim() || null;
+    }
+    if (!trackingNumber && data?.item?.trackingId) {
+      trackingNumber = String(data.item.trackingId).trim();
+    }
+  }
+  const hasProgress = Boolean(
+    trackingNumber || resolvedTrackingUrl || status || courier,
+  );
+  if (!hasProgress && !snapshot.selfShipping) return null;
+
+  let selfShippingMode = null;
+  if (snapshot.selfShipping) {
+    if (data && isExternalSelfShipping(data)) {
+      selfShippingMode = "EXTERNAL";
+    } else if (resolvedTrackingUrl || courier) {
+      selfShippingMode = "EXTERNAL";
+    } else {
+      selfShippingMode = "INTERNAL";
+    }
+  }
+
+  return {
+    trackingNumber,
+    trackingUrl: resolvedTrackingUrl,
+    status,
+    courier,
+    selfShipping: Boolean(snapshot.selfShipping),
+    selfShippingMode,
+    provider: snapshot.provider || null,
+    leg: snapshot.leg || null,
+  };
+}
+
+/** Prefer API `carrierTracking`, then derive from item/shipment fields. */
+function getShipmentTrackingFromOrderItem(data) {
+  const fromApi =
+    mapCarrierTrackingSnapshot(data?.carrierTracking, data) ||
+    mapCarrierTrackingSnapshot(data?.shipment?.carrierTracking, data);
+  if (fromApi) return fromApi;
+  return getCourierTrackingFromOrderItem(data);
+}
+
 /** Unified shipment tracking for NORMAL delivery (Shiprocket, Delhivery, self shipping, or generic trackingId). */
 function getCourierTrackingFromOrderItem(data) {
   const item = data?.item || {};
@@ -230,22 +412,37 @@ function getCourierTrackingFromOrderItem(data) {
 
   const dl = item.delhivery || shipment.delhivery || {};
   const sr = item.shiprocket || shipment.shiprocket || data?.shiprocket || {};
+  const sfx = item.shadowfax || shipment.shadowfax || {};
 
-  // Self shipping: reference ID only — never expose an external tracking URL.
   if (isSelfShippingDelivery(data)) {
+    const selfShip = getSelfShippingDetails(data);
+    const isExternal = isExternalSelfShipping(data);
     const trackingNumber =
-      item.trackingId || data?.trackingId || shipment.trackingId || null;
+      item.trackingId || shipment.trackingId || data?.trackingId || null;
+    const trackingUrl =
+      isExternal && typeof selfShip.trackingUrl === "string"
+        ? selfShip.trackingUrl.trim() || null
+        : null;
+    const courier = isExternal
+      ? displayCourierName(
+          selfShip.carrierName || item.courier || shipment.courier,
+        ) || (selfShip.carrierName ? String(selfShip.carrierName).trim() : null)
+      : null;
     const hasProgress =
       trackingNumber ||
+      trackingUrl ||
+      courier ||
       (itemStatus &&
         !["CREATED", "CONFIRMED", "CANCELLED"].includes(itemStatus));
     if (!hasProgress) return null;
     return {
       trackingNumber,
-      trackingUrl: null,
+      trackingUrl,
       status: data?.status || item.status || null,
-      courier: null,
+      courier,
       selfShipping: true,
+      selfShippingMode: isExternal ? "EXTERNAL" : "INTERNAL",
+      provider: "SELF_SHIPPING",
     };
   }
 
@@ -271,6 +468,32 @@ function getCourierTrackingFromOrderItem(data) {
       trackingNumber,
       trackingUrl,
       status: dl.status || null,
+      courier: displayCourierName(item.courier),
+    };
+  }
+
+  if (provider === "SHADOWFAX" || sfx?.awb) {
+    const trackingNumber =
+      sfx.awb ||
+      item.trackingId ||
+      data?.trackingId ||
+      shipment.trackingId ||
+      null;
+    const trackingUrl = resolveTrackingUrl(
+      sfx.trackingUrl,
+      trackingNumber,
+      "SHADOWFAX",
+    );
+    const hasAny = Boolean(
+      trackingNumber ||
+      trackingUrl ||
+      (sfx?.status && String(sfx.status).trim()),
+    );
+    if (!hasAny) return null;
+    return {
+      trackingNumber,
+      trackingUrl,
+      status: sfx.status || null,
       courier: displayCourierName(item.courier),
     };
   }
@@ -312,7 +535,7 @@ function getCourierTrackingFromOrderItem(data) {
     item.trackingId || data?.trackingId || shipment.trackingId || null;
   const trackingUrl =
     resolveTrackingUrl(
-      dl.trackingUrl || sr.trackingUrl,
+      sfx.trackingUrl || dl.trackingUrl || sr.trackingUrl,
       trackingNumber,
       provider || (isSelfShippingDelivery(data) ? "SELF_SHIPPING" : ""),
     ) || null;
@@ -325,7 +548,7 @@ function getCourierTrackingFromOrderItem(data) {
   return {
     trackingNumber,
     trackingUrl,
-    status: dl.status || sr.status || null,
+    status: sfx.status || dl.status || sr.status || null,
     courier: displayCourierName(item.courier),
   };
 }
@@ -350,14 +573,35 @@ function getExchangeShipmentTracking(data) {
   const sr = latestExchange?.shiprocket || {};
   const returnOrder = sr?.returnOrder || null;
   const forwardOrder = sr?.forwardOrder || null;
+  const returnPickup = latestExchange?.returnPickup || {};
+  const delhiveryReturn = latestExchange?.delhivery?.returnPickup || {};
+  const manualTrackingId =
+    String(returnPickup.manualTrackingId || delhiveryReturn.waybill || "").trim() || null;
+  const returnPickupMethod = String(latestExchange?.returnPickupMethod || "").toUpperCase();
+  const originalProvider = String(latestExchange?.originalShippingProvider || "").toUpperCase();
+  const replacementOrderId =
+    latestExchange?.replacementOrderId ||
+    data?.exchangeReplacementOrderId ||
+    data?.item?.exchangeReplacementOrderId ||
+    null;
+  const replacementItemId = latestExchange?.replacementItemId || latestExchange?.replacedItem?.itemId || null;
 
-  const returnNumber = returnOrder?.awbCode || null;
+  const returnNumber = returnOrder?.awbCode || manualTrackingId || null;
   const forwardNumber = forwardOrder?.awbCode || null;
 
+  const returnProvider =
+    returnPickupMethod.includes("DELHIVERY") || originalProvider === "DELHIVERY"
+      ? "DELHIVERY"
+      : returnOrder?.awbCode
+        ? "SHIPROCKET"
+        : manualTrackingId
+          ? "DELHIVERY"
+          : "SHIPROCKET";
+
   const returnTrackingUrl = resolveTrackingUrl(
-    returnOrder?.trackingUrl,
+    returnOrder?.trackingUrl || delhiveryReturn.trackingUrl,
     returnNumber,
-    "SHIPROCKET",
+    returnProvider,
   );
   const forwardTrackingUrl = resolveTrackingUrl(
     forwardOrder?.trackingUrl,
@@ -378,13 +622,13 @@ function getExchangeShipmentTracking(data) {
     forwardOrder?.shipmentId != null,
   );
 
-  if (!hasReturn && !hasForward) return null;
+  if (!hasReturn && !hasForward && !replacementOrderId) return null;
 
   return {
     returnOrder: hasReturn
       ? {
           trackingNumber: returnNumber,
-          status: returnOrder?.status || null,
+          status: returnOrder?.status || returnPickup.status || null,
           courier: displayCourierName(returnOrder?.courierName),
           trackingUrl: returnTrackingUrl,
         }
@@ -396,6 +640,9 @@ function getExchangeShipmentTracking(data) {
           courier: displayCourierName(forwardOrder?.courierName),
           trackingUrl: forwardTrackingUrl,
         }
+      : null,
+    replacementOrder: replacementOrderId
+      ? { orderId: replacementOrderId, itemId: replacementItemId }
       : null,
   };
 }
@@ -664,11 +911,26 @@ function ShipmentTrackingPanel({
       ) : null}
       {tracking ? (
         <div className={`space-y-1 text-sm text-gray-700 ${subtitle ? "mt-2" : "mt-2"}`}>
+          {tracking.selfShipping && tracking.selfShippingMode === "EXTERNAL" ? (
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+              External courier shipment
+            </p>
+          ) : tracking.selfShipping ? (
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+              Khush self-shipping
+            </p>
+          ) : null}
+          {tracking.courier &&
+            (!tracking.selfShipping || tracking.selfShippingMode === "EXTERNAL") && (
+            <p>
+              Courier partner : <strong>{tracking.courier}</strong>
+            </p>
+          )}
           {tracking.trackingNumber && (
             <p>
               {tracking.selfShipping && !tracking.trackingUrl
                 ? "Reference"
-                : "Tracking number"}{" "}
+                : "Tracking ID / AWB"}{" "}
               : <strong className="font-mono">{tracking.trackingNumber}</strong>
             </p>
           )}
@@ -770,12 +1032,49 @@ export default function TrackOrderPage() {
   const [exchangeError, setExchangeError] = useState(null);
   const [exchangePolicyAccepted, setExchangePolicyAccepted] = useState(false);
 
+  const [returnPolicy, setReturnPolicy] = useState(null);
+  const [activeReturn, setActiveReturn] = useState(null);
+  const [returnStep, setReturnStep] = useState(0);
+  const [returnReasonKey, setReturnReasonKey] = useState("SIZE");
+  const [returnDescription, setReturnDescription] = useState("");
+  const [returnVideoFile, setReturnVideoFile] = useState(null);
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [returnError, setReturnError] = useState(null);
+  const [returnPolicyAccepted, setReturnPolicyAccepted] = useState(false);
+
   const [invoiceDownloading, setInvoiceDownloading] = useState(false);
   const [invoiceError, setInvoiceError] = useState(null);
   const [invoiceAccordionOpen, setInvoiceAccordionOpen] = useState(false);
 
   const userName = user?.name || user?.firstName || "Customer";
   const currentUserId = user?._id || user?.id || user?.userId;
+
+  const loadActiveReturnForItem = (orderIdVal, itemIdVal) => {
+    if (!orderIdVal || !itemIdVal) {
+      setActiveReturn(null);
+      return Promise.resolve(null);
+    }
+    return returnService
+      .getMyReturns({ page: 1, limit: 50 })
+      .then((res) => {
+        const body = res?.data?.data ?? res?.data ?? {};
+        const list = body.returns || body.items || [];
+        const match = (Array.isArray(list) ? list : []).find((row) => {
+          const rowOrderId = String(row?.orderId || "");
+          const rowItemId = String(row?.item?.itemId || row?.itemId || "");
+          return (
+            rowOrderId === String(orderIdVal) &&
+            rowItemId === String(itemIdVal)
+          );
+        });
+        setActiveReturn(match || null);
+        return match || null;
+      })
+      .catch(() => {
+        setActiveReturn(null);
+        return null;
+      });
+  };
 
   const handleDownloadInvoice = () => {
     if (!orderId || !itemId) return;
@@ -815,6 +1114,7 @@ export default function TrackOrderPage() {
         } else {
           setReview(null);
         }
+        loadActiveReturnForItem(orderId, resolvedItemId ?? itemId);
       })
       .catch((err) => {
         console.log(
@@ -949,6 +1249,16 @@ export default function TrackOrderPage() {
       .catch(() => {
         setExchangePolicy(null);
       });
+
+    policyService
+      .getActiveReturn()
+      .then((res) => {
+        const payload = res?.data?.data ?? res?.data;
+        if (payload) setReturnPolicy(payload);
+      })
+      .catch(() => {
+        setReturnPolicy(null);
+      });
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -1062,6 +1372,76 @@ export default function TrackOrderPage() {
           );
         })
         .finally(() => setCancelSubmitting(false));
+    }
+  };
+
+  const returnReasonOptions = getReturnReasonOptions(returnPolicy);
+  const selectedReturnReason =
+    returnReasonOptions.find((r) => r.key === returnReasonKey) ||
+    returnReasonOptions[0];
+
+  const openReturnModal = () => {
+    setReturnError(null);
+    setReturnPolicyAccepted(false);
+    setReturnDescription("");
+    setReturnVideoFile(null);
+    setReturnStep(1);
+    const first = returnReasonOptions[0];
+    setReturnReasonKey(first?.key || "SIZE");
+  };
+
+  const closeReturnModal = () => {
+    const wasSuccess = returnStep === 3;
+    setReturnStep(0);
+    setReturnError(null);
+    setReturnVideoFile(null);
+    if (wasSuccess) {
+      orderService
+        .getOrderItemById(orderId, itemId)
+        .then((res) => {
+          const payload = res?.data?.data ?? res?.data;
+          setData(payload);
+        })
+        .catch(() => {});
+      loadActiveReturnForItem(orderId, itemId);
+    }
+  };
+
+  const returnModalContinue = () => {
+    if (returnStep === 1) {
+      setReturnError(null);
+      setReturnStep(2);
+      return;
+    }
+    if (returnStep === 2) {
+      if (selectedReturnReason?.requiresUnboxingVideo && !returnVideoFile) {
+        setReturnError("Please upload an uncut unboxing video for this reason.");
+        return;
+      }
+      setReturnError(null);
+      setReturnSubmitting(true);
+      returnService
+        .createReturnRequest(
+          {
+            orderId,
+            itemId: data?.itemId ?? itemId,
+            reason: returnReasonKey,
+            description: returnDescription,
+          },
+          returnVideoFile,
+        )
+        .then(() => {
+          setReturnStep(3);
+          setReturnError(null);
+        })
+        .catch((err) => {
+          setReturnError(
+            err?.response?.data?.message ??
+              err?.message ??
+              "Failed to submit return request",
+          );
+        })
+        .finally(() => setReturnSubmitting(false));
     }
   };
 
@@ -1290,12 +1670,18 @@ export default function TrackOrderPage() {
   // Override normal tracking with exchange tracking once exchange flow starts.
   const trackingId = inExchangeFlow
     ? primaryExchangeOrder?.trackingNumber || baseTrackingId || null
-    : baseTrackingId;
+    : null;
 
   const normalCourierTracking = isNormalDelivery
-    ? getCourierTrackingFromOrderItem(data)
+    ? getShipmentTrackingFromOrderItem(data)
     : null;
   const isSelfShippedOrder = isNormalDelivery && isSelfShippingDelivery(data);
+  const isExternalSelfShippingOrder =
+    isSelfShippedOrder && normalCourierTracking?.selfShippingMode === "EXTERNAL";
+
+  const displayTrackingId = inExchangeFlow
+    ? trackingId
+    : normalCourierTracking?.trackingNumber || baseTrackingId || null;
 
   const shipmentTracking = inExchangeFlow
     ? primaryExchangeOrder
@@ -1312,10 +1698,16 @@ export default function TrackOrderPage() {
     ? shipmentTracking?.trackingUrl
       ? "Track your exchange shipment using the link below."
       : "Exchange shipment updates appear in the status timeline below."
-    : isSelfShippedOrder
-      ? shipmentTracking?.trackingNumber
-        ? "Use your reference below for delivery updates from our team."
-        : "Order updates appear in the status timeline below."
+    : isExternalSelfShippingOrder
+      ? shipmentTracking?.trackingUrl
+        ? "Your order was shipped via an external courier. Use the tracking details below."
+        : shipmentTracking?.trackingNumber
+          ? "Your external courier tracking details are below."
+          : "Courier details will appear here once the shipment is booked."
+      : isSelfShippedOrder
+        ? shipmentTracking?.trackingNumber
+          ? "Use your reference below for delivery updates from our team."
+          : "Order updates appear in the status timeline below."
       : isNormalDelivery
         ? shipmentTracking?.trackingUrl
           ? "Your package is shipped with our delivery partner. Use the link below for live updates."
@@ -1355,14 +1747,26 @@ export default function TrackOrderPage() {
     !EXCHANGE_STATUSES.includes(currentStatus);
   const isExchangeable = data.isExchangeable !== false;
   const exchangeInProgress = isExchangeInProgress(data.exchange);
+  const returnInProgress =
+    isReturnInProgressStatus(currentStatus) ||
+    (activeReturn &&
+      !["returnRejected", "refundProcessed"].includes(activeReturn.status));
   const showExchangeButton =
-    isExchangeable && !exchangeInProgress && currentStatus === "DELIVERED";
+    isExchangeable &&
+    !exchangeInProgress &&
+    !returnInProgress &&
+    currentStatus === "DELIVERED";
+  const showReturnButton =
+    isNormalDeliveryType(deliveryType) &&
+    !exchangeInProgress &&
+    !returnInProgress &&
+    currentStatus === "DELIVERED";
+  const returnPickupTracking = getReturnPickupTracking(activeReturn);
   const showDeliveryStepper = isDeliveryStepperRelevant(currentStatus);
   const showExchangeStepper =
     currentStatus !== "CANCELLED" &&
     EXCHANGE_STATUSES.includes(currentStatus) &&
-    currentStatus !== "EXCHANGE_REJECTED" &&
-    isQuickDeliveryTypeForExchangeStepper(deliveryType);
+    currentStatus !== "EXCHANGE_REJECTED";
 
   console.log("[TrackOrder][TrackingDebug]", {
     orderId,
@@ -1372,7 +1776,7 @@ export default function TrackOrderPage() {
     deliveryType,
     primaryExchangeLeg,
     baseTrackingId,
-    activeTrackingId: trackingId,
+    activeTrackingId: displayTrackingId,
     activeTrackingUrl: shipmentTracking?.trackingUrl || null,
     normalCourierTracking,
     isSelfShippedOrder,
@@ -1400,6 +1804,21 @@ export default function TrackOrderPage() {
     (deliveryBoyName || deliveryBoyPhone) &&
     deliveryStatusesShowDriver.includes(currentStatus);
 
+  const orderType = data.orderType || "STANDARD";
+  const exchangeMeta = data.exchangeMeta || null;
+  const isExchangeReplacement = isExchangeReplacementOrder(data);
+  const replacementOrderId =
+    exchangeTracking?.replacementOrder?.orderId ||
+    data.exchangeReplacementOrderId ||
+    data.item?.exchangeReplacementOrderId ||
+    latestExchange?.replacementOrderId ||
+    null;
+  const replacementItemId =
+    exchangeTracking?.replacementOrder?.itemId ||
+    latestExchange?.replacementItemId ||
+    latestExchange?.replacedItem?.itemId ||
+    null;
+
   return (
     <div className="min-h-screen bg-gray-100 pt-26 pb-12">
       <div className="px-4">
@@ -1412,6 +1831,55 @@ export default function TrackOrderPage() {
             Here The Latest Update On Your Order!
           </p>
         </div>
+
+        {(orderType === "EXCHANGE" && exchangeMeta?.originalOrderId) ||
+        (inExchangeFlow && replacementOrderId) ? (
+          <div className="bg-white rounded-lg shadow-sm border border-blue-200 p-4 mb-6">
+            {orderType === "EXCHANGE" && exchangeMeta?.originalOrderId ? (
+              <>
+                <p className="text-sm font-semibold uppercase text-blue-900">
+                  Replacement order
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  This is your replacement item from an exchange — no separate payment applies.
+                </p>
+                {exchangeMeta.originalItemId ? (
+                  <Link
+                    to={getOrderTrackPath(
+                      exchangeMeta.originalOrderId,
+                      exchangeMeta.originalItemId,
+                    )}
+                    className="inline-block mt-3 text-xs font-semibold uppercase text-black hover:underline"
+                  >
+                    View original order
+                  </Link>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-2">
+                    Original order: #{exchangeMeta.originalOrderId}
+                  </p>
+                )}
+              </>
+            ) : null}
+            {inExchangeFlow && replacementOrderId ? (
+              <>
+                <p className="text-sm font-semibold uppercase text-blue-900">
+                  Replacement order
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Order #{replacementOrderId} — track replacement delivery here once it ships.
+                </p>
+                {replacementItemId ? (
+                  <Link
+                    to={getOrderTrackPath(replacementOrderId, replacementItemId)}
+                    className="inline-block mt-3 text-xs font-semibold uppercase text-black hover:underline"
+                  >
+                    Track replacement delivery
+                  </Link>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* Order item summary card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -1432,13 +1900,37 @@ export default function TrackOrderPage() {
             <div className="min-w-0">
               {/* <p className="font-bold text-black uppercase">{brand}</p> */}
               <p className="text-gray-800 mt-1 normal-case">{name}</p>
-              {trackingId &&
-                (!isSelfShippedOrder || normalCourierTracking?.trackingNumber) && (
+              {isExchangeReplacement ? <ReplacementOrderPriceMark compact /> : null}
+              {isExternalSelfShippingOrder && normalCourierTracking?.courier ? (
                 <p className="text-gray-600 text-sm mt-2">
-                  {isSelfShippedOrder ? "Reference" : "Tracking ID"} :{" "}
-                  <strong>#{trackingId}</strong>
+                  Courier : <strong>{normalCourierTracking.courier}</strong>
+                </p>
+              ) : null}
+              {displayTrackingId &&
+                (!isSelfShippedOrder ||
+                  isExternalSelfShippingOrder ||
+                  normalCourierTracking?.trackingNumber) && (
+                <p className="text-gray-600 text-sm mt-2">
+                  {isExternalSelfShippingOrder
+                    ? "Tracking ID / AWB"
+                    : isSelfShippedOrder
+                      ? "Reference"
+                      : "Tracking ID"}{" "}
+                  : <strong>#{displayTrackingId}</strong>
                 </p>
               )}
+              {isExternalSelfShippingOrder && normalCourierTracking?.trackingUrl ? (
+                <p className="text-gray-600 text-sm mt-1">
+                  <a
+                    href={normalCourierTracking.trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-black underline hover:no-underline"
+                  >
+                    Open courier tracking
+                  </a>
+                </p>
+              ) : null}
               <p className="text-gray-600 text-sm mt-0.5">
                 Order No : <strong>{orderNo}</strong>
               </p>
@@ -1448,14 +1940,18 @@ export default function TrackOrderPage() {
                   <strong>{formatOrderDateTime(data.orderCreatedAt)}</strong>
                 </p>
               )}
-              <p className="text-gray-600 text-sm mt-0.5">
-                Payment : <strong>{formatPaymentLine(data)}</strong>
-              </p>
-              {getPaymentStatus(data) && getPaymentStatus(data) !== "SUCCESS" && (
-                <p className="text-gray-500 text-xs mt-0.5">
-                  Payment status: {getPaymentStatusLabel(data)}
-                </p>
-              )}
+              {!isExchangeReplacement ? (
+                <>
+                  <p className="text-gray-600 text-sm mt-0.5">
+                    Payment : <strong>{formatPaymentLine(data)}</strong>
+                  </p>
+                  {getPaymentStatus(data) && getPaymentStatus(data) !== "SUCCESS" && (
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      Payment status: {getPaymentStatusLabel(data)}
+                    </p>
+                  )}
+                </>
+              ) : null}
               <div className="mt-4">
                 <button
                   type="button"
@@ -1518,7 +2014,7 @@ export default function TrackOrderPage() {
         </div>
 
         {/* Invoice accordion: closed by default, click to open */}
-        {data?.item && (
+        {data?.item && !isExchangeReplacement && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
             <button
               type="button"
@@ -1661,14 +2157,20 @@ export default function TrackOrderPage() {
                     ? "Replacement shipment"
                     : "Return pickup shipment"
                   : isNormalDelivery
-                    ? "Standard delivery tracking"
+                    ? isExternalSelfShippingOrder
+                      ? "External courier tracking"
+                      : isSelfShippedOrder
+                        ? "Self-shipping updates"
+                        : "Standard delivery tracking"
                     : "Shipment tracking"
               }
               subtitle={shipmentTrackingSubtitle}
               emptyMessage={
-                isSelfShippedOrder
-                  ? "Shipment details will appear here once your order is on the way."
-                  : "Tracking will appear here once your order is shipped."
+                isExternalSelfShippingOrder
+                  ? "External courier tracking will appear here once your shipment is booked."
+                  : isSelfShippedOrder
+                    ? "Shipment details will appear here once your order is on the way."
+                    : "Tracking will appear here once your order is shipped."
               }
             />
           )}
@@ -1682,6 +2184,43 @@ export default function TrackOrderPage() {
               <p className="text-gray-600 text-sm mt-1">
                 This item has been cancelled.
               </p>
+            </div>
+          )}
+
+          {/* Return request status */}
+          {(returnInProgress || activeReturn) && currentStatus !== "CANCELLED" && (
+            <div className="py-4 mb-6 rounded border border-orange-200 bg-orange-50 px-4">
+              <p className="text-orange-900 font-semibold uppercase text-sm">
+                {currentStatus === "REFUNDED"
+                  ? "Return refunded"
+                  : currentStatus === "RETURNED"
+                    ? "Item returned"
+                    : "Return in progress"}
+              </p>
+              <p className="text-gray-700 text-sm mt-1">
+                {activeReturn?.status
+                  ? RETURN_STATUS_LABELS[activeReturn.status] ||
+                    String(activeReturn.status).replace(/_/g, " ")
+                  : "Your return request is being processed."}
+              </p>
+              {returnPickupTracking?.trackingUrl ? (
+                <p className="text-sm mt-2">
+                  Return pickup:{" "}
+                  <a
+                    href={returnPickupTracking.trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-orange-800 underline"
+                  >
+                    {returnPickupTracking.trackingNumber}
+                  </a>
+                </p>
+              ) : null}
+              {(activeReturn?.adminRemark || "").trim() ? (
+                <p className="text-sm text-gray-600 mt-2">
+                  Note: {activeReturn.adminRemark.trim()}
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -1708,7 +2247,7 @@ export default function TrackOrderPage() {
           )}
 
           {/* Exchange tracking (pickup/return + replacement forward). */}
-          {!isNormalDelivery && exchangeTracking && (
+          {inExchangeFlow && exchangeTracking && (
             <div className="py-4 mb-6 rounded border border-gray-200 bg-gray-50 px-4">
               <p className="text-gray-900 font-semibold uppercase text-sm">
                 Exchange shipments
@@ -1731,7 +2270,7 @@ export default function TrackOrderPage() {
                   </div>
                 )}
 
-                {exchangeTracking.forwardOrder && (
+                {exchangeTracking.forwardOrder ? (
                   <div
                     className={`rounded border px-3 py-2 ${primaryExchangeLeg === "forward" ? "border-gray-400 bg-white" : "border-gray-200 bg-white/70"}`}
                   >
@@ -1742,7 +2281,30 @@ export default function TrackOrderPage() {
                       emptyMessage="Replacement tracking is not available yet."
                     />
                   </div>
-                )}
+                ) : exchangeTracking.replacementOrder?.orderId ? (
+                  <div className="rounded border border-gray-200 bg-white px-3 py-2">
+                    <p className="text-[11px] font-bold tracking-wider text-gray-900 uppercase">
+                      Replacement delivery
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Replacement order #{exchangeTracking.replacementOrder.orderId}
+                      {isNormalDelivery
+                        ? " — use Delhivery/Shiprocket tracking on that order once shipped."
+                        : "."}
+                    </p>
+                    {exchangeTracking.replacementOrder.itemId ? (
+                      <Link
+                        to={getOrderTrackPath(
+                          exchangeTracking.replacementOrder.orderId,
+                          exchangeTracking.replacementOrder.itemId,
+                        )}
+                        className="inline-block mt-2 text-black font-semibold uppercase text-xs hover:underline"
+                      >
+                        Open replacement order
+                      </Link>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
@@ -1820,6 +2382,15 @@ export default function TrackOrderPage() {
                   className="bg-black text-white px-6 py-2.5 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
                 >
                   Exchange
+                </button>
+              )}
+              {showReturnButton && (
+                <button
+                  type="button"
+                  onClick={openReturnModal}
+                  className="border border-black text-black px-6 py-2.5 text-xs font-semibold uppercase hover:bg-gray-100 transition-colors"
+                >
+                  Return
                 </button>
               )}
             </div>
@@ -2266,6 +2837,198 @@ export default function TrackOrderPage() {
                         </Link>
                       </>
                     )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Return flow */}
+        {returnStep > 0 && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={(e) => e.target === e.currentTarget && closeReturnModal()}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {returnStep === 1 && (
+                <>
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h3 className="font-bold text-black uppercase">Return</h3>
+                    <button
+                      type="button"
+                      className="p-1 text-gray-500 hover:text-black"
+                      aria-label="Close"
+                      onClick={closeReturnModal}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="p-4">
+                    <p className="font-semibold text-black uppercase text-sm mb-3">
+                      Reason for return
+                    </p>
+                    <ul className="space-y-2">
+                      {returnReasonOptions.map((r) => (
+                        <li key={r.key}>
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="returnReason"
+                              checked={returnReasonKey === r.key}
+                              onChange={() => setReturnReasonKey(r.key)}
+                              className="mt-1 w-4 h-4 border-gray-300 text-black"
+                            />
+                            <span className="text-sm text-gray-800">
+                              {r.label}
+                              {r.requiresUnboxingVideo ? (
+                                <span className="block text-xs text-gray-500 mt-0.5">
+                                  Uncut unboxing video required
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="px-4 pb-4">
+                    <button
+                      type="button"
+                      onClick={returnModalContinue}
+                      className="w-full bg-black text-white py-3 text-sm font-bold uppercase hover:bg-gray-800"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </>
+              )}
+              {returnStep === 2 && (
+                <>
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h3 className="font-bold text-black uppercase">Details</h3>
+                    <button
+                      type="button"
+                      className="p-1 text-gray-500 hover:text-black"
+                      aria-label="Close"
+                      onClick={closeReturnModal}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-gray-700 mb-1">
+                        Description (optional)
+                      </label>
+                      <textarea
+                        value={returnDescription}
+                        onChange={(e) => setReturnDescription(e.target.value)}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        placeholder="Tell us more about the issue"
+                      />
+                    </div>
+                    {selectedReturnReason?.requiresUnboxingVideo ? (
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-gray-700 mb-1">
+                          Unboxing video *
+                        </label>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={(e) =>
+                            setReturnVideoFile(e.target.files?.[0] || null)
+                          }
+                          className="block w-full text-sm text-gray-700"
+                        />
+                      </div>
+                    ) : null}
+                    {returnPolicy ? (
+                      <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 space-y-2">
+                        {returnPolicy.description?.trim() ? (
+                          <p>{returnPolicy.description.trim()}</p>
+                        ) : null}
+                        <p>
+                          Returns must be raised within{" "}
+                          {returnPolicy.maxReturnTimeInDays || 7} days of delivery.
+                          Refunds are processed to your Khush wallet after quality
+                          check.
+                        </p>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={returnPolicyAccepted}
+                            onChange={(e) =>
+                              setReturnPolicyAccepted(e.target.checked)
+                            }
+                            className="mt-0.5"
+                          />
+                          <span>I accept the return policy terms</span>
+                        </label>
+                      </div>
+                    ) : (
+                      <label className="flex items-start gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={returnPolicyAccepted}
+                          onChange={(e) =>
+                            setReturnPolicyAccepted(e.target.checked)
+                          }
+                          className="mt-0.5"
+                        />
+                        <span>I accept the return policy terms</span>
+                      </label>
+                    )}
+                    {returnError ? (
+                      <p className="text-sm text-red-600">{returnError}</p>
+                    ) : null}
+                  </div>
+                  <div className="px-4 pb-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReturnStep(1)}
+                      className="flex-1 border border-gray-300 py-3 text-sm font-semibold uppercase"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={returnModalContinue}
+                      disabled={returnSubmitting || !returnPolicyAccepted}
+                      className="flex-1 bg-black text-white py-3 text-sm font-bold uppercase hover:bg-gray-800 disabled:opacity-50"
+                    >
+                      {returnSubmitting ? "Submitting…" : "Submit return"}
+                    </button>
+                  </div>
+                </>
+              )}
+              {returnStep === 3 && (
+                <>
+                  <div className="flex justify-end p-4">
+                    <button
+                      type="button"
+                      className="p-1 text-gray-500 hover:text-black"
+                      aria-label="Close"
+                      onClick={closeReturnModal}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="px-4 pb-6 pt-0 text-center">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 text-green-600 mb-4">
+                      <span className="text-2xl">✓</span>
+                    </div>
+                    <h3 className="font-bold text-black uppercase text-lg mb-2">
+                      Return request submitted
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      We will review your request and arrange pickup. Refund will
+                      be credited to your wallet after quality check.
+                    </p>
                   </div>
                 </>
               )}

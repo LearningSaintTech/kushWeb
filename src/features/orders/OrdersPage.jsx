@@ -70,6 +70,38 @@ const TRACKABLE_LINE_STATUSES = new Set([
   'OUT_FOR_PICKUP',
 ])
 
+function isExchangeLineStatus(status) {
+  return String(status || '').toUpperCase().startsWith('EXCHANGE_')
+}
+
+function isExchangeReplacementOrder(oi, replacementOrderIds = null) {
+  if ((oi?.orderType || 'STANDARD') === 'EXCHANGE') return true
+  if (oi?.exchangeMeta?.originalOrderId) return true
+  const orderId = oi?.orderId ? String(oi.orderId).trim() : ''
+  if (orderId && replacementOrderIds?.has(orderId)) return true
+  const lineStatus = String(oi?.status ?? oi?.itemStatus ?? '').toUpperCase()
+  const linePayable = Number(oi?.item?.finalPayable ?? oi?.item?.itemSubtotal ?? NaN)
+  if (
+    oi?.item?.exchangeId &&
+    linePayable === 0 &&
+    !lineStatus.startsWith('EXCHANGE_')
+  ) {
+    return true
+  }
+  return false
+}
+
+function ReplacementOrderPriceMark({ compact = false }) {
+  return (
+    <div className={`flex flex-col items-center text-center ${compact ? 'gap-0.5' : 'gap-1'}`}>
+      <span className="inline-block rounded border border-blue-500 bg-blue-50 px-2 py-0.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-blue-800">
+        Replacement order
+      </span>
+      <span className="text-[10px] sm:text-xs text-gray-500 uppercase">No charge</span>
+    </div>
+  )
+}
+
 function OrdersPage() {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
@@ -189,7 +221,16 @@ function OrdersPage() {
     return map[s] || (s ? s.replace(/_/g, ' ') : '—')
   }
 
-  const getStatusDisplay = (oi) => {
+  const getStatusDisplay = (oi, replacementOrderIds) => {
+    if (isExchangeReplacementOrder(oi, replacementOrderIds)) {
+      const status = normalizeLineStatus(oi.status ?? oi.itemStatus)
+      const statusLabel = getStatusLabel(status)
+      if (TRACKABLE_LINE_STATUSES.has(status)) {
+        return { type: 'exchange_replacement', label: 'REPLACEMENT ORDER', statusLabel }
+      }
+      return { type: 'exchange_replacement', label: 'REPLACEMENT ORDER', statusLabel }
+    }
+
     const status = normalizeLineStatus(oi.status ?? oi.itemStatus)
     const address = oi.address ?? {}
     const name = address?.name ?? '—'
@@ -223,6 +264,16 @@ function OrdersPage() {
     return { type: 'other', label: statusLabel, statusLabel, dateStr, name, fullAddress }
   }
 
+  /** Order IDs referenced as exchange replacements by other lines in this list */
+  const replacementOrderIds = useMemo(() => {
+    const ids = new Set()
+    for (const oi of orderItems) {
+      const rid = oi?.item?.exchangeReplacementOrderId
+      if (rid) ids.add(String(rid).trim())
+    }
+    return ids
+  }, [orderItems])
+
   /** Latest orders first */
   const sortedOrderItems = useMemo(
     () =>
@@ -238,7 +289,7 @@ function OrdersPage() {
     if (!import.meta.env.DEV || !sortedOrderItems.length) return
     const table = sortedOrderItems.map((oi, idx) => {
       const item = oi.item ?? {}
-      const sd = getStatusDisplay(oi)
+      const sd = getStatusDisplay(oi, replacementOrderIds)
       return {
         idx,
         orderId: oi.orderId,
@@ -258,7 +309,7 @@ function OrdersPage() {
       }
     })
     LOG('sorted rows (full debug table)', table)
-  }, [sortedOrderItems])
+  }, [sortedOrderItems, replacementOrderIds])
 
   if (!isAuthenticated) {
     return (
@@ -311,10 +362,14 @@ function OrdersPage() {
               const quantity = item?.quantity ?? 1
               const price = item?.finalPayable ?? item?.itemSubtotal ?? (item?.unitPrice ?? 0) * quantity
               const trackingId = oi.latestStatusHistory?.trackingId ?? null
-              const statusDisplay = getStatusDisplay(oi)
+              const statusDisplay = getStatusDisplay(oi, replacementOrderIds)
               const orderId = oi.orderId ?? ''
               const itemId = oi.itemId?.toString?.() ?? oi.productItemId?.toString?.() ?? ''
               const rowKey = orderId && itemId ? `${orderId}-${itemId}-${idx}` : `row-${idx}`
+              const exchangeMeta = oi.exchangeMeta || null
+              const isExchangeReplacement = isExchangeReplacementOrder(oi, replacementOrderIds)
+              const exchangeReplacementOrderId = item?.exchangeReplacementOrderId || null
+              const isOriginalInExchange = isExchangeLineStatus(oi.status ?? oi.itemStatus)
 
               return (
                 <div
@@ -359,6 +414,16 @@ function OrdersPage() {
                       ) : (
                         <p className="text-gray-700 text-xs sm:text-sm mt-0.5 normal-case line-clamp-2">{name}{color ? ` ${color}` : ''}</p>
                       )}
+                      {isOriginalInExchange ? (
+                        <p className="text-[10px] sm:text-xs font-semibold uppercase text-blue-700 mt-1">
+                          Exchange in progress
+                        </p>
+                      ) : null}
+                      {exchangeReplacementOrderId ? (
+                        <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5">
+                          Replacement order: #{exchangeReplacementOrderId}
+                        </p>
+                      ) : null}
                       {trackingId && (
                         <p className="text-gray-500 text-[11px] sm:text-xs mt-1">Tracking ID: #{trackingId}</p>
                       )}
@@ -371,44 +436,77 @@ function OrdersPage() {
                       <span className="md:hidden text-gray-500 font-medium mr-1">Qty:</span>
                       {quantity}
                     </div>
-                    <div className="md:col-span-2 flex items-center md:justify-center text-gray-800 font-medium text-sm sm:text-base">
-                      <span className="md:hidden text-gray-500 font-medium mr-1">Price:</span>
-                      {formatPrice(price)}
+                    <div className="md:col-span-2 flex flex-col items-start md:items-center justify-center text-gray-800 font-medium text-sm sm:text-base">
+                      <span className="md:hidden text-gray-500 font-medium mr-1 mb-1">Price:</span>
+                      {isExchangeReplacement ? (
+                        <ReplacementOrderPriceMark />
+                      ) : (
+                        formatPrice(price)
+                      )}
                     </div>
                   </div>
 
                   {/* Status / Action */}
                   <div className="md:col-span-2 mt-1 md:mt-0">
-                    {statusDisplay.type === 'track' ? (
+                    {statusDisplay.type === 'track' || statusDisplay.type === 'exchange_replacement' ? (
                       <div className="space-y-2">
-                        <p className="font-bold text-gray-900 uppercase text-[11px] sm:text-xs">{statusDisplay.statusLabel}</p>
+                        {statusDisplay.type === 'exchange_replacement' ? (
+                          <p className="font-bold text-blue-800 uppercase text-[11px] sm:text-xs">
+                            {statusDisplay.label}
+                          </p>
+                        ) : (
+                          <p className="font-bold text-gray-900 uppercase text-[11px] sm:text-xs">{statusDisplay.statusLabel}</p>
+                        )}
                         <Link
                           to={getOrderTrackPath(oi.orderId, oi.itemId)}
                           className="block w-full bg-black text-white py-2 sm:py-2.5 px-3 sm:px-4 text-[11px] sm:text-xs font-semibold uppercase hover:bg-gray-800 transition-colors text-center"
                         >
-                          Track order
+                          {statusDisplay.type === 'exchange_replacement' ? 'Track replaced order' : 'Track order'}
                         </Link>
                         <div className="text-left">
                           <p className="text-gray-700 text-[11px] sm:text-xs font-medium">Order #{oi.orderId ?? '—'}</p>
+                          {isExchangeReplacement && exchangeMeta?.originalOrderId ? (
+                            <Link
+                              to={getOrderTrackPath(exchangeMeta.originalOrderId, exchangeMeta.originalItemId)}
+                              className="block text-[10px] sm:text-[11px] font-semibold uppercase text-blue-700 hover:underline mt-0.5"
+                            >
+                              View original order
+                            </Link>
+                          ) : null}
                           {oi.orderCreatedAt && (
                             <p className="text-gray-500 text-[10px] sm:text-[11px] mt-0.5">
                               Placed {formatOrderDateTime(oi.orderCreatedAt)}
                             </p>
                           )}
-                          <p className="text-gray-500 text-[10px] sm:text-[11px] mt-0.5">
-                            Payment: {formatPaymentLine(oi)}
-                          </p>
+                          {!isExchangeReplacement ? (
+                            <p className="text-gray-500 text-[10px] sm:text-[11px] mt-0.5">
+                              Payment: {formatPaymentLine(oi)}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     ) : (
                       <div className="text-left space-y-1.5">
                         <p className="text-gray-700 text-[11px] sm:text-xs font-medium">Order #{oi.orderId ?? '—'}</p>
+                        {isExchangeReplacement && exchangeMeta?.originalOrderId ? (
+                          <Link
+                            to={getOrderTrackPath(exchangeMeta.originalOrderId, exchangeMeta.originalItemId)}
+                            className="block text-[10px] sm:text-[11px] font-semibold uppercase text-blue-700 hover:underline mt-0.5"
+                          >
+                            View original order
+                          </Link>
+                        ) : null}
                         {oi.orderCreatedAt && (
                           <p className="text-gray-500 text-[10px] sm:text-[11px]">Placed {formatOrderDateTime(oi.orderCreatedAt)}</p>
                         )}
-                        <p className="text-gray-500 text-[10px] sm:text-[11px]">Payment: {formatPaymentLine(oi)}</p>
+                        {!isExchangeReplacement ? (
+                          <p className="text-gray-500 text-[10px] sm:text-[11px]">Payment: {formatPaymentLine(oi)}</p>
+                        ) : null}
                         <p
-                          className={`font-bold uppercase text-[11px] sm:text-xs px-2 py-1 rounded inline-block border ${statusDisplay.type === 'cancelled'
+                          className={`font-bold uppercase text-[11px] sm:text-xs px-2 py-1 rounded inline-block border ${
+                            isExchangeReplacement
+                              ? 'border-blue-500 text-blue-800 bg-blue-50'
+                              : statusDisplay.type === 'cancelled'
                               ? 'border-red-500 text-red-600'
                               : statusDisplay.type === 'delivered'
                                 ? 'border-green-500 text-green-700'
@@ -417,17 +515,17 @@ function OrdersPage() {
                                   : 'border-gray-300 text-gray-900'
                             }`}
                         >
-                          {statusDisplay.statusLabel ?? statusDisplay.label}
+                          {isExchangeReplacement ? 'Replacement order' : (statusDisplay.statusLabel ?? statusDisplay.label)}
                         </p>
                         {statusDisplay.dateStr && (
                           <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5">{statusDisplay.dateStr}</p>
                         )}
-                        {(statusDisplay.type === 'delivered' || statusDisplay.type === 'exchanged' || statusDisplay.type === 'exchange_process' || statusDisplay.type === 'cancelled') && (
+                        {(statusDisplay.type === 'delivered' || statusDisplay.type === 'exchanged' || statusDisplay.type === 'exchange_process' || statusDisplay.type === 'cancelled' || isExchangeReplacement) && (
                           <Link
                             to={getOrderTrackPath(oi.orderId, oi.itemId)}
                             className="block w-full mt-1 py-2 px-3 border border-gray-300 text-[11px] sm:text-xs font-semibold uppercase hover:bg-gray-50 transition-colors text-center"
                           >
-                            See more
+                            {isExchangeReplacement ? 'Track replaced order' : 'See more'}
                           </Link>
                         )}
                         {(statusDisplay.type !== 'delivered' && statusDisplay.type !== 'exchanged' && statusDisplay.type !== 'exchange_process' && statusDisplay.type !== 'cancelled') && (

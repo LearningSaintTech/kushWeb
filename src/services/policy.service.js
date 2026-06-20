@@ -9,5 +9,8 @@ export const policyService = {
 
   /** Get currently active exchange policy (requires authenticated user token). */
   getActiveExchange: () => client.get('/exchange/getActive'),
+
+  /** Get currently active return policy (requires authenticated user token). */
+  getActiveReturn: () => client.get('/admin/return-policies/getActive'),
 };
 
