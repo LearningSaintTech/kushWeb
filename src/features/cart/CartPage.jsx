@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
 import { setLocation } from '../../app/store/slices/locationSlice'
@@ -10,7 +10,7 @@ import { addressService } from '../../services/address.service.js'
 import { deliveryService } from '../../services/delivery.service.js'
 import { couponsService } from '../../services/coupons.service.js'
 import { ROUTES, getProductPath } from '../../utils/constants'
-import { trackEvent, cartRowToEcommerceItem, trackPixelAddToCart, trackPixelViewCart, trackPixelBeginCheckoutOnce, trackPixelRemoveFromCart } from '../../analytics'
+import { trackEvent, cartRowToEcommerceItem, trackPixelAddToCart, trackPixelViewCart, trackPixelBeginCheckoutOnce, resetPixelBeginCheckoutSession, trackPixelRemoveFromCart } from '../../analytics'
 import {
   DEFAULT_DONATION_AMOUNT,
   DONATION_MAX_AMOUNT,
@@ -185,6 +185,7 @@ function guestCartToRows(guestCart) {
 }
 
 function CartPage() {
+  const navigate = useNavigate()
   const dispatch = useDispatch()
   const { isAuthenticated } = useAuth()
   const {
@@ -233,6 +234,10 @@ function CartPage() {
   const [donationError, setDonationError] = useState(null)
   const donationInitializedRef = useRef(false)
   const cartViewTrackedRef = useRef(false)
+
+  useEffect(() => {
+    resetPixelBeginCheckoutSession()
+  }, [])
 
   const addressId = selectedAddress?._id
   const pincode = selectedAddress?.pinCode ?? pincodeRedux
@@ -811,6 +816,30 @@ function CartPage() {
   const items = lineItems
   const hasOutOfStockItem = items.some((row) => row.outOfStock === true || (row.availableQuantity != null && Number(row.availableQuantity) === 0))
   const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : (cartData?.deliveryOptions ?? [])
+
+  const handleProceedToCheckout = () => {
+    const ecommerceItems = items.map((row) => cartRowToEcommerceItem(row))
+    trackPixelBeginCheckoutOnce({
+      items: ecommerceItems,
+      value: finalPayable != null ? Number(finalPayable) : undefined,
+      currency: 'INR',
+      numItems: items.reduce((sum, row) => sum + Number(row?.quantity || 0), 0),
+    })
+    trackEvent({
+      eventType: 'checkout_started',
+      cartValue: finalPayable != null ? Number(finalPayable) : undefined,
+      currency: 'INR',
+      quantity: items.reduce((sum, row) => sum + Number(row?.quantity || 0), 0),
+    })
+    navigate(ROUTES.CHECKOUT, {
+      state: {
+        couponCode: appliedCouponCode || null,
+        selectedAddress: selectedAddress || null,
+        addresses: addresses?.length ? addresses : null,
+        donation: donationForCheckout,
+      },
+    })
+  }
 
   if (items.length === 0 && !cartError) {
     return (
@@ -1604,33 +1633,13 @@ function CartPage() {
                   Checkout (remove out of stock items)
                 </span>
               ) : (
-                <Link
-                  to={ROUTES.CHECKOUT}
-                  state={{
-                    couponCode: appliedCouponCode || null,
-                    selectedAddress: selectedAddress || null,
-                    addresses: addresses?.length ? addresses : null,
-                    donation: donationForCheckout,
-                  }}
-                  onClick={() => {
-                    const ecommerceItems = items.map((row) => cartRowToEcommerceItem(row))
-                    trackPixelBeginCheckoutOnce({
-                      items: ecommerceItems,
-                      value: finalPayable != null ? Number(finalPayable) : undefined,
-                      currency: 'INR',
-                      numItems: items.reduce((sum, row) => sum + Number(row?.quantity || 0), 0),
-                    })
-                    trackEvent({
-                      eventType: 'checkout_started',
-                      cartValue: finalPayable != null ? Number(finalPayable) : undefined,
-                      currency: 'INR',
-                      quantity: items.reduce((sum, row) => sum + Number(row?.quantity || 0), 0),
-                    })
-                  }}
+                <button
+                  type="button"
+                  onClick={handleProceedToCheckout}
                   className="block w-full bg-black text-white py-3 px-4 text-center font-semibold uppercase hover:bg-gray-800 transition-colors"
                 >
                   Checkout
-                </Link>
+                </button>
               )}
               <Link
                 to={ROUTES.SEARCH}

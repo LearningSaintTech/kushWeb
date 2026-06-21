@@ -435,6 +435,17 @@ function ProductPage() {
     }
   };
 
+  const fireBuyNowAddToCartPixel = () => {
+    trackPixelAddToCart({
+      id: productForCart.id,
+      name: productForCart.title,
+      price: productForCart.price,
+      quantity: 1,
+      sku: productForCart.sku,
+      skipDedupe: true,
+    });
+  };
+
   const handleBuyNow = async () => {
     if (!productForCart || !selectedSizeObj?.inStock) return;
     setCartError(null);
@@ -446,14 +457,8 @@ function ProductPage() {
         setTimeout(() => setCartError(null), 4000);
         return;
       }
-      trackPixelAddToCart({
-        id: productForCart.id,
-        name: productForCart.title,
-        price: productForCart.price,
-        quantity: 1,
-        sku: productForCart.sku,
-      });
     }
+    fireBuyNowAddToCartPixel();
     navigate(ROUTES.CART);
   };
 

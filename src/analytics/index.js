@@ -17,6 +17,7 @@ export {
   trackPixelRemoveFromCart,
   trackPixelBeginCheckout,
   trackPixelBeginCheckoutOnce,
+  resetPixelBeginCheckoutSession,
   trackPixelAddPaymentInfo,
   trackPixelPurchase,
 } from "./pixels.js";

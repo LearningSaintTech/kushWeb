@@ -97,23 +97,27 @@ export function trackPixelAddToCart({
   price,
   quantity = 1,
   currency = "INR",
+  /** Set for Buy Now so the event is not skipped after a recent Add To Cart click. */
+  skipDedupe = false,
 }) {
   const productId = id != null ? String(id) : "unknown";
   const qty = Number(quantity) || 1;
   const dedupeKey = `khush_atc_${productId}_${qty}`;
   const now = Date.now();
 
-  try {
-    const last = sessionStorage.getItem(dedupeKey);
-    if (last && now - Number(last) < ADD_TO_CART_DEDUPE_MS) {
-      if (import.meta.env.DEV) {
-        logPixel("AddToCart skipped (dedupe)", { id: productId, quantity: qty });
+  if (!skipDedupe) {
+    try {
+      const last = sessionStorage.getItem(dedupeKey);
+      if (last && now - Number(last) < ADD_TO_CART_DEDUPE_MS) {
+        if (import.meta.env.DEV) {
+          logPixel("AddToCart skipped (dedupe)", { id: productId, quantity: qty });
+        }
+        return;
       }
-      return;
+      sessionStorage.setItem(dedupeKey, String(now));
+    } catch {
+      // ignore storage errors
     }
-    sessionStorage.setItem(dedupeKey, String(now));
-  } catch {
-    // ignore storage errors
   }
 
   const unitPrice = parsePrice(price);
@@ -188,7 +192,16 @@ export function trackPixelBeginCheckout({
   });
 }
 
-/** Meta InitiateCheckout once per checkout session. */
+/** Clear so the cart Checkout button can fire InitiateCheckout again in the same tab. */
+export function resetPixelBeginCheckoutSession() {
+  try {
+    sessionStorage.removeItem(BEGIN_CHECKOUT_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+/** Meta InitiateCheckout once per checkout attempt (cart button sets the guard). */
 export function trackPixelBeginCheckoutOnce(params) {
   if (typeof sessionStorage !== "undefined") {
     if (sessionStorage.getItem(BEGIN_CHECKOUT_KEY)) {

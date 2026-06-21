@@ -11,7 +11,7 @@ import { paymentService } from "../../services/payment.service.js";
 import { walletService } from "../../services/wallet.service.js";
 import { ROUTES, getProductPath } from "../../utils/constants";
 import { PAYMENT_MODES } from "../../utils/paymentMode";
-import { trackEvent, trackPixelBeginCheckoutOnce, trackPixelAddPaymentInfo, cartRowToEcommerceItem } from "../../analytics";
+import { trackEvent, trackPixelAddPaymentInfo } from "../../analytics";
 import { loadRazorpayScript } from "./paymentCheckout.js";
 import { navigateToOrderFailed, navigateToThankYou } from "./orderConversion.js";
 // Pay later (Nimbbl) — disabled for now
@@ -270,7 +270,6 @@ function CheckoutPage() {
   const [lastVerifyPayload, setLastVerifyPayload] = useState(null);
 
   const paymentSuccessHandledRef = useRef(false);
-  const initiateCheckoutTrackedRef = useRef(false);
   // const nimbleCheckoutActiveRef = useRef(false)
   // const nimbleVerifyingRef = useRef(false)
   const donationInitializedRef = useRef(Boolean(donationFromCartNav));
@@ -1719,26 +1718,6 @@ function CheckoutPage() {
     fetchPriceSummary,
   ]);
 
-  const items = cartData?.items ?? [];
-  useEffect(() => {
-    if (!items.length || initiateCheckoutTrackedRef.current) return;
-
-    initiateCheckoutTrackedRef.current = true;
-
-    const ecommerceItems = items.map((row) => cartRowToEcommerceItem(row));
-
-    trackPixelBeginCheckoutOnce({
-      items: ecommerceItems,
-      value: finalPayable,
-      currency: "INR",
-      numItems: items.reduce((sum, row) => sum + Number(row?.quantity || 0), 0),
-    });
-
-    trackEvent({
-      eventType: "begin_checkout",
-    });
-  }, [items.length, finalPayable]);
-
   if (!isAuthenticated) {
     console.log("[Checkout] render: not authenticated, show sign-in");
     return (
@@ -1767,6 +1746,8 @@ function CheckoutPage() {
       </div>
     );
   }
+
+  const items = cartData?.items ?? [];
 
   const hasOutOfStockItem = items.some(
     (row) =>
