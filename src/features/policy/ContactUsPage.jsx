@@ -188,7 +188,7 @@ export default function ContactUsPage() {
 
       setFieldErrors(result.errors)
 
-      setStatus({ type: 'error', text: 'Please fix the errors below.' })
+      setStatus({ type: 'error', text: 'Please fix the errors above.' })
 
       return
 

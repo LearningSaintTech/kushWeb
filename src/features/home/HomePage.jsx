@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Helmet } from "react-helmet-async"
 import { useSelector } from 'react-redux'
 import Banner from './components/Banner'
- import SpecialDiscount from './components/SpecialDiscount'
+//  import SpecialDiscount from './components/SpecialDiscount'
 import LimitedEdition from './components/LimitedEdition'
 import OurProduct from './components/OurProduct'
 // import Collection from './components/Collection'
@@ -18,16 +18,16 @@ const WEB_ORDER_TO_COMPONENT = {
   1: NewArrivals,
   // 2: Couples,
   // 3: OurCategory,
-  4: SpecialDiscount,
+  // 4: SpecialDiscount,
   5: LimitedEdition,
   6: OurProduct,
-  9: SpecialDiscount,
+  // 9: SpecialDiscount,
 }
 
 /** Render order on home; slot 9 = Fathers Day / special offer (falls back to webOrder 4). */
-const HOME_SLOT_ORDERS = [1, 9, 5, 6]
+const HOME_SLOT_ORDERS = [1,  5, 6]
 
-const HOME_WEB_ORDERS = new Set([1, 4, 5, 6, 9, 10])
+const HOME_WEB_ORDERS = new Set([1, 4, 5, 6,  10])
 
 function getSectionWebOrder(section) {
   let order = section.webOrder ?? section.webinfo?.webOrder ?? 999
