@@ -41,8 +41,13 @@ export default defineConfig(({ mode }) => {
   const pixelId = env.VITE_META_PIXEL_ID || ''
   const metaPixelPlugin = metaPixelHtmlPlugin(pixelId)
 
+  const isProd = mode === 'production'
+
   return {
     plugins: [tailwindcss(), react(), metaPixelPlugin].filter(Boolean),
+    esbuild: {
+      drop: isProd ? ['console', 'debugger'] : [],
+    },
     server: {
       host: '0.0.0.0',
       port: 5174,
