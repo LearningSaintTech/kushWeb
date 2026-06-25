@@ -7,6 +7,13 @@ import { refreshUserAccessToken } from '../../utils/authSession.js'
 import { performLogout, clearLegacyAuthStorage } from '../../utils/sessionLogout.js'
 import { setSessionHint } from '../../utils/sessionHint.js'
 import { getOrCreateDeviceId } from '../../utils/deviceId.js'
+import {
+  buildMinimalUser,
+  extractAuthUser,
+  fetchUserProfileWithRetry,
+  isProfileNotFoundError,
+  unwrapApiData,
+} from '../../utils/authProfile.js'
 
 const AuthContext = createContext(null)
 
@@ -16,6 +23,11 @@ export function AuthProvider({ children }) {
   const [authChecked, setAuthChecked] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalRedirectTo, setAuthModalRedirectTo] = useState(null)
+  const [profilePanelRequest, setProfilePanelRequest] = useState(0)
+
+  const requestProfilePanel = useCallback(() => {
+    setProfilePanelRequest((count) => count + 1)
+  }, [])
 
   const openAuthModal = useCallback((redirectTo) => {
     setAuthModalRedirectTo(redirectTo ?? null)
@@ -76,14 +88,20 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const res = await authService.getProfile()
-        const data = res?.data?.data ?? res?.data
-        if (!cancelled) setUser(data ?? null)
-      } catch {
+        const profileData = await fetchUserProfileWithRetry(() =>
+          authService.getProfile(),
+        )
+        if (!cancelled) setUser(profileData ?? null)
+      } catch (err) {
         if (!cancelled) {
-          await performLogout({ server: true })
-          setTokenState(null)
-          setUser(null)
+          if (isProfileNotFoundError(err)) {
+            const minimal = buildMinimalUser(currentToken)
+            if (minimal) setUser(minimal)
+          } else {
+            await performLogout({ server: true })
+            setTokenState(null)
+            setUser(null)
+          }
         }
       } finally {
         if (!cancelled) setAuthChecked(true)
@@ -106,18 +124,29 @@ export function AuthProvider({ children }) {
   }, [])
 
   const verifyOtp = useCallback(async (payload) => {
-    const res = await authService.verifyOtp(payload)
-    const data = res?.data?.data ?? res?.data
+    const { registrationName, ...otpPayload } = payload ?? {}
+    const res = await authService.verifyOtp(otpPayload)
+    const data = unwrapApiData(res)
     const accessToken = data?.accessToken ?? data?.access_token
     if (accessToken) {
       setSessionHint()
       setToken(accessToken)
+      const userFromVerify = extractAuthUser(data)
+      if (userFromVerify) {
+        setUser(userFromVerify)
+      }
       try {
-        const profileRes = await authService.getProfile()
-        const profileData = profileRes?.data?.data ?? profileRes?.data
-        setUser(profileData ?? null)
+        const profileData = await fetchUserProfileWithRetry(() =>
+          authService.getProfile(),
+        )
+        if (profileData) setUser(profileData)
       } catch {
-        /* token is valid; profile can load on next navigation */
+        if (!userFromVerify) {
+          const minimal = buildMinimalUser(accessToken, {
+            ...(registrationName ? { name: registrationName } : {}),
+          })
+          if (minimal) setUser(minimal)
+        }
       }
       return data
     }
@@ -138,10 +167,12 @@ export function AuthProvider({ children }) {
   const refreshUser = useCallback(async () => {
     if (!getValidAccessToken(getCurrentAccessToken())) return null
     try {
-      const res = await authService.getProfile()
-      const data = res?.data?.data ?? res?.data
-      setUser(data ?? null)
-      return data
+      const profileData = await fetchUserProfileWithRetry(() =>
+        authService.getProfile(),
+        { attempts: 2, delayMs: 300 },
+      )
+      setUser(profileData ?? null)
+      return profileData
     } catch {
       return null
     }
@@ -157,6 +188,8 @@ export function AuthProvider({ children }) {
       authModalRedirectTo,
       openAuthModal,
       closeAuthModal,
+      requestProfilePanel,
+      profilePanelRequest,
       login,
       register,
       verifyOtp,
@@ -175,6 +208,8 @@ export function AuthProvider({ children }) {
       authModalRedirectTo,
       openAuthModal,
       closeAuthModal,
+      requestProfilePanel,
+      profilePanelRequest,
       login,
       register,
       verifyOtp,

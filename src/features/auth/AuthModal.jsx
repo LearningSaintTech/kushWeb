@@ -4,6 +4,8 @@ import { useAuth } from '../../app/context/AuthContext'
 import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValidation.js'
 import { trackEvent } from '../../analytics'
 import { sanitizeInternalRedirect } from '../../utils/safeUrl.util.js'
+import { ROUTES } from '../../utils/constants'
+import { extractAuthUserId } from '../../utils/authProfile.js'
 
 const DEFAULT_COUNTRY_CODE = '+91'
 const OTP_LENGTH = 6
@@ -42,6 +44,7 @@ export default function AuthModal() {
     authModalOpen,
     authModalRedirectTo,
     closeAuthModal,
+    requestProfilePanel,
   } = useAuth()
 
   const [step, setStep] = useState('form')
@@ -68,15 +71,26 @@ export default function AuthModal() {
     ? `${countryCode} ******${phoneNumber.slice(-3)}`
     : `${countryCode} ******`
 
-  // After login: optional in-app redirect, then close modal
   useEffect(() => {
     if (!authModalOpen || !isAuthenticated) return
     const target = sanitizeInternalRedirect(authModalRedirectTo, null)
     closeAuthModal()
+    if (target === ROUTES.ACCOUNT) {
+      requestProfilePanel()
+      navigate(ROUTES.HOME, { replace: true })
+      return
+    }
     if (target) {
       navigate(target, { replace: true })
     }
-  }, [authModalOpen, isAuthenticated, authModalRedirectTo, closeAuthModal, navigate])
+  }, [
+    authModalOpen,
+    isAuthenticated,
+    authModalRedirectTo,
+    closeAuthModal,
+    navigate,
+    requestProfilePanel,
+  ])
 
   // Reset form when modal opens
   useEffect(() => {
@@ -134,7 +148,7 @@ export default function AuthModal() {
           : payload
       const data =
         mode === 'register' ? await register(registerPayload) : await login(payload)
-      const id = data?.userId ?? data?.userId
+      const id = extractAuthUserId(data)
       if (id) {
         setUserId(id)
         setStep('otp')
@@ -171,6 +185,9 @@ export default function AuthModal() {
     await verifyOtp({
       userId,
       otp: otpValue.trim(),
+      ...(mode === 'register' && name.trim()
+        ? { registrationName: name.trim() }
+        : {}),
     });
 
     trackEvent({

@@ -35,6 +35,7 @@ import {
 } from '../../features/policy'
 import Address from '../../shared/address/Address'
 import ProfileUpdatePage from '../../features/account/ProfileUpdatePage'
+import AccountPage from '../../features/account/AccountPage'
 import AppDownloadRedirectPage from '../../shared/components/AppDownloadRedirectPage'
 import { ROUTES } from '../../utils/constants'
 
@@ -74,6 +75,7 @@ const router = createBrowserRouter([
       { path: 'refer-earn', element: <ReferEarnPage /> },
       { path: 'redeem-coins', element: <CoinsPage /> },
       { path: 'giftcard', element: <GiftCardPage /> },
+      { path: 'account', element: <AccountPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],
   },

@@ -298,7 +298,12 @@ export default function Header() {
   const [activeMobileCategory, setActiveMobileCategory] = useState(null);
   const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
   const [panelAnimated, setPanelAnimated] = useState(false);
-  const { isAuthenticated, openAuthModal, user } = useAuth();
+  const { isAuthenticated, openAuthModal, user, profilePanelRequest } = useAuth();
+  useEffect(() => {
+    if (profilePanelRequest > 0) {
+      setProfileModalOpen(true);
+    }
+  }, [profilePanelRequest]);
   const menuProfileName =
     user?.name ??
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ??

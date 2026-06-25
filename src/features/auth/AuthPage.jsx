@@ -4,8 +4,8 @@ import { useAuth } from '../../app/context/AuthContext'
 import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValidation.js'
 import { ROUTES } from '../../utils/constants'
 import { sanitizeInternalRedirect } from '../../utils/safeUrl.util.js'
+import { extractAuthUserId } from '../../utils/authProfile.js'
 import { trackEvent } from '../../analytics'
-import { toast } from 'react-toastify'
 
 const DEFAULT_COUNTRY_CODE = '+91'
 const OTP_LENGTH = 6
@@ -36,7 +36,7 @@ export default function AuthPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const redirectTo = sanitizeInternalRedirect(searchParams.get('redirect'), ROUTES.HOME)
-  const { login, register, verifyOtp, resendOtp, isAuthenticated } = useAuth()
+  const { login, register, verifyOtp, resendOtp, isAuthenticated, requestProfilePanel } = useAuth()
 
   const [step, setStep] = useState('form')
   const [mode, setMode] = useState('login')
@@ -67,10 +67,14 @@ export default function AuthPage() {
       : `${countryCode} ******`
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate(redirectTo, { replace: true })
+    if (!isAuthenticated) return
+    if (redirectTo === ROUTES.ACCOUNT) {
+      requestProfilePanel()
+      navigate(ROUTES.HOME, { replace: true })
+      return
     }
-  }, [isAuthenticated, navigate, redirectTo])
+    navigate(redirectTo, { replace: true })
+  }, [isAuthenticated, navigate, redirectTo, requestProfilePanel])
 
   useEffect(() => {
     if (resendCooldown <= 0) return
@@ -113,7 +117,7 @@ export default function AuthPage() {
             }
           : payload
       const data = mode === 'register' ? await register(registerPayload) : await login(payload)
-      const id = data?.userId ?? data?.userId
+      const id = extractAuthUserId(data)
       if (id) {
         setUserId(id)
         setStep('otp')
@@ -147,17 +151,17 @@ export default function AuthPage() {
     setError('')
     setLoading(true)
     try {
-      await verifyOtp({ userId, otp: otpValue.trim() })
+      await verifyOtp({
+        userId,
+        otp: otpValue.trim(),
+        ...(mode === 'register' && name.trim()
+          ? { registrationName: name.trim() }
+          : {}),
+      })
       trackEvent({
         eventType: mode === 'register' ? 'auth_signup_success' : 'auth_login_success',
         meta: { source: 'auth_page' },
       })
-      toast.success(
-    mode === 'register'
-      ? 'Account created successfully!'
-      : ' Welcome back! Login successful.'
-  )
-      navigate(redirectTo, { replace: true })
     } catch (err) {
       trackEvent({
         eventType: 'auth_login_failed',

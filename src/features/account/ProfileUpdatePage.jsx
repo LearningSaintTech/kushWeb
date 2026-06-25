@@ -57,28 +57,48 @@ export default function ProfileUpdatePage() {
     let cancelled = false
     setLoading(true)
     setError(null)
+
+    const applyProfile = (data) => {
+      if (cancelled || !data) return
+      setForm({
+        name: data.name ?? '',
+        email: data.email ?? '',
+        address: data.address ?? '',
+        city: data.city ?? '',
+        pinCode: data.pinCode ? String(data.pinCode) : '',
+      })
+      if (data.profileImage) setProfileImagePreview(data.profileImage)
+    }
+
+    if (user?.name || user?.email) {
+      applyProfile(user)
+    }
+
     authService
       .getProfile()
       .then((res) => {
         const data = res?.data?.data ?? res?.data
-        if (cancelled || !data) return
-        setForm({
-          name: data.name ?? '',
-          email: data.email ?? '',
-          address: data.address ?? '',
-          city: data.city ?? '',
-          pinCode: data.pinCode ? String(data.pinCode) : '',
-        })
-        if (data.profileImage) setProfileImagePreview(data.profileImage)
+        applyProfile(data)
       })
-      .catch((err) => {
-        if (!cancelled) setError(err?.response?.data?.message ?? 'Failed to load profile')
+      .catch(async (err) => {
+        const refreshed = await refreshUser()
+        if (refreshed) {
+          applyProfile(refreshed)
+          return
+        }
+        if (!cancelled && user?.name) {
+          applyProfile(user)
+          return
+        }
+        if (!cancelled) {
+          setError(err?.response?.data?.message ?? 'Failed to load profile')
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [isAuthenticated])
+  }, [isAuthenticated, refreshUser, user])
 
   const handleChange = (e) => {
     const { name, value } = e.target
