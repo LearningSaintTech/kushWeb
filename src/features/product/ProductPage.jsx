@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import { debugLog, debugError } from '../../utils/debugLog.js';
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
@@ -92,7 +93,7 @@ function ProductPage() {
       .then((res) => {
         const data = res?.data?.data ?? res?.data;
         const item = data?.item ?? data;
-        console.log("[ProductPage] product details API response:", {
+        debugLog("[ProductPage] product details API response:", {
           dataKeys: data ? Object.keys(data) : [],
           hasItem: !!item,
           itemId: item?._id,
@@ -100,7 +101,7 @@ function ProductPage() {
         });
         if (item?.variants?.length) {
           item.variants.forEach((v, i) => {
-            console.log("[ProductPage] API variant[" + i + "]:", {
+            debugLog("[ProductPage] API variant[" + i + "]:", {
               color: v.color?.name,
               sizesCount: v.sizes?.length,
               sizes: v.sizes?.map((s) => ({
@@ -384,7 +385,7 @@ function ProductPage() {
     hoverImageUrl,
   ]);
 
-  console.log("[ProductPage] product details state:", {
+  debugLog("[ProductPage] product details state:", {
     hasItem: !!item,
     itemId: item?._id,
     selectedColor,
@@ -426,7 +427,7 @@ function ProductPage() {
   }, [cart, productForCart, isAuthenticated, itemIdStr]);
 
   const handleAddToCart = async () => {
-    console.log("Add to cart clicked", productForCart, selectedSizeObj);
+    debugLog("Add to cart clicked", productForCart, selectedSizeObj);
     if (!productForCart || !selectedSizeObj?.inStock) return;
 
     const result = await addToCart(productForCart, pincode);
@@ -481,7 +482,7 @@ function ProductPage() {
       setCopyMsg("Link copied");
       setTimeout(() => setCopyMsg(""), 2000);
     } catch (err) {
-      console.error("Error copying link:", err);
+      debugError("Error copying link:", err);
     }
   };
 

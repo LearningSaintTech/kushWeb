@@ -5,17 +5,19 @@
  */
 
 import client from './axiosClient.js';
+import { debugLog, debugError } from '../utils/debugLog.js';
+import { redactForLog } from '../utils/logRedact.util.js';
 
 const BASE = '/payment';
 
 function logReq(label, ...args) {
-  console.log(`[PaymentService] ${label} REQ`, ...args);
+  debugLog(`[PaymentService] ${label} REQ`, ...args.map((a) => redactForLog(a)));
 }
 function logRes(label, data) {
-  console.log(`[PaymentService] ${label} RES`, data);
+  debugLog(`[PaymentService] ${label} RES`, redactForLog(data));
 }
 function logErr(label, err) {
-  console.error(`[PaymentService] ${label} ERR`, err?.response?.data ?? err?.message ?? err);
+  debugError(`[PaymentService] ${label} ERR`, err?.response?.data ?? err?.message ?? err);
 }
 
 export const paymentService = {

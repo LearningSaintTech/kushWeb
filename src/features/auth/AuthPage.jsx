@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValidation.js'
 import { ROUTES } from '../../utils/constants'
+import { sanitizeInternalRedirect } from '../../utils/safeUrl.util.js'
 import { trackEvent } from '../../analytics'
+import { toast } from 'react-toastify'
 
 const DEFAULT_COUNTRY_CODE = '+91'
 const OTP_LENGTH = 6
@@ -33,7 +35,7 @@ function ClockIcon({ className }) {
 export default function AuthPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || ROUTES.HOME
+  const redirectTo = sanitizeInternalRedirect(searchParams.get('redirect'), ROUTES.HOME)
   const { login, register, verifyOtp, resendOtp, isAuthenticated } = useAuth()
 
   const [step, setStep] = useState('form')
@@ -150,6 +152,11 @@ export default function AuthPage() {
         eventType: mode === 'register' ? 'auth_signup_success' : 'auth_login_success',
         meta: { source: 'auth_page' },
       })
+      toast.success(
+    mode === 'register'
+      ? 'Account created successfully!'
+      : ' Welcome back! Login successful.'
+  )
       navigate(redirectTo, { replace: true })
     } catch (err) {
       trackEvent({

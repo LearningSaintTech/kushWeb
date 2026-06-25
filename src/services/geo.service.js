@@ -5,6 +5,7 @@
  */
 
 import { API_BASE_URL } from './config.js';
+import { debugLog } from '../utils/debugLog.js';
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/reverse';
 const USER_AGENT = 'KhushWeb/1.0 (location-pincode)';
@@ -23,21 +24,21 @@ const GEO_ERROR_MESSAGES = {
 export function getCurrentPosition() {
   return new Promise((resolve, reject) => {
     if (!navigator?.geolocation) {
-      console.log('[Location] geolocation not supported');
+      debugLog('[Location] geolocation not supported');
       reject(new Error('Geolocation is not supported by this browser'));
       return;
     }
-    console.log('[Location] requesting geolocation...');
+    debugLog('[Location] requesting geolocation...');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        console.log('[Location] geolocation success', coords);
+        debugLog('[Location] geolocation success', coords);
         resolve(coords);
       },
       (err) => {
         const code = err?.code ?? 0;
         const message = GEO_ERROR_MESSAGES[code] ?? err?.message ?? 'Unable to get location';
-        console.log('[Location] geolocation error', { code, message, err });
+        debugLog('[Location] geolocation error', { code, message, err });
         reject(new Error(message));
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
@@ -50,19 +51,19 @@ export function getCurrentPosition() {
  */
 async function reverseGeocodeViaBackend(lat, lon) {
   const base = (typeof API_BASE_URL === 'string' && API_BASE_URL) ? API_BASE_URL.replace(/\/$/, '') : '';
-  console.log('[Location] reverseGeocode: API_BASE_URL =', API_BASE_URL, 'base =', base);
+  debugLog('[Location] reverseGeocode: API_BASE_URL =', API_BASE_URL, 'base =', base);
   if (!base) {
-    console.log('[Location] reverseGeocode: skipping backend (no base URL)');
+    debugLog('[Location] reverseGeocode: skipping backend (no base URL)');
     return null;
   }
   const url = `${base}/geo/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
-  console.log('[Location] reverseGeocode: fetching backend', url);
+  debugLog('[Location] reverseGeocode: fetching backend', url);
   try {
     const res = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
-    console.log('[Location] reverseGeocode: backend response', res.status, res.statusText);
+    debugLog('[Location] reverseGeocode: backend response', res.status, res.statusText);
     if (!res.ok) {
       const text = await res.text();
-      console.log('[Location] reverseGeocode: backend error body', text);
+      debugLog('[Location] reverseGeocode: backend error body', text);
       if (res.status === 400) {
         try {
           const errJson = JSON.parse(text);
@@ -75,11 +76,11 @@ async function reverseGeocodeViaBackend(lat, lon) {
       return null;
     }
     const json = await res.json();
-    console.log('[Location] reverseGeocode: backend data', json);
+    debugLog('[Location] reverseGeocode: backend data', json);
     if (json?.success && json?.data) return json.data;
     return null;
   } catch (e) {
-    console.log('[Location] reverseGeocode: backend fetch failed', e);
+    debugLog('[Location] reverseGeocode: backend fetch failed', e);
     return null;
   }
 }
@@ -88,7 +89,7 @@ async function reverseGeocodeViaBackend(lat, lon) {
  * Reverse geocode via Nominatim (direct). May be blocked by CORS in browser.
  */
 async function reverseGeocodeDirect(lat, lon) {
-  console.log('[Location] reverseGeocode: trying direct Nominatim', { lat, lon });
+  debugLog('[Location] reverseGeocode: trying direct Nominatim', { lat, lon });
   const params = new URLSearchParams({
     lat: String(lat),
     lon: String(lon),
@@ -101,11 +102,11 @@ async function reverseGeocodeDirect(lat, lon) {
     headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
   });
   if (!res.ok) {
-    console.log('[Location] reverseGeocode: Nominatim error', res.status, res.statusText);
+    debugLog('[Location] reverseGeocode: Nominatim error', res.status, res.statusText);
     throw new Error('Reverse geocode failed');
   }
   const data = await res.json();
-  console.log('[Location] reverseGeocode: Nominatim raw', data);
+  debugLog('[Location] reverseGeocode: Nominatim raw', data);
   const addr = data?.address ?? {};
   const pincode = addr.postcode ?? addr.pin_code ?? addr.pincode ?? null;
   // Build a proper address: street first, then area, city, state, pincode, country
@@ -140,11 +141,11 @@ async function reverseGeocodeDirect(lat, lon) {
 export async function reverseGeocode(lat, lon) {
   const fromBackend = await reverseGeocodeViaBackend(lat, lon);
   if (fromBackend) {
-    console.log('[Location] reverseGeocode: using backend result', fromBackend);
+    debugLog('[Location] reverseGeocode: using backend result', fromBackend);
     return fromBackend;
   }
   const direct = await reverseGeocodeDirect(lat, lon);
-  console.log('[Location] reverseGeocode: using direct result', direct);
+  debugLog('[Location] reverseGeocode: using direct result', direct);
   return direct;
 }
 
@@ -161,7 +162,7 @@ export async function getCurrentLocationPincode() {
     city: result?.city ?? null,
     state: result?.state ?? null,
   };
-  console.log('[Location] getCurrentLocationPincode result', out);
+  debugLog('[Location] getCurrentLocationPincode result', out);
   return out;
 }
 
@@ -184,7 +185,7 @@ export async function searchPlaces(query) {
     if (json?.success && Array.isArray(json?.data)) return json.data;
     return [];
   } catch (e) {
-    console.log('[Location] searchPlaces failed', e);
+    debugLog('[Location] searchPlaces failed', e);
     return [];
   }
 }

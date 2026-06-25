@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { debugLog } from '../../utils/debugLog.js';
 import { Link } from 'react-router-dom'
 import { IoChevronForwardOutline } from 'react-icons/io5'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
@@ -167,7 +168,7 @@ function WishlistPage() {
           {displayedItems.map((item) => {
             const offerProps = listingBindOfferProps(item)
             if (import.meta.env.DEV) {
-              console.log('[Wishlist][ProductCard] offer props', {
+              debugLog('[Wishlist][ProductCard] offer props', {
                 itemId: item.id,
                 title: item.title,
                 bindOffer: item.bindOffer,

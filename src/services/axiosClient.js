@@ -1,46 +1,67 @@
 /**
- * Axios client with interceptors:
- * - Request: add Authorization header when token is present
- * - Response: debug logging (request/response); 401 handling hook for refresh
+ * Axios client: Bearer access token (memory), httpOnly refresh cookie, silent refresh on 401.
  */
 
 import axios from 'axios';
-import { API_BASE_URL, isDebug } from './config.js';
+import { debugLog } from '../utils/debugLog.js';
+import { redactForLog } from '../utils/logRedact.util.js';
+import { API_BASE_URL } from './config.js';
+import { refreshUserAccessToken } from '../utils/authSession.js';
+import { performLogout } from '../utils/sessionLogout.js';
+import { getMemoryToken, setMemoryToken } from '../utils/tokenMemory.js';
+import { getOrCreateDeviceId } from '../utils/deviceId.js';
+import {
+  isRateLimitedStatus,
+  normalizeRateLimitMessage,
+  RATE_LIMIT_MESSAGE,
+} from '../utils/apiErrors.js';
 
-/** Storage key for access token (align with auth layer). */
+/** @deprecated Legacy key — cleared on boot; do not read or write. */
 export const ACCESS_TOKEN_KEY = 'khush_access_token';
 
-/**
- * Get current access token (e.g. from localStorage or auth context).
- * Override by setting axiosClient.getAccessToken before first request.
- */
-let getAccessToken = () => {
-  try {
-    return typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null;
-  } catch {
-    return null;
-  }
-};
+let getAccessToken = () => getMemoryToken();
 
-/**
- * Set a custom token getter (e.g. from React context).
- * @param {() => string | null} fn
- */
 export function setAccessTokenGetter(fn) {
-  getAccessToken = typeof fn === 'function' ? fn : () => null;
+  getAccessToken = typeof fn === 'function' ? fn : () => getMemoryToken();
 }
 
-/**
- * Optional: called when response is 401 (e.g. to refresh token or redirect).
- * Set via setOnUnauthorized to plug in refresh logic.
- */
-let onUnauthorized = () => {};
-
-export function setOnUnauthorized(fn) {
-  onUnauthorized = typeof fn === 'function' ? fn : () => {};
+export function getCurrentAccessToken() {
+  return getAccessToken();
 }
 
-const DEVICE_ID_KEY = 'khush_device_id';
+/** @deprecated Use axios 401 interceptor instead. */
+export function setOnUnauthorized() {
+  /* no-op — kept for API compatibility */
+}
+
+let refreshPromise = null;
+
+function isAuthRequestUrl(url = '') {
+  return (
+    /\/user\/auth\/(login|register|verify-otp|resend-otp|newAccessToken|logout)/i.test(url)
+  );
+}
+
+/** Public storefront reads — must not trigger token refresh or logout on 401. */
+function isPublicApiUrl(url = '') {
+  return /\/gift-card\/rules\/active$/i.test(String(url || ''));
+}
+
+async function runTokenRefresh() {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const token = await refreshUserAccessToken();
+    if (token) {
+      setMemoryToken(token);
+    }
+    return token;
+  })();
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+}
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -52,70 +73,99 @@ const client = axios.create({
   withCredentials: true,
 });
 
-// ----- Request interceptor: auth header + debug log -----
 client.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    try {
-      const deviceId = typeof window !== 'undefined' ? window.localStorage?.getItem(DEVICE_ID_KEY) : null;
-      if (deviceId) config.headers['x-device-id'] = deviceId;
-    } catch {}
-    // Explicitly mark this client as website channel for backend analytics attribution.
+    const deviceId = getOrCreateDeviceId();
+    if (deviceId) {
+      config.headers['x-device-id'] = deviceId;
+    }
     config.headers['x-client-channel'] = 'website';
 
-    // Let browser set Content-Type (with boundary) for FormData
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     }
 
-    if (isDebug()) {
-      const method = (config.method || 'get').toUpperCase();
-      const url = config.baseURL && config.url ? `${config.baseURL.replace(/\/$/, '')}${config.url}` : config.url;
-      const payload = { method, url, params: config.params };
-      if (config.data && method !== 'GET') payload.body = config.data;
-      console.debug('[API Request]', payload);
-    }
+    const method = (config.method || 'get').toUpperCase();
+    const url =
+      config.baseURL && config.url
+        ? `${config.baseURL.replace(/\/$/, '')}${config.url}`
+        : config.url;
+    const payload = { method, url, params: config.params };
+    if (config.data && method !== 'GET') payload.body = redactForLog(config.data);
+    debugLog('[API Request]', payload);
 
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// ----- Response interceptor: debug log + 401 handling -----
 client.interceptors.response.use(
   (response) => {
-    if (isDebug()) {
-      const method = (response.config?.method || 'get').toUpperCase();
-      const url = response.config?.url ?? '';
-      console.debug('[API Response]', {
-        method,
-        url,
-        status: response.status,
-        data: response.data,
-      });
-    }
+    const method = (response.config?.method || 'get').toUpperCase();
+    const url = response.config?.url ?? '';
+    debugLog('[API Response]', {
+      method,
+      url,
+      status: response.status,
+      data: redactForLog(response.data),
+    });
     return response;
   },
-  (error) => {
+  async (error) => {
     const response = error.response;
     const status = response?.status;
-    const config = response?.config;
+    const originalConfig = error.config;
 
-    if (isDebug()) {
-      console.debug('[API Error]', {
-        method: config?.method?.toUpperCase(),
-        url: config?.url,
-        status,
-        data: response?.data,
-        message: error.message,
-      });
+    debugLog('[API Error]', {
+      method: originalConfig?.method?.toUpperCase(),
+      url: originalConfig?.url,
+      status,
+      data: redactForLog(response?.data),
+      message: error.message,
+    });
+
+    if (isRateLimitedStatus(status) && response?.data) {
+      const data = { ...response.data };
+      data.message = RATE_LIMIT_MESSAGE;
+      error.response = { ...response, data };
+    } else if (response?.data?.message) {
+      const data = { ...response.data };
+      data.message = normalizeRateLimitMessage(data.message, status);
+      error.response = { ...response, data };
     }
 
-    if (status === 401) {
-      onUnauthorized(response, error);
+    const canRetry =
+      status === 401 &&
+      originalConfig &&
+      !originalConfig._authRetry &&
+      !isAuthRequestUrl(originalConfig.url) &&
+      !isPublicApiUrl(originalConfig.url);
+
+    if (canRetry) {
+      try {
+        const newToken = await runTokenRefresh();
+        if (newToken) {
+          originalConfig._authRetry = true;
+          originalConfig.headers = originalConfig.headers || {};
+          originalConfig.headers.Authorization = `Bearer ${newToken}`;
+          return client(originalConfig);
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+
+    if (
+      status === 401 &&
+      originalConfig &&
+      !isAuthRequestUrl(originalConfig.url) &&
+      !isPublicApiUrl(originalConfig.url)
+    ) {
+      await performLogout({ server: true });
     }
 
     return Promise.reject(error);

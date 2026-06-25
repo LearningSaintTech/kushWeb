@@ -3,22 +3,24 @@
  */
 
 import client from './axiosClient.js'
+import publicClient from './publicApiClient.js'
 import { getPublicImageUrl } from './config.js'
+import { debugLog } from '../utils/debugLog.js'
 
 const GIFT_CARD = '/gift-card'
 const RULES = '/gift-card/rules'
 const LOG = '[GiftCardService]'
 
 function logReq(label, ...args) {
-  console.log(`${LOG} ${label} REQ`, ...args)
+  debugLog(`${LOG} ${label} REQ`, ...args)
 }
 
 function logRes(label, data) {
-  console.log(`${LOG} ${label} RES`, data)
+  debugLog(`${LOG} ${label} RES`, data)
 }
 
 function logErr(label, err) {
-  console.log(`${LOG} ${label} ERR`, {
+  debugLog(`${LOG} ${label} ERR`, {
     message: apiMessage(err),
     status: err?.response?.status,
     data: err?.response?.data,
@@ -214,14 +216,14 @@ async function openRazorpayCheckout(razorpayData, { description = 'Khush Gift Ca
       },
       modal: {
         ondismiss: () => {
-          console.log(`${LOG} openRazorpayCheckout dismissed`)
+          debugLog(`${LOG} openRazorpayCheckout dismissed`)
           reject(new Error('Payment cancelled'))
         },
       },
       theme: { color: '#000000' },
     })
     rzp.on('payment.failed', (resp) => {
-      console.log(`${LOG} openRazorpayCheckout payment.failed`, resp)
+      debugLog(`${LOG} openRazorpayCheckout payment.failed`, resp)
       reject(new Error('Payment failed'))
     })
     rzp.open()
@@ -232,7 +234,7 @@ export const giftcardService = {
   async getActiveRules() {
     logReq('getActiveRules')
     try {
-      const res = await client.get(`${RULES}/active`)
+      const res = await publicClient.get(`${RULES}/active`)
       const data = unwrap(res)
       if (data?.image) data.image = getPublicImageUrl(data.image)
       logRes('getActiveRules', data)
@@ -422,8 +424,8 @@ export const giftcardService = {
       return ta - tb
     })
 
-    console.log('[GiftCard] Created — raw API data:', items)
-    console.log('[GiftCard] Created — mapped data:', mapped)
+    debugLog('[GiftCard] Created — raw API data:', items)
+    debugLog('[GiftCard] Created — mapped data:', mapped)
     return mapped
   },
 
@@ -438,8 +440,8 @@ export const giftcardService = {
       return ta - tb
     })
 
-    console.log('[GiftCard] Redeemed — raw API (received):', received)
-    console.log('[GiftCard] Redeemed — mapped data:', mapped)
+    debugLog('[GiftCard] Redeemed — raw API (received):', received)
+    debugLog('[GiftCard] Redeemed — mapped data:', mapped)
 
     logRes('listRedeemedGiftCards', { total: mapped.length })
     return mapped

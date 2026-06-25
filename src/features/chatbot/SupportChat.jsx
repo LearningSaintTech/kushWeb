@@ -14,6 +14,8 @@ import {
   revokeObjectUrls,
   statusLabel,
 } from './supportShared'
+import SafeExternalLink from '../../shared/components/SafeExternalLink.jsx'
+import { getSafeHttpHref } from '../../utils/safeUrl.util.js'
 
 const STARTER =
   "Hi! Tell us how we can help, or start a support request and our team will reply here."
@@ -56,30 +58,34 @@ function MessageMedia({ message }) {
 
   return (
     <div className="mt-2 space-y-2">
-      {images.map((item, index) =>
-        item?.url ? (
-          <a key={`img-${index}`} href={item.url} target="_blank" rel="noopener noreferrer">
+      {images.map((item, index) => {
+        const safeSrc = getSafeHttpHref(item?.url)
+        if (!safeSrc) return null
+        return (
+          <SafeExternalLink key={`img-${index}`} href={safeSrc}>
             <img
-              src={item.url}
+              src={safeSrc}
               alt=""
               className="max-h-48 w-full rounded-lg object-cover"
               loading="lazy"
             />
-          </a>
-        ) : null,
-      )}
-      {videos.map((item, index) =>
-        item?.url ? (
+          </SafeExternalLink>
+        )
+      })}
+      {videos.map((item, index) => {
+        const safeSrc = getSafeHttpHref(item?.url)
+        if (!safeSrc) return null
+        return (
           <video
             key={`vid-${index}`}
-            src={item.url}
+            src={safeSrc}
             controls
             playsInline
             preload="metadata"
             className="max-h-48 w-full rounded-lg bg-black/10"
           />
-        ) : null,
-      )}
+        )
+      })}
     </div>
   )
 }
@@ -118,31 +124,33 @@ function TicketMediaBlock({ images = [], videos = [] }) {
     <div className="mt-2 space-y-2">
       <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Attached proof</p>
       <div className="flex flex-wrap gap-2">
-        {images.map((item, index) =>
-          item?.url ? (
-            <a
+        {images.map((item, index) => {
+          const safeSrc = getSafeHttpHref(item?.url)
+          if (!safeSrc) return null
+          return (
+            <SafeExternalLink
               key={`ticket-img-${index}`}
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={safeSrc}
               className="block h-20 w-20 overflow-hidden rounded-lg border border-zinc-200"
             >
-              <img src={item.url} alt="" className="h-full w-full object-cover" loading="lazy" />
-            </a>
-          ) : null,
-        )}
-        {videos.map((item, index) =>
-          item?.url ? (
+              <img src={safeSrc} alt="" className="h-full w-full object-cover" loading="lazy" />
+            </SafeExternalLink>
+          )
+        })}
+        {videos.map((item, index) => {
+          const safeSrc = getSafeHttpHref(item?.url)
+          if (!safeSrc) return null
+          return (
             <video
               key={`ticket-vid-${index}`}
-              src={item.url}
+              src={safeSrc}
               controls
               playsInline
               preload="metadata"
               className="h-20 w-32 rounded-lg border border-zinc-200 bg-black/5 object-cover"
             />
-          ) : null,
-        )}
+          )
+        })}
       </div>
     </div>
   )

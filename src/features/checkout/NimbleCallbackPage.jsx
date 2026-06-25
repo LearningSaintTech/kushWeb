@@ -7,6 +7,7 @@ import { PAYMENT_MODES } from '../../utils/paymentMode'
 import { navigateToOrderFailed, navigateToThankYou } from './orderConversion.js'
 
 import { buildNimbblVerifyBody } from './paymentCheckout.js'
+import { pickNimbblCallbackQuery } from '../../utils/safeUrl.util.js'
 
 /**
  * Return URL after Nimble / Nimbbl Sonic checkout (redirect flow).
@@ -20,7 +21,7 @@ export default function NimbleCallbackPage() {
   const [message, setMessage] = useState('Confirming your payment…')
 
   useEffect(() => {
-    const queryPayload = Object.fromEntries(searchParams.entries())
+    const queryPayload = pickNimbblCallbackQuery(searchParams)
     if (!Object.keys(queryPayload).length) {
       setStatus('error')
       setMessage('Missing payment details. Please check My Orders or contact support.')

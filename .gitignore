@@ -1,10 +1,13 @@
 node_modules
 
+# Local overrides and secrets — never commit
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.development
-.env.test
-.env.production
+.env.*.local
+
+# Mode templates (.env.development, .env.staging, .env.production) are committed
+!.env.example
+!.env.development
+!.env.staging
+!.env.production
+

@@ -21,7 +21,7 @@ Use this document when working on the **KhushWeb** project with any AI assistant
 npm install          # Install dependencies
 npm run dev         # Start dev server (e.g. http://localhost:5173)
 npm run build       # Production build
-npm run preview     # Preview production build
+npm run preview     # Preview productidon build
 ```
 
 ---

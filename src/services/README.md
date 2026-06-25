@@ -1,56 +1,56 @@
 # API Services
 
-Central API layer for khushWeb. All requests go through an axios instance with auth and debug interceptors.
+Central API layer for kushWeb. All requests go through an axios instance with auth, refresh, and debug interceptors.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` in the project root.
-2. Set `VITE_API_URL` to your backend base URL (e.g. `http://192.168.1.13:5000/api`).
-3. Optional: set `VITE_DEBUG=true` to log every request/response in the console (or rely on dev mode).
-4. Run `npm install` (adds `axios`).
+1. Run `npm install`.
+2. API URL is set per Vite mode (see `.env.example`):
+   - `npm run dev` → `.env.development` → `http://localhost:5000`
+   - `npm run build:staging` → `.env.staging` → `https://apidev.khushpehno.com`
+   - `npm run build` → `.env.production` → `https://api.khushpehno.com`
+3. For local secrets (Maps key, Meta Pixel), use `.env.local` (gitignored).
+4. Set `VITE_DEBUG=false` in staging/production CI builds.
 
 ## Usage
 
 ```js
-import {
-  apiClient,
-  authService,
-  itemsService,
-  setAccessTokenGetter,
-  setOnUnauthorized,
-  ACCESS_TOKEN_KEY,
-} from './services'
-// or from '@/services' if alias is set
+import { apiClient, authService, itemsService } from './services'
 
-// Use services (responses are axios response objects; use .data for body)
+// Responses are axios response objects; use .data for body
 const { data } = await itemsService.search({ q: 'shirt' })
 await authService.login({ countryCode: '+91', phoneNumber: '9999999999' })
-
-// Token: by default read from localStorage key ACCESS_TOKEN_KEY.
-// To use a different source (e.g. React context), set a getter:
-setAccessTokenGetter(() => myAuthContext.accessToken)
-
-// 401 handling (e.g. refresh token or redirect to login):
-setOnUnauthorized((response, error) => {
-  // try refresh then retry, or redirect to /auth
-})
 ```
+
+## Auth model
+
+| Token | Storage |
+|-------|---------|
+| Access JWT | **Memory only** (`tokenMemory.js` via `AuthContext`) |
+| Refresh JWT | **httpOnly cookie** (`withCredentials: true`) |
+
+- Boot: `AuthContext` calls `POST /user/auth/newAccessToken` if memory is empty or `exp` passed, then loads profile.
+- 401: `axiosClient` silently refreshes once, retries the request; on failure calls `performLogout({ server: true })`.
+- `ACCESS_TOKEN_KEY` / `setOnUnauthorized` are deprecated exports kept for compatibility — do not use localStorage for tokens.
 
 ## Structure
 
 | File | Role |
 |------|------|
-| `config.js` | `API_BASE_URL`, `isDebug()` |
-| `axiosClient.js` | Axios instance, request/response interceptors (auth header, debug logs, 401 hook) |
-| `*.service.js` | One file per backend module; each exports methods that call the client |
+| `config.js` | `API_BASE_URL`, `API_ORIGIN`, `isDebug()` |
+| `axiosClient.js` | Axios instance, Bearer header, device id, 401 refresh, rate-limit messages |
+| `auth.service.js` | User auth endpoints; DEV-only redacted debug logs |
+| `*.service.js` | One file per backend module |
 | `index.js` | Re-exports config, client, and all services |
 
 ## Debug mode
 
-When `isDebug()` is true (dev or `VITE_DEBUG=true`), interceptors log:
+| Environment | Console / API logs |
+|-------------|-------------------|
+| **Dev** (`npm run dev`) | On by default; set `VITE_DEBUG=false` to silence |
+| **Prod build** | Off unless `VITE_DEBUG=true` at build time |
 
-- **Request:** `[API Request]` with method, url, params, body.
-- **Response:** `[API Response]` with method, url, status, data.
-- **Error:** `[API Error]` with method, url, status, data, message.
-
-No logs are emitted in production unless `VITE_DEBUG=true` is set in the build env.
+- `isDebug()` gates `debugLog` / axios interceptors / auth logs.
+- `silenceConsoleUnlessDebug()` runs at boot in `main.jsx` and no-ops all `console.*` when not in debug.
+- Production builds also strip `console` via Vite `esbuild.drop` unless `VITE_DEBUG=true`.
+- Missing `VITE_API_URL` in prod logs a one-time boot warning before silencing.

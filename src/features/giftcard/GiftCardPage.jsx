@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { debugLog } from '../../utils/debugLog.js';
 import { useSearchParams } from 'react-router-dom'
 import frameBanner from '../../assets/temporary/Frame 2147225414.png'
 import { useAuth } from '../../app/context/AuthContext'
@@ -532,8 +533,8 @@ const GiftCardPage = () => {
         giftcardService.listRedeemedGiftCards(),
       ])
       if (requestId !== historyRequestId.current) return
-      console.log('[GiftCard] Created gift cards — all data:', createdList)
-      console.log('[GiftCard] Redeemed gift cards — all data:', redeemedList)
+      debugLog('[GiftCard] Created gift cards — all data:', createdList)
+      debugLog('[GiftCard] Redeemed gift cards — all data:', redeemedList)
       setCreated(createdList)
       setRedeemed(redeemedList)
     } catch (err) {

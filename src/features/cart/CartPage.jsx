@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { debugLog } from '../../utils/debugLog.js';
 import { Link, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
@@ -227,9 +228,9 @@ function CartPage() {
   })
   const [addressFormTouched, setAddressFormTouched] = useState({})
   const [addressFormErrors, setAddressFormErrors] = useState({})
-  const [donationEnabled, setDonationEnabled] = useState(false)
-  const [donationAmount, setDonationAmount] = useState('')
-  const [donationPresetUsed, setDonationPresetUsed] = useState(false)
+  const [donationEnabled, setDonationEnabled] = useState(true)
+  const [donationAmount, setDonationAmount] = useState(String(DEFAULT_DONATION_AMOUNT))
+  const [donationPresetUsed, setDonationPresetUsed] = useState(true)
   const [donationCustomMode, setDonationCustomMode] = useState(false)
   const [donationError, setDonationError] = useState(null)
   const donationInitializedRef = useRef(false)
@@ -303,13 +304,13 @@ function CartPage() {
     if (import.meta.env.PROD || !isAuthenticated || loading) return
     if (!cartData) return
     const resolvedBindOffers = resolveCartBindOffers(priceSummary, lineItems)
-    console.log('[CartPage] cart /cart/my items:', (cartData?.items ?? []).map((row) => ({
+    debugLog('[CartPage] cart /cart/my items:', (cartData?.items ?? []).map((row) => ({
       sku: row?.variant?.sku,
       quantity: row?.quantity,
       bindOffer: row?.bindOffer ?? row?.itemId?.bindOffer ?? null,
     })))
-    console.log('[CartPage] price-summary bindOffers (raw):', priceSummary?.summary?.bindOffers ?? null)
-    console.log('[CartPage] offer sections loaded:', offerSections.map((s) => ({
+    debugLog('[CartPage] price-summary bindOffers (raw):', priceSummary?.summary?.bindOffers ?? null)
+    debugLog('[CartPage] offer sections loaded:', offerSections.map((s) => ({
       _id: s._id,
       title: s.title,
       offerType: s.bindOffer?.offerType,
@@ -319,8 +320,8 @@ function CartPage() {
         String(row?.itemId?._id ?? row?.itemId ?? ''),
       ),
     })))
-    console.log('[CartPage] resolved bindOffers (UI):', resolvedBindOffers)
-    console.log('[CartPage] merged lineItems:', lineItems.map((row) => ({
+    debugLog('[CartPage] resolved bindOffers (UI):', resolvedBindOffers)
+    debugLog('[CartPage] merged lineItems:', lineItems.map((row) => ({
       sku: row?.variant?.sku,
       quantity: row?.quantity,
       bindOffer: row?.bindOffer,
@@ -399,14 +400,15 @@ function CartPage() {
   }, [donationEnabled, donationAmount, donationPresetUsed])
 
   useEffect(() => {
-    if (donationInitializedRef.current || !cartData?.donation) return
+    if (donationInitializedRef.current || cartData == null) return
+    donationInitializedRef.current = true
+    if (cartData.donation == null) return
     const s = donationStateFromCart(cartData.donation)
     setDonationEnabled(s.donationEnabled)
     setDonationAmount(s.donationAmount)
     setDonationPresetUsed(s.donationPresetUsed)
     setDonationCustomMode(s.donationCustomMode)
-    donationInitializedRef.current = true
-  }, [cartData?.donation])
+  }, [cartData])
 
   const handleDonationPresetSelect = (amount) => {
     const current = getActiveDonationAmount({

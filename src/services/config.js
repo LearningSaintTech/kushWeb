@@ -1,26 +1,67 @@
+/** Backend API origin — set via VITE_API_URL in .env (see .env.example). */
+import { isLoggingEnabled } from "../utils/logLevel.js";
+
+function envTrim(key) {
+  const raw =
+    typeof import.meta !== "undefined" && import.meta.env?.[key] != null
+      ? String(import.meta.env[key]).trim()
+      : "";
+  return raw;
+}
+
 /**
  * Local Express runs HTTP; `https://localhost` causes ERR_SSL_PROTOCOL_ERROR.
  * In dev, coerce https → http for loopback only.
  */
 function normalizeDevApiOrigin(url) {
   if (!url || typeof url !== "string") return "";
-  const t = url.trim().replace(/\/$/, "");
+  const t = url.trim().replace(/\/$/, "").replace(/\/api\/?$/, "");
   if (!import.meta.env.DEV) return t;
-  if (/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(t)) return t.replace(/^https:/i, "http:");
+  if (/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(t)) {
+    return t.replace(/^https:/i, "http:");
+  }
   return t;
 }
 
-/** In dev, default to local backend when VITE_API_URL is not set. */
-const API_ORIGIN = normalizeDevApiOrigin(
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:5000" : ""),
-);
-const API_BASE_URL = `${API_ORIGIN}/api`;
-/** Public base URL for assets (images). Use CloudFront or API so Razorpay/iframes never request localhost. */
-const ASSET_BASE_URL = (import.meta.env.VITE_ASSET_URL || API_ORIGIN || "").replace(/\/$/, "");
+function resolveApiOrigin() {
+  const fromEnv = normalizeDevApiOrigin(envTrim("VITE_API_URL"));
+  if (fromEnv) return fromEnv;
+  if (import.meta.env?.DEV) {
+    console.warn("[kushWeb] VITE_API_URL is not set. Add it to .env.");
+  }
+  return "";
+}
 
+/** Vite mode: development | staging | production */
+const BUILD_MODE = import.meta.env.MODE;
+
+const API_ORIGIN = resolveApiOrigin();
+const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : "";
+
+/** Public base URL for assets (images). Use CloudFront or API so Razorpay/iframes never request localhost. */
+const ASSET_BASE_URL = (envTrim("VITE_ASSET_URL") || API_ORIGIN || "").replace(
+  /\/$/,
+  "",
+);
+
+/** Socket host (no /api suffix) — same origin as VITE_API_URL. */
+function getSocketUrl() {
+  return API_ORIGIN;
+}
+
+/** @deprecated Use isLoggingEnabled() from utils/logLevel.js — kept for analytics imports. */
 function isDebug() {
-  const { VITE_DEBUG, DEV } = import.meta.env;
-  return VITE_DEBUG === "true" || DEV === true;
+  return isLoggingEnabled();
+}
+
+/** Call once at app boot — warns when release build has no explicit API URL. */
+function warnIfProductionApiUrlMissing() {
+  if (!import.meta.env.PROD) return;
+  if (!envTrim("VITE_API_URL")) {
+    console.warn(
+      `[kushWeb] VITE_API_URL is not set for ${BUILD_MODE} build; API and socket calls will fail.`,
+    );
+  }
 }
 
 /**
@@ -43,4 +84,13 @@ function getPublicImageUrl(url) {
   return u;
 }
 
-export { API_ORIGIN, API_BASE_URL, isDebug, getPublicImageUrl, ASSET_BASE_URL };
+export {
+  API_ORIGIN,
+  API_BASE_URL,
+  BUILD_MODE,
+  getSocketUrl,
+  isDebug,
+  getPublicImageUrl,
+  ASSET_BASE_URL,
+  warnIfProductionApiUrlMissing,
+};

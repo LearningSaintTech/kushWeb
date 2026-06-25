@@ -1,5 +1,6 @@
-import { API_BASE_URL } from "../services/config.js";
-import { ACCESS_TOKEN_KEY } from "../services/axiosClient.js";
+import { API_BASE_URL, isDebug } from "../services/config.js";
+import { debugLog } from '../utils/debugLog.js';
+import { getCurrentAccessToken } from "../services/axiosClient.js";
 import { getOrCreateAnonymousId, getOrCreateSessionId } from "./session.js";
 
 const INGEST_URL = `${API_BASE_URL}/analytics/events`;
@@ -16,11 +17,7 @@ function getDeviceType() {
 }
 
 function getAuthToken() {
-  try {
-    return localStorage.getItem(ACCESS_TOKEN_KEY) || null;
-  } catch {
-    return null;
-  }
+  return getCurrentAccessToken();
 }
 
 function parseJwtUserId(token) {
@@ -66,8 +63,8 @@ export async function trackEvent(eventPayload = {}) {
       credentials: "include",
     });
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.debug("[Analytics] trackEvent failed", error?.message || error);
+    if (isDebug()) {
+      debugLog("[Analytics] trackEvent failed", error?.message || error);
     }
   }
 }
@@ -91,8 +88,8 @@ export function trackSessionStart(extra = {}) {
   } catch {
     // ignore storage-access errors
   }
-  if (import.meta.env.DEV) {
-    console.debug("[Analytics] session_start emitted", {
+  if (isDebug()) {
+    debugLog("[Analytics] session_start emitted", {
       path: typeof window !== "undefined" ? window.location.pathname + window.location.search : "/",
       at: new Date().toISOString(),
     });

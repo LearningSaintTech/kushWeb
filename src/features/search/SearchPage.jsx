@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { debugLog, debugError } from '../../utils/debugLog.js';
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { IoChevronForwardOutline } from 'react-icons/io5'
 import { useSearchParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
-import { ACCESS_TOKEN_KEY } from '../../services/axiosClient.js'
+import { useAuth } from '../../app/context/AuthContext'
 import { addRecentKeyword } from '../../app/store/slices/searchSlice.js'
 import collectionBanner from '../../assets/temporary/websitebanner.svg'
 import { ROUTES, getProductPath } from '../../utils/constants'
@@ -143,6 +144,7 @@ function itemToCardProps(item) {
 function SearchPage() {
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  const { isAuthenticated } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
 
@@ -211,7 +213,7 @@ function SearchPage() {
   const showGlobalCategoryDropdown = !isSectionScoped && !isItemsOnlyView
 
   // DEBUG: section-scoped dropdown visibility
-  console.log('[SearchPage] section-scoped debug', {
+  debugLog('[SearchPage] section-scoped debug', {
     sectionIdFromUrl,
     isSectionScoped,
     section: section ? { _id: section._id, type: section.type, categoryId: section.categoryId, subcategoryId: section.subcategoryId } : null,
@@ -315,9 +317,9 @@ function SearchPage() {
   // Guest: add search query to Redux recent when landing with q (so header modal shows it)
   useEffect(() => {
     if (!qFromUrl.trim()) return
-    const isGuest = typeof window !== 'undefined' && !localStorage.getItem(ACCESS_TOKEN_KEY)
+    const isGuest = !isAuthenticated
     if (isGuest) dispatch(addRecentKeyword(qFromUrl.trim()))
-  }, [qFromUrl, dispatch])
+  }, [qFromUrl, dispatch, isAuthenticated])
 
   // Load filters when filter panel opens (get filters API; include chosen pincode)
   useEffect(() => {
@@ -328,15 +330,15 @@ function SearchPage() {
     filtersService
       .getAll(params)
       .then((res) => {
-        console.log('[SearchPage] filters response (full):', res)
-        console.log('[SearchPage] filters response data:', res?.data)
+        debugLog('[SearchPage] filters response (full):', res)
+        debugLog('[SearchPage] filters response data:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = data?.filters ?? []
-        console.log('[SearchPage] filters parsed', { data, list })
+        debugLog('[SearchPage] filters parsed', { data, list })
         setFilterList(Array.isArray(list) ? list : [])
       })
       .catch((err) => {
-        console.error('[SearchPage] filters error:', err)
+        debugError('[SearchPage] filters error:', err)
         setFilterList([])
       })
       .finally(() => setFiltersLoading(false))
@@ -351,18 +353,18 @@ function SearchPage() {
       return
     }
     let cancelled = false
-    console.log('[SearchPage] fetching section', sectionIdFromUrl)
+    debugLog('[SearchPage] fetching section', sectionIdFromUrl)
     sectionsService.getOne(sectionIdFromUrl)
       .then((res) => {
-        console.log('[SearchPage] section response (full):', res)
-        console.log('[SearchPage] section response data:', res?.data)
+        debugLog('[SearchPage] section response (full):', res)
+        debugLog('[SearchPage] section response data:', res?.data)
         const data = res?.data?.data ?? res?.data
-        console.log('[SearchPage] section fetch result', { raw: res?.data, data, type: data?.type, categoryId: data?.categoryId, subcategoryId: data?.subcategoryId })
+        debugLog('[SearchPage] section fetch result', { raw: res?.data, data, type: data?.type, categoryId: data?.categoryId, subcategoryId: data?.subcategoryId })
         if (cancelled) return
         setSection(data || null)
       })
       .catch((err) => {
-        console.error('[SearchPage] section fetch error:', err)
+        debugError('[SearchPage] section fetch error:', err)
         if (!cancelled) setSection(null)
       })
     return () => { cancelled = true }
@@ -370,37 +372,37 @@ function SearchPage() {
 
   useEffect(() => {
     if (!section || section.type !== 'CATEGORY') {
-      console.log('[SearchPage] section categories skip', { hasSection: !!section, type: section?.type })
+      debugLog('[SearchPage] section categories skip', { hasSection: !!section, type: section?.type })
       setSectionCategories([])
       setSectionSubcategories([])
       return
     }
     const catIds = Array.isArray(section.categoryId) ? section.categoryId.map((id) => (id && typeof id === 'object' && id.toString) ? id.toString() : String(id)) : []
     const subIds = Array.isArray(section.subcategoryId) ? section.subcategoryId.map((id) => (id && typeof id === 'object' && id.toString) ? id.toString() : String(id)) : []
-    console.log('[SearchPage] loading section categories/subcategories', { catIds, subIds })
+    debugLog('[SearchPage] loading section categories/subcategories', { catIds, subIds })
     const catPromises = catIds.map((id) =>
       categoriesService.getById(id).then((r) => {
-        console.log('[SearchPage] category getById response:', id, r?.data)
+        debugLog('[SearchPage] category getById response:', id, r?.data)
         return r?.data?.data ?? r?.data
-      }).catch((err) => { console.error('[SearchPage] category getById error', id, err); return null })
+      }).catch((err) => { debugError('[SearchPage] category getById error', id, err); return null })
     )
     const subPromises = subIds.map((id) =>
       subcategoriesService.getById(id).then((r) => {
-        console.log('[SearchPage] subcategory getById response:', id, r?.data)
+        debugLog('[SearchPage] subcategory getById response:', id, r?.data)
         return r?.data?.data ?? r?.data
-      }).catch((err) => { console.error('[SearchPage] subcategory getById error', id, err); return null })
+      }).catch((err) => { debugError('[SearchPage] subcategory getById error', id, err); return null })
     )
     let cancelled = false
     Promise.all([Promise.all(catPromises), Promise.all(subPromises)])
       .then(([catResults, subResults]) => {
-        console.log('[SearchPage] section categories/subcategories loaded', { catResults, subResults, catLen: catResults?.length, subLen: subResults?.length })
+        debugLog('[SearchPage] section categories/subcategories loaded', { catResults, subResults, catLen: catResults?.length, subLen: subResults?.length })
         if (!cancelled) {
           setSectionCategories(catResults.filter(Boolean))
           setSectionSubcategories(subResults.filter(Boolean))
         }
       })
       .catch((err) => {
-        console.error('[SearchPage] section categories load error', err)
+        debugError('[SearchPage] section categories load error', err)
         if (!cancelled) { setSectionCategories([]); setSectionSubcategories([]) }
       })
     return () => { cancelled = true }
@@ -416,15 +418,15 @@ function SearchPage() {
     let cancelled = false
     categoriesService.getNavbar()
       .then((res) => {
-        console.log('[SearchPage] navbar categories response (full):', res)
-        console.log('[SearchPage] navbar categories response data:', res?.data)
+        debugLog('[SearchPage] navbar categories response (full):', res)
+        debugLog('[SearchPage] navbar categories response data:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = data?.categories ?? []
-        console.log('[SearchPage] navbar categories parsed', { data, list })
+        debugLog('[SearchPage] navbar categories parsed', { data, list })
         if (!cancelled) setCategories(Array.isArray(list) ? list : [])
       })
       .catch((err) => {
-        console.error('[SearchPage] navbar categories error:', err)
+        debugError('[SearchPage] navbar categories error:', err)
         if (!cancelled) setCategories([])
       })
       .finally(() => { if (!cancelled) setCategoriesLoading(false) })
@@ -442,15 +444,15 @@ function SearchPage() {
     let cancelled = false
     subcategoriesService.getNavbarByCategoryId(categoryFromUrl)
       .then((res) => {
-        console.log('[SearchPage] navbar subcategories response (full):', res)
-        console.log('[SearchPage] navbar subcategories response data:', res?.data)
+        debugLog('[SearchPage] navbar subcategories response (full):', res)
+        debugLog('[SearchPage] navbar subcategories response data:', res?.data)
         const data = res?.data?.data ?? res?.data
         const list = data?.subcategories ?? data ?? []
-        console.log('[SearchPage] navbar subcategories parsed', { data, list })
+        debugLog('[SearchPage] navbar subcategories parsed', { data, list })
         if (!cancelled) setSubcategories(Array.isArray(list) ? list : [])
       })
       .catch((err) => {
-        console.error('[SearchPage] navbar subcategories error:', err)
+        debugError('[SearchPage] navbar subcategories error:', err)
         if (!cancelled) setSubcategories([])
       })
       .finally(() => { if (!cancelled) setSubcategoriesLoading(false) })
@@ -528,26 +530,26 @@ function SearchPage() {
       // Section navigation: restrict results to section's products only
       if (sectionIdFromUrl) {
         params.sectionId = sectionIdFromUrl
-        console.log('[SearchPage] section-scoped search: only section items will be fetched', {
+        debugLog('[SearchPage] section-scoped search: only section items will be fetched', {
           sectionId: sectionIdFromUrl,
           params: { ...params },
         })
       }
 
-      console.log('[SearchPage] runSearch params', params)
+      debugLog('[SearchPage] runSearch params', params)
 
       const res = await itemsService.search(params)
-      console.log('[SearchPage] products search response (full):', res)
-      console.log('[SearchPage] products search response data:', res?.data)
+      debugLog('[SearchPage] products search response (full):', res)
+      debugLog('[SearchPage] products search response data:', res?.data)
       const data = res?.data?.data ?? res?.data
       const rawItems = data?.items ?? []
-      console.log('[SearchPage] products search raw items:', rawItems)
+      debugLog('[SearchPage] products search raw items:', rawItems)
       const pag = data?.pagination ?? null
-      console.log('[SearchPage] products search pagination:', pag)
+      debugLog('[SearchPage] products search pagination:', pag)
       const items = rawItems.map(itemToCardProps)
 
       if (sectionIdFromUrl) {
-        console.log('[SearchPage] section-scoped search response', {
+        debugLog('[SearchPage] section-scoped search response', {
           sectionId: sectionIdFromUrl,
           itemsCount: items.length,
           totalFromPagination: pag?.total,
@@ -566,7 +568,7 @@ function SearchPage() {
       }
       setPagination(pag)
     } catch (err) {
-      console.error('[SearchPage] products search error:', err)
+      debugError('[SearchPage] products search error:', err)
       if (isPageOne || isNewSearch) setProducts([])
       setPagination(null)
     } finally {

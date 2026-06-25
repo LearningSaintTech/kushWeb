@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { debugLog, debugError } from '../../utils/debugLog.js';
 import { useParams, Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/components/ProductCard'
@@ -92,13 +93,13 @@ export function SectionExplorePage() {
     if (!sectionId) return
     try {
       const res = await sectionsService.getOne(sectionId)
-      console.log('[SectionExplore] section response (full):', res)
-      console.log('[SectionExplore] section response data:', res?.data)
+      debugLog('[SectionExplore] section response (full):', res)
+      debugLog('[SectionExplore] section response data:', res?.data)
       const data = res?.data?.data ?? res?.data
-      console.log('[SectionExplore] section parsed:', data)
+      debugLog('[SectionExplore] section parsed:', data)
       setSection(data || null)
     } catch (e) {
-      console.error('[SectionExplore] section error:', e)
+      debugError('[SectionExplore] section error:', e)
       setError(e?.message ?? 'Section not found')
       setSection(null)
     }
@@ -107,29 +108,29 @@ export function SectionExplorePage() {
   /** Fetch category/subcategory details when section is CATEGORY type */
   const loadCategoriesAndSubcategories = useCallback(async (sec) => {
     if (!sec || sec.type !== 'CATEGORY') {
-      console.log('[SectionExplore] categories/subs skipped (not CATEGORY section):', sec?.type)
+      debugLog('[SectionExplore] categories/subs skipped (not CATEGORY section):', sec?.type)
       setCategories([])
       setSubcategories([])
       return
     }
     const catIds = Array.isArray(sec.categoryId) ? sec.categoryId : []
     const subIds = Array.isArray(sec.subcategoryId) ? sec.subcategoryId : []
-    console.log('[SectionExplore] loading categories/subcategories:', { catIds, subIds })
+    debugLog('[SectionExplore] loading categories/subcategories:', { catIds, subIds })
     const catPromises = catIds.map((id) =>
       categoriesService.getById(id).then((r) => {
-        console.log('[SectionExplore] category response:', id, r?.data)
+        debugLog('[SectionExplore] category response:', id, r?.data)
         return r?.data?.data ?? r?.data
       }).catch((e) => {
-        console.error('[SectionExplore] category error:', id, e)
+        debugError('[SectionExplore] category error:', id, e)
         return null
       })
     )
     const subPromises = subIds.map((id) =>
       subcategoriesService.getById(id).then((r) => {
-        console.log('[SectionExplore] subcategory response:', id, r?.data)
+        debugLog('[SectionExplore] subcategory response:', id, r?.data)
         return r?.data?.data ?? r?.data
       }).catch((e) => {
-        console.error('[SectionExplore] subcategory error:', id, e)
+        debugError('[SectionExplore] subcategory error:', id, e)
         return null
       })
     )
@@ -137,8 +138,8 @@ export function SectionExplorePage() {
       Promise.all(catPromises),
       Promise.all(subPromises),
     ])
-    console.log('[SectionExplore] categories result:', catResults)
-    console.log('[SectionExplore] subcategories result:', subResults)
+    debugLog('[SectionExplore] categories result:', catResults)
+    debugLog('[SectionExplore] subcategories result:', subResults)
     setCategories(catResults.filter(Boolean))
     setSubcategories(subResults.filter(Boolean))
   }, [])
@@ -189,19 +190,19 @@ export function SectionExplorePage() {
         return
       }
 
-      console.log('[SectionExplore] products search params:', params)
+      debugLog('[SectionExplore] products search params:', params)
       const res = await itemsService.search(params)
-      console.log('[SectionExplore] products response (full):', res)
-      console.log('[SectionExplore] products response data:', res?.data)
+      debugLog('[SectionExplore] products response (full):', res)
+      debugLog('[SectionExplore] products response data:', res?.data)
       const data = res?.data?.data ?? res?.data
       const rawItems = data?.items ?? []
-      console.log('[SectionExplore] products raw items:', rawItems)
-      console.log('[SectionExplore] products pagination:', data?.pagination)
+      debugLog('[SectionExplore] products raw items:', rawItems)
+      debugLog('[SectionExplore] products pagination:', data?.pagination)
       const items = rawItems.map((item) => itemToCardProps(item, section))
       setProducts(items)
       setPagination(data?.pagination ?? null)
     } catch (e) {
-      console.error('[SectionExplore] products error:', e)
+      debugError('[SectionExplore] products error:', e)
       setError(e?.message ?? 'Failed to load products')
       setProducts([])
       setPagination(null)

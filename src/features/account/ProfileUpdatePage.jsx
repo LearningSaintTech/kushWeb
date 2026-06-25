@@ -221,7 +221,7 @@ export default function ProfileUpdatePage() {
 
           <div>
             <label htmlFor="name" className="font-inter block text-sm font-medium text-black uppercase tracking-wider mb-1">
-              Name
+              Name <span className="text-red-500">*</span>
             </label>
             <input
               id="name"

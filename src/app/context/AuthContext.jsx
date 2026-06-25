@@ -1,32 +1,17 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
 import { authService } from '../../services/auth.service.js'
-import { ACCESS_TOKEN_KEY, setAccessTokenGetter, setOnUnauthorized } from '../../services/axiosClient.js'
-
-const DEVICE_ID_KEY = 'khush_device_id'
-
-function getOrCreateDeviceId() {
-  try {
-    let id = typeof window !== 'undefined' ? localStorage.getItem(DEVICE_ID_KEY) : null
-    if (!id) {
-      id = `web_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
-      localStorage.setItem(DEVICE_ID_KEY, id)
-    }
-    return id
-  } catch {
-    return `web_${Date.now()}`
-  }
-}
+import { setAccessTokenGetter, getCurrentAccessToken } from '../../services/axiosClient.js'
+import { getMemoryToken, setMemoryToken, subscribeMemoryToken, clearMemoryToken } from '../../utils/tokenMemory.js'
+import { getValidAccessToken, isTokenExpired } from '../../utils/authToken.js'
+import { refreshUserAccessToken } from '../../utils/authSession.js'
+import { performLogout, clearLegacyAuthStorage } from '../../utils/sessionLogout.js'
+import { setSessionHint } from '../../utils/sessionHint.js'
+import { getOrCreateDeviceId } from '../../utils/deviceId.js'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [token, setTokenState] = useState(() => {
-    try {
-      return typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
-    } catch {
-      return null
-    }
-  })
+  const [token, setTokenState] = useState(() => getMemoryToken())
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -42,70 +27,73 @@ export function AuthProvider({ children }) {
   }, [])
 
   const setToken = useCallback((value) => {
-    setTokenState(value)
-    try {
-      if (typeof window !== 'undefined') {
-        if (value) localStorage.setItem(ACCESS_TOKEN_KEY, value)
-        else localStorage.removeItem(ACCESS_TOKEN_KEY)
-      }
-    } catch {}
+    const next = value || null
+    setMemoryToken(next)
+    setTokenState(next)
   }, [])
 
-  const isAuthenticated = Boolean(token)
+  const isAuthenticated = Boolean(getValidAccessToken(getMemoryToken()))
 
   useEffect(() => {
-    setAccessTokenGetter(() => token)
-  }, [token])
+    setAccessTokenGetter(() => getMemoryToken())
+    return subscribeMemoryToken((next) => {
+      setTokenState(next)
+      if (!next) setUser(null)
+    })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-    if (!token) {
-      setUser(null)
-      setAuthChecked(true)
-      return
-    }
-    authService.getProfile()
-      .then((res) => {
+
+    ;(async () => {
+      clearLegacyAuthStorage()
+
+      let currentToken = getMemoryToken()
+      if (!currentToken || isTokenExpired(currentToken)) {
+        try {
+          const refreshed = await refreshUserAccessToken()
+          if (refreshed) {
+            currentToken = refreshed
+            if (!cancelled) {
+              setMemoryToken(refreshed)
+              setTokenState(refreshed)
+            }
+          }
+        } catch {
+          if (!cancelled) {
+            clearMemoryToken()
+            setTokenState(null)
+          }
+        }
+      }
+
+      if (cancelled) return
+
+      if (!currentToken || isTokenExpired(currentToken)) {
+        setUser(null)
+        setAuthChecked(true)
+        return
+      }
+
+      try {
+        const res = await authService.getProfile()
         const data = res?.data?.data ?? res?.data
         if (!cancelled) setUser(data ?? null)
-      })
-      .catch(() => {
-        if (!cancelled) setUser(null)
-      })
-      .finally(() => {
-        if (!cancelled) setAuthChecked(true)
-      })
-    return () => { cancelled = true }
-  }, [token])
-
-  const refreshAccessToken = useCallback(async () => {
-    const deviceId = getOrCreateDeviceId()
-    const res = await authService.newAccessToken()
-    const data = res?.data?.data ?? res?.data
-    const newToken = data?.accessToken ?? data?.access_token
-    if (newToken) {
-      setToken(newToken)
-      return newToken
-    }
-    return null
-  }, [setToken])
-
-  useEffect(() => {
-    setOnUnauthorized(async (response, error) => {
-      const config = response?.config
-      if (config?.url?.includes('newAccessToken') || config?.url?.includes('logout')) return
-      try {
-        const newToken = await refreshAccessToken()
-        if (newToken && config) {
-          config.headers.Authorization = `Bearer ${newToken}`
-          return await fetch(config.url, { ...config, headers: config.headers })
+      } catch {
+        if (!cancelled) {
+          await performLogout({ server: true })
+          setTokenState(null)
+          setUser(null)
         }
-      } catch {}
-      setToken(null)
-      setUser(null)
-    })
-    return () => setOnUnauthorized(() => {})
-  }, [refreshAccessToken, setToken])
+      } finally {
+        if (!cancelled) setAuthChecked(true)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const login = useCallback(async (payload) => {
     const res = await authService.login(payload)
@@ -118,12 +106,19 @@ export function AuthProvider({ children }) {
   }, [])
 
   const verifyOtp = useCallback(async (payload) => {
-    const deviceId = getOrCreateDeviceId()
     const res = await authService.verifyOtp(payload)
     const data = res?.data?.data ?? res?.data
     const accessToken = data?.accessToken ?? data?.access_token
     if (accessToken) {
+      setSessionHint()
       setToken(accessToken)
+      try {
+        const profileRes = await authService.getProfile()
+        const profileData = profileRes?.data?.data ?? profileRes?.data
+        setUser(profileData ?? null)
+      } catch {
+        /* token is valid; profile can load on next navigation */
+      }
       return data
     }
     return data
@@ -135,15 +130,13 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(async () => {
-    try {
-      await authService.logout()
-    } catch {}
-    setToken(null)
+    await performLogout({ server: true })
+    setTokenState(null)
     setUser(null)
-  }, [setToken])
+  }, [])
 
   const refreshUser = useCallback(async () => {
-    if (!token) return null
+    if (!getValidAccessToken(getCurrentAccessToken())) return null
     try {
       const res = await authService.getProfile()
       const data = res?.data?.data ?? res?.data
@@ -152,11 +145,11 @@ export function AuthProvider({ children }) {
     } catch {
       return null
     }
-  }, [token])
+  }, [])
 
   const value = useMemo(
     () => ({
-      token,
+      token: getValidAccessToken(token),
       user,
       isAuthenticated,
       authChecked,
@@ -192,11 +185,15 @@ export function AuthProvider({ children }) {
     ]
   )
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
+        Loading…
+      </div>
+    )
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

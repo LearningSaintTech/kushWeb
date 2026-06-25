@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { debugLog } from '../../utils/debugLog.js';
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { couponsService } from '../../services/coupons.service.js'
@@ -126,8 +127,8 @@ export default function CouponsPage() {
       const pag = data?.pagination ?? data?.meta ?? null
 
       const couponList = (Array.isArray(list) ? list : []).filter((c) => !c?.isInfluencer)
-      console.log('Coupons response:', JSON.stringify(res?.data, null, 2))
-      console.log('Coupon details:', JSON.stringify(couponList, null, 2))
+      debugLog('Coupons response:', JSON.stringify(res?.data, null, 2))
+      debugLog('Coupon details:', JSON.stringify(couponList, null, 2))
       if (couponList.length > 0) console.table(couponList)
 
       setCoupons(couponList)
