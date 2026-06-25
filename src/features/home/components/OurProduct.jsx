@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { debugLog } from '../../../utils/debugLog.js';
 import { useSelector } from "react-redux";
 import ProductCard from "../../../shared/components/ProductCard";
 import productImage from "../../../assets/temporary/productimage.png";
@@ -159,7 +160,7 @@ function OurProduct({ section }) {
     if (import.meta.env.PROD) return;
     const rawProducts = section?.products ?? [];
     const withItem = rawProducts.filter((p) => p?.item);
-    console.log("[OurProduct] section meta:", {
+    debugLog("[OurProduct] section meta:", {
       _id: section?._id,
       title: section?.title,
       type: section?.type,
@@ -167,7 +168,7 @@ function OurProduct({ section }) {
       bindOffer: section?.bindOffer,
       categoryId: section?.categoryId,
     });
-    console.log("[OurProduct] section products:", {
+    debugLog("[OurProduct] section products:", {
       total: rawProducts.length,
       withItem: withItem.length,
       offerBadges: withItem.map((p) => {
@@ -182,7 +183,7 @@ function OurProduct({ section }) {
         };
       }),
     });
-    console.log("[OurProduct] listFromSection count:", listFromSection.length);
+    debugLog("[OurProduct] listFromSection count:", listFromSection.length);
   }, [section, listFromSection.length]);
 
   const fetchByCategory = useCallback(
@@ -432,7 +433,7 @@ function OurProduct({ section }) {
           {!loadingInitial &&
             productsToShow.map((product, idx) => {
               if (!import.meta.env.PROD && (product.bindOffer || product.offerBadge)) {
-                console.log("[OurProduct][ProductCard] offer props", {
+                debugLog("[OurProduct][ProductCard] offer props", {
                   id: product.id,
                   title: product.title,
                   bindOffer: product.bindOffer,

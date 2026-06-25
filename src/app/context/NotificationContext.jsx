@@ -1,11 +1,9 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { notificationService } from '../../services/notification.service.js';
 import { io } from 'socket.io-client';
-import { API_ORIGIN } from '../../services/config.js';
+import { getSocketUrl } from '../../services/config.js';
 
 const NotificationContext = createContext(null);
-
-const SOCKET_URL = (API_ORIGIN || '').replace(/\/$/, '');
 const LIST_PAGE_SIZE = 20;
 const DROPDOWN_LIMIT = 5;
 
@@ -114,9 +112,10 @@ export function useNotificationSocket(token) {
   const { refreshList, refreshUnreadCount, prependFromSocket, socketRef } = useNotification();
 
   useEffect(() => {
-    if (!token || !SOCKET_URL) return;
+    const socketUrl = getSocketUrl();
+    if (!token || !socketUrl) return;
 
-    const socket = io(SOCKET_URL, {
+    const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });

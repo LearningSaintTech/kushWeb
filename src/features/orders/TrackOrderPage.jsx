@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { debugLog } from '../../utils/debugLog.js';
 import { useSelector } from "react-redux";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
@@ -10,6 +11,7 @@ import { exchangeService } from "../../services/exchange.service.js";
 import { returnService } from "../../services/return.service.js";
 import { policyService } from "../../services/policy.service.js";
 import { ROUTES, getOrderTrackPath } from "../../utils/constants";
+import SafeExternalLink from "../../shared/components/SafeExternalLink.jsx";
 import {
   formatPaymentLine,
   getPaymentStatus,
@@ -951,10 +953,8 @@ function ShipmentTrackingPanel({
             </p>
           )}
           {tracking.trackingUrl ? (
-            <a
+            <SafeExternalLink
               href={tracking.trackingUrl}
-              target="_blank"
-              rel="noreferrer"
               className={
                 compact
                   ? "inline-block mt-1 text-black font-semibold uppercase text-xs hover:underline"
@@ -962,7 +962,7 @@ function ShipmentTrackingPanel({
               }
             >
               Track shipment
-            </a>
+            </SafeExternalLink>
           ) : null}
         </div>
       ) : (
@@ -1103,11 +1103,11 @@ export default function TrackOrderPage() {
       setLoading(false);
       return;
     }
-    console.log("[TrackOrder] REQ getOrderItemById", { orderId, itemId });
+    debugLog("[TrackOrder] REQ getOrderItemById", { orderId, itemId });
     orderService
       .getOrderItemById(orderId, itemId)
       .then((res) => {
-        console.log("[TrackOrder] RES getOrderItemById", res?.data);
+        debugLog("[TrackOrder] RES getOrderItemById", res?.data);
         const payload = res?.data?.data ?? res?.data;
         setData(payload);
         setSelectedCancelItemId(payload?.itemId ?? null);
@@ -1122,7 +1122,7 @@ export default function TrackOrderPage() {
         loadActiveReturnForItem(orderId, resolvedItemId ?? itemId);
       })
       .catch((err) => {
-        console.log(
+        debugLog(
           "[TrackOrder] ERR getOrderItemById",
           err?.response?.data ?? err?.message,
         );
@@ -1236,7 +1236,7 @@ export default function TrackOrderPage() {
     policyService
       .getActiveCancellation()
       .then((res) => {
-        console.log("[TrackOrder] RES getActiveCancellation", res?.data);
+        debugLog("[TrackOrder] RES getActiveCancellation", res?.data);
         const payload = res?.data?.data ?? res?.data;
         if (payload) setCancelPolicy(payload);
       })
@@ -1247,7 +1247,7 @@ export default function TrackOrderPage() {
     policyService
       .getActiveExchange()
       .then((res) => {
-        console.log("[TrackOrder] RES getActiveExchange", res?.data);
+        debugLog("[TrackOrder] RES getActiveExchange", res?.data);
         const payload = res?.data?.data ?? res?.data;
         if (payload) setExchangePolicy(payload);
       })
@@ -1569,7 +1569,7 @@ export default function TrackOrderPage() {
         setExchangeSubmitting(false);
         return;
       }
-      console.log("[TrackOrder][ExchangeCreatePayload]", {
+      debugLog("[TrackOrder][ExchangeCreatePayload]", {
         orderId,
         itemId: selectedExchangeItemId,
         quantityToExchange: quantityToSend,
@@ -1773,7 +1773,7 @@ export default function TrackOrderPage() {
     EXCHANGE_STATUSES.includes(currentStatus) &&
     currentStatus !== "EXCHANGE_REJECTED";
 
-  console.log("[TrackOrder][TrackingDebug]", {
+  debugLog("[TrackOrder][TrackingDebug]", {
     orderId,
     itemId,
     currentStatus,
@@ -1935,14 +1935,12 @@ export default function TrackOrderPage() {
               )}
               {isExternalSelfShippingOrder && normalCourierTracking?.trackingUrl ? (
                 <p className="text-gray-600 text-sm mt-1">
-                  <a
+                  <SafeExternalLink
                     href={normalCourierTracking.trackingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="font-semibold text-black underline hover:no-underline"
                   >
                     Open courier tracking
-                  </a>
+                  </SafeExternalLink>
                 </p>
               ) : null}
               <p className="text-gray-600 text-sm mt-0.5">
@@ -2225,15 +2223,13 @@ export default function TrackOrderPage() {
               </p>
               {returnPickupTracking?.trackingUrl ? (
                 <p className="text-sm mt-2">
-                  Return pickup:{" "}
-                  <a
+                  Return pickup:{' '}
+                  <SafeExternalLink
                     href={returnPickupTracking.trackingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="font-mono text-orange-800 underline"
                   >
                     {returnPickupTracking.trackingNumber}
-                  </a>
+                  </SafeExternalLink>
                 </p>
               ) : null}
               {(activeReturn?.adminRemark || "").trim() ? (

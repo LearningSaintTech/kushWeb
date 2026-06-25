@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { debugError } from '../../utils/debugLog.js';
 
 import { Link } from 'react-router-dom'
 
@@ -232,7 +233,7 @@ export default function ContactUsPage() {
 
     } catch (err) {
 
-      console.error('Failed to submit contact-us request', err)
+      debugError('Failed to submit contact-us request', err)
 
       setStatus({
 

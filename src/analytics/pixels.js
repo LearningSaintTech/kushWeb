@@ -16,9 +16,12 @@ const ADD_TO_CART_DEDUPE_MS = 5000;
  * - Purchase        → /order/thank-you (NOT /orders)
  */
 
+import { isDebug } from "../services/config.js";
+import { debugInfo } from '../utils/debugLog.js';
+
 function logPixel(event, payload) {
-  if (!import.meta.env.DEV) return;
-  console.info("[Meta Pixel]", event, payload ?? "");
+  if (!isDebug()) return;
+  debugInfo("[Meta Pixel]", event, payload ?? "");
 }
 
 export function parsePrice(value) {

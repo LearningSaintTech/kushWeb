@@ -1,3 +1,6 @@
+import { isDebug } from "../services/config.js";
+import { debugInfo, debugWarn } from '../utils/debugLog.js';
+
 const META_PIXEL_ID = import.meta.env.VITE_META_PIXEL_ID || "";
 
 function loadMetaPixel(pixelId) {
@@ -26,8 +29,8 @@ function loadMetaPixel(pixelId) {
   window.fbq("track", "PageView");
   window.__KHUSH_META_PIXEL_ID__ = pixelId;
 
-  if (import.meta.env.DEV) {
-    console.info("[Meta Pixel] Initialized", pixelId);
+  if (isDebug()) {
+    debugInfo("[Meta Pixel] Initialized", pixelId);
   }
 }
 
@@ -37,14 +40,14 @@ export function initMarketingPixels() {
 
   if (META_PIXEL_ID) {
     if (window.__KHUSH_META_PIXEL_ID__ === META_PIXEL_ID) {
-      if (import.meta.env.DEV) {
-        console.info("[Meta Pixel] Active", META_PIXEL_ID);
+      if (isDebug()) {
+        debugInfo("[Meta Pixel] Active", META_PIXEL_ID);
       }
       return;
     }
     loadMetaPixel(META_PIXEL_ID);
-  } else if (import.meta.env.DEV) {
-    console.warn(
+  } else if (isDebug()) {
+    debugWarn(
       "[Meta Pixel] Not loaded — set VITE_META_PIXEL_ID in .env and restart npm run dev.",
     );
   }

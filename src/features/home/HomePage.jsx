@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { debugLog, debugError } from '../../utils/debugLog.js';
 import { Helmet } from "react-helmet-async"
 import { useSelector } from 'react-redux'
 import Banner from './components/Banner'
@@ -56,24 +57,24 @@ function HomePage() {
       .getActive(params)
       .then((res) => {
         if (cancelled) return
-        console.log('[HomePage] sections API response:', res)
-        console.log('[HomePage] sections API data:', res?.data)
+        debugLog('[HomePage] sections API response:', res)
+        debugLog('[HomePage] sections API data:', res?.data)
         const raw = res?.data?.data?.items ?? res?.data?.items ?? []
-        console.log('[HomePage] sections items (raw):', raw)
+        debugLog('[HomePage] sections items (raw):', raw)
         const sorted = [...raw].sort(
           (a, b) => getSectionWebOrder(a) - getSectionWebOrder(b)
         )
-        console.log('[HomePage] sections sorted by webOrder:', sorted)
+        debugLog('[HomePage] sections sorted by webOrder:', sorted)
         const byOrder = {}
         sorted.forEach((s) => {
           const order = getSectionWebOrder(s)
           if (HOME_WEB_ORDERS.has(order)) byOrder[order] = s
         })
-        console.log('[HomePage] sections by slot (webOrder):', byOrder)
+        debugLog('[HomePage] sections by slot (webOrder):', byOrder)
         setSectionsByOrder(byOrder)
       })
       .catch((err) => {
-        console.error('[HomePage] sections API error:', err)
+        debugError('[HomePage] sections API error:', err)
         if (!cancelled) setError(err?.message ?? 'Failed to load sections')
       })
       .finally(() => {

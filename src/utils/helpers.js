@@ -1,3 +1,5 @@
+import { debugWarn } from './debugLog.js'
+
 export function getFromStorage(key, fallback = null) {
   try {
     const item = localStorage.getItem(key)
@@ -11,7 +13,7 @@ export function setInStorage(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value))
   } catch (e) {
-    console.warn('Storage set failed', e)
+    debugWarn('Storage set failed', e)
   }
 }
 

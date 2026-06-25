@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { debugLog, debugError } from '../../utils/debugLog.js';
 import PolicyPageLayout from './PolicyPageLayout'
 import { faqService } from '../../services/faq.service.js'
 
@@ -44,11 +45,11 @@ export default function FAQsPage() {
       setError('')
       try {
         const { faqs: list, pagination } = await faqService.getAll({ page: 1, limit: 100 })
-        console.log('[FAQsPage] faqs', list)
-        console.log('[FAQsPage] pagination', pagination)
+        debugLog('[FAQsPage] faqs', list)
+        debugLog('[FAQsPage] pagination', pagination)
         if (!cancelled) setFaqs(list)
       } catch (err) {
-        console.error('[FAQsPage] load error', err)
+        debugError('[FAQsPage] load error', err)
         if (!cancelled) setError(err?.message || 'Failed to load FAQs')
       } finally {
         if (!cancelled) setLoading(false)
@@ -65,7 +66,7 @@ export default function FAQsPage() {
 
   useEffect(() => {
     if (faqs.length > 0) {
-      console.log('[FAQsPage] grouped', grouped)
+      debugLog('[FAQsPage] grouped', grouped)
     }
   }, [faqs, grouped])
 

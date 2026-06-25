@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValidation.js'
 import { trackEvent } from '../../analytics'
+import { sanitizeInternalRedirect } from '../../utils/safeUrl.util.js'
 
 const DEFAULT_COUNTRY_CODE = '+91'
 const OTP_LENGTH = 6
@@ -30,6 +31,7 @@ function ClockIcon({ className }) {
 }
 
 export default function AuthModal() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const {
     login,
@@ -38,6 +40,7 @@ export default function AuthModal() {
     resendOtp,
     isAuthenticated,
     authModalOpen,
+    authModalRedirectTo,
     closeAuthModal,
   } = useAuth()
 
@@ -65,12 +68,15 @@ export default function AuthModal() {
     ? `${countryCode} ******${phoneNumber.slice(-3)}`
     : `${countryCode} ******`
 
-  // When user becomes authenticated, close modal and keep user on same page (no redirect)
+  // After login: optional in-app redirect, then close modal
   useEffect(() => {
-    if (authModalOpen && isAuthenticated) {
-      closeAuthModal()
+    if (!authModalOpen || !isAuthenticated) return
+    const target = sanitizeInternalRedirect(authModalRedirectTo, null)
+    closeAuthModal()
+    if (target) {
+      navigate(target, { replace: true })
     }
-  }, [authModalOpen, isAuthenticated, closeAuthModal])
+  }, [authModalOpen, isAuthenticated, authModalRedirectTo, closeAuthModal, navigate])
 
   // Reset form when modal opens
   useEffect(() => {
@@ -175,9 +181,7 @@ export default function AuthModal() {
       meta: { source: "auth_modal" },
     });
   } catch (err) {
-    console.error("OTP Verify Error:", err);
-
-    setError("Invalid OTP");
+    setError(err?.response?.data?.message || "Invalid OTP");
   } finally {
     setLoading(false);
   }

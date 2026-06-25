@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { debugError } from '../../utils/debugLog.js';
 import { Link } from "react-router-dom";
 import { ROUTES, getSearchPath } from "../../utils/constants";
 import logoImg from "../../assets/images/navBar/SVG.svg";
@@ -236,7 +237,7 @@ function Footer() {
         text: "Thank you! We received your message and will respond soon.",
       });
     } catch (err) {
-      console.error("Failed to submit contact-us request from footer modal", err);
+      debugError("Failed to submit contact-us request from footer modal", err);
       setContactStatus({
         type: "error",
         text: err?.message || "Something went wrong. Please try again.",

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValidation.js'
 import { ROUTES } from '../../utils/constants'
+import { sanitizeInternalRedirect } from '../../utils/safeUrl.util.js'
 import { trackEvent } from '../../analytics'
 import { toast } from 'react-toastify'
 
@@ -34,7 +35,7 @@ function ClockIcon({ className }) {
 export default function AuthPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || ROUTES.HOME
+  const redirectTo = sanitizeInternalRedirect(searchParams.get('redirect'), ROUTES.HOME)
   const { login, register, verifyOtp, resendOtp, isAuthenticated } = useAuth()
 
   const [step, setStep] = useState('form')

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { debugLog } from '../../../utils/debugLog.js';
 import { Link } from 'react-router-dom'
 import { ROUTES, getSectionExplorePath, getProductPath } from '../../../utils/constants'
 import { getPublicImageUrl } from '../../../services/config.js'
@@ -210,22 +211,22 @@ function SpecialDiscount({ section }) {
         const banner = resolveBannerSrc(section)
         const explore = section?._id ? getSectionExplorePath(section._id) : ROUTES.SEARCH
 
-        console.log('[SpecialDiscount] section prop:', section)
-        console.log('[SpecialDiscount] section meta:', {
+        debugLog('[SpecialDiscount] section prop:', section)
+        debugLog('[SpecialDiscount] section meta:', {
             _id: section?._id,
             title: section?.title,
             type: section?.type,
             webOrder: section?.webOrder ?? section?.webinfo?.webOrder,
             bindOffer: section?.bindOffer,
         })
-        console.log('[SpecialDiscount] products:', {
+        debugLog('[SpecialDiscount] products:', {
             total: rawProducts.length,
             withItem: withItem.length,
             withoutItem: withoutItem.length,
             withoutItemSample: withoutItem.slice(0, 3),
             itemIds: withItem.map((p) => p?.item?._id ?? p?.itemId),
         })
-        console.log('[SpecialDiscount] derived:', {
+        debugLog('[SpecialDiscount] derived:', {
             bannerSrc: banner,
             offerHeadline: headline,
             exploreTo: explore,

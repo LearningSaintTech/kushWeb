@@ -5,19 +5,24 @@
  */
 
 import client from './axiosClient.js';
+import { debugLog, debugWarn } from '../utils/debugLog.js';
 
 const BASE = '/cart';
 
+function logCart(...args) {
+  debugLog(...args);
+}
+
 export const cartService = {
   add: (body) => {
-    console.log('[cart.service] add() called with body:', body)
+    logCart('[cart.service] add() called with body:', body)
     return client.post(`${BASE}/add`, body).then(
       (res) => {
-        console.log('[cart.service] add() success:', res?.data)
+        logCart('[cart.service] add() success:', res?.data)
         return res
       },
       (err) => {
-        console.log('[cart.service] add() error:', err?.response?.data ?? err?.message, 'status:', err?.response?.status)
+        logCart('[cart.service] add() error:', err?.response?.data ?? err?.message, 'status:', err?.response?.status)
         throw err
       }
     )
@@ -26,7 +31,7 @@ export const cartService = {
   my: (params = {}) =>
     client.get(`${BASE}/my`, { params }).then((res) => {
       const data = res?.data?.data ?? res?.data
-      console.log("[cart.service] getCart (GET /cart/my) response:", data)
+      logCart("[cart.service] getCart (GET /cart/my) response:", data)
       return res
     }),
 
@@ -46,7 +51,7 @@ export const cartService = {
     client.get(`${BASE}/price-summary`, { params }).then((res) => {
       const data = res?.data?.data ?? res?.data
       const summary = data?.cartSummary ?? data
-      console.log("[cart.service] getPriceSummary (GET /cart/price-summary) response:", {
+      logCart("[cart.service] getPriceSummary (GET /cart/price-summary) response:", {
         itemCount: summary?.items?.length ?? 0,
         subTotal: summary?.summary?.subTotal,
         bindOffers: summary?.summary?.bindOffers ?? null,
@@ -60,8 +65,8 @@ export const cartService = {
         })),
       })
       if (summary?.summary && summary.summary.bindOffers == null) {
-        console.warn(
-          "[cart.service] price-summary missing summary.bindOffers — deploy latest KhushBackend or use VITE_API_URL=http://localhost:5000",
+        debugWarn(
+          "[cart.service] price-summary missing summary.bindOffers — deploy latest KhushBackend or set VITE_API_URL in .env",
         )
       }
       return res

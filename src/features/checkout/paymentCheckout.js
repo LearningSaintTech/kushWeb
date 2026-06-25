@@ -3,6 +3,7 @@
  */
 
 import Checkout from 'nimbbl_sonic'
+import { debugLog, debugError } from '../../utils/debugLog.js';
 import { ROUTES } from '../../utils/constants'
 
 /** CDN fallback if something still loads checkout via script tag (not used by openNimbleCheckout). */
@@ -38,6 +39,9 @@ export function getNimbleReturnUrl() {
   if (typeof window === 'undefined') return undefined
   return `${window.location.origin}${ROUTES.CHECKOUT_NIMBLE_CALLBACK}`
 }
+
+/** Assign window location only for allowlisted payment-provider redirect URLs. */
+export { assignPaymentRedirectUrl } from '../../utils/safeUrl.util.js'
 
 const NIMBBL_SUCCESS_STATUSES = new Set([
   'success',
@@ -341,7 +345,7 @@ export async function openNimbleCheckout({
 
   const openPromise = checkout.open({
     callback_handler: async (response) => {
-      console.log('[Nimbbl] callback_handler:', response)
+      debugLog('[Nimbbl] callback_handler:', response)
       const shouldVerify =
         isNimbblPaymentSuccess(response) || hasNimbblVerifyPayload(response)
       if (shouldVerify) {
@@ -356,16 +360,16 @@ export async function openNimbleCheckout({
   if (openPromise && typeof openPromise.then === 'function') {
     openPromise
       .catch((err) => {
-        console.error('[Nimbbl] checkout session ended with error:', err)
+        debugError('[Nimbbl] checkout session ended with error:', err)
       })
       .finally(() => {
         onClosed?.()
       })
   }
 
-  console.log('[Nimbbl] waiting for checkout UI to become visible…')
+  debugLog('[Nimbbl] waiting for checkout UI to become visible…')
   await waitForNimbblCheckoutVisible()
-  console.log('[Nimbbl] checkout UI visible')
+  debugLog('[Nimbbl] checkout UI visible')
   notifyOpened()
 
   return checkout

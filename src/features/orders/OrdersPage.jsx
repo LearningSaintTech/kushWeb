@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
+import { debugLog } from '../../utils/debugLog.js';
+import { redactForLog } from '../../utils/logRedact.util.js';
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
@@ -6,10 +8,6 @@ import { ROUTES, getOrderTrackPath, getProductPath } from '../../utils/constants
 import { formatPaymentLine } from '../../utils/paymentMode'
 import { getOfferBadgeText } from '../../utils/bindOffer.js'
 import { BindOfferLineNote } from '../../shared/components/BindOfferCartExtras.jsx'
-
-const LOG = (...args) => {
-  if (import.meta.env.DEV) console.log('[OrdersPage]', ...args)
-}
 
 function formatPrice(num) {
   if (num == null || Number.isNaN(num)) return 'Rs. 0.00'
@@ -116,68 +114,51 @@ function OrdersPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    LOG('mount / deps', {
+    debugLog('[OrdersPage]', 'mount / deps', {
       isAuthenticated,
       pathname: location.pathname,
-      state: location.state,
-      orderSuccessFromState,
-      orderIdFromState,
+      hasOrderState: Boolean(location.state?.orderId || location.state?.orderSuccess),
     })
   }, [isAuthenticated, location.pathname, location.state, orderSuccessFromState, orderIdFromState])
 
   useEffect(() => {
     if (!isAuthenticated) {
-      LOG('fetch skipped: not authenticated')
+      debugLog('[OrdersPage]','fetch skipped: not authenticated')
       setLoading(false)
       return
     }
     const params = { page: 1, limit: 20 }
-    LOG('getOrderItems request', params)
+    debugLog('[OrdersPage]','getOrderItems request', params)
     orderService
       .getOrderItems(params)
       .then((res) => {
-        LOG('getOrderItems raw response', res)
-        LOG('getOrderItems res.data', res?.data)
         const data = res?.data?.data ?? res?.data
-        LOG('getOrderItems parsed `data`', data)
         const items = data?.items ?? data ?? []
         const pag = data?.pagination ?? null
-        LOG('getOrderItems items (before array check)', items, 'isArray:', Array.isArray(items))
         const list = Array.isArray(items) ? items : []
-        LOG('getOrderItems order line count', list.length, 'pagination:', pag)
-        if (list.length > 0) {
-          list.forEach((oi, i) => {
-            LOG(`row[${i}] keys`, oi && typeof oi === 'object' ? Object.keys(oi) : oi)
-            LOG(`row[${i}] summary`, {
-              orderId: oi?.orderId,
-              itemId: oi?.itemId,
-              productItemId: oi?.productItemId,
-              status: oi?.status ?? oi?.itemStatus,
-              orderCreatedAt: oi?.orderCreatedAt,
-              itemKeys: oi?.item && typeof oi.item === 'object' ? Object.keys(oi.item) : null,
-              itemName: oi?.item?.name,
-              payment: oi?.payment,
-            })
-          })
-        }
+        debugLog('[OrdersPage]', 'getOrderItems loaded', {
+          count: list.length,
+          pagination: pag,
+          sample: redactForLog(list[0]),
+        })
         setOrderItems(list)
         setPagination(pag)
       })
       .catch((err) => {
-        LOG('getOrderItems error', err)
-        LOG('getOrderItems error.response', err?.response)
-        LOG('getOrderItems error.response?.data', err?.response?.data)
-        LOG('getOrderItems error.response?.status', err?.response?.status)
+        debugLog('[OrdersPage]', 'getOrderItems error', {
+          status: err?.response?.status,
+          message: err?.response?.data?.message ?? err?.message,
+        })
         setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load orders')
       })
       .finally(() => {
-        LOG('getOrderItems finished (loading false)')
+        debugLog('[OrdersPage]','getOrderItems finished (loading false)')
         setLoading(false)
       })
   }, [isAuthenticated])
 
   useEffect(() => {
-    LOG('state snapshot', {
+    debugLog('[OrdersPage]','state snapshot', {
       loading,
       error,
       orderItemsLength: orderItems.length,
@@ -310,7 +291,7 @@ function OrdersPage() {
         },
       }
     })
-    LOG('sorted rows (full debug table)', table)
+    debugLog('[OrdersPage]','sorted rows (full debug table)', table)
   }, [sortedOrderItems, replacementOrderIds])
 
   if (!isAuthenticated) {

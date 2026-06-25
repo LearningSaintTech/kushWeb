@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { debugLog } from '../../utils/debugLog.js';
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { ROUTES, getSearchPath } from "../../utils/constants";
@@ -472,7 +473,7 @@ export default function Header() {
   // When hamburger opens with first category expanded, fetch its subcategories by category
   useEffect(() => {
     if (menuOpen && effectiveActiveCategory) {
-      console.log(
+      debugLog(
         "[Header] menu open, loading subcategories for effectiveActiveCategory",
         { effectiveActiveCategory, menuOpen },
       );

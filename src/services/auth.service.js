@@ -4,115 +4,84 @@
  */
 
 import client from './axiosClient.js';
+import { debugLog } from '../utils/debugLog.js';
 
 const BASE = '/user/auth';
 
-function logAuthReq(method, url, body = null) {
-  console.log('[Auth API] Request', { method, url, body: body ?? undefined });
+function redactAuthBody(body) {
+  if (!body || typeof body !== 'object') return body;
+  const copy = { ...body };
+  if ('otp' in copy) copy.otp = '[redacted]';
+  return copy;
 }
-function logAuthRes(method, url, data) {
-  console.log('[Auth API] Response', { method, url, data });
+
+function redactAuthResponse(data) {
+  if (!data || typeof data !== 'object') return data;
+  const copy = { ...data };
+  const inner = copy.data && typeof copy.data === 'object' ? { ...copy.data } : null;
+  if (inner?.accessToken) inner.accessToken = '[redacted]';
+  if (inner?.access_token) inner.access_token = '[redacted]';
+  if (inner?.refreshToken) inner.refreshToken = '[redacted]';
+  if (inner?.refereshToken) inner.refereshToken = '[redacted]';
+  if (inner?.newRefreshToken) inner.newRefreshToken = '[redacted]';
+  if (copy.accessToken) copy.accessToken = '[redacted]';
+  if (copy.access_token) copy.access_token = '[redacted]';
+  if (copy.refreshToken) copy.refreshToken = '[redacted]';
+  if (copy.refereshToken) copy.refereshToken = '[redacted]';
+  if (copy.newRefreshToken) copy.newRefreshToken = '[redacted]';
+  if (inner) copy.data = inner;
+  return copy;
 }
-function logAuthErr(method, url, err) {
-  console.log('[Auth API] Error', { method, url, message: err?.message, response: err?.response?.data });
+
+function logAuthDebug(label, payload) {
+  debugLog(`[Auth API] ${label}`, payload);
+}
+
+function wrapAuthCall(method, url, promise, body = null) {
+  logAuthDebug('request', { method, url, body: body ? redactAuthBody(body) : undefined });
+  return promise
+    .then((res) => {
+      logAuthDebug('response', { method, url, data: redactAuthResponse(res?.data) });
+      return res;
+    })
+    .catch((err) => {
+      logAuthDebug('error', {
+        method,
+        url,
+        message: err?.message,
+        status: err?.response?.status,
+      });
+      throw err;
+    });
 }
 
 export const authService = {
-  register: (body) => {
-    const url = `${BASE}/register`;
-    logAuthReq('POST', url, body);
-    return client.post(url, body).then((res) => {
-      logAuthRes('POST', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('POST', url, err);
-      throw err;
-    });
-  },
+  register: (body) =>
+    wrapAuthCall('POST', `${BASE}/register`, client.post(`${BASE}/register`, body), body),
 
-  verifyOtp: (body) => {
-    const url = `${BASE}/verify-otp`;
-    logAuthReq('POST', url, body);
-    return client.post(url, body).then((res) => {
-      logAuthRes('POST', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('POST', url, err);
-      throw err;
-    });
-  },
+  verifyOtp: (body) =>
+    wrapAuthCall('POST', `${BASE}/verify-otp`, client.post(`${BASE}/verify-otp`, body), body),
 
-  resendOtp: (body) => {
-    const url = `${BASE}/resend-otp`;
-    logAuthReq('POST', url, body);
-    return client.post(url, body).then((res) => {
-      logAuthRes('POST', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('POST', url, err);
-      throw err;
-    });
-  },
+  resendOtp: (body) =>
+    wrapAuthCall('POST', `${BASE}/resend-otp`, client.post(`${BASE}/resend-otp`, body), body),
 
-  login: (body) => {
-    const url = `${BASE}/login`;
-    logAuthReq('POST', url, body);
-    return client.post(url, body).then((res) => {
-      logAuthRes('POST', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('POST', url, err);
-      throw err;
-    });
-  },
+  login: (body) =>
+    wrapAuthCall('POST', `${BASE}/login`, client.post(`${BASE}/login`, body), body),
 
-  newAccessToken: (body) => {
-    const url = `${BASE}/newAccessToken`;
-    logAuthReq('POST', url, body ?? {});
-    return client.post(url, body).then((res) => {
-      logAuthRes('POST', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('POST', url, err);
-      throw err;
-    });
-  },
+  newAccessToken: () =>
+    wrapAuthCall('POST', `${BASE}/newAccessToken`, client.post(`${BASE}/newAccessToken`, {})),
 
-  logout: () => {
-    const url = `${BASE}/logout`;
-    logAuthReq('POST', url, null);
-    return client.post(url).then((res) => {
-      logAuthRes('POST', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('POST', url, err);
-      throw err;
-    });
-  },
+  logout: () => wrapAuthCall('POST', `${BASE}/logout`, client.post(`${BASE}/logout`)),
 
-  updateProfile: (data) => {
-    const url = `${BASE}/update-profile`;
-    logAuthReq('PUT', url, data instanceof FormData ? '(FormData)' : data);
-    return client.put(url, data, {
-      headers: data instanceof FormData ? {} : { 'Content-Type': 'application/json' },
-    }).then((res) => {
-      logAuthRes('PUT', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('PUT', url, err);
-      throw err;
-    });
-  },
+  updateProfile: (data) =>
+    wrapAuthCall(
+      'PUT',
+      `${BASE}/update-profile`,
+      client.put(`${BASE}/update-profile`, data, {
+        headers: data instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+      }),
+      data instanceof FormData ? '(FormData)' : data
+    ),
 
-  getProfile: () => {
-    const url = `${BASE}/getProfile`;
-    logAuthReq('GET', url, null);
-    return client.get(url).then((res) => {
-      logAuthRes('GET', url, res?.data);
-      return res;
-    }).catch((err) => {
-      logAuthErr('GET', url, err);
-      throw err;
-    });
-  },
+  getProfile: () => wrapAuthCall('GET', `${BASE}/getProfile`, client.get(`${BASE}/getProfile`)),
 };

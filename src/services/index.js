@@ -1,14 +1,22 @@
 /**
  * API services – single entry for app usage.
- * Use debug mode (VITE_DEBUG=true or dev) to log requests/responses via axios interceptors.
+ * Debug logs: VITE_APP_ENV=dev (all logs) | VITE_APP_ENV=prod (silent).
  */
 
-export { API_BASE_URL, isDebug } from './config.js';
+export {
+  API_BASE_URL,
+  API_ORIGIN,
+  BUILD_MODE,
+  getSocketUrl,
+  isDebug,
+  warnIfProductionApiUrlMissing,
+} from './config.js';
 export {
   default as apiClient,
   ACCESS_TOKEN_KEY,
   setAccessTokenGetter,
   setOnUnauthorized,
+  getCurrentAccessToken,
 } from './axiosClient.js';
 
 export { authService } from './auth.service.js';

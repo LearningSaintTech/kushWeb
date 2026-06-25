@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { debugLog, debugWarn, debugError } from '../../utils/debugLog.js';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
@@ -289,9 +290,9 @@ function CheckoutPage() {
 
   const refetchAddresses = useCallback(async () => {
     const req = { page: 1, limit: 50 };
-    console.log("[Checkout] REQ addressService.getAll:", req);
+    debugLog("[Checkout] REQ addressService.getAll:", req);
     const res = await addressService.getAll(req);
-    console.log("[Checkout] RES addressService.getAll:", res?.data);
+    debugLog("[Checkout] RES addressService.getAll:", res?.data);
     const list = res?.data?.data ?? res?.data;
     const arr = Array.isArray(list)
       ? list
@@ -307,9 +308,9 @@ function CheckoutPage() {
       const id = addrId ?? addressId;
       if (id) params.addressId = id;
       if (pincode) params.pincode = String(pincode);
-      console.log("[Checkout] REQ cartService.my:", params);
+      debugLog("[Checkout] REQ cartService.my:", params);
       const res = await cartService.my(params);
-      console.log("[Checkout] RES cartService.my:", res?.data);
+      debugLog("[Checkout] RES cartService.my:", res?.data);
       const data = res?.data?.data ?? res?.data;
       setCartData(data);
       return data;
@@ -345,12 +346,12 @@ function CheckoutPage() {
         }
         setDonationError(null);
         Object.assign(params, donationParams);
-        console.log("[Checkout] REQ cartService.getPriceSummary:", params);
+        debugLog("[Checkout] REQ cartService.getPriceSummary:", params);
         const res = await cartService.getPriceSummary(params);
-        console.log("[Checkout] RES cartService.getPriceSummary:", res?.data);
+        debugLog("[Checkout] RES cartService.getPriceSummary:", res?.data);
         const data = res?.data?.data ?? res?.data;
         if (requestId !== priceSummaryRequestRef.current) {
-          console.log(
+          debugLog(
             "[Checkout] IGNORE stale getPriceSummary success response",
             { requestId, latest: priceSummaryRequestRef.current },
           );
@@ -360,12 +361,12 @@ function CheckoutPage() {
         setCouponError(null);
         return data;
       } catch (err) {
-        console.log(
+        debugLog(
           "[Checkout] ERR cartService.getPriceSummary:",
           err?.response?.data ?? err?.message,
         );
         if (requestId !== priceSummaryRequestRef.current) {
-          console.log(
+          debugLog(
             "[Checkout] IGNORE stale getPriceSummary error response",
             { requestId, latest: priceSummaryRequestRef.current },
           );
@@ -422,9 +423,9 @@ function CheckoutPage() {
 
   const fetchAvailableCoupons = useCallback(async () => {
     const req = { page: 1, limit: 50 };
-    console.log("[Checkout] REQ couponsService.getAvailable:", req);
+    debugLog("[Checkout] REQ couponsService.getAvailable:", req);
     const res = await couponsService.getAvailable(req);
-    console.log("[Checkout] RES couponsService.getAvailable:", res?.data);
+    debugLog("[Checkout] RES couponsService.getAvailable:", res?.data);
     const data = res?.data?.data ?? res?.data;
     const list = Array.isArray(data) ? data : (data?.data ?? []);
     return Array.isArray(list) ? list : [];
@@ -448,7 +449,7 @@ function CheckoutPage() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    console.log("[Checkout] init effect", { isAuthenticated });
+    debugLog("[Checkout] init effect", { isAuthenticated });
     if (!isAuthenticated) {
       setLoading(false);
       return;
@@ -458,11 +459,11 @@ function CheckoutPage() {
     const fromCart = selectedAddressFromCart != null;
     let defaultAddr = null;
     let addressList = [];
-    console.log("[Checkout] REQ addressService.getDefaultAddress");
+    debugLog("[Checkout] REQ addressService.getDefaultAddress");
     addressService
       .getDefaultAddress()
       .then((res) => {
-        console.log(
+        debugLog(
           "[Checkout] RES addressService.getDefaultAddress:",
           res?.data,
         );
@@ -474,9 +475,9 @@ function CheckoutPage() {
       .catch(() => null)
       .then(() => {
         const req = { page: 1, limit: 50 };
-        console.log("[Checkout] REQ addressService.getAll (init):", req);
+        debugLog("[Checkout] REQ addressService.getAll (init):", req);
         return addressService.getAll(req).then((res) => {
-          console.log(
+          debugLog(
             "[Checkout] RES addressService.getAll (init):",
             res?.data,
           );
@@ -507,11 +508,11 @@ function CheckoutPage() {
         const id = fromCartId ?? defaultAddr?._id ?? list?.[0]?._id;
         const cartParams = { limit: 100 };
         if (id) cartParams.addressId = id;
-        console.log("[Checkout] REQ cartService.my (init):", cartParams);
+        debugLog("[Checkout] REQ cartService.my (init):", cartParams);
         return cartService.my(cartParams);
       })
       .then((res) => {
-        console.log("[Checkout] RES cartService.my (init):", res?.data);
+        debugLog("[Checkout] RES cartService.my (init):", res?.data);
         const data = res?.data?.data ?? res?.data;
         setCartData(data);
         if (data?.items?.length)
@@ -536,7 +537,7 @@ function CheckoutPage() {
   useEffect(() => {
     if (addresses.length === 0 || selectedAddress != null) return;
     const defaultOrFirst = addresses.find((a) => a.isDefault) ?? addresses[0];
-    console.log(
+    debugLog(
       "[Checkout] address sync: set default/first",
       defaultOrFirst?._id,
     );
@@ -546,11 +547,11 @@ function CheckoutPage() {
   useEffect(() => {
     if (!isAuthenticated || !addressId) return;
     const params = { limit: 100, addressId };
-    console.log("[Checkout] REQ cartService.my (addressId changed):", params);
+    debugLog("[Checkout] REQ cartService.my (addressId changed):", params);
     cartService
       .my(params)
       .then((res) => {
-        console.log(
+        debugLog(
           "[Checkout] RES cartService.my (addressId changed):",
           res?.data,
         );
@@ -562,19 +563,19 @@ function CheckoutPage() {
   }, [addressId, isAuthenticated]);
 
   useEffect(() => {
-    console.log("[Checkout] pincode effect", { pincode });
+    debugLog("[Checkout] pincode effect", { pincode });
     if (!pincode || !String(pincode).trim()) {
       setDeliveryOptionsFromPincode([]);
       return;
     }
     const pincodeStr = String(pincode).trim();
-    console.log("[Checkout] REQ deliveryService.checkByPincode:", {
+    debugLog("[Checkout] REQ deliveryService.checkByPincode:", {
       pincode: pincodeStr,
     });
     deliveryService
       .checkByPincode(pincodeStr)
       .then((res) => {
-        console.log(
+        debugLog(
           "[Checkout] RES deliveryService.checkByPincode:",
           res?.data,
         );
@@ -611,7 +612,7 @@ function CheckoutPage() {
     if (!isAuthenticated || !cartData?.items?.length) return;
     if (appliedCouponCode || autoCouponDismissed || paymentMode === "COD")
       return;
-    console.log("[Checkout][AutoCoupon] checking auto-included coupon", {
+    debugLog("[Checkout][AutoCoupon] checking auto-included coupon", {
       paymentMode,
       cartSubTotalForCoupon,
       appliedCouponCode,
@@ -619,7 +620,7 @@ function CheckoutPage() {
     });
     fetchAvailableCoupons()
       .then((coupons) => {
-        console.log(
+        debugLog(
           "[Checkout][AutoCoupon] available coupons count (raw):",
           coupons?.length ?? 0,
         );
@@ -628,14 +629,14 @@ function CheckoutPage() {
             c?.isAutoIncluded === true &&
             isCouponApplicable(c, cartSubTotalForCoupon),
         );
-        console.log(
+        debugLog(
           "[Checkout][AutoCoupon] selected auto coupon:",
           autoCoupon?.code ?? null,
         );
         if (!autoCoupon?.code) return;
         const code = String(autoCoupon.code).trim();
         if (!code) return;
-        console.log("[Checkout][AutoCoupon] applying coupon:", code);
+        debugLog("[Checkout][AutoCoupon] applying coupon:", code);
         setAutoIncludedCouponCode(code);
         setCouponInput(code);
         setCouponError(null);
@@ -703,7 +704,7 @@ function CheckoutPage() {
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
-        console.log("[Checkout] unmount: clear polling interval");
+        debugLog("[Checkout] unmount: clear polling interval");
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
@@ -729,7 +730,7 @@ function CheckoutPage() {
   };
 
   const handleRemoveCoupon = () => {
-    console.log("[Checkout][Coupon] remove clicked", {
+    debugLog("[Checkout][Coupon] remove clicked", {
       appliedCouponCode,
       autoIncludedCouponCode,
     });
@@ -739,7 +740,7 @@ function CheckoutPage() {
       String(appliedCouponCode).toUpperCase() ===
         String(autoIncludedCouponCode).toUpperCase()
     ) {
-      console.log("[Checkout][AutoCoupon] user dismissed auto-included coupon");
+      debugLog("[Checkout][AutoCoupon] user dismissed auto-included coupon");
       setAutoCouponDismissed(true);
     }
     setAppliedCouponCode(null);
@@ -811,7 +812,7 @@ function CheckoutPage() {
   }, [appliedCouponCode, appliedCouponMeta, fetchAvailableCoupons]);
 
   const openAddressForm = () => {
-    console.log("[Checkout] openAddressForm");
+    debugLog("[Checkout] openAddressForm");
     setAddressFormError(null);
     setAddressFormPhoneError(null);
     setAddressForm({
@@ -833,7 +834,7 @@ function CheckoutPage() {
 
   const handleAddressFormSubmit = async (e) => {
     e.preventDefault();
-    console.log("[Checkout] handleAddressFormSubmit");
+    debugLog("[Checkout] handleAddressFormSubmit");
     setAddressFormError(null);
     setAddressFormPhoneError(null);
     const pin = String(addressForm.pinCode || "")
@@ -849,7 +850,7 @@ function CheckoutPage() {
       !addressForm.state?.trim() ||
       !pin
     ) {
-      console.log("[Checkout] handleAddressFormSubmit: validation failed");
+      debugLog("[Checkout] handleAddressFormSubmit: validation failed");
       setAddressFormError(
         "Please fill name, phone number, address, city, state and pincode.",
       );
@@ -874,14 +875,14 @@ function CheckoutPage() {
         isDefault: !!addressForm.isDefault,
       };
       if (payload.pinCode <= 0) {
-        console.log("[Checkout] handleAddressFormSubmit: invalid pincode");
+        debugLog("[Checkout] handleAddressFormSubmit: invalid pincode");
         setAddressFormError("Please enter a valid pincode.");
         setAddressFormLoading(false);
         return;
       }
-      console.log("[Checkout] REQ addressService.create:", payload);
+      debugLog("[Checkout] REQ addressService.create:", payload);
       const res = await addressService.create(payload);
-      console.log("[Checkout] RES addressService.create:", res?.data);
+      debugLog("[Checkout] RES addressService.create:", res?.data);
       const newAddr = res?.data?.data ?? res?.data;
       const list = await refetchAddresses();
       if (newAddr?._id) setSelectedAddress(newAddr);
@@ -889,7 +890,7 @@ function CheckoutPage() {
       setAddressFormOpen(false);
       if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null);
     } catch (err) {
-      console.log(
+      debugLog(
         "[Checkout] ERR addressService.create:",
         err?.response?.data ?? err?.message,
       );
@@ -928,7 +929,7 @@ function CheckoutPage() {
         quantity: item.quantity,
       })),
     });
-    console.log("[Checkout] handlePlaceOrder", {
+    debugLog("[Checkout] handlePlaceOrder", {
       paymentMode,
       useWalletForOnline,
       addressId: selectedAddress?._id,
@@ -957,9 +958,9 @@ function CheckoutPage() {
           couponCode,
           ...donationBody,
         };
-        console.log("[Checkout] REQ orderService.create (COD):", createReq);
+        debugLog("[Checkout] REQ orderService.create (COD):", createReq);
         const res = await orderService.create(createReq);
-        console.log("[Checkout] RES orderService.create (COD):", res?.data);
+        debugLog("[Checkout] RES orderService.create (COD):", res?.data);
         const data = res?.data?.data ?? res?.data;
         const order = data?.order ?? data;
         const orderId = order?.orderId;
@@ -970,7 +971,7 @@ function CheckoutPage() {
           cartValue: finalPayable != null ? Number(finalPayable) : undefined,
           currency: "INR",
         });
-        console.log(
+        debugLog(
           "[Checkout] COD success, refetch cart and navigate to orders:",
           orderId,
         );
@@ -998,12 +999,12 @@ function CheckoutPage() {
           walletAmountToUse: useWalletForOnline ? walletAmountToUse : undefined,
           ...donationBody,
         };
-        console.log(
+        debugLog(
           "[Checkout] REQ paymentService.createOrder (PREPAID):",
           createReq,
         );
         const res = await paymentService.createOrder(createReq);
-        console.log(
+        debugLog(
           "[Checkout] RES paymentService.createOrder (PREPAID):",
           res?.data,
         );
@@ -1018,12 +1019,12 @@ function CheckoutPage() {
           cartValue: finalPayable != null ? Number(finalPayable) : undefined,
           currency: "INR",
         });
-        console.log(
+        debugLog(
           "[Checkout] razorpayPayload (amount in rupees for frontend):",
           razorpayPayload,
         );
         if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) {
-          console.log(
+          debugLog(
             "[Checkout] RAZORPAY: missing orderId or keyId in payload",
           );
           setError("Payment setup failed. Please try again.");
@@ -1033,7 +1034,7 @@ function CheckoutPage() {
         try {
           await loadRazorpayScript();
         } catch (scriptErr) {
-          console.log("[Checkout] loadRazorpayScript failed:", scriptErr);
+          debugLog("[Checkout] loadRazorpayScript failed:", scriptErr);
           setError(
             "Unable to open payment. Check pop-up blocker or try again.",
           );
@@ -1045,7 +1046,7 @@ function CheckoutPage() {
           !Number.isNaN(razorpayPayload.amountInPaise)
             ? razorpayPayload.amountInPaise
             : Math.round((razorpayPayload.amount || 0) * 100);
-        console.log(
+        debugLog(
           "[Checkout] Razorpay open options: amount (paise)=",
           amountInPaise,
           "amount (rupees)=",
@@ -1055,7 +1056,7 @@ function CheckoutPage() {
         const handlePaymentSuccess = async function (response) {
           if (paymentSuccessHandledRef.current) return;
           paymentSuccessHandledRef.current = true;
-          console.log("[Checkout] Razorpay payment.success callback fired", {
+          debugLog("[Checkout] Razorpay payment.success callback fired", {
             razorpay_order_id: response?.razorpay_order_id,
             razorpay_payment_id: response?.razorpay_payment_id,
           });
@@ -1066,13 +1067,13 @@ function CheckoutPage() {
           };
           setLastVerifyError(null);
           setLastVerifyPayload(verifyReq);
-          console.log("[Checkout] REQ paymentService.verifyPayment:", {
+          debugLog("[Checkout] REQ paymentService.verifyPayment:", {
             ...verifyReq,
             razorpay_signature: "(redacted)",
           });
           try {
             const verifyRes = await paymentService.verifyPayment(verifyReq);
-            console.log(
+            debugLog(
               "[Checkout] RES paymentService.verifyPayment:",
               verifyRes?.data,
             );
@@ -1093,7 +1094,7 @@ function CheckoutPage() {
               currency: "INR",
             });
             refetchCart();
-            console.log(
+            debugLog(
               "[Checkout] verifyPayment success, navigate to orders:",
               businessOrderId,
             );
@@ -1104,7 +1105,7 @@ function CheckoutPage() {
               items,
             });
           } catch (verifyErr) {
-            console.log(
+            debugLog(
               "[Checkout] ERR paymentService.verifyPayment:",
               verifyErr?.response?.data ?? verifyErr?.message,
             );
@@ -1149,13 +1150,13 @@ function CheckoutPage() {
           handler: handlePaymentSuccess,
           modal: {
             ondismiss: () => {
-              console.log("[Checkout] Razorpay modal closed via ondismiss", {
+              debugLog("[Checkout] Razorpay modal closed via ondismiss", {
                 paymentSuccessHandled: paymentSuccessHandledRef.current,
                 businessOrderId,
               });
               setPlaceOrderLoading(false);
               if (paymentSuccessHandledRef.current || !businessOrderId) {
-                console.log(
+                debugLog(
                   "[Checkout] ondismiss: skip polling (already success or no orderId)",
                 );
                 return;
@@ -1164,7 +1165,7 @@ function CheckoutPage() {
               setLastVerifyError(null);
               setStatusMessage("Checking payment status…");
               setCheckingPaymentStatus(true);
-              console.log(
+              debugLog(
                 "[Checkout] ondismiss: start polling order-status for",
                 businessOrderId,
               );
@@ -1175,7 +1176,7 @@ function CheckoutPage() {
               let attempts = 0;
               pollingIntervalRef.current = setInterval(async () => {
                 attempts += 1;
-                console.log(
+                debugLog(
                   "[Checkout] polling getOrderStatus attempt",
                   attempts,
                   businessOrderId,
@@ -1192,7 +1193,7 @@ function CheckoutPage() {
                   const statusData = statusRes?.data?.data ?? statusRes?.data;
                   const pStatus = statusData?.payment?.status;
                   const ordStatus = statusData?.status;
-                  console.log("[Checkout] getOrderStatus response:", {
+                  debugLog("[Checkout] getOrderStatus response:", {
                     attempts,
                     pStatus,
                     ordStatus,
@@ -1229,7 +1230,7 @@ function CheckoutPage() {
                     setStatusMessage(null);
                     paymentSuccessHandledRef.current = true;
                     refetchCart();
-                    console.log(
+                    debugLog(
                       "[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:",
                       businessOrderId,
                     );
@@ -1253,7 +1254,7 @@ function CheckoutPage() {
                     }
                     setCheckingPaymentStatus(false);
                     setStatusMessage(null);
-                    console.log(
+                    debugLog(
                       "[Checkout] polling: still PENDING/CREATED after few attempts, stop and allow retry",
                     );
                     navigateToOrderFailed(navigate, {
@@ -1265,7 +1266,7 @@ function CheckoutPage() {
                     return;
                   }
                 } catch (err) {
-                  console.log(
+                  debugLog(
                     "[Checkout] getOrderStatus error:",
                     err?.response?.status,
                     err?.response?.data ?? err?.message,
@@ -1279,7 +1280,7 @@ function CheckoutPage() {
                     setStatusMessage(
                       "Order not found. Check My Orders or contact support.",
                     );
-                    console.log("[Checkout] polling: 404, stop");
+                    debugLog("[Checkout] polling: 404, stop");
                     return;
                   }
                 }
@@ -1292,7 +1293,7 @@ function CheckoutPage() {
                   setStatusMessage(
                     "If you were charged, the order will appear in My Orders shortly.",
                   );
-                  console.log("[Checkout] polling: max attempts reached, stop");
+                  debugLog("[Checkout] polling: max attempts reached, stop");
                 }
               }, POLL_INTERVAL_MS);
             },
@@ -1300,7 +1301,7 @@ function CheckoutPage() {
         };
         const rzp = new window.Razorpay(options);
         rzp.on("payment.failed", (response) => {
-          console.log("[Checkout] Razorpay payment.failed", response);
+          debugLog("[Checkout] Razorpay payment.failed", response);
           trackEvent({
             eventType: "payment_failed",
             orderId: businessOrderId ? String(businessOrderId) : undefined,
@@ -1323,7 +1324,7 @@ function CheckoutPage() {
             value: finalPayable,
           });
         });
-        console.log("[Checkout] Razorpay rzp.open()");
+        debugLog("[Checkout] Razorpay rzp.open()");
         rzp.open();
         return;
       }
@@ -1331,7 +1332,7 @@ function CheckoutPage() {
       /* Pay later (Nimble / BNPL) — disabled
       if (paymentMode === PAYMENT_MODES.NIMBLE) {
         if (nimbleCheckoutActiveRef.current) {
-          console.log('[Checkout] Nimbbl checkout already open or opening; ignoring duplicate click')
+          debugLog('[Checkout] Nimbbl checkout already open or opening; ignoring duplicate click')
           setPlaceOrderLoading(false)
           return
         }
@@ -1342,7 +1343,7 @@ function CheckoutPage() {
           couponCode,
           nimbleReturnUrl: getNimbleReturnUrl(),
         }
-        console.log('[Checkout] REQ paymentService.createOrder (NIMBLE):', createReq)
+        debugLog('[Checkout] REQ paymentService.createOrder (NIMBLE):', createReq)
         const res = await paymentService.createOrder(createReq)
         const data = res?.data?.data ?? res?.data
         const order = data?.order ?? data
@@ -1357,7 +1358,7 @@ function CheckoutPage() {
         })
 
         if (nimblePayload?.redirectUrl) {
-          window.location.href = nimblePayload.redirectUrl
+          assignPaymentRedirectUrl(nimblePayload.redirectUrl)
           return
         }
 
@@ -1370,7 +1371,7 @@ function CheckoutPage() {
         const orderAmount = Number(nimblePayload.amount ?? finalPayable ?? 0)
         const belowPayLaterMin = isBelowNimblePayLaterMinimum(orderAmount)
         if (belowPayLaterMin) {
-          console.warn('[Checkout] Order below typical Pay Later minimum; opening Nimbbl checkout anyway.', {
+          debugWarn('[Checkout] Order below typical Pay Later minimum; opening Nimbbl checkout anyway.', {
             orderAmount,
             min: NIMBLE_MIN_ORDER_AMOUNT,
           })
@@ -1389,7 +1390,7 @@ function CheckoutPage() {
         }
 
         const handleNimbleCheckoutAborted = (reason = 'cancelled') => {
-          console.log('[Checkout] Nimbbl checkout aborted:', reason)
+          debugLog('[Checkout] Nimbbl checkout aborted:', reason)
           stopNimblePolling()
           setError(null)
           setStatusMessage(null)
@@ -1418,7 +1419,7 @@ function CheckoutPage() {
           })
 
           if (!verifyBody.order_id || !verifyBody.transaction_id) {
-            console.warn('[Checkout] Nimbbl callback missing order/transaction ids:', response)
+            debugWarn('[Checkout] Nimbbl callback missing order/transaction ids:', response)
             nimbleVerifyingRef.current = false
             return false
           }
@@ -1433,7 +1434,7 @@ function CheckoutPage() {
           }
 
           try {
-            console.log('[Checkout] REQ paymentService.verifyNimblePayment:', verifyBody)
+            debugLog('[Checkout] REQ paymentService.verifyNimblePayment:', verifyBody)
             await paymentService.verifyNimblePayment(verifyBody)
             trackEvent({
               eventType: 'payment_success',
@@ -1452,7 +1453,7 @@ function CheckoutPage() {
             completeNimbleOrderSuccess()
             return true
           } catch (verifyErr) {
-            console.error('[Checkout] verifyNimblePayment failed:', verifyErr?.response?.data ?? verifyErr)
+            debugError('[Checkout] verifyNimblePayment failed:', verifyErr?.response?.data ?? verifyErr)
             const msg =
               verifyErr?.response?.data?.message ??
               verifyErr?.message ??
@@ -1503,7 +1504,7 @@ function CheckoutPage() {
               const statusData = statusRes?.data?.data ?? statusRes?.data
               const pStatus = statusData?.payment?.status
               const ordStatus = statusData?.status
-              console.log('[Checkout] Nimble poll status:', { attempts, pStatus, ordStatus })
+              debugLog('[Checkout] Nimble poll status:', { attempts, pStatus, ordStatus })
               if (pStatus === 'SUCCESS' || ordStatus === 'CONFIRMED') {
                 completeNimbleOrderSuccess()
               } else if (
@@ -1529,7 +1530,7 @@ function CheckoutPage() {
 
         try {
           nimbleCheckoutActiveRef.current = true
-          console.log('[Checkout] Opening Nimbbl Sonic checkout')
+          debugLog('[Checkout] Opening Nimbbl Sonic checkout')
           setStatusMessage(
             payLaterHint || 'Complete payment in the Nimbbl window (look for Pay Later / BNPL)'
           )
@@ -1542,7 +1543,7 @@ function CheckoutPage() {
             onFailure: async (response) => {
               releaseNimbleCheckoutLock()
               setPlaceOrderLoading(false)
-              console.log('[Checkout] Nimbbl onFailure:', response)
+              debugLog('[Checkout] Nimbbl onFailure:', response)
               if (!shouldPollNimbblOrderStatus(response)) {
                 handleNimbleCheckoutAborted('failure_or_cancel')
                 return
@@ -1552,7 +1553,7 @@ function CheckoutPage() {
               startNimbleStatusPolling(response)
             },
             onOpened: () => {
-              console.log('[Checkout] Nimbbl checkout UI is visible')
+              debugLog('[Checkout] Nimbbl checkout UI is visible')
               setPlaceOrderLoading(false)
             },
             onClosed: () => {
@@ -1565,13 +1566,13 @@ function CheckoutPage() {
           })
         } catch (nimbleErr) {
           releaseNimbleCheckoutLock()
-          console.log('[Checkout] Nimble checkout error:', nimbleErr)
+          debugLog('[Checkout] Nimble checkout error:', nimbleErr)
           setError(nimbleErr?.message || 'Unable to open pay later checkout.')
           setPlaceOrderLoading(false)
         }
       */
     } catch (err) {
-      console.log(
+      debugLog(
         "[Checkout] ERR place order:",
         err?.response?.data ?? err?.message,
       );
@@ -1697,7 +1698,7 @@ function CheckoutPage() {
 
     if (autoCouponReconcileAttemptedRef.current) return;
     autoCouponReconcileAttemptedRef.current = true;
-    console.log(
+    debugLog(
       "[Checkout][AutoCoupon] reconciling missing initial summary discount for auto coupon:",
       appliedCouponCode,
     );
@@ -1719,7 +1720,7 @@ function CheckoutPage() {
   ]);
 
   if (!isAuthenticated) {
-    console.log("[Checkout] render: not authenticated, show sign-in");
+    debugLog("[Checkout] render: not authenticated, show sign-in");
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
@@ -1737,7 +1738,7 @@ function CheckoutPage() {
   }
 
   if (loading && !cartData) {
-    console.log("[Checkout] render: loading checkout");
+    debugLog("[Checkout] render: loading checkout");
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
@@ -1760,7 +1761,7 @@ function CheckoutPage() {
       : (cartData?.deliveryOptions ?? []);
 
   if (items.length === 0 && !error) {
-    console.log("[Checkout] render: cart empty");
+    debugLog("[Checkout] render: cart empty");
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
@@ -1781,7 +1782,7 @@ function CheckoutPage() {
     );
   }
 
-  console.log("[Checkout] render: main checkout", {
+  debugLog("[Checkout] render: main checkout", {
     itemsCount: items.length,
     paymentMode,
     placeOrderLoading,
@@ -2196,7 +2197,7 @@ function CheckoutPage() {
                       const addr = addresses.find(
                         (a) => String(a._id ?? "") === id,
                       );
-                      console.log("[Checkout] address select changed", {
+                      debugLog("[Checkout] address select changed", {
                         id,
                         addr: addr?._id,
                       });
@@ -2867,7 +2868,7 @@ function CheckoutPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    console.log("[Checkout] paymentMode changed to RAZORPAY");
+                    debugLog("[Checkout] paymentMode changed to RAZORPAY");
                     setPaymentMode("RAZORPAY");
                     setUseWalletForOnline(false);
                   }}
@@ -2887,7 +2888,7 @@ function CheckoutPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    console.log('[Checkout] paymentMode changed to NIMBLE')
+                    debugLog('[Checkout] paymentMode changed to NIMBLE')
                     setPaymentMode(PAYMENT_MODES.NIMBLE)
                     setUseWalletForOnline(false)
                   }}
@@ -2975,7 +2976,7 @@ function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        console.log(
+                        debugLog(
                           "[Checkout][Payment] COD selected from warning modal",
                           {
                             appliedCouponCode,
@@ -2984,7 +2985,7 @@ function CheckoutPage() {
                         );
                         // COD should never keep any coupon discount.
                         if (appliedCouponCode) {
-                          console.log(
+                          debugLog(
                             "[Checkout][Coupon] removing coupon due to COD selection",
                           );
                         }
@@ -3112,7 +3113,7 @@ function CheckoutPage() {
                     <button
                       type="button"
                       onClick={async () => {
-                        console.log("[Checkout] Retry verification clicked", {
+                        debugLog("[Checkout] Retry verification clicked", {
                           lastVerifyPayload: lastVerifyPayload
                             ? {
                                 razorpay_order_id:
@@ -3131,7 +3132,7 @@ function CheckoutPage() {
                           const orderId = data?.orderId ?? data?.order?.orderId;
                           paymentSuccessHandledRef.current = true;
                           refetchCart();
-                          console.log(
+                          debugLog(
                             "[Checkout] Retry verification success, navigate:",
                             orderId,
                           );
@@ -3142,7 +3143,7 @@ function CheckoutPage() {
                             items,
                           });
                         } catch (err) {
-                          console.log(
+                          debugLog(
                             "[Checkout] Retry verification error:",
                             err?.response?.data ?? err?.message,
                           );

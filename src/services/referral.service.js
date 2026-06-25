@@ -22,6 +22,6 @@ export const referralService = {
   /** Query: `page`, `limit` (max 50), optional `status` */
   getHistory: (params) => client.get(`${BASE}/history`, { params: params || {} }),
 
-  /** Public config (backend exposes GET `/admin/referral/config` without auth) — reward amount, flags. */
-  getPublicConfig: () => client.get('/admin/referral/config'),
+  /** Public config — reward amount, flags (sanitized; no admin metadata). */
+  getPublicConfig: () => client.get(`${BASE}/config`),
 }
