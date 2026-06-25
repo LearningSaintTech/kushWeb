@@ -22,6 +22,9 @@ import {
   isVideoUrlString,
 } from "../../utils/mediaUrl.js";
 import BindOfferBadge from "../../shared/components/BindOfferBadge.jsx";
+import {
+  ProductImageZoomLightbox,
+} from "../../shared/components/ZoomImage.jsx";
 import { getProductCardOfferBadge, getOfferHint } from "../../utils/bindOffer.js";
 
 function ProductPage() {
@@ -45,10 +48,12 @@ function ProductPage() {
   const [showSizeChart, setShowSizeChart] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
   );
   const galleryTouchStartX = useRef(null);
+  const galleryAutoPausedRef = useRef(false);
   const shortDescRef = useRef(null);
   const reviewsSectionRef = useRef(null);
   const [shortDescExceedsTwoLines, setShortDescExceedsTwoLines] =
@@ -265,6 +270,51 @@ function ProductPage() {
   );
   const mainMedia =
     images[imageSlideIndex] ?? images[0] ?? { url: productImage, type: "image" };
+
+  const GALLERY_AUTO_INTERVAL_MS = 4000;
+  const GALLERY_AUTO_RESUME_MS = 6000;
+
+  useEffect(() => {
+    if (images.length < 2 || imageZoomOpen) return undefined;
+
+    let intervalId = null;
+
+    const clearAuto = () => {
+      if (intervalId != null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const startAuto = () => {
+      clearAuto();
+      if (!window.matchMedia("(max-width: 639px)").matches) return;
+      intervalId = setInterval(() => {
+        if (galleryAutoPausedRef.current) return;
+        setSelectedImageIndex((i) =>
+          i >= images.length - 1 ? 0 : i + 1,
+        );
+      }, GALLERY_AUTO_INTERVAL_MS);
+    };
+
+    const mq = window.matchMedia("(max-width: 639px)");
+    const onMqChange = () => startAuto();
+
+    startAuto();
+    mq.addEventListener("change", onMqChange);
+
+    return () => {
+      clearAuto();
+      mq.removeEventListener("change", onMqChange);
+    };
+  }, [images.length, imageZoomOpen]);
+
+  const pauseGalleryAuto = () => {
+    galleryAutoPausedRef.current = true;
+    window.setTimeout(() => {
+      galleryAutoPausedRef.current = false;
+    }, GALLERY_AUTO_RESUME_MS);
+  };
 
   const selectedSizeObj = sizes.find(
     (s) => String(s.size).trim() === String(selectedSize).trim(),
@@ -567,6 +617,7 @@ function ProductPage() {
                 className="relative aspect-square w-full max-w-full overflow-hidden bg-gray-100 touch-pan-y"
                 onTouchStart={(e) => {
                   galleryTouchStartX.current = e.touches[0].clientX;
+                  pauseGalleryAuto();
                 }}
                 onTouchEnd={(e) => {
                   if (galleryTouchStartX.current == null || images.length < 2) {
@@ -577,6 +628,7 @@ function ProductPage() {
                     e.changedTouches[0].clientX - galleryTouchStartX.current;
                   galleryTouchStartX.current = null;
                   if (Math.abs(dx) < 44) return;
+                  pauseGalleryAuto();
                   if (dx < 0) {
                     setSelectedImageIndex((i) =>
                       Math.min(images.length - 1, i + 1),
@@ -610,8 +662,12 @@ function ProductPage() {
                         <img
                           src={m.url}
                           alt={idx === 0 ? item.name : ""}
-                          className="absolute inset-0 h-full w-full object-contain object-center"
+                          className="absolute inset-0 h-full w-full object-contain object-center cursor-zoom-in"
                           decoding="async"
+                          onClick={() => {
+                            setSelectedImageIndex(idx);
+                            setImageZoomOpen(true);
+                          }}
                         />
                       )}
                     </div>
@@ -623,7 +679,10 @@ function ProductPage() {
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => setSelectedImageIndex(idx)}
+                        onClick={() => {
+                          setSelectedImageIndex(idx);
+                          pauseGalleryAuto();
+                        }}
                         className={`pointer-events-auto h-1.5 rounded-full transition-all ${
                           imageSlideIndex === idx
                             ? "w-5 bg-black"
@@ -654,8 +713,9 @@ function ProductPage() {
                     <img
                       src={mainMedia?.url ?? productImage}
                       alt={item.name}
-                      className="absolute inset-0 h-full w-full object-contain object-center"
+                      className="absolute inset-0 h-full w-full object-contain object-center cursor-zoom-in"
                       decoding="async"
+                      onClick={() => setImageZoomOpen(true)}
                     />
                   )}
                 </div>
@@ -704,6 +764,14 @@ function ProductPage() {
                 </button>
               ))}
             </div>
+
+            {imageZoomOpen && (
+              <ProductImageZoomLightbox
+                images={images}
+                initialIndex={imageSlideIndex}
+                onClose={() => setImageZoomOpen(false)}
+              />
+            )}
           </div>
 
           {/* RIGHT SIDE - Details (compact 768–1024px) */}

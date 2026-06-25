@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import ProductCard from '../../shared/components/ProductCard'
+import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/components/ProductCard'
 import { sectionsService } from '../../services/content.service.js'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
@@ -402,9 +402,11 @@ export function SectionExplorePage() {
 
       {!loading && products.length > 0 && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-x-1.5 gap-y-2.5 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
             {products.map((item, idx) => (
-              <ProductCard key={item.id ?? idx} {...item} rounded="none" />
+              <div key={item.id ?? idx} className="min-w-0">
+                <ProductCard {...item} {...PRODUCT_CARD_COMPACT_GRID_PROPS} />
+              </div>
             ))}
           </div>
           {pagination && totalPages > 1 && (

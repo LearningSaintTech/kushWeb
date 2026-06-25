@@ -49,8 +49,25 @@ const ROUNDED_BOTTOM_CLASSES = {
 const STAR_PATH =
   "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z";
 
+/** Shared props for phone 2-column product grids (compact cards). */
+export const PRODUCT_CARD_COMPACT_GRID_PROPS = {
+  compactGrid: true,
+  rounded: "none",
+  revealActionsOnHover: true,
+  showOnlyWishlistIconWhenIdle: true,
+  stackRatingOnMobile: true,
+  compactImageOverlaysOnMobile: true,
+  imageClassName:
+    "w-full max-lg:aspect-[3/4] max-lg:h-auto lg:h-[520px] object-cover object-top lg:object-center",
+  infoClassName: "px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4 lg:px-6 lg:py-5",
+  titleClassName:
+    "text-[10px] tracking-[0.1em] sm:text-xs sm:tracking-[0.14em] md:text-sm md:tracking-widest lg:text-lg",
+  descriptionClassName: "text-[9px] sm:text-xs",
+  priceRowClassName: "mt-1 text-[9px] sm:text-[10px] md:mt-2 md:text-sm",
+};
+
 /** Five stars with partial fills + numeric score (e.g. 3.5 → stars + “3.5”). */
-function ProductCardStarRating({ value }) {
+function ProductCardStarRating({ value, compact = false }) {
   const r = Math.min(5, Math.max(0, Number(value) || 0));
   const label =
     r % 1 === 0 ? `${r} out of 5 stars` : `${r.toFixed(1)} out of 5 stars`;
@@ -68,7 +85,9 @@ function ProductCardStarRating({ value }) {
           return (
             <span
               key={i}
-              className="relative inline-block h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0"
+              className={`relative inline-block shrink-0 ${
+                compact ? "h-2.5 w-2.5" : "h-3 w-3 sm:h-3.5 sm:w-3.5"
+              }`}
             >
               <svg
                 className="absolute inset-0 h-full w-full text-gray-200"
@@ -84,7 +103,9 @@ function ProductCardStarRating({ value }) {
                   style={{ width: `${fillRatio * 100}%` }}
                 >
                   <svg
-                    className="block h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-400"
+                    className={`block ${
+                      compact ? "h-2.5 w-2.5" : "h-3 w-3 sm:h-3.5 sm:w-3.5"
+                    } text-amber-400`}
                     viewBox="0 0 20 20"
                     fill="currentColor"
                     aria-hidden
@@ -98,7 +119,9 @@ function ProductCardStarRating({ value }) {
         })}
       </span>
       <span
-        className="min-w-[1.25rem] tabular-nums text-[10px] font-semibold text-black sm:text-xs"
+        className={`min-w-[1.25rem] tabular-nums font-semibold text-black ${
+          compact ? "text-[9px]" : "text-[10px] sm:text-xs"
+        }`}
         style={{ fontFamily: "'Tenor Sans', sans-serif" }}
         aria-hidden
       >
@@ -143,6 +166,8 @@ const ProductCard = React.memo(function ProductCard({
   stackRatingOnMobile = false,
   /** Smaller action icons + badge, tucked to top-right on phone (e.g. wishlist). */
   compactImageOverlaysOnMobile = false,
+  /** Phone 2-col listing: portrait image, tight text, no mobile Buy Now bar. */
+  compactGrid = false,
   /** Section bind-offer payload from API (`item.bindOffer`). */
   bindOffer = null,
   /** BOGO / bind-offer chip; overrides `bindOffer` when set. */
@@ -163,6 +188,35 @@ const ProductCard = React.memo(function ProductCard({
     () => offerBadge || getProductCardOfferBadge(bindOffer),
     [offerBadge, bindOffer],
   );
+
+  const isCompactGrid = compactGrid;
+  const resolvedImageClassName =
+    isCompactGrid &&
+    imageClassName === "w-full h-[520px] object-cover object-center"
+      ? PRODUCT_CARD_COMPACT_GRID_PROPS.imageClassName
+      : imageClassName;
+  const resolvedInfoClassName = isCompactGrid
+    ? infoClassName || PRODUCT_CARD_COMPACT_GRID_PROPS.infoClassName
+    : infoClassName;
+  const resolvedTitleClassName = isCompactGrid
+    ? titleClassName || PRODUCT_CARD_COMPACT_GRID_PROPS.titleClassName
+    : titleClassName;
+  const resolvedDescriptionClassName = isCompactGrid
+    ? descriptionClassName ||
+      PRODUCT_CARD_COMPACT_GRID_PROPS.descriptionClassName
+    : descriptionClassName;
+  const resolvedPriceRowClassName = isCompactGrid
+    ? priceRowClassName || PRODUCT_CARD_COMPACT_GRID_PROPS.priceRowClassName
+    : priceRowClassName;
+  const resolvedStackRatingOnMobile =
+    stackRatingOnMobile || isCompactGrid;
+  const resolvedCompactOverlays =
+    compactImageOverlaysOnMobile || isCompactGrid;
+  const resolvedRevealOnHover =
+    revealActionsOnHover || isCompactGrid;
+  const resolvedShowOnlyWishlistIdle =
+    showOnlyWishlistIconWhenIdle || isCompactGrid;
+  const resolvedShowBuyNow = isCompactGrid ? false : showBuyNowOnHover;
 
   const offerHint = useMemo(() => {
     if (!displayOfferBadge || !bindOffer?.offerType) return null;
@@ -297,24 +351,30 @@ const ProductCard = React.memo(function ProductCard({
     "opacity-0 pointer-events-none transition-opacity duration-300 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto";
 
   const actionIconClass = () =>
-    revealActionsOnHover ? revealOnHoverClass : "opacity-100";
+    resolvedRevealOnHover ? revealOnHoverClass : "opacity-100";
 
   const wishlistIconClass = () => {
-    if (revealActionsOnHover) return actionIconClass();
-    if (showOnlyWishlistIconWhenIdle) return "opacity-100";
+    if (resolvedRevealOnHover) return actionIconClass();
+    if (resolvedShowOnlyWishlistIdle) return "opacity-100";
     return actionIconClass();
   };
 
-  const imageActionsWrapClass = compactImageOverlaysOnMobile
-    ? "top-1.5 right-1.5 gap-1.5 lg:top-6 lg:right-6 lg:gap-4"
+  const imageActionsWrapClass = resolvedCompactOverlays
+    ? isCompactGrid
+      ? "top-1 right-1 gap-1 lg:top-6 lg:right-6 lg:gap-4"
+      : "top-1.5 right-1.5 gap-1.5 lg:top-6 lg:right-6 lg:gap-4"
     : "top-6 right-6 gap-4";
 
-  const imageActionBtnClass = compactImageOverlaysOnMobile
-    ? "w-8 h-8 lg:w-11 lg:h-11"
+  const imageActionBtnClass = resolvedCompactOverlays
+    ? isCompactGrid
+      ? "w-7 h-7 lg:w-11 lg:h-11"
+      : "w-8 h-8 lg:w-11 lg:h-11"
     : "w-11 h-11";
 
-  const imageActionIconClass = compactImageOverlaysOnMobile
-    ? "w-3.5 h-3.5 lg:w-5 lg:h-5"
+  const imageActionIconClass = resolvedCompactOverlays
+    ? isCompactGrid
+      ? "w-3 h-3 lg:w-5 lg:h-5"
+      : "w-3.5 h-3.5 lg:w-5 lg:h-5"
     : "w-5 h-5";
 
   return (
@@ -343,14 +403,14 @@ const ProductCard = React.memo(function ProductCard({
               alt={title}
               width={400}
               height={520}
-              className={imageClassName}
+              className={resolvedImageClassName}
               decoding="async"
               loading={imageLoading}
               fetchPriority={imageLoading === "eager" ? "high" : "auto"}
             />
           ) : (
             // Keep card layout stable, but avoid remote image fetch/decoding.
-            <div className={`${imageClassName} bg-gray-100`} />
+            <div className={`${resolvedImageClassName} bg-gray-100`} />
           )}
 
           {shouldRenderImage && showHoverImage && (
@@ -370,7 +430,7 @@ const ProductCard = React.memo(function ProductCard({
           {displayOfferBadge ? (
             <div
               className={`absolute z-20 max-w-[calc(100%-3rem)] ${
-                compactImageOverlaysOnMobile ? "top-1.5 left-1.5 lg:top-4 lg:left-4" : "top-4 left-4"
+                resolvedCompactOverlays ? "top-1.5 left-1.5 lg:top-4 lg:left-4" : "top-4 left-4"
               }`}
               onClick={(e) => e.stopPropagation()}
             >
@@ -521,7 +581,7 @@ const ProductCard = React.memo(function ProductCard({
               {/* {addedToCartToast && (
                 <div
                   className={`absolute z-30 bg-black text-white rounded-md shadow-lg ${
-                    compactImageOverlaysOnMobile
+                    resolvedCompactOverlays
                       ? "top-2 right-0 max-w-[min(100%,9rem)] px-2 py-1 text-[9px] leading-tight lg:top-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:max-w-none lg:px-5 lg:py-2 lg:text-sm"
                       : "top-4 left-1/2 -translate-x-1/2 px-5 py-2 text-sm"
                   }`}
@@ -534,7 +594,7 @@ const ProductCard = React.memo(function ProductCard({
               {cartError && (
                 <div
                   className={`absolute z-30 bg-black text-white rounded-md shadow-lg ${
-                    compactImageOverlaysOnMobile
+                    resolvedCompactOverlays
                       ? "top-2 right-0 max-w-[min(100%,9rem)] px-2 py-1 text-[9px] leading-tight lg:top-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:max-w-none lg:px-5 lg:py-2 lg:text-sm"
                       : "top-4 left-1/2 -translate-x-1/2 px-5 py-2 text-sm"
                   }`}
@@ -545,7 +605,7 @@ const ProductCard = React.memo(function ProductCard({
             </div>
           )}
 
-          {id != null && showBuyNowOnHover && (
+          {id != null && resolvedShowBuyNow && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden justify-center px-3 pb-3 pt-0 sm:flex sm:px-4 sm:pb-4 max-md:pointer-events-auto md:group-hover:pointer-events-auto">
               <button
                 type="button"
@@ -564,9 +624,13 @@ const ProductCard = React.memo(function ProductCard({
 
         {/* INFO STRIP — on phone + Buy Now below, bottom radius moves to the button row */}
         <div
-          className={`flex flex-1 flex-col px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${
-            showBuyNowOnHover ? "max-sm:rounded-b-none" : ""
-          } ${infoIsNumeric ? "" : infoRoundedBottomClass} ${infoClassName}`}
+          className={`flex flex-1 flex-col ${
+            isCompactGrid
+              ? ""
+              : "px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5"
+          } ${
+            resolvedShowBuyNow ? "max-sm:rounded-b-none" : ""
+          } ${infoIsNumeric ? "" : infoRoundedBottomClass} ${resolvedInfoClassName}`}
           style={infoBottomStyle}
         >
           <div className="min-w-0 flex-1">
@@ -574,7 +638,7 @@ const ProductCard = React.memo(function ProductCard({
               ref={titleRef}
               className={`break-words uppercase tracking-[0.2em] sm:tracking-widest text-sm sm:text-base md:text-lg text-black leading-snug ${
                 !titleExpanded ? "line-clamp-2" : ""
-              } ${stackRatingOnMobile ? "max-lg:min-h-[2.6em]" : ""} ${titleClassName}`}
+              } ${resolvedStackRatingOnMobile && !isCompactGrid ? "max-lg:min-h-[2.6em]" : ""} ${resolvedTitleClassName}`}
               style={{ fontFamily: "'Tenor Sans', sans-serif" }}
             >
               {title}
@@ -597,14 +661,14 @@ const ProductCard = React.memo(function ProductCard({
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 {shortDescText ? (
                   <p
-                    className={`min-w-0 flex-1 line-clamp-1 font-inter text-[10px] font-normal normal-case tracking-normal text-gray-500 sm:text-xs ${descriptionClassName}`}
+                    className={`min-w-0 flex-1 line-clamp-1 font-inter text-[10px] font-normal normal-case tracking-normal text-gray-500 sm:text-xs ${resolvedDescriptionClassName}`}
                   >
                     {shortDescText}
                   </p>
                 ) : null}
                 {lowStockLabel ? (
                   <span
-                    className={`shrink-0 font-inter text-[10px] font-semibold uppercase tracking-wide text-[#C45C26] sm:text-xs ${descriptionClassName}`}
+                    className={`shrink-0 font-inter text-[10px] font-semibold uppercase tracking-wide text-[#C45C26] sm:text-xs ${resolvedDescriptionClassName}`}
                   >
                     {lowStockLabel}
                   </span>
@@ -616,10 +680,10 @@ const ProductCard = React.memo(function ProductCard({
           {/* Price row; optional stacked rating below on phone portrait (wishlist). */}
           <div
             className={`mt-1.5 flex w-full min-w-0 gap-x-2 text-[11px] sm:mt-2 lg:items-center lg:text-sm ${
-              stackRatingOnMobile
+              resolvedStackRatingOnMobile
                 ? "max-lg:flex-col max-lg:items-start max-lg:gap-y-1"
                 : "items-center"
-            } ${priceRowClassName}`}
+            } ${resolvedPriceRowClassName}`}
           >
             <div
               className="flex shrink-0 items-center gap-1.5"
@@ -642,7 +706,7 @@ const ProductCard = React.memo(function ProductCard({
             {delivery ? (
               <div
                 className={`flex min-h-[1.25rem] min-w-0 flex-1 items-center justify-center gap-1 px-0.5 text-black ${
-                  stackRatingOnMobile ? "max-lg:hidden" : ""
+                  resolvedStackRatingOnMobile ? "max-lg:hidden" : ""
                 }`}
                 style={{ fontFamily: "'Baloo 2', sans-serif" }}
               >
@@ -667,7 +731,7 @@ const ProductCard = React.memo(function ProductCard({
             ) : (
               <div
                 className={`min-w-0 flex-1 ${
-                  stackRatingOnMobile ? "max-lg:hidden" : ""
+                  resolvedStackRatingOnMobile ? "max-lg:hidden" : ""
                 }`}
                 aria-hidden
               />
@@ -676,10 +740,10 @@ const ProductCard = React.memo(function ProductCard({
             {rating != null && rating !== "" && Number(rating) > 0 && (
               <div
                 className={`shrink-0 ${
-                  stackRatingOnMobile ? "max-lg:w-full" : ""
+                  resolvedStackRatingOnMobile ? "max-lg:w-full" : ""
                 }`}
               >
-                <ProductCardStarRating value={rating} />
+                <ProductCardStarRating value={rating} compact={isCompactGrid} />
               </div>
             )}
           </div>
@@ -692,7 +756,7 @@ const ProductCard = React.memo(function ProductCard({
         </div>
 
         {/* Phone: full-width Buy It Now at bottom of card (below title/price) */}
-        {id != null && showBuyNowOnHover && (
+        {id != null && resolvedShowBuyNow && (
           <div
             className={`mt-auto shrink-0 sm:hidden border-t border-gray-100 bg-white px-3 pb-3 pt-3 ${
               infoIsNumeric ? "" : infoRoundedBottomClass
@@ -716,14 +780,14 @@ const ProductCard = React.memo(function ProductCard({
       {outOfStock && (
         <div
           className={`absolute z-20 pointer-events-none ${
-            compactImageOverlaysOnMobile
+            resolvedCompactOverlays
               ? "top-1.5 left-1.5 lg:top-3 lg:left-3"
               : "top-3 left-3"
           }`}
         >
           <span
             className={`bg-black text-white font-medium uppercase tracking-wider ${
-              compactImageOverlaysOnMobile
+              resolvedCompactOverlays
                 ? "px-1.5 py-0.5 text-[7px] leading-tight lg:px-3 lg:py-2 lg:text-[10px]"
                 : "px-3 py-2 text-[10px]"
             }`}

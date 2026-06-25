@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { IoChevronForwardOutline } from 'react-icons/io5'
 import { useCartWishlist } from '../../app/context/CartWishlistContext'
-import ProductCard from '../../shared/components/ProductCard'
+import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/components/ProductCard'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { ROUTES } from '../../utils/constants'
 // import wishlistBanner from '../../assets/temporary/collection.png'
@@ -162,7 +162,7 @@ function WishlistPage() {
       <div className={`${PAGE_INSET} px-2 py-4 sm:px-3 sm:py-6 md:px-3 md:py-4 lg:px-0 lg:py-10`}>
         <div
           ref={listRef}
-          className="grid grid-cols-2 gap-x-2 gap-y-3 sm:gap-x-2.5 sm:gap-y-4 md:grid-cols-3 md:gap-x-2 md:gap-y-4 lg:grid-cols-3 lg:gap-x-4 xl:grid-cols-4 xl:gap-x-5 lg:gap-y-8"
+          className="grid grid-cols-2 gap-x-1.5 gap-y-2.5 sm:gap-x-2.5 sm:gap-y-4 md:grid-cols-3 md:gap-x-2 md:gap-y-4 lg:grid-cols-3 lg:gap-x-4 xl:grid-cols-4 xl:gap-x-5 lg:gap-y-8"
         >
           {displayedItems.map((item) => {
             const offerProps = listingBindOfferProps(item)
@@ -188,11 +188,7 @@ function WishlistPage() {
                 delivery={item.delivery}
                 rating={item.rating}
                 outOfStock={item.inStock === false}
-                rounded="none"
-                revealActionsOnHover
-                showOnlyWishlistIconWhenIdle
-                stackRatingOnMobile
-                compactImageOverlaysOnMobile
+                {...PRODUCT_CARD_COMPACT_GRID_PROPS}
                 imageClassName="w-full max-lg:aspect-[3/4] max-lg:h-auto lg:h-[440px] xl:h-[480px] object-cover object-top lg:object-center"
                 infoClassName="px-2 py-2 md:px-2.5 md:py-2.5 lg:px-6 lg:py-5"
                 titleClassName="text-[10px] tracking-[0.1em] md:text-[11px] md:tracking-[0.12em] lg:text-lg lg:tracking-widest"

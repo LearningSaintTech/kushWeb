@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSelector } from "react-redux";
-import ProductCard from "../../../shared/components/ProductCard";
+import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from "../../../shared/components/ProductCard";
 import productImage from "../../../assets/temporary/productimage.png";
 import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
 import { itemsService } from "../../../services/items.service.js";
@@ -428,7 +428,7 @@ function OurProduct({ section }) {
             Loading...
           </div>
         )}
-        <div className="grid grid-cols-2 items-stretch gap-x-2 gap-y-3 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 lg:grid-cols-4 md:gap-3">
+        <div className="grid grid-cols-2 items-stretch gap-x-1.5 gap-y-2.5 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 lg:grid-cols-4 md:gap-3">
           {!loadingInitial &&
             productsToShow.map((product, idx) => {
               if (!import.meta.env.PROD && (product.bindOffer || product.offerBadge)) {
@@ -443,16 +443,7 @@ function OurProduct({ section }) {
               <div key={product.id ?? idx} className="flex min-w-0 h-full flex-col">
                 <ProductCard
                   {...product}
-                  rounded="none"
-                  showBuyNowOnHover
-                  revealActionsOnHover
-                  showOnlyWishlistIconWhenIdle
-                  stackRatingOnMobile
-                  compactImageOverlaysOnMobile
-                  imageClassName="w-full max-lg:aspect-[3/4] max-lg:h-auto lg:h-[520px] object-cover object-top lg:object-center"
-                  infoClassName="px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4 lg:px-6 lg:py-5"
-                  titleClassName="text-[10px] tracking-[0.1em] sm:text-xs sm:tracking-[0.14em] md:text-sm md:tracking-widest lg:text-lg"
-                  priceRowClassName="mt-1 text-[9px] sm:text-[10px] md:mt-2 md:text-sm"
+                  {...PRODUCT_CARD_COMPACT_GRID_PROPS}
                 />
               </div>
             );

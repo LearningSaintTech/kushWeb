@@ -8,7 +8,7 @@ import { ACCESS_TOKEN_KEY } from '../../services/axiosClient.js'
 import { addRecentKeyword } from '../../app/store/slices/searchSlice.js'
 import collectionBanner from '../../assets/temporary/websitebanner.svg'
 import { ROUTES, getProductPath } from '../../utils/constants'
-import ProductCard from '../../shared/components/ProductCard'
+import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/components/ProductCard'
 import { getItemStockTotal } from '../../utils/productStock.js'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
@@ -1394,12 +1394,12 @@ function SearchPage() {
       )}
 
       {/* Results from search API with filters */}
-      <div className="mx-4 pb-20 sm:mx-6 md:mx-10">
+      <div className="mx-2 pb-20 sm:mx-6 md:mx-10">
         {loading ? (
           <div className="font-inter text-gray-500 py-12 text-center">Loading results…</div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-6 md:grid-cols-3 md:gap-x-5 md:gap-y-7 lg:grid-cols-4 lg:gap-x-3 lg:gap-y-8">
+            <div className="grid grid-cols-2 gap-x-1.5 gap-y-2.5 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 md:gap-x-5 md:gap-y-7 lg:grid-cols-4 lg:gap-x-3 lg:gap-y-8">
               {/**
                * Prevent the browser from eagerly downloading/decoding images for every search result.
                * Only load the first few cards eagerly; the rest load lazily.
@@ -1415,7 +1415,7 @@ function SearchPage() {
                   return (
                     <div
                       key={product.id ?? index}
-                      className={`block transition-all duration-500 ease-out ${
+                      className={`block min-w-0 transition-all duration-500 ease-out ${
                         isNew ? "animate-search-card-in" : ""
                       }`}
                       style={
@@ -1424,7 +1424,7 @@ function SearchPage() {
                     >
                       <ProductCard
                         {...product}
-                        rounded="none"
+                        {...PRODUCT_CARD_COMPACT_GRID_PROPS}
                         imageLoading={imageLoading}
                       />
                     </div>
