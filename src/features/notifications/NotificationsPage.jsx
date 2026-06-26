@@ -37,6 +37,7 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -50,6 +51,7 @@ export default function NotificationsPage() {
           page: pageNum,
           limit: PAGE_SIZE,
         });
+        console.log("Notification list:", data.list);
         const items = data?.list ?? [];
         setList(items);
         setTotal(data?.total != null ? Number(data.total) : 0);
@@ -66,6 +68,7 @@ export default function NotificationsPage() {
       }
     },
     [isAuthenticated],
+    // console.log("Notification list:", data.list)
   );
 
   useEffect(() => {
@@ -140,11 +143,20 @@ export default function NotificationsPage() {
                 <div className="absolute left-0 top-1 bottom-1 w-[4px] bg-black rounded-full"></div>
 
                 {/* Icon */}
-                <div className="ml-3 w-10 h-10 flex items-center justify-center shrink-0">
+                <div className="ml-3 w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-gray-100">
                   <img
-                    src={coupon}
-                    alt="icon"
-                    className="w-full h-full object-contain"
+                    src={n.image || coupon}
+                    alt={n.title}
+                    className="w-full h-full object-cover cursor-zoom-in"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (n.image) {
+                        setSelectedImage(n.image);
+                      }
+                    }}
+                    onError={(e) => {
+                      e.target.src = coupon;
+                    }}
                   />
                 </div>
 
@@ -208,10 +220,31 @@ export default function NotificationsPage() {
           <p className="text-sm text-gray-600">
             Page <span className="font-medium text-gray-900">{page}</span> of{" "}
             <span className="font-medium text-gray-900">{totalPages}</span>
-            {fetching && (
-              <span className="ml-2 text-gray-500">· Loading…</span>
-            )}
+            {fetching && <span className="ml-2 text-gray-500">· Loading…</span>}
           </p>
+          {/* Image Preview Modal */}
+          {selectedImage && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+              onClick={() => setSelectedImage(null)}
+            >
+              {/* Close Button */}
+              <button
+                className="absolute top-5 right-5 text-white text-4xl font-bold hover:text-gray-300"
+                onClick={() => setSelectedImage(null)}
+              >
+                ×
+              </button>
+
+              {/* Image */}
+              <img
+                src={selectedImage}
+                alt="Notification"
+                className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl cursor-zoom-in"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
         </nav>
       )}
     </div>
