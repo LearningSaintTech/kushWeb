@@ -6,6 +6,18 @@ import { useAuth } from '../../app/context/AuthContext'
 import { orderService } from '../../services/order.service.js'
 import { ROUTES, getOrderTrackPath, getProductPath } from '../../utils/constants'
 import { formatPaymentLine } from '../../utils/paymentMode'
+import SafeExternalLink from '../../shared/components/SafeExternalLink.jsx'
+import {
+  deriveTrackingFromOrderLine,
+  getKhushStatusLabel,
+  getReturnItemStatusLabel,
+  getReturnStatusBadgeClass,
+  getStatusBadgeClass,
+  getTrackButtonLabel,
+  isReturnFlowItemStatus,
+  normalizeStatusKey,
+  TRACKABLE_LINE_STATUSES,
+} from '../../utils/orderTracking.js'
 import { getOfferBadgeText } from '../../utils/bindOffer.js'
 import { BindOfferLineNote } from '../../shared/components/BindOfferCartExtras.jsx'
 
@@ -41,34 +53,7 @@ function formatOrderDateTime(dateVal) {
   return `${date} ${month} ${year}, ${h}:${min} ${ampm}`
 }
 
-/** Normalize API line status (e.g. Shiprocket "PICKED UP" → PICKED_UP) for comparisons */
-function normalizeLineStatus(raw) {
-  return String(raw ?? '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '_')
-}
-
-/** Line-item statuses where we still show "Track order" (in transit, not yet delivered). */
-const TRACKABLE_LINE_STATUSES = new Set([
-  'CREATED',
-  'CONFIRMED',
-  'PROCESSING',
-  'SHIPPED',
-  'OUT_FOR_DELIVERY',
-  // Shiprocket / courier granular states (often on `status` while order is in transit)
-  'PICKED_UP',
-  'IN_TRANSIT',
-  'DISPATCHED',
-  'MANIFESTED',
-  'AWB_ASSIGNED',
-  'BOOKED',
-  'SHIPMENT_BOOKED',
-  'PENDING_PICKUP',
-  'PICKUP_SCHEDULED',
-  'REACHED_DESTINATION_HUB',
-  'OUT_FOR_PICKUP',
-])
+const normalizeLineStatus = normalizeStatusKey
 
 function isExchangeLineStatus(status) {
   return String(status || '').toUpperCase().startsWith('EXCHANGE_')
@@ -166,42 +151,11 @@ function OrdersPage() {
     })
   }, [loading, error, orderItems, pagination])
 
-  /** Map backend status to displfay label (lifecycle order) */
   const getStatusLabel = (status) => {
-    const s = normalizeLineStatus(status)
-    const map = {
-      CREATED: 'Order placed',
-      CONFIRMED: 'Confirmed',
-      PROCESSING: 'Processing',
-      SHIPPED: 'Shipped',
-      OUT_FOR_DELIVERY: 'Out for delivery',
-      PICKED_UP: 'Picked up',
-      IN_TRANSIT: 'In transit',
-      DISPATCHED: 'Dispatched',
-      MANIFESTED: 'Manifested',
-      AWB_ASSIGNED: 'AWB assigned',
-      BOOKED: 'Booked',
-      SHIPMENT_BOOKED: 'Shipment booked',
-      PENDING_PICKUP: 'Pending pickup',
-      PICKUP_SCHEDULED: 'Pickup scheduled',
-      REACHED_DESTINATION_HUB: 'Reached hub',
-      DELIVERED: 'Delivered',
-      EXCHANGE_DELIVERED: 'Exchange Delivered',
-      EXCHANGE_REQUESTED: 'Exchange requested',
-      EXCHANGE_APPROVED: 'Exchange approved',
-      EXCHANGE_REJECTED: 'Exchange rejected',
-      EXCHANGE_PICKUP_SCHEDULED: 'Pickup scheduled',
-      EXCHANGE_OUT_FOR_PICKUP: 'Out for pickup',
-      EXCHANGE_PICKED: 'Picked for exchange',
-      EXCHANGE_RECEIVED: 'Exchange received',
-      EXCHANGE_PROCESSING: 'Exchange processing',
-      EXCHANGE_SHIPPED: 'Exchange shipped',
-      EXCHANGE_OUT_FOR_DELIVERY: 'Out for delivery',
-      EXCHANGE_COMPLETED: 'Exchanged',
-      CANCELLED: 'Cancelled',
-      CANCELED: 'Cancelled',
+    if (isReturnFlowItemStatus(status)) {
+      return getReturnItemStatusLabel(status)
     }
-    return map[s] || (s ? s.replace(/_/g, ' ') : '—')
+    return getKhushStatusLabel(status)
   }
 
   const getStatusDisplay = (oi, replacementOrderIds) => {
@@ -236,7 +190,7 @@ function OrdersPage() {
       return { type: 'exchange_process', label: 'EXCHANGE DELIVERED', statusLabel, dateStr, name, fullAddress }
     }
     if (['EXCHANGE_REQUESTED', 'EXCHANGE_APPROVED', 'EXCHANGE_REJECTED', 'EXCHANGE_PICKUP_SCHEDULED', 'EXCHANGE_OUT_FOR_PICKUP', 'EXCHANGE_PICKED', 'EXCHANGE_RECEIVED', 'EXCHANGE_PROCESSING', 'EXCHANGE_SHIPPED', 'EXCHANGE_OUT_FOR_DELIVERY'].includes(status)) {
-      return { type: 'exchange_process', label: 'EXCHANGE IN PROCESS', statusLabel, dateStr, name, fullAddress }
+      return { type: 'exchange_process', label: 'EXCHANGE IN PROCESS', statusLabel, dateStr, name, fullAddress, trackable: true }
     }
     if (status === 'EXCHANGE_COMPLETED') {
       return { type: 'exchanged', label: 'EXCHANGED', statusLabel, dateStr, name, fullAddress }
@@ -346,6 +300,7 @@ function OrdersPage() {
               const price = item?.finalPayable ?? item?.itemSubtotal ?? (item?.unitPrice ?? 0) * quantity
               const trackingId = oi.latestStatusHistory?.trackingId ?? null
               const statusDisplay = getStatusDisplay(oi, replacementOrderIds)
+              const carrierTracking = deriveTrackingFromOrderLine(oi)
               const orderId = oi.orderId ?? ''
               const itemId = oi.itemId?.toString?.() ?? oi.productItemId?.toString?.() ?? ''
               const rowKey = orderId && itemId ? `${orderId}-${itemId}-${idx}` : `row-${idx}`
@@ -449,13 +404,32 @@ function OrdersPage() {
                             {statusDisplay.label}
                           </p>
                         ) : (
-                          <p className="font-bold text-gray-900 uppercase text-[11px] sm:text-xs">{statusDisplay.statusLabel}</p>
+                          <span className={`inline-block rounded border px-2 py-1 text-[10px] sm:text-[11px] font-bold uppercase ${
+                            isReturnFlowItemStatus(oi.status ?? oi.itemStatus)
+                              ? getReturnStatusBadgeClass(oi.status ?? oi.itemStatus)
+                              : getStatusBadgeClass(oi.status ?? oi.itemStatus)
+                          }`}>
+                            {statusDisplay.statusLabel}
+                          </span>
                         )}
+                        {carrierTracking?.status && carrierTracking.status !== statusDisplay.statusLabel ? (
+                          <p className="text-[10px] sm:text-[11px] text-violet-800 font-medium">
+                            Courier: {carrierTracking.status}
+                          </p>
+                        ) : null}
+                        {carrierTracking?.trackingUrl ? (
+                          <SafeExternalLink
+                            href={carrierTracking.trackingUrl}
+                            className="block w-full border border-gray-900 bg-white text-gray-900 py-2 sm:py-2.5 px-3 sm:px-4 text-[11px] sm:text-xs font-semibold uppercase hover:bg-gray-50 transition-colors text-center"
+                          >
+                            {getTrackButtonLabel(carrierTracking.provider)}
+                          </SafeExternalLink>
+                        ) : null}
                         <Link
                           to={getOrderTrackPath(oi.orderId, oi.itemId)}
                           className="block w-full bg-black text-white py-2 sm:py-2.5 px-3 sm:px-4 text-[11px] sm:text-xs font-semibold uppercase hover:bg-gray-800 transition-colors text-center"
                         >
-                          {statusDisplay.type === 'exchange_replacement' ? 'Track replaced order' : 'Track order'}
+                          {statusDisplay.type === 'exchange_replacement' ? 'Track replaced order' : 'View order status'}
                         </Link>
                         <div className="text-left">
                           <p className="text-gray-700 text-[11px] sm:text-xs font-medium">Order #{oi.orderId ?? '—'}</p>
@@ -515,12 +489,22 @@ function OrdersPage() {
                           <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5">{statusDisplay.dateStr}</p>
                         )}
                         {(statusDisplay.type === 'delivered' || statusDisplay.type === 'exchanged' || statusDisplay.type === 'exchange_process' || statusDisplay.type === 'cancelled' || isExchangeReplacement) && (
-                          <Link
-                            to={getOrderTrackPath(oi.orderId, oi.itemId)}
-                            className="block w-full mt-1 py-2 px-3 border border-gray-300 text-[11px] sm:text-xs font-semibold uppercase hover:bg-gray-50 transition-colors text-center"
-                          >
-                            {isExchangeReplacement ? 'Track replaced order' : 'See more'}
-                          </Link>
+                          <>
+                            {carrierTracking?.trackingUrl ? (
+                              <SafeExternalLink
+                                href={carrierTracking.trackingUrl}
+                                className="block w-full py-2 px-3 border border-gray-900 bg-white text-[11px] sm:text-xs font-semibold uppercase hover:bg-gray-50 transition-colors text-center"
+                              >
+                                {getTrackButtonLabel(carrierTracking.provider)}
+                              </SafeExternalLink>
+                            ) : null}
+                            <Link
+                              to={getOrderTrackPath(oi.orderId, oi.itemId)}
+                              className="block w-full mt-1 py-2 px-3 border border-gray-300 text-[11px] sm:text-xs font-semibold uppercase hover:bg-gray-50 transition-colors text-center"
+                            >
+                              {isExchangeReplacement ? 'Track replaced order' : statusDisplay.type === 'exchange_process' ? 'View exchange status' : 'See more'}
+                            </Link>
+                          </>
                         )}
                         {(statusDisplay.type !== 'delivered' && statusDisplay.type !== 'exchanged' && statusDisplay.type !== 'exchange_process' && statusDisplay.type !== 'cancelled') && (
                           <>
