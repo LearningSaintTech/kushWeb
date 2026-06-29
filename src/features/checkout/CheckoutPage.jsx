@@ -13,7 +13,15 @@ import { walletService } from "../../services/wallet.service.js";
 import { ROUTES, getProductPath } from "../../utils/constants";
 import { PAYMENT_MODES } from "../../utils/paymentMode";
 import { trackEvent, trackPixelAddPaymentInfo } from "../../analytics";
-import { loadRazorpayScript } from "./paymentCheckout.js";
+import {
+  loadRazorpayScript,
+  getRazorpayAmountInPaise,
+  requiresRazorpayCheckout,
+  isCreateOrderResponseSettled,
+  isOrderPaymentSettled,
+  isOrderPaymentFailed,
+  pollUntilOrderSettled,
+} from "./paymentCheckout.js";
 import { navigateToOrderFailed, navigateToThankYou } from "./orderConversion.js";
 // Pay later (Nimbbl) — disabled for now
 // import {
@@ -991,6 +999,7 @@ function CheckoutPage() {
       // RAZORPAY: create-order via payment API → open Razorpay → verify-payment on success;
       // on modal_close without success, poll order-status until SUCCESS/CONFIRMED or timeout.
       if (paymentMode === "RAZORPAY") {
+        paymentSuccessHandledRef.current = false;
         const walletAmountToUse = useWalletForOnline
           ? Math.max(0, Number(walletBalance || 0))
           : 0;
@@ -1015,6 +1024,39 @@ function CheckoutPage() {
         const order = data?.order ?? data;
         const razorpayPayload = data?.razorpay;
         const businessOrderId = order?.orderId;
+
+        const completePrepaidSuccess = () => {
+          if (paymentSuccessHandledRef.current) return;
+          paymentSuccessHandledRef.current = true;
+          trackEvent({
+            eventType: "payment_success",
+            orderId: businessOrderId ? String(businessOrderId) : undefined,
+            paymentMode: "RAZORPAY",
+            cartValue:
+              finalPayable != null ? Number(finalPayable) : undefined,
+            currency: "INR",
+            meta: useWalletForOnline ? { paidViaWallet: true } : undefined,
+          });
+          trackEvent({
+            eventType: "order_placed",
+            orderId: businessOrderId ? String(businessOrderId) : undefined,
+            paymentMode: "RAZORPAY",
+            cartValue:
+              finalPayable != null ? Number(finalPayable) : undefined,
+            currency: "INR",
+          });
+          refetchCart();
+          navigateToThankYou(navigate, {
+            orderId: businessOrderId,
+            paymentMode: PAYMENT_MODES.RAZORPAY,
+            value: finalPayable,
+            items,
+          });
+          setPlaceOrderLoading(false);
+          setCheckingPaymentStatus(false);
+          setStatusMessage(null);
+        };
+
         trackEvent({
           eventType: "payment_initiated",
           orderId: businessOrderId ? String(businessOrderId) : undefined,
@@ -1026,6 +1068,69 @@ function CheckoutPage() {
           "[Checkout] razorpayPayload (amount in rupees for frontend):",
           razorpayPayload,
         );
+
+        const needsRazorpay = requiresRazorpayCheckout({
+          razorpayPayload,
+          useWallet: useWalletForOnline,
+          finalPayable,
+        });
+
+        if (!needsRazorpay) {
+          debugLog(
+            "[Checkout] skip Razorpay (wallet-only or zero remaining amount)",
+            { businessOrderId, useWalletForOnline, finalPayable },
+          );
+          if (isCreateOrderResponseSettled(data) || isCreateOrderResponseSettled(order)) {
+            completePrepaidSuccess();
+            return;
+          }
+          if (businessOrderId) {
+            setStatusMessage("Confirming your order…");
+            setCheckingPaymentStatus(true);
+            const pollResult = await pollUntilOrderSettled(
+              async (orderId) => {
+                const statusRes = await paymentService.getOrderStatus(orderId);
+                return statusRes?.data?.data ?? statusRes?.data;
+              },
+              businessOrderId,
+              {
+                intervalMs: POLL_INTERVAL_MS,
+                maxAttempts: useWalletForOnline ? 15 : 8,
+                onAttempt: (attempt, max) => {
+                  setStatusMessage(`Confirming order (${attempt}/${max})…`);
+                },
+              },
+            );
+            setCheckingPaymentStatus(false);
+            setStatusMessage(null);
+            if (pollResult.ok) {
+              completePrepaidSuccess();
+              return;
+            }
+            if (pollResult.reason === "failed") {
+              navigateToOrderFailed(navigate, {
+                orderId: businessOrderId,
+                paymentMode: PAYMENT_MODES.RAZORPAY,
+                reason: "payment_failed",
+                value: finalPayable,
+              });
+              setPlaceOrderLoading(false);
+              return;
+            }
+            if (useWalletForOnline) {
+              debugLog(
+                "[Checkout] wallet-only order: create succeeded, treating as success",
+                pollResult.reason,
+              );
+              completePrepaidSuccess();
+              return;
+            }
+          }
+          setError("Payment setup failed. Please try again.");
+          setPlaceOrderLoading(false);
+          return;
+        }
+
         if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) {
           debugLog(
             "[Checkout] RAZORPAY: missing orderId or keyId in payload",
@@ -1044,11 +1149,7 @@ function CheckoutPage() {
           setPlaceOrderLoading(false);
           return;
         }
-        let amountInPaise =
-          razorpayPayload.amountInPaise != null &&
-          !Number.isNaN(razorpayPayload.amountInPaise)
-            ? razorpayPayload.amountInPaise
-            : Math.round((razorpayPayload.amount || 0) * 100);
+        const amountInPaise = getRazorpayAmountInPaise(razorpayPayload);
         debugLog(
           "[Checkout] Razorpay open options: amount (paise)=",
           amountInPaise,
@@ -1202,11 +1303,7 @@ function CheckoutPage() {
                     ordStatus,
                     statusData,
                   });
-                  if (
-                    pStatus === "FAILED" ||
-                    ordStatus === "FAILED" ||
-                    ordStatus === "CANCELLED"
-                  ) {
+                  if (isOrderPaymentFailed(statusData)) {
                     if (pollingIntervalRef.current) {
                       clearInterval(pollingIntervalRef.current);
                       pollingIntervalRef.current = null;
@@ -1217,14 +1314,14 @@ function CheckoutPage() {
                       orderId: businessOrderId,
                       paymentMode: PAYMENT_MODES.RAZORPAY,
                       reason:
-                        ordStatus === "CANCELLED"
+                        String(ordStatus || "").toUpperCase() === "CANCELLED"
                           ? "payment_cancelled"
                           : "payment_failed",
                       value: finalPayable,
                     });
                     return;
                   }
-                  if (pStatus === "SUCCESS" || ordStatus === "CONFIRMED") {
+                  if (isOrderPaymentSettled(statusData)) {
                     if (pollingIntervalRef.current) {
                       clearInterval(pollingIntervalRef.current);
                       pollingIntervalRef.current = null;
@@ -1234,7 +1331,7 @@ function CheckoutPage() {
                     paymentSuccessHandledRef.current = true;
                     refetchCart();
                     debugLog(
-                      "[Checkout] polling: SUCCESS/CONFIRMED, navigate to orders:",
+                      "[Checkout] polling: settled, navigate to thank you:",
                       businessOrderId,
                     );
                     navigateToThankYou(navigate, {
@@ -1248,6 +1345,7 @@ function CheckoutPage() {
                   // If payment stays pending/created for first few checks, stop early and allow retry
                   if (
                     attempts >= 5 &&
+                    !useWalletForOnline &&
                     (pStatus === "PENDING" || !pStatus) &&
                     (ordStatus === "CREATED" || !ordStatus)
                   ) {

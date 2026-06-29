@@ -374,3 +374,133 @@ export async function openNimbleCheckout({
 
   return checkout
 }
+
+const SETTLED_PAYMENT_STATUSES = new Set([
+  'SUCCESS',
+  'PAID',
+  'COLLECTED',
+  'COMPLETED',
+  'CAPTURED',
+])
+
+const SETTLED_ORDER_STATUSES = new Set([
+  'CONFIRMED',
+  'PROCESSING',
+])
+
+export function normalizePaymentStatusKey(status) {
+  return String(status ?? '')
+    .trim()
+    .toUpperCase()
+}
+
+/** Order + payment look complete (Razorpay, wallet-only, or mixed). */
+export function isOrderPaymentSettled(statusData) {
+  if (!statusData || typeof statusData !== 'object') return false
+  const pStatus = normalizePaymentStatusKey(statusData?.payment?.status)
+  const ordStatus = normalizePaymentStatusKey(statusData?.status)
+  if (SETTLED_PAYMENT_STATUSES.has(pStatus)) return true
+  if (SETTLED_ORDER_STATUSES.has(ordStatus)) return true
+  if (statusData?.paidViaWallet === true) return true
+  if (statusData?.payment?.paidViaWallet === true) return true
+  if (statusData?.walletOnly === true) return true
+  return false
+}
+
+export function isOrderPaymentFailed(statusData) {
+  if (!statusData || typeof statusData !== 'object') return false
+  const pStatus = normalizePaymentStatusKey(statusData?.payment?.status)
+  const ordStatus = normalizePaymentStatusKey(statusData?.status)
+  return (
+    pStatus === 'FAILED' ||
+    ordStatus === 'FAILED' ||
+    ordStatus === 'CANCELLED' ||
+    ordStatus === 'CANCELED'
+  )
+}
+
+export function getRazorpayAmountInPaise(razorpayPayload) {
+  if (!razorpayPayload) return 0
+  if (
+    razorpayPayload.amountInPaise != null &&
+    !Number.isNaN(Number(razorpayPayload.amountInPaise))
+  ) {
+    return Math.max(0, Math.round(Number(razorpayPayload.amountInPaise)))
+  }
+  return Math.max(0, Math.round(Number(razorpayPayload.amount || 0) * 100))
+}
+
+/** True when Razorpay checkout must open (remaining card/UPI amount > 0). */
+export function requiresRazorpayCheckout({
+  razorpayPayload,
+  useWallet = false,
+  finalPayable = null,
+} = {}) {
+  const amountInPaise = getRazorpayAmountInPaise(razorpayPayload)
+  const remainingFromSummary =
+    finalPayable != null && !Number.isNaN(Number(finalPayable))
+      ? Number(finalPayable)
+      : null
+  const remainingFromPayload =
+    razorpayPayload?.amount != null && !Number.isNaN(Number(razorpayPayload.amount))
+      ? Number(razorpayPayload.amount)
+      : null
+  const remaining = remainingFromSummary ?? remainingFromPayload ?? amountInPaise / 100
+
+  if (amountInPaise <= 0 || remaining <= 0) return false
+  if (!razorpayPayload?.orderId || !razorpayPayload?.keyId) return false
+  if (useWallet && amountInPaise <= 0) return false
+  return true
+}
+
+export function isCreateOrderResponseSettled(createData) {
+  if (!createData || typeof createData !== 'object') return false
+  const order = createData?.order ?? createData
+  return isOrderPaymentSettled({
+    status: order?.status,
+    payment: order?.payment ?? createData?.payment,
+    paidViaWallet:
+      createData?.paidViaWallet ??
+      order?.paidViaWallet ??
+      order?.payment?.paidViaWallet,
+    walletOnly: createData?.walletOnly ?? order?.walletOnly,
+  })
+}
+
+/**
+ * Poll GET /payment/order-status until settled, failed, or timeout.
+ * @returns {{ ok: boolean, reason?: string, statusData?: object }}
+ */
+export async function pollUntilOrderSettled(fetchStatus, orderId, options = {}) {
+  const {
+    intervalMs = 2500,
+    maxAttempts = 12,
+    onAttempt,
+  } = options
+
+  if (!orderId || typeof fetchStatus !== 'function') {
+    return { ok: false, reason: 'invalid_args' }
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    onAttempt?.(attempt, maxAttempts)
+    try {
+      const statusData = await fetchStatus(orderId)
+      if (isOrderPaymentFailed(statusData)) {
+        return { ok: false, reason: 'failed', statusData }
+      }
+      if (isOrderPaymentSettled(statusData)) {
+        return { ok: true, statusData }
+      }
+    } catch (err) {
+      if (err?.response?.status === 404 && attempt >= 3) {
+        return { ok: false, reason: 'not_found' }
+      }
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    }
+  }
+
+  return { ok: false, reason: 'timeout' }
+}

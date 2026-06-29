@@ -154,6 +154,7 @@ export default function AuthPage() {
       await verifyOtp({
         userId,
         otp: otpValue.trim(),
+        authFlow: mode === 'register' ? 'register' : 'login',
         ...(mode === 'register' && name.trim()
           ? { registrationName: name.trim() }
           : {}),

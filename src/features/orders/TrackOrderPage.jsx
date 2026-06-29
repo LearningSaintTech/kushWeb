@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { debugLog } from '../../utils/debugLog.js';
 import { useSelector } from "react-redux";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -12,6 +12,26 @@ import { returnService } from "../../services/return.service.js";
 import { policyService } from "../../services/policy.service.js";
 import { ROUTES, getOrderTrackPath } from "../../utils/constants";
 import SafeExternalLink from "../../shared/components/SafeExternalLink.jsx";
+import ShipmentTrackingCard, {
+  OrderStatusBanner,
+} from "../../shared/components/ShipmentTrackingCard.jsx";
+import {
+  formatCarrierStatus,
+  findReturnStepHistory,
+  formatReturnCarrierStatus,
+  getCurrentReturnStepIndex,
+  getExchangeDocStatusLabel,
+  getKhushStatusLabel,
+  getReturnDisplayStatus,
+  getReturnDocStatusLabel,
+  getReturnStatusBadgeClass,
+  getReturnStepCompletion,
+  getStatusBadgeClass,
+  mapCarrierTrackingSnapshot as mapSharedCarrierSnapshot,
+  resolveTrackingUrl as resolveCarrierTrackingUrl,
+  RETURN_ITEM_STATUSES,
+  RETURN_STEPPER,
+} from "../../utils/orderTracking.js";
 import {
   formatPaymentLine,
   getPaymentStatus,
@@ -76,27 +96,8 @@ const FALLBACK_RETURN_REASONS = [
   },
 ];
 
-const RETURN_ITEM_STATUSES = new Set([
-  "RETURN_REQUESTED",
-  "RETURN_APPROVED",
-  "RETURN_PICKUP_SCHEDULED",
-  "RETURNED",
-  "REFUNDED",
-]);
 
-const RETURN_STATUS_LABELS = {
-  returnRequested: "Return requested",
-  returnApproved: "Return approved",
-  pickupScheduled: "Pickup scheduled",
-  pickedUp: "Picked up",
-  inTransit: "In transit to warehouse",
-  receivedAtWarehouse: "Received at warehouse",
-  qualityCheck: "Quality check",
-  refundProcessed: "Refund processed",
-  returnRejected: "Return rejected",
-};
-
-// Delivery lifecycle from ORDER_STATUS_ENUM (order.model.js) — used for progress bar
+// Delivery lifecycle from ORDER_STATUS_ENUM (order.model.js) â€” used for progress bar
 const DELIVERY_STATUS_ORDER = [
   "CREATED",
   "CONFIRMED",
@@ -293,22 +294,7 @@ function displayCourierName(name) {
 }
 
 function resolveTrackingUrl(url, trackingNumber, provider) {
-  const p = String(provider || "").toUpperCase();
-  if (p === "SELF_SHIPPING") return null;
-
-  const safeUrl = typeof url === "string" ? url.trim() : "";
-  if (safeUrl) return safeUrl;
-  if (!trackingNumber) return null;
-  if (p === "SHIPROCKET") {
-    return `https://shiprocket.co/tracking/${encodeURIComponent(String(trackingNumber))}`;
-  }
-  if (p === "DELHIVERY") {
-    return `https://www.delhivery.com/track/package/${encodeURIComponent(String(trackingNumber))}`;
-  }
-  if (p === "SHADOWFAX") {
-    return `https://tracker.shadowfax.in/${encodeURIComponent(String(trackingNumber))}`;
-  }
-  return null;
+  return resolveCarrierTrackingUrl(url, trackingNumber, provider);
 }
 
 function isSelfShippingDelivery(data) {
@@ -340,61 +326,50 @@ function isExternalSelfShipping(data) {
 }
 
 function mapCarrierTrackingSnapshot(snapshot, data = null) {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  let trackingNumber = snapshot.trackingId
-    ? String(snapshot.trackingId).trim()
-    : null;
-  const trackingUrl =
-    typeof snapshot.trackingUrl === "string" && snapshot.trackingUrl.trim()
-      ? snapshot.trackingUrl.trim()
-      : null;
-  const status = snapshot.status ? String(snapshot.status).trim() : null;
-  let courier = snapshot.courier
-    ? displayCourierName(snapshot.courier) || String(snapshot.courier).trim()
-    : null;
-  let resolvedTrackingUrl = trackingUrl;
-  if (snapshot.selfShipping && data) {
-    const selfShip = getSelfShippingDetails(data);
-    if (!courier) {
-      courier =
-        displayCourierName(
-          selfShip.carrierName ||
-            data?.item?.courier ||
-            data?.shipment?.courier,
-        ) ||
-        (selfShip.carrierName ? String(selfShip.carrierName).trim() : null);
-    }
-    if (!resolvedTrackingUrl && typeof selfShip.trackingUrl === "string") {
-      resolvedTrackingUrl = selfShip.trackingUrl.trim() || null;
-    }
-    if (!trackingNumber && data?.item?.trackingId) {
-      trackingNumber = String(data.item.trackingId).trim();
-    }
+  const base = mapSharedCarrierSnapshot(snapshot);
+  if (!base && (!snapshot || !snapshot.selfShipping)) return null;
+  if (!snapshot?.selfShipping || !data) {
+    return base;
   }
-  const hasProgress = Boolean(
-    trackingNumber || resolvedTrackingUrl || status || courier,
-  );
-  if (!hasProgress && !snapshot.selfShipping) return null;
+
+  let courier = base?.courier || null;
+  let resolvedTrackingUrl = base?.trackingUrl || null;
+  let trackingNumber = base?.trackingNumber || null;
+  const selfShip = getSelfShippingDetails(data);
+
+  if (!courier) {
+    courier =
+      displayCourierName(
+        selfShip.carrierName ||
+          data?.item?.courier ||
+          data?.shipment?.courier,
+      ) ||
+      (selfShip.carrierName ? String(selfShip.carrierName).trim() : null);
+  }
+  if (!resolvedTrackingUrl && typeof selfShip.trackingUrl === "string") {
+    resolvedTrackingUrl = selfShip.trackingUrl.trim() || null;
+  }
+  if (!trackingNumber && data?.item?.trackingId) {
+    trackingNumber = String(data.item.trackingId).trim();
+  }
 
   let selfShippingMode = null;
-  if (snapshot.selfShipping) {
-    if (data && isExternalSelfShipping(data)) {
-      selfShippingMode = "EXTERNAL";
-    } else if (resolvedTrackingUrl || courier) {
-      selfShippingMode = "EXTERNAL";
-    } else {
-      selfShippingMode = "INTERNAL";
-    }
+  if (isExternalSelfShipping(data)) {
+    selfShippingMode = "EXTERNAL";
+  } else if (resolvedTrackingUrl || courier) {
+    selfShippingMode = "EXTERNAL";
+  } else {
+    selfShippingMode = "INTERNAL";
   }
 
   return {
     trackingNumber,
     trackingUrl: resolvedTrackingUrl,
-    status,
+    status: base?.status || formatCarrierStatus(data?.status || data?.item?.status),
     courier,
-    selfShipping: Boolean(snapshot.selfShipping),
+    selfShipping: true,
     selfShippingMode,
-    provider: snapshot.provider || null,
+    provider: snapshot.provider || "SELF_SHIPPING",
     leg: snapshot.leg || null,
   };
 }
@@ -474,8 +449,9 @@ function getCourierTrackingFromOrderItem(data) {
     return {
       trackingNumber,
       trackingUrl,
-      status: dl.status || null,
+      status: formatCarrierStatus(dl.status) || dl.status || null,
       courier: displayCourierName(item.courier),
+      provider: "DELHIVERY",
     };
   }
 
@@ -500,8 +476,9 @@ function getCourierTrackingFromOrderItem(data) {
     return {
       trackingNumber,
       trackingUrl,
-      status: sfx.status || null,
+      status: formatCarrierStatus(sfx.status) || sfx.status || null,
       courier: displayCourierName(item.courier),
+      provider: "SHADOWFAX",
     };
   }
 
@@ -533,8 +510,9 @@ function getCourierTrackingFromOrderItem(data) {
     return {
       trackingNumber,
       trackingUrl,
-      status: sr.status || null,
+      status: formatCarrierStatus(sr.status) || sr.status || null,
       courier: displayCourierName(item.courier),
+      provider: "SHIPROCKET",
     };
   }
 
@@ -577,11 +555,16 @@ function getLatestExchangeRecord(exchange) {
 
 function getExchangeShipmentTracking(data) {
   const latestExchange = getLatestExchangeRecord(data?.exchange) || {};
+  const exCarrier = latestExchange?.carrierTracking || {};
+  const mappedReverse = mapSharedCarrierSnapshot(exCarrier.reverse);
+  const mappedForward = mapSharedCarrierSnapshot(exCarrier.forward);
+
   const sr = latestExchange?.shiprocket || {};
   const returnOrder = sr?.returnOrder || null;
   const forwardOrder = sr?.forwardOrder || null;
   const returnPickup = latestExchange?.returnPickup || {};
   const delhiveryReturn = latestExchange?.delhivery?.returnPickup || {};
+  const sfxReturn = latestExchange?.shadowfax?.returnPickup || {};
   const manualTrackingId =
     String(returnPickup.manualTrackingId || delhiveryReturn.waybill || "").trim() || null;
   const returnPickupMethod = String(latestExchange?.returnPickupMethod || "").toUpperCase();
@@ -593,59 +576,65 @@ function getExchangeShipmentTracking(data) {
     null;
   const replacementItemId = latestExchange?.replacementItemId || latestExchange?.replacedItem?.itemId || null;
 
-  const returnNumber = returnOrder?.awbCode || manualTrackingId || null;
-  const forwardNumber = forwardOrder?.awbCode || null;
+  const returnNumber =
+    mappedReverse?.trackingNumber ||
+    sfxReturn.awb ||
+    returnOrder?.awbCode ||
+    manualTrackingId ||
+    null;
+  const forwardNumber = mappedForward?.trackingNumber || forwardOrder?.awbCode || null;
 
   const returnProvider =
-    returnPickupMethod.includes("DELHIVERY") || originalProvider === "DELHIVERY"
-      ? "DELHIVERY"
-      : returnOrder?.awbCode
-        ? "SHIPROCKET"
-        : manualTrackingId
-          ? "DELHIVERY"
-          : "SHIPROCKET";
+    mappedReverse?.provider ||
+    (sfxReturn.awb ? "SHADOWFAX" : null) ||
+    (returnPickupMethod.includes("SHADOWFAX") || originalProvider === "SHADOWFAX"
+      ? "SHADOWFAX"
+      : returnPickupMethod.includes("DELHIVERY") || originalProvider === "DELHIVERY"
+        ? "DELHIVERY"
+        : returnOrder?.awbCode
+          ? "SHIPROCKET"
+          : manualTrackingId
+            ? "DELHIVERY"
+            : "SHIPROCKET");
 
-  const returnTrackingUrl = resolveTrackingUrl(
-    returnOrder?.trackingUrl || delhiveryReturn.trackingUrl,
-    returnNumber,
-    returnProvider,
-  );
-  const forwardTrackingUrl = resolveTrackingUrl(
-    forwardOrder?.trackingUrl,
-    forwardNumber,
-    "SHIPROCKET",
-  );
+  const returnTrackingUrl =
+    mappedReverse?.trackingUrl ||
+    resolveTrackingUrl(
+      sfxReturn.trackingUrl || returnOrder?.trackingUrl || delhiveryReturn.trackingUrl,
+      returnNumber,
+      returnProvider,
+    );
+  const forwardTrackingUrl =
+    mappedForward?.trackingUrl ||
+    resolveTrackingUrl(forwardOrder?.trackingUrl, forwardNumber, mappedForward?.provider || "SHIPROCKET");
 
-  const hasReturn = Boolean(
-    returnNumber ||
-    returnTrackingUrl ||
-    returnOrder?.orderId != null ||
-    returnOrder?.shipmentId != null,
-  );
-  const hasForward = Boolean(
-    forwardNumber ||
-    forwardTrackingUrl ||
-    forwardOrder?.orderId != null ||
-    forwardOrder?.shipmentId != null,
-  );
+  const hasReturn = Boolean(returnNumber || returnTrackingUrl || mappedReverse);
+  const hasForward = Boolean(forwardNumber || forwardTrackingUrl || mappedForward);
 
   if (!hasReturn && !hasForward && !replacementOrderId) return null;
 
   return {
     returnOrder: hasReturn
-      ? {
+      ? mappedReverse || {
           trackingNumber: returnNumber,
-          status: returnOrder?.status || returnPickup.status || null,
-          courier: displayCourierName(returnOrder?.courierName),
+          status:
+            formatCarrierStatus(sfxReturn.status) ||
+            formatCarrierStatus(returnPickup.status) ||
+            getExchangeDocStatusLabel(latestExchange.status) ||
+            formatCarrierStatus(returnOrder?.status) ||
+            null,
+          courier: returnProvider === "SHADOWFAX" ? "Shadowfax" : displayCourierName(returnOrder?.courierName),
           trackingUrl: returnTrackingUrl,
+          provider: returnProvider,
         }
       : null,
     forwardOrder: hasForward
-      ? {
+      ? mappedForward || {
           trackingNumber: forwardNumber,
-          status: forwardOrder?.status || null,
+          status: formatCarrierStatus(forwardOrder?.status) || null,
           courier: displayCourierName(forwardOrder?.courierName),
           trackingUrl: forwardTrackingUrl,
+          provider: "SHIPROCKET",
         }
       : null,
     replacementOrder: replacementOrderId
@@ -738,7 +727,7 @@ function getStepStatus(statusHistory, currentStatus, step) {
   };
 }
 
-/** Current step index (0–5) for progress bar; maps ORDER_STATUS_ENUM to stepper step */
+/** Current step index (0â€“5) for progress bar; maps ORDER_STATUS_ENUM to stepper step */
 function getCurrentStepIndex(currentStatus) {
   const statusUpper = (currentStatus || "").toUpperCase();
   for (let i = STEPPER.length - 1; i >= 0; i--) {
@@ -793,14 +782,14 @@ function OrderStatusStepper({
       }`}
     >
       {reached && (
-        <span className="text-white text-[10px] font-bold leading-none">✓</span>
+        <span className="text-white text-[10px] font-bold leading-none">âœ“</span>
       )}
     </div>
   );
 
   return (
     <>
-      {/* Phone: vertical timeline — readable at 320px without overlapping labels */}
+      {/* Phone: vertical timeline â€” readable at 320px without overlapping labels */}
       <div className="mb-8 md:hidden">
         <ol className="m-0 list-none p-0">
           {steps.map((step, idx) => {
@@ -894,82 +883,22 @@ function isDeliveryStepperRelevant(currentStatus) {
   const statusUpper = (currentStatus || "").toUpperCase();
   if (statusUpper === "CANCELLED") return false;
   if (EXCHANGE_STATUSES.includes(statusUpper)) return false;
+  if (RETURN_ITEM_STATUSES.has(statusUpper)) return false;
+  if (statusUpper === "REFUNDED") return false;
   return true;
 }
 
-function ShipmentTrackingPanel({
-  tracking,
-  title = "Shipment tracking",
-  subtitle,
-  emptyMessage = "Tracking will appear here once your order is shipped.",
-  compact = false,
-}) {
-  const boxClass = compact
-    ? "mt-3 rounded border border-gray-200 bg-gray-50 px-4 py-3"
-    : "py-4 mb-6 rounded border border-gray-200 bg-gray-50 px-4";
-
-  return (
-    <div className={boxClass}>
-      <p className="text-[11px] font-bold tracking-wider text-gray-900 uppercase">
-        {title}
-      </p>
-      {subtitle ? (
-        <p className="text-xs text-gray-600 mt-1">{subtitle}</p>
-      ) : null}
-      {tracking ? (
-        <div className={`space-y-1 text-sm text-gray-700 ${subtitle ? "mt-2" : "mt-2"}`}>
-          {tracking.selfShipping && tracking.selfShippingMode === "EXTERNAL" ? (
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-              External courier shipment
-            </p>
-          ) : tracking.selfShipping ? (
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-              Khush self-shipping
-            </p>
-          ) : null}
-          {tracking.courier &&
-            (!tracking.selfShipping || tracking.selfShippingMode === "EXTERNAL") && (
-            <p>
-              Courier partner : <strong>{tracking.courier}</strong>
-            </p>
-          )}
-          {tracking.trackingNumber && (
-            <p>
-              {tracking.selfShipping && !tracking.trackingUrl
-                ? "Reference"
-                : "Tracking ID / AWB"}{" "}
-              : <strong className="font-mono">{tracking.trackingNumber}</strong>
-            </p>
-          )}
-          {tracking.status && (
-            <p>
-              Shipment status :{" "}
-              <strong className="uppercase">{String(tracking.status)}</strong>
-            </p>
-          )}
-          {tracking.courier && !tracking.selfShipping && (
-            <p>
-              Carrier : <strong>{tracking.courier}</strong>
-            </p>
-          )}
-          {tracking.trackingUrl ? (
-            <SafeExternalLink
-              href={tracking.trackingUrl}
-              className={
-                compact
-                  ? "inline-block mt-1 text-black font-semibold uppercase text-xs hover:underline"
-                  : "inline-block mt-2 bg-black text-white px-4 py-2 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors"
-              }
-            >
-              Track shipment
-            </SafeExternalLink>
-          ) : null}
-        </div>
-      ) : (
-        <p className="mt-2 text-sm text-gray-700">{emptyMessage}</p>
-      )}
-    </div>
-  );
+function getReturnStepStatus(statusHistory, currentStepIndex, step, stepIndex) {
+  const reached = getReturnStepCompletion(currentStepIndex, stepIndex);
+  const record = findReturnStepHistory(statusHistory, step);
+  return {
+    completed: reached,
+    date: record?.createdAt
+      ? formatStepperDate(record.createdAt)
+      : reached
+        ? formatStepperDate(new Date())
+        : "",
+  };
 }
 
 function isExchangeInProgress(exchange) {
@@ -1626,7 +1555,7 @@ export default function TrackOrderPage() {
     return (
       <div className="min-h-screen bg-gray-100 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
-          <p className="text-gray-600">Loading order details…</p>
+          <p className="text-gray-600">Loading order detailsâ€¦</p>
         </div>
       </div>
     );
@@ -1649,8 +1578,8 @@ export default function TrackOrderPage() {
   }
 
   const item = data.item || {};
-  const brand = item.brandName || item.brand || "—";
-  const name = item.name || item.shortDescription || "—";
+  const brand = item.brandName || item.brand || "â€”";
+  const name = item.name || item.shortDescription || "â€”";
   const imageUrl = item.variant?.imageUrl ?? "";
   const baseTrackingId = data.shipment?.trackingId || data.trackingId || null;
   const deliveryType =
@@ -1718,7 +1647,7 @@ export default function TrackOrderPage() {
           ? "Your package is shipped with our delivery partner. Use the link below for live updates."
           : "Shipment updates appear in the status timeline below."
         : undefined;
-  const orderNo = data.orderId || "—";
+  const orderNo = data.orderId || "â€”";
   const statusHistory = data.statusHistory || [];
   const otherItems = data.otherItemsInOrder || [];
   const currentItemIdStr = (data.itemId ?? itemId)?.toString();
@@ -1767,7 +1696,32 @@ export default function TrackOrderPage() {
     !returnInProgress &&
     currentStatus === "DELIVERED";
   const returnPickupTracking = getReturnPickupTracking(activeReturn);
-  const showDeliveryStepper = isDeliveryStepperRelevant(currentStatus);
+  const returnCarrierRaw =
+    activeReturn?.shadowfax?.returnPickup?.status ||
+    data?.carrierTrackingLegs?.reverse?.status ||
+    activeReturn?.returnPickup?.status ||
+    null;
+
+  const returnStepIndex = getCurrentReturnStepIndex({
+    returnDocStatus: activeReturn?.status,
+    itemStatus: currentStatus,
+    carrierRawStatus: returnCarrierRaw,
+    returnPickupStatus: activeReturn?.returnPickup?.status,
+  });
+
+  const showReturnStepper =
+    (returnInProgress || activeReturn) &&
+    currentStatus !== "CANCELLED" &&
+    activeReturn?.status !== "returnRejected" &&
+    returnStepIndex >= 0;
+
+  const resolveReturnStepStatus = (history, _currentStatus, step) => {
+    const stepIndex = RETURN_STEPPER.findIndex((s) => s.key === step.key);
+    return getReturnStepStatus(history, returnStepIndex, step, stepIndex);
+  };
+
+  const showDeliveryStepper =
+    isDeliveryStepperRelevant(currentStatus) && !showReturnStepper;
   const showExchangeStepper =
     currentStatus !== "CANCELLED" &&
     EXCHANGE_STATUSES.includes(currentStatus) &&
@@ -1797,7 +1751,7 @@ export default function TrackOrderPage() {
     data.deliveryBoy?.name ?? data.shipment?.deliveryAgentName ?? null;
   const deliveryBoyPhone =
     data.deliveryBoy?.phoneNumber ?? data.shipment?.deliveryAgentPhone ?? null;
-  // Delivery partner visible only: (1) between Out for delivery → Delivered, (2) between Exchange out for pickup → Exchange picked, (3) between Exchange out for delivery → Exchange delivered
+  // Delivery partner visible only: (1) between Out for delivery â†’ Delivered, (2) between Exchange out for pickup â†’ Exchange picked, (3) between Exchange out for delivery â†’ Exchange delivered
   const deliveryStatusesShowDriver = [
     "OUT_FOR_DELIVERY",
     "EXCHANGE_OUT_FOR_PICKUP",
@@ -1824,6 +1778,60 @@ export default function TrackOrderPage() {
     latestExchange?.replacedItem?.itemId ||
     null;
 
+  const reverseLegTracking =
+    mapCarrierTrackingSnapshot(data?.carrierTrackingLegs?.reverse) ||
+    (returnPickupTracking
+      ? {
+          trackingNumber: returnPickupTracking.trackingNumber,
+          trackingUrl: returnPickupTracking.trackingUrl,
+          status:
+            formatReturnCarrierStatus(
+              activeReturn?.shadowfax?.returnPickup?.status ||
+                data?.carrierTrackingLegs?.reverse?.status,
+            ) ||
+            getReturnDisplayStatus({
+              returnDocStatus: activeReturn?.status,
+              itemStatus: currentStatus,
+              carrierRawStatus: returnCarrierRaw,
+            }),
+          provider: "SHADOWFAX",
+          courier: "Shadowfax",
+        }
+      : null);
+
+  const forwardLegTracking =
+    mapCarrierTrackingSnapshot(data?.carrierTrackingLegs?.forward) ||
+    normalCourierTracking;
+
+  const statusPrimaryLabel = showReturnStepper
+    ? getReturnDisplayStatus({
+        returnDocStatus: activeReturn?.status,
+        itemStatus: currentStatus,
+        carrierRawStatus: returnCarrierRaw,
+        returnPickupStatus: activeReturn?.returnPickup?.status,
+      })
+    : getKhushStatusLabel(currentStatus);
+  let statusSecondaryLabel = null;
+  if (inExchangeFlow && latestExchange?.status) {
+    const docLabel = getExchangeDocStatusLabel(latestExchange.status);
+    if (docLabel && docLabel !== statusPrimaryLabel) {
+      statusSecondaryLabel = docLabel;
+    }
+  } else if (showReturnStepper && returnCarrierRaw) {
+    const carrierLabel = formatReturnCarrierStatus(returnCarrierRaw);
+    if (carrierLabel && carrierLabel !== statusPrimaryLabel) {
+      statusSecondaryLabel = carrierLabel;
+    }
+  } else if (activeReturn?.status && !showReturnStepper) {
+    const docLabel = getReturnDocStatusLabel(activeReturn.status);
+    if (docLabel && docLabel !== statusPrimaryLabel) {
+      statusSecondaryLabel = docLabel;
+    }
+  }
+  if (!statusSecondaryLabel && shipmentTracking?.status) {
+    statusSecondaryLabel = `Courier update: ${shipmentTracking.status}`;
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 pt-26 pb-12">
       <div className="px-4">
@@ -1846,7 +1854,7 @@ export default function TrackOrderPage() {
                   Replacement order
                 </p>
                 <p className="text-xs text-gray-600 mt-1">
-                  This is your replacement item from an exchange — no separate payment applies.
+                  This is your replacement item from an exchange â€” no separate payment applies.
                 </p>
                 {exchangeMeta.originalItemId ? (
                   <Link
@@ -1871,7 +1879,7 @@ export default function TrackOrderPage() {
                   Replacement order
                 </p>
                 <p className="text-xs text-gray-600 mt-1">
-                  Order #{replacementOrderId} — track replacement delivery here once it ships.
+                  Order #{replacementOrderId} â€” track replacement delivery here once it ships.
                 </p>
                 {replacementItemId ? (
                   <Link
@@ -1929,19 +1937,25 @@ export default function TrackOrderPage() {
                     ? "Tracking ID / AWB"
                     : isSelfShippedOrder
                       ? "Reference"
-                      : "Tracking ID"}{" "}
-                  : <strong>#{displayTrackingId}</strong>
+                      : "AWB / Tracking ID"}{" "}
+                  : <strong className="font-mono">{displayTrackingId}</strong>
                 </p>
               )}
-              {isExternalSelfShippingOrder && normalCourierTracking?.trackingUrl ? (
-                <p className="text-gray-600 text-sm mt-1">
+              {normalCourierTracking?.trackingUrl ? (
+                <div className="mt-3">
                   <SafeExternalLink
                     href={normalCourierTracking.trackingUrl}
-                    className="font-semibold text-black underline hover:no-underline"
+                    className="inline-flex items-center justify-center rounded-sm bg-black px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-gray-800 transition-colors"
                   >
-                    Open courier tracking
+                    {normalCourierTracking.provider === "SHADOWFAX"
+                      ? "Track on Shadowfax"
+                      : normalCourierTracking.provider === "DELHIVERY"
+                        ? "Track on Delhivery"
+                        : normalCourierTracking.provider === "SHIPROCKET"
+                          ? "Track on Shiprocket"
+                          : "Track shipment"}
                   </SafeExternalLink>
-                </p>
+                </div>
               ) : null}
               <p className="text-gray-600 text-sm mt-0.5">
                 Order No : <strong>{orderNo}</strong>
@@ -2041,11 +2055,11 @@ export default function TrackOrderPage() {
                   className={`inline-block transition-transform duration-200 ${invoiceAccordionOpen ? "rotate-180" : ""}`}
                   aria-hidden
                 >
-                  ▼
+                  â–¼
                 </span>
               </div>
               <span className="text-sm font-semibold">
-                ₹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
+                â‚¹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
               </span>
             </button>
             {invoiceAccordionOpen && (
@@ -2064,10 +2078,10 @@ export default function TrackOrderPage() {
                     {invoiceDownloading ? (
                       <>
                         <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Downloading…
+                        Downloadingâ€¦
                       </>
                     ) : (
-                      <>↓ Download invoice </>
+                      <>â†“ Download invoice </>
                     )}
                   </button>
                 </div>
@@ -2083,7 +2097,7 @@ export default function TrackOrderPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
                     <span>
-                      ₹
+                      â‚¹
                       {(
                         Number(data.item.itemSubtotal) ??
                         (Number(data.item.unitPrice) || 0) *
@@ -2094,7 +2108,7 @@ export default function TrackOrderPage() {
                   <BindOfferBillRows
                     bindOffers={data?.pricing?.bindOffers}
                     formatRsFn={(amount) =>
-                      `- ₹${Number(amount).toFixed(2)}`
+                      `- â‚¹${Number(amount).toFixed(2)}`
                     }
                   />
                   {data.item.delivery?.charge != null &&
@@ -2104,7 +2118,7 @@ export default function TrackOrderPage() {
                           Delivery ({data.item.delivery?.type || "Delivery"})
                         </span>
                         <span>
-                          ₹{Number(data.item.delivery.charge).toFixed(2)}
+                          â‚¹{Number(data.item.delivery.charge).toFixed(2)}
                         </span>
                       </div>
                     )}
@@ -2115,7 +2129,7 @@ export default function TrackOrderPage() {
                         <span className="text-gray-600">
                           {ch.key || ch.description || "Charge"}
                         </span>
-                        <span>₹{(Number(ch.amount) || 0).toFixed(2)}</span>
+                        <span>â‚¹{(Number(ch.amount) || 0).toFixed(2)}</span>
                       </div>
                     ))}
                   {data.item.gst?.amount != null &&
@@ -2127,7 +2141,7 @@ export default function TrackOrderPage() {
                             ? `(${data.item.gst.percent}%)`
                             : ""}
                         </span>
-                        <span>₹{Number(data.item.gst.amount).toFixed(2)}</span>
+                        <span>â‚¹{Number(data.item.gst.amount).toFixed(2)}</span>
                       </div>
                     )}
                   {data.item.couponDiscount?.discountAmount != null &&
@@ -2140,7 +2154,7 @@ export default function TrackOrderPage() {
                             : ""}
                         </span>
                         <span>
-                          - ₹
+                          - â‚¹
                           {Number(
                             data.item.couponDiscount.discountAmount,
                           ).toFixed(2)}
@@ -2150,7 +2164,7 @@ export default function TrackOrderPage() {
                   <div className="flex justify-between text-sm font-semibold pt-2 border-t border-gray-200">
                     <span>Total</span>
                     <span>
-                      ₹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
+                      â‚¹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -2164,31 +2178,42 @@ export default function TrackOrderPage() {
           <h2 className="font-bold text-black uppercase text-sm mb-1">
             ORDER STATUS
           </h2>
-          <p className="text-gray-600 text-sm mb-6">ORDER #{orderNo}</p>
+          <p className="text-gray-600 text-sm mb-4">ORDER #{orderNo}</p>
 
-          {(isNormalDelivery || inExchangeFlow) && (
-            <ShipmentTrackingPanel
-              tracking={shipmentTracking}
-              title={
-                inExchangeFlow
-                  ? primaryExchangeLeg === "forward"
-                    ? "Replacement shipment"
-                    : "Return pickup shipment"
-                  : isNormalDelivery
-                    ? isExternalSelfShippingOrder
-                      ? "External courier tracking"
-                      : isSelfShippedOrder
-                        ? "Self-shipping updates"
-                        : "Standard delivery tracking"
-                    : "Shipment tracking"
-              }
+          <OrderStatusBanner
+            primaryLabel={statusPrimaryLabel}
+            secondaryLabel={statusSecondaryLabel}
+            badgeClass={
+              showReturnStepper
+                ? getReturnStatusBadgeClass(currentStatus)
+                : getStatusBadgeClass(currentStatus)
+            }
+          />
+
+          {/* Forward delivery tracking (standard orders) */}
+          {!inExchangeFlow && isNormalDelivery && forwardLegTracking && (
+            <ShipmentTrackingCard
+              tracking={forwardLegTracking}
+              legLabel="Forward delivery"
+              title="Your shipment"
+              subtitle={shipmentTrackingSubtitle}
+              highlighted
+              emptyMessage="Tracking will appear here once your order is shipped."
+            />
+          )}
+
+          {!inExchangeFlow && isNormalDelivery && !forwardLegTracking && (
+            <ShipmentTrackingCard
+              tracking={null}
+              legLabel="Forward delivery"
+              title="Your shipment"
               subtitle={shipmentTrackingSubtitle}
               emptyMessage={
                 isExternalSelfShippingOrder
                   ? "External courier tracking will appear here once your shipment is booked."
                   : isSelfShippedOrder
                     ? "Shipment details will appear here once your order is on the way."
-                    : "Tracking will appear here once your order is shipped."
+                    : "Tracking will appear here once your order is shipped with our delivery partner."
               }
             />
           )}
@@ -2207,21 +2232,28 @@ export default function TrackOrderPage() {
 
           {/* Return request status */}
           {(returnInProgress || activeReturn) && currentStatus !== "CANCELLED" && (
-            <div className="py-4 mb-6 rounded border border-orange-200 bg-orange-50 px-4">
+            <div className="py-4 mb-6 rounded-lg border border-orange-200 bg-orange-50 px-4">
               <p className="text-orange-900 font-semibold uppercase text-sm">
-                {currentStatus === "REFUNDED"
-                  ? "Return refunded"
-                  : currentStatus === "RETURNED"
-                    ? "Item returned"
-                    : "Return in progress"}
+                Return progress
               </p>
-              <p className="text-gray-700 text-sm mt-1">
-                {activeReturn?.status
-                  ? RETURN_STATUS_LABELS[activeReturn.status] ||
-                    String(activeReturn.status).replace(/_/g, " ")
-                  : "Your return request is being processed."}
+              <p className="text-gray-800 text-sm mt-1 font-medium">
+                {statusPrimaryLabel}
               </p>
-              {returnPickupTracking?.trackingUrl ? (
+              {statusSecondaryLabel ? (
+                <p className="text-orange-800 text-xs mt-1">{statusSecondaryLabel}</p>
+              ) : null}
+              {reverseLegTracking ? (
+                <div className="mt-3">
+                  <ShipmentTrackingCard
+                    compact
+                    highlighted
+                    legLabel="Return pickup"
+                    tracking={reverseLegTracking}
+                    title="Return pickup from your address"
+                    emptyMessage="Return pickup tracking is not available yet."
+                  />
+                </div>
+              ) : returnPickupTracking?.trackingUrl ? (
                 <p className="text-sm mt-2">
                   Return pickup:{' '}
                   <SafeExternalLink
@@ -2240,7 +2272,7 @@ export default function TrackOrderPage() {
             </div>
           )}
 
-          {/* Status: Exchange rejected – show admin rejection note when provided */}
+          {/* Status: Exchange rejected â€“ show admin rejection note when provided */}
           {currentStatus === "EXCHANGE_REJECTED" && (
             <div className="py-4 mb-6 rounded border border-amber-200 bg-amber-50 px-4">
               <p className="text-amber-800 font-semibold uppercase text-sm">
@@ -2264,49 +2296,46 @@ export default function TrackOrderPage() {
 
           {/* Exchange tracking (pickup/return + replacement forward). */}
           {inExchangeFlow && exchangeTracking && (
-            <div className="py-4 mb-6 rounded border border-gray-200 bg-gray-50 px-4">
+            <div className="py-4 mb-6 rounded-lg border border-blue-200 bg-blue-50/40 px-4">
               <p className="text-gray-900 font-semibold uppercase text-sm">
                 Exchange shipments
               </p>
               <p className="text-xs text-gray-600 mt-1">
-                Track return pickup and replacement delivery separately.
+                Track your return pickup and replacement delivery separately â€” each has its own AWB.
               </p>
 
               <div className="mt-3 space-y-3">
                 {exchangeTracking.returnOrder && (
-                  <div
-                    className={`rounded border px-3 py-2 ${primaryExchangeLeg === "return" ? "border-gray-400 bg-white" : "border-gray-200 bg-white/70"}`}
-                  >
-                    <ShipmentTrackingPanel
-                      compact
-                      tracking={exchangeTracking.returnOrder}
-                      title="Return pickup"
-                      emptyMessage="Return pickup tracking is not available yet."
-                    />
-                  </div>
+                  <ShipmentTrackingCard
+                    compact
+                    highlighted={primaryExchangeLeg === "return"}
+                    legLabel="Step 1 Â· Return pickup"
+                    tracking={exchangeTracking.returnOrder}
+                    title="Pick up old item from you"
+                    emptyMessage="Return pickup tracking is not available yet."
+                  />
                 )}
 
                 {exchangeTracking.forwardOrder ? (
-                  <div
-                    className={`rounded border px-3 py-2 ${primaryExchangeLeg === "forward" ? "border-gray-400 bg-white" : "border-gray-200 bg-white/70"}`}
-                  >
-                    <ShipmentTrackingPanel
-                      compact
-                      tracking={exchangeTracking.forwardOrder}
-                      title="Replacement delivery"
-                      emptyMessage="Replacement tracking is not available yet."
-                    />
-                  </div>
+                  <ShipmentTrackingCard
+                    compact
+                    highlighted={primaryExchangeLeg === "forward"}
+                    legLabel="Step 2 Â· Replacement delivery"
+                    tracking={exchangeTracking.forwardOrder}
+                    title="Deliver replacement item"
+                    emptyMessage="Replacement tracking is not available yet."
+                  />
                 ) : exchangeTracking.replacementOrder?.orderId ? (
-                  <div className="rounded border border-gray-200 bg-white px-3 py-2">
-                    <p className="text-[11px] font-bold tracking-wider text-gray-900 uppercase">
-                      Replacement delivery
+                  <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+                    <span className="inline-block rounded-full bg-gray-900 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                      Step 2 Â· Replacement delivery
+                    </span>
+                    <p className="text-[11px] font-bold tracking-wider text-gray-900 uppercase mt-2">
+                      Replacement order
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
                       Replacement order #{exchangeTracking.replacementOrder.orderId}
-                      {isNormalDelivery
-                        ? " — use Delhivery/Shiprocket tracking on that order once shipped."
-                        : "."}
+                      â€” track on that order once it ships.
                     </p>
                     {exchangeTracking.replacementOrder.itemId ? (
                       <Link
@@ -2314,14 +2343,29 @@ export default function TrackOrderPage() {
                           exchangeTracking.replacementOrder.orderId,
                           exchangeTracking.replacementOrder.itemId,
                         )}
-                        className="inline-block mt-2 text-black font-semibold uppercase text-xs hover:underline"
+                        className="inline-flex mt-3 items-center justify-center rounded-sm bg-black px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-gray-800 transition-colors"
                       >
-                        Open replacement order
+                        Track replacement order
                       </Link>
                     ) : null}
                   </div>
                 ) : null}
               </div>
+            </div>
+          )}
+
+          {showReturnStepper && (
+            <div className="mb-6 rounded-lg border border-orange-200 bg-orange-50/50 px-3 py-4 sm:px-4">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-orange-900 mb-3">
+                Return timeline
+              </p>
+              <OrderStatusStepper
+                steps={RETURN_STEPPER}
+                currentStepIndex={returnStepIndex}
+                statusHistory={statusHistory}
+                currentStatus={currentStatus}
+                resolveStepStatus={resolveReturnStepStatus}
+              />
             </div>
           )}
 
@@ -2373,7 +2417,7 @@ export default function TrackOrderPage() {
                       {deliveryBoyName || "Delivery partner"}
                     </p>
                     <p className="text-gray-600 text-sm">
-                      {deliveryBoyPhone || "—"}
+                      {deliveryBoyPhone || "â€”"}
                     </p>
                   </div>
                 </div>
@@ -2413,14 +2457,14 @@ export default function TrackOrderPage() {
           </div>
         </div>
 
-        {/* Your review – show after delivery */}
+        {/* Your review â€“ show after delivery */}
         {currentStatus === "DELIVERED" && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h2 className="font-bold text-black uppercase text-sm mb-3">
               Your review
             </h2>
             {reviewLoading ? (
-              <p className="text-sm text-gray-500">Loading your review…</p>
+              <p className="text-sm text-gray-500">Loading your reviewâ€¦</p>
             ) : review ? (
               <>
                 <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -2436,7 +2480,7 @@ export default function TrackOrderPage() {
                           key={star}
                           className={`text-lg leading-none ${filled ? "text-black" : "text-gray-200"}`}
                         >
-                          ★
+                          â˜…
                         </span>
                       );
                     })}
@@ -2529,7 +2573,7 @@ export default function TrackOrderPage() {
           </div>
         )}
 
-        {/* Booked items card – only when there are other items in the order */}
+        {/* Booked items card â€“ only when there are other items in the order */}
         {showBookedItemsSection && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="font-bold text-black uppercase text-sm mb-4">
@@ -2539,7 +2583,7 @@ export default function TrackOrderPage() {
               {otherBookedItemsForList.map((entry, idx) => {
                 const it = entry.item || {};
                 const img = it.variant?.imageUrl ?? "";
-                const n = it.name || it.shortDescription || "—";
+                const n = it.name || it.shortDescription || "â€”";
                 const trackPath = getOrderTrackPath(orderId, entry.itemId);
                 return (
                   <li key={entry.itemId?.toString() || idx}>
@@ -2563,7 +2607,7 @@ export default function TrackOrderPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-gray-700 text-sm normal-case">{n}</p>
                       </div>
-                      <span className="text-gray-400 shrink-0">→</span>
+                      <span className="text-gray-400 shrink-0">â†’</span>
                     </Link>
                   </li>
                 );
@@ -2577,7 +2621,7 @@ export default function TrackOrderPage() {
             to={ROUTES.ORDERS}
             className="text-sm font-medium uppercase text-gray-700 hover:text-black hover:underline"
           >
-            ← Back to orders
+            â† Back to orders
           </Link>
         </div>
 
@@ -2601,7 +2645,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeCancelModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="p-4">
@@ -2701,7 +2745,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeCancelModal}
                     >
-                      <span className="text-lg leading-none">×</span>
+                      <span className="text-lg leading-none">Ã—</span>
                     </button>
                   </div>
                   <div className="px-5 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
@@ -2811,7 +2855,7 @@ export default function TrackOrderPage() {
                       disabled={cancelSubmitting || !policyAccepted}
                       className="w-full bg-black text-white py-3.5 text-sm font-bold tracking-wider uppercase hover:bg-gray-800 active:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-sm"
                     >
-                      {cancelSubmitting ? "Cancelling…" : "Continue"}
+                      {cancelSubmitting ? "Cancellingâ€¦" : "Continue"}
                     </button>
                   </div>
                 </>
@@ -2825,12 +2869,12 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeCancelModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="px-4 pb-6 pt-0 text-center">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 text-green-600 mb-4 relative">
-                      <span className="text-2xl">✓</span>
+                      <span className="text-2xl">âœ“</span>
                     </div>
                     <h3 className="font-bold text-black uppercase text-lg mb-2">
                       Order cancelled successfully
@@ -2880,7 +2924,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeReturnModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="p-4">
@@ -2932,7 +2976,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeReturnModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="p-4 space-y-4">
@@ -3017,7 +3061,7 @@ export default function TrackOrderPage() {
                       disabled={returnSubmitting || !returnPolicyAccepted}
                       className="flex-1 bg-black text-white py-3 text-sm font-bold uppercase hover:bg-gray-800 disabled:opacity-50"
                     >
-                      {returnSubmitting ? "Submitting…" : "Submit return"}
+                      {returnSubmitting ? "Submittingâ€¦" : "Submit return"}
                     </button>
                   </div>
                 </>
@@ -3031,12 +3075,12 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeReturnModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="px-4 pb-6 pt-0 text-center">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 text-green-600 mb-4">
-                      <span className="text-2xl">✓</span>
+                      <span className="text-2xl">âœ“</span>
                     </div>
                     <h3 className="font-bold text-black uppercase text-lg mb-2">
                       Return request submitted
@@ -3090,7 +3134,7 @@ export default function TrackOrderPage() {
                           aria-label="Close"
                           onClick={closeExchangeModal}
                         >
-                          ✕
+                          âœ•
                         </button>
                       </div>
                       <div className="p-4 space-y-4">
@@ -3112,7 +3156,7 @@ export default function TrackOrderPage() {
                             ))}
                           </select>
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                            ▼
+                            â–¼
                           </span>
                         </div>
                         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5">
@@ -3179,7 +3223,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="p-4">
@@ -3228,12 +3272,12 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="p-4">
                     {exchangeItemLoading ? (
-                      <p className="text-sm text-gray-500">Loading options…</p>
+                      <p className="text-sm text-gray-500">Loading optionsâ€¦</p>
                     ) : !exchangeItemDetails?.variants?.length ? (
                       <p className="text-sm text-gray-500">
                         No size/color options for this item.
@@ -3393,7 +3437,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="p-4">
@@ -3413,7 +3457,7 @@ export default function TrackOrderPage() {
                               className="max-h-full max-w-full object-contain object-center"
                             />
                           ) : (
-                            <span className="text-gray-400 text-2xl">📷</span>
+                            <span className="text-gray-400 text-2xl">ðŸ“·</span>
                           )}
                         </div>
                       ))}
@@ -3449,7 +3493,7 @@ export default function TrackOrderPage() {
                       disabled={exchangeSubmitting || exchangeImages.length < 3}
                       className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {exchangeSubmitting ? "Submitting…" : "Exchange order"}
+                      {exchangeSubmitting ? "Submittingâ€¦" : "Exchange order"}
                     </button>
                   </div>
                 </>
@@ -3463,12 +3507,12 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                   <div className="px-4 pb-6 pt-0 text-center">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 text-green-600 mb-4">
-                      <span className="text-2xl">✓</span>
+                      <span className="text-2xl">âœ“</span>
                     </div>
                     <h3 className="font-bold text-black uppercase text-lg mb-2">
                       Exchange request submitted
@@ -3511,13 +3555,13 @@ export default function TrackOrderPage() {
                   aria-label="Close"
                   onClick={() => setReviewModalOpen(false)}
                 >
-                  ✕
+                  âœ•
                 </button>
               </div>
 
               <div className="px-4 py-4">
                 {reviewLoading ? (
-                  <p className="text-sm text-gray-500">Loading your review…</p>
+                  <p className="text-sm text-gray-500">Loading your reviewâ€¦</p>
                 ) : (
                   <>
                     <div className="mb-4">
@@ -3540,7 +3584,7 @@ export default function TrackOrderPage() {
                                   : "text-gray-300"
                               }`}
                             >
-                              ★
+                              â˜…
                             </span>
                           </button>
                         ))}
@@ -3621,8 +3665,8 @@ export default function TrackOrderPage() {
                         >
                           {reviewSubmitting
                             ? review
-                              ? "Saving…"
-                              : "Posting…"
+                              ? "Savingâ€¦"
+                              : "Postingâ€¦"
                             : review
                               ? "Save changes"
                               : "Post review"}

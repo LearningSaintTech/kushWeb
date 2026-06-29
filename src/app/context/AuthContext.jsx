@@ -14,6 +14,7 @@ import {
   isProfileNotFoundError,
   unwrapApiData,
 } from '../../utils/authProfile.js'
+import AuthSuccessToast from '../../shared/components/AuthSuccessToast.jsx'
 
 const AuthContext = createContext(null)
 
@@ -24,6 +25,16 @@ export function AuthProvider({ children }) {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalRedirectTo, setAuthModalRedirectTo] = useState(null)
   const [profilePanelRequest, setProfilePanelRequest] = useState(0)
+  const [authSuccessMessage, setAuthSuccessMessage] = useState(null)
+
+  const clearAuthSuccessMessage = useCallback(() => {
+    setAuthSuccessMessage(null)
+  }, [])
+
+  const showAuthSuccessMessage = useCallback((message) => {
+    if (!message) return
+    setAuthSuccessMessage(message)
+  }, [])
 
   const requestProfilePanel = useCallback(() => {
     setProfilePanelRequest((count) => count + 1)
@@ -124,7 +135,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const verifyOtp = useCallback(async (payload) => {
-    const { registrationName, ...otpPayload } = payload ?? {}
+    const { registrationName, authFlow, ...otpPayload } = payload ?? {}
     const res = await authService.verifyOtp(otpPayload)
     const data = unwrapApiData(res)
     const accessToken = data?.accessToken ?? data?.access_token
@@ -148,10 +159,15 @@ export function AuthProvider({ children }) {
           if (minimal) setUser(minimal)
         }
       }
+      showAuthSuccessMessage(
+        authFlow === 'register'
+          ? 'Account created successfully'
+          : 'Logged in successfully',
+      )
       return data
     }
     return data
-  }, [setToken])
+  }, [setToken, showAuthSuccessMessage])
 
   const resendOtp = useCallback(async (payload) => {
     const res = await authService.resendOtp(payload)
@@ -198,6 +214,9 @@ export function AuthProvider({ children }) {
       setToken,
       refreshUser,
       getDeviceId: getOrCreateDeviceId,
+      authSuccessMessage,
+      showAuthSuccessMessage,
+      clearAuthSuccessMessage,
     }),
     [
       token,
@@ -217,6 +236,9 @@ export function AuthProvider({ children }) {
       logout,
       setToken,
       refreshUser,
+      authSuccessMessage,
+      showAuthSuccessMessage,
+      clearAuthSuccessMessage,
     ]
   )
 
@@ -228,7 +250,12 @@ export function AuthProvider({ children }) {
     )
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      <AuthSuccessToast />
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
