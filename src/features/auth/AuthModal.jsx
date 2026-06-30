@@ -6,6 +6,7 @@ import { trackEvent } from '../../analytics'
 import { sanitizeInternalRedirect } from '../../utils/safeUrl.util.js'
 import { ROUTES } from '../../utils/constants'
 import { extractAuthUserId } from '../../utils/authProfile.js'
+import { getApiErrorMessage, getOtpVerifyErrorMessage } from '../../utils/apiErrors.js'
 
 const DEFAULT_COUNTRY_CODE = '+91'
 const OTP_LENGTH = 6
@@ -163,7 +164,7 @@ export default function AuthModal() {
         eventType: 'auth_login_failed',
         meta: { source: 'auth_modal', reason: err?.response?.data?.message || err?.message || 'send_otp_failed' },
       })
-      setError(err?.response?.data?.message || err?.message || 'Something went wrong')
+      setError(getApiErrorMessage(err, 'Something went wrong'))
     } finally {
       setLoading(false)
     }
@@ -199,7 +200,7 @@ export default function AuthModal() {
       meta: { source: "auth_modal" },
     });
   } catch (err) {
-    setError(err?.response?.data?.message || "Invalid OTP");
+    setError(getOtpVerifyErrorMessage(err));
   } finally {
     setLoading(false);
   }
@@ -214,7 +215,7 @@ export default function AuthModal() {
       setResendCooldown(RESEND_COOLDOWN_SEC)
       otpInputRefs.current[0]?.focus()
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'Could not resend OTP')
+      setError(getApiErrorMessage(err, 'Could not resend OTP'))
     } finally {
       setLoading(false)
     }

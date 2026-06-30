@@ -5,6 +5,7 @@ import { useReferralCodeValidation } from '../../app/hooks/useReferralCodeValida
 import { ROUTES } from '../../utils/constants'
 import { sanitizeInternalRedirect } from '../../utils/safeUrl.util.js'
 import { extractAuthUserId } from '../../utils/authProfile.js'
+import { getApiErrorMessage, getOtpVerifyErrorMessage } from '../../utils/apiErrors.js'
 import { trackEvent } from '../../analytics'
 
 const DEFAULT_COUNTRY_CODE = '+91'
@@ -135,7 +136,7 @@ export default function AuthPage() {
           reason: err?.response?.data?.message || err?.message || 'send_otp_failed',
         },
       })
-      setError(err?.response?.data?.message || err?.message || 'Something went wrong')
+      setError(getApiErrorMessage(err, 'Something went wrong'))
     } finally {
       setLoading(false)
     }
@@ -171,7 +172,7 @@ export default function AuthPage() {
           reason: err?.response?.data?.message || err?.message || 'verify_failed',
         },
       })
-      setError(err?.response?.data?.message || err?.message || 'Invalid OTP')
+      setError(getOtpVerifyErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -187,7 +188,7 @@ export default function AuthPage() {
       setResendCooldown(RESEND_COOLDOWN_SEC)
       otpInputRefs.current[0]?.focus()
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'Could not resend OTP')
+      setError(getApiErrorMessage(err, 'Could not resend OTP'))
     } finally {
       setLoading(false)
     }
