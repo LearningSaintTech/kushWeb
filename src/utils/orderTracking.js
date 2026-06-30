@@ -9,6 +9,128 @@ export function normalizeStatusKey(raw) {
     .replace(/\s+/g, '_');
 }
 
+const OUT_FOR_DELIVERY_ENUMS = new Set([
+  'OUT_FOR_DELIVERY',
+  'EXCHANGE_OUT_FOR_DELIVERY',
+]);
+
+/** Khush enum or raw carrier scan (e.g. ofd) */
+export function isOutForDeliveryStatus(raw) {
+  if (!raw) return false;
+  const s = normalizeStatusKey(raw);
+  if (OUT_FOR_DELIVERY_ENUMS.has(s)) return true;
+  const key = String(raw).trim().toLowerCase().replace(/\s+/g, '_');
+  return key === 'ofd' || key === 'out_for_delivery';
+}
+
+/** Formatted user-facing label or raw enum */
+export function isOutForDeliveryDisplayLabel(label) {
+  if (!label) return false;
+  if (isOutForDeliveryStatus(label)) return true;
+  const normalized = String(label).trim().toLowerCase();
+  return (
+    normalized === 'out for delivery' ||
+    normalized === 'replacement out for delivery' ||
+    normalized.endsWith('out for delivery')
+  );
+}
+
+/** Shadowfax AWB on trackingId when shadowfax.awb was not denormalized */
+export function looksLikeShadowfaxAwb(value) {
+  const id = String(value || '').trim();
+  return /^SF[A-Z0-9]+$/i.test(id);
+}
+
+export function inferManifestProvider(item = {}, shipment = null) {
+  const line = item || {};
+  const ship = shipment || {};
+  const sfx = line.shadowfax || ship.shadowfax || {};
+  const dl = line.delhivery || ship.delhivery || {};
+  const sr = line.shiprocket || ship.shiprocket || {};
+  const trackingId =
+    sfx.awb ||
+    dl.waybill ||
+    sr.awbCode ||
+    line.trackingId ||
+    ship.trackingId ||
+    null;
+
+  if (sfx.awb || looksLikeShadowfaxAwb(trackingId)) return 'SHADOWFAX';
+  if (dl.waybill) return 'DELHIVERY';
+  if (sr.awbCode) return 'SHIPROCKET';
+  return String(line.shippingProvider || ship.shippingProvider || '').toUpperCase() || null;
+}
+
+/** Show external track link when a third-party carrier URL is available */
+export function shouldShowCarrierTrackLink(carrierTracking) {
+  if (!carrierTracking?.trackingUrl) return false;
+  const provider = String(carrierTracking.provider || '').toUpperCase();
+  return ['SHADOWFAX', 'DELHIVERY', 'SHIPROCKET'].includes(provider);
+}
+
+/** @deprecated use shouldShowCarrierTrackLink */
+export function shouldShowTrackShipmentInsteadOfOfd(context = {}) {
+  return shouldShowCarrierTrackLink(context.carrierTracking);
+}
+
+/** Format carrier raw scan / enum for display (never suppress OUT_FOR_DELIVERY) */
+export function formatCarrierScanLabel(statusLabel) {
+  if (!statusLabel) return null;
+  if (isOutForDeliveryStatus(statusLabel)) {
+    return getKhushStatusLabel('OUT_FOR_DELIVERY');
+  }
+  return formatCarrierStatus(statusLabel) || statusLabel;
+}
+
+/** @deprecated use formatCarrierScanLabel */
+export function sanitizeCarrierStatusForDisplay(statusLabel) {
+  return formatCarrierScanLabel(statusLabel);
+}
+
+const THIRD_PARTY_CARRIERS = new Set(['SHIPROCKET', 'DELHIVERY', 'SHADOWFAX']);
+
+/** True when a line has live third-party carrier data (manifest / webhooks). */
+export function hasCarrierWebhookStatus(carrierTracking) {
+  if (!carrierTracking) return false;
+  const provider = String(carrierTracking.provider || '').toUpperCase();
+  if (!THIRD_PARTY_CARRIERS.has(provider)) return false;
+  if (carrierTracking.selfShipping) return false;
+  return Boolean(
+    carrierTracking.status ||
+      carrierTracking.rawStatus ||
+      carrierTracking.trackingNumber ||
+      carrierTracking.trackingUrl,
+  );
+}
+
+/**
+ * User-facing status label — prefer latest carrier webhook scan when manifest exists.
+ * Khush items.status is still used for cancel/exchange rules; display follows the courier.
+ */
+export function resolveUserFacingStatusLabel(itemStatus, carrierTracking) {
+  if (hasCarrierWebhookStatus(carrierTracking)) {
+    const fromApi = carrierTracking.status
+      ? formatCarrierScanLabel(String(carrierTracking.status).trim())
+      : null;
+    if (fromApi) return fromApi;
+
+    const raw = carrierTracking.rawStatus
+      ? String(carrierTracking.rawStatus).trim()
+      : null;
+    if (raw) {
+      return (
+        formatCarrierScanLabel(formatCarrierStatus(raw) || raw) || raw
+      );
+    }
+  }
+  return getKhushStatusLabel(itemStatus);
+}
+
+/** Track page banner */
+export function resolveTrackPagePrimaryStatus(itemStatus, carrierTracking) {
+  return resolveUserFacingStatusLabel(itemStatus, carrierTracking);
+}
+
 /** User-friendly Khush line-item status labels */
 export function getKhushStatusLabel(status) {
   const s = normalizeStatusKey(status);
@@ -31,7 +153,7 @@ export function getKhushStatusLabel(status) {
     DELIVERED: 'Delivered',
     RETURN_REQUESTED: 'Return requested',
     RETURN_APPROVED: 'Return approved',
-    RETURN_PickUP_SCHEDULED: 'Return pickup scheduled',
+    RETURN_PICKUP_SCHEDULED: 'Return pickup scheduled',
     RETURNED: 'Return item collected',
     REFUNDED: 'Return refund processed',
     EXCHANGE_REQUESTED: 'Exchange requested',
@@ -76,7 +198,7 @@ export function getReturnItemStatusLabel(status) {
   const map = {
     RETURN_REQUESTED: 'Return requested',
     RETURN_APPROVED: 'Return approved',
-    RETURN_PickUP_SCHEDULED: 'Return pickup scheduled',
+    RETURN_PICKUP_SCHEDULED: 'Return pickup scheduled',
     RETURNED: 'Return item collected',
     REFUNDED: 'Return refund processed',
   };
@@ -129,10 +251,10 @@ export const RETURN_STEPPER = [
     itemStatuses: ['RETURN_APPROVED'],
   },
   {
-    key: 'RETURN_PickUP_SCHEDULED',
+    key: 'RETURN_PICKUP_SCHEDULED',
     label: 'Return pickup scheduled',
     docStatuses: ['pickupScheduled'],
-    itemStatuses: ['RETURN_PickUP_SCHEDULED'],
+    itemStatuses: ['RETURN_PICKUP_SCHEDULED'],
   },
   {
     key: 'return_out_for_pickup',
@@ -199,7 +321,7 @@ const RETURN_DOC_STEP_INDEX = {
 const RETURN_ITEM_STEP_INDEX = {
   RETURN_REQUESTED: 0,
   RETURN_APPROVED: 1,
-  RETURN_PickUP_SCHEDULED: 2,
+  RETURN_PICKUP_SCHEDULED: 2,
   RETURNED: 4,
   REFUNDED: 8,
 };
@@ -275,7 +397,7 @@ export function getReturnDisplayStatus({
 export const RETURN_ITEM_STATUSES = new Set([
   'RETURN_REQUESTED',
   'RETURN_APPROVED',
-  'RETURN_PickUP_SCHEDULED',
+  'RETURN_PICKUP_SCHEDULED',
   'RETURNED',
   'REFUNDED',
 ]);
@@ -334,7 +456,9 @@ export function formatCarrierStatus(raw) {
   const map = {
     new: 'Shipment created',
     assigned_for_pickup: 'Pickup assigned',
+    assigned_for_seller_pickup: 'Pickup assigned at warehouse',
     ofp: 'Out for pickup',
+    out_for_pickup: 'Out for pickup',
     picked: 'Picked up',
     picked_up: 'Picked up',
     received: 'Received by courier',
@@ -348,6 +472,8 @@ export function formatCarrierStatus(raw) {
     bag_received_at_via: 'Arrived at transit point',
     recd_at_fwd_dc: 'At delivery centre',
     recd_at_fwd_hub: 'At forward hub',
+    received_at_dc: 'At delivery centre',
+    received_at_hub: 'Received at hub',
     in_transit_for_return: 'In transit (return)',
     assigned_for_delivery: 'Assigned for delivery',
     ofd: 'Out for delivery',
@@ -356,6 +482,9 @@ export function formatCarrierStatus(raw) {
     rto_d: 'Returned to seller',
     cancelled: 'Cancelled',
     cancelled_by_customer: 'Cancelled',
+    cid: 'Delivery rescheduled',
+    nc: 'Could not contact customer',
+    na: 'Delivery not attempted',
     scheduled: 'Scheduled',
     pending: 'Pending',
     completed: 'Completed',
@@ -369,6 +498,190 @@ export function formatCarrierStatus(raw) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** True when a third-party carrier manifest exists on the line (webhook / AWB data). */
+export function hasThirdPartyCarrierManifest(item = {}, shipment = null) {
+  const line = item || {};
+  const ship = shipment || {};
+  const sfx = line.shadowfax || ship.shadowfax || {};
+  const dl = line.delhivery || ship.delhivery || {};
+  const sr = line.shiprocket || ship.shiprocket || {};
+  if (sfx.awb) return true;
+  if (looksLikeShadowfaxAwb(line.trackingId || ship.trackingId)) return true;
+  if (dl.waybill || dl.lrn) return true;
+  if (sr.awbCode || (Number(sr.shipmentId) > 0) || (Number(sr.orderId) > 0)) return true;
+  return false;
+}
+
+const KHUSH_TIMELINE_STATUSES = new Set([
+  'CREATED',
+  'CONFIRMED',
+  'PROCESSING',
+  'SHIPPED',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+  'CANCELLED',
+  'CANCELED',
+]);
+
+/** Label for one itemStatusHistory row (Khush enum or carrier note). */
+export function formatStatusHistoryEntryLabel(entry, context = {}) {
+  void context;
+  const notes = String(entry?.notes || '').trim();
+  if (/shadowfax order manifested/i.test(notes)) {
+    return getKhushStatusLabel('SHIPPED');
+  }
+
+  const webhookMatch =
+    notes.match(/webhook:\s*(.+)$/i) ||
+    notes.match(/shadowfax webhook:\s*(.+)$/i);
+  if (webhookMatch) {
+    const scan = webhookMatch[1].trim();
+    return formatCarrierScanLabel(formatCarrierStatus(scan) || scan);
+  }
+
+  const statusUpper = normalizeStatusKey(entry?.status);
+  if (KHUSH_TIMELINE_STATUSES.has(statusUpper)) {
+    return getKhushStatusLabel(entry.status);
+  }
+
+  if (notes) {
+    const fromNote = formatCarrierStatus(notes);
+    const normalizedNote = notes.toLowerCase().replace(/\s+/g, '_');
+    const normalizedFromNote = (fromNote || '').toLowerCase().replace(/\s+/g, '_');
+    if (fromNote && normalizedFromNote !== normalizedNote) {
+      return formatCarrierScanLabel(fromNote);
+    }
+  }
+
+  const status = entry?.status || '';
+  if (RETURN_ITEM_STATUSES?.has?.(String(status).toUpperCase())) {
+    return formatCarrierScanLabel(getReturnItemStatusLabel(status));
+  }
+  return formatCarrierScanLabel(getKhushStatusLabel(status));
+}
+
+function isSameTimelineLabel(left, right) {
+  if (!left || !right) return false;
+  return String(left).trim().toLowerCase() === String(right).trim().toLowerCase();
+}
+
+const TIMELINE_STATUS_RANK = {
+  CREATED: 0,
+  CONFIRMED: 1,
+  PROCESSING: 2,
+  SHIPPED: 3,
+  IN_TRANSIT: 3,
+  PICKED_UP: 3,
+  OUT_FOR_DELIVERY: 4,
+  DELIVERED: 5,
+};
+
+function getTimelineStatusRank(entry) {
+  const key = normalizeStatusKey(entry?.status);
+  return TIMELINE_STATUS_RANK[key] ?? -1;
+}
+
+/** Collapse duplicate / noisy rows for the track-page timeline */
+export function buildStatusHistoryTimeline(history, context = {}) {
+  const sorted = [...(history || [])].sort(
+    (a, b) => new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0),
+  );
+
+  const display = [];
+  let maxLifecycleRank = -1;
+
+  for (let idx = 0; idx < sorted.length; idx += 1) {
+    const entry = sorted[idx];
+    const lifecycleRank = getTimelineStatusRank(entry);
+    if (
+      lifecycleRank >= 0 &&
+      maxLifecycleRank >= 3 &&
+      lifecycleRank < maxLifecycleRank
+    ) {
+      continue;
+    }
+    if (lifecycleRank > maxLifecycleRank) {
+      maxLifecycleRank = lifecycleRank;
+    }
+
+    const label = formatStatusHistoryEntryLabel(entry, context);
+    if (!label) continue;
+
+    const notes = String(entry?.notes || '').trim();
+    const trackingId = entry.trackingId ? String(entry.trackingId).trim() : null;
+    const prev = display[display.length - 1];
+
+    if (prev && isSameTimelineLabel(prev.label, label)) {
+      if (trackingId && trackingId !== prev.trackingId) {
+        prev.trackingId = trackingId;
+      }
+      if (new Date(entry.createdAt || 0) > new Date(prev.entry.createdAt || 0)) {
+        prev.entry = entry;
+      }
+      continue;
+    }
+
+    if (
+      prev &&
+      /shadowfax order manifested/i.test(notes) &&
+      isSameTimelineLabel(prev.label, getKhushStatusLabel('SHIPPED'))
+    ) {
+      if (trackingId) prev.trackingId = trackingId;
+      continue;
+    }
+
+    display.push({
+      entry,
+      idx,
+      label,
+      notes,
+      trackingId,
+    });
+  }
+
+  const carrierTracking = context?.carrierTracking;
+  const itemStatus = context?.itemStatus || context?.status;
+  const carrierSource =
+    carrierTracking?.rawStatus ||
+    carrierTracking?.status ||
+    null;
+  const carrierLabel = carrierSource
+    ? formatCarrierScanLabel(
+        formatCarrierStatus(String(carrierSource)) || String(carrierSource),
+      )
+    : null;
+
+  if (carrierLabel && itemStatus) {
+    const khushLabel = getKhushStatusLabel(itemStatus);
+    const alreadyInTimeline = display.some((row) =>
+      isSameTimelineLabel(row.label, carrierLabel),
+    );
+    if (
+      !alreadyInTimeline &&
+      !isSameTimelineLabel(carrierLabel, khushLabel)
+    ) {
+      const last = display[display.length - 1];
+      display.push({
+        entry: {
+          status: itemStatus,
+          createdAt: carrierTracking?.updatedAt || last?.entry?.createdAt || new Date().toISOString(),
+          courier: carrierTracking?.courier || null,
+          trackingId: carrierTracking?.trackingNumber || null,
+        },
+        idx: sorted.length + 1,
+        label: carrierLabel,
+        notes: '',
+        trackingId: carrierTracking?.trackingNumber
+          ? String(carrierTracking.trackingNumber).trim()
+          : null,
+        isLiveCarrier: true,
+      });
+    }
+  }
+
+  return display;
+}
+
 export function getProviderLabel(provider) {
   const p = String(provider || '').toUpperCase();
   if (p === 'SHADOWFAX') return 'Shadowfax';
@@ -379,8 +692,10 @@ export function getProviderLabel(provider) {
 }
 
 export function getTrackButtonLabel(provider) {
+  const p = String(provider || '').toUpperCase();
+  if (p === 'SHADOWFAX') return 'Track shipment';
   const label = getProviderLabel(provider);
-  if (label && ['Shadowfax', 'Delhivery', 'Shiprocket'].includes(label)) {
+  if (label && ['Delhivery', 'Shiprocket'].includes(label)) {
     return `Track on ${label}`;
   }
   return 'Track shipment';
@@ -439,30 +754,107 @@ export function getStatusBadgeClass(status) {
 export function mapCarrierTrackingSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return null;
 
-  const trackingId = snapshot.trackingId
+  let trackingId = snapshot.trackingId
     ? String(snapshot.trackingId).trim()
     : null;
-  const provider = snapshot.provider ? String(snapshot.provider).toUpperCase() : null;
-  const trackingUrl = resolveTrackingUrl(snapshot.trackingUrl, trackingId, provider);
-  const carrierStatus = formatCarrierStatus(snapshot.status);
-  const hasProgress = Boolean(trackingId || trackingUrl || carrierStatus);
+  let provider = snapshot.provider ? String(snapshot.provider).toUpperCase() : null;
+  let selfShipping = Boolean(snapshot.selfShipping);
 
-  if (!hasProgress && !snapshot.selfShipping) return null;
+  if (
+    trackingId &&
+    (provider === 'SELF_SHIPPING' || selfShipping) &&
+    looksLikeShadowfaxAwb(trackingId)
+  ) {
+    provider = 'SHADOWFAX';
+    selfShipping = false;
+  }
+
+  const trackingUrl = resolveTrackingUrl(snapshot.trackingUrl, trackingId, provider);
+  const statusLabel = formatCarrierScanLabel(
+    formatCarrierStatus(snapshot.status) ||
+      (snapshot.status ? String(snapshot.status) : null),
+  );
+  const hasProgress = Boolean(trackingId || trackingUrl || statusLabel);
+
+  if (!hasProgress && !selfShipping) return null;
 
   return {
     trackingNumber: trackingId,
     trackingUrl,
-    status: carrierStatus || (snapshot.status ? String(snapshot.status) : null),
+    status: statusLabel,
     rawStatus: snapshot.status || null,
     courier: snapshot.courier || getProviderLabel(provider),
     provider,
     leg: snapshot.leg || null,
-    selfShipping: Boolean(snapshot.selfShipping),
+    selfShipping,
     selfShippingMode: snapshot.selfShippingMode || null,
   };
 }
 
-/** Derive tracking from order list line (no carrierTracking on list API yet) */
+/** Normalize user API carrierTracking snapshot → list UI tracking object */
+export function normalizeApiCarrierTracking(apiSnapshot) {
+  if (!apiSnapshot || typeof apiSnapshot !== 'object') return null;
+
+  let trackingId = apiSnapshot.trackingId
+    ? String(apiSnapshot.trackingId).trim()
+    : null;
+  let provider = apiSnapshot.provider ? String(apiSnapshot.provider).toUpperCase() : null;
+  let selfShipping = Boolean(apiSnapshot.selfShipping);
+
+  if (
+    trackingId &&
+    (provider === 'SELF_SHIPPING' || selfShipping) &&
+    looksLikeShadowfaxAwb(trackingId)
+  ) {
+    provider = 'SHADOWFAX';
+    selfShipping = false;
+  }
+
+  const trackingUrl = resolveTrackingUrl(apiSnapshot.trackingUrl, trackingId, provider);
+  const rawCarrierStatus = apiSnapshot.status
+    ? String(apiSnapshot.status).trim()
+    : apiSnapshot.rawStatus
+      ? String(apiSnapshot.rawStatus).trim()
+      : null;
+  const carrierStatus = formatCarrierScanLabel(
+    rawCarrierStatus
+      ? formatCarrierStatus(rawCarrierStatus) || rawCarrierStatus
+      : formatCarrierStatus(apiSnapshot.rawStatus),
+  );
+  const hasProgress = Boolean(trackingId || trackingUrl || carrierStatus);
+
+  if (!hasProgress && !selfShipping) return null;
+
+  return {
+    trackingNumber: trackingId,
+    trackingUrl,
+    status: carrierStatus,
+    rawStatus: apiSnapshot.rawStatus || apiSnapshot.status || null,
+    courier: apiSnapshot.courier || getProviderLabel(provider),
+    provider,
+    selfShipping,
+  };
+}
+
+/** Per-order-line AWB for orders list — never reuse another order's history. */
+export function resolveOrderListTrackingId(oi, carrierTracking = null) {
+  const item = oi?.item || {};
+  const fromLine =
+    item.shipping?.awb ||
+    item.shadowfax?.awb ||
+    item.delhivery?.waybill ||
+    item.shiprocket?.awbCode ||
+    item.trackingId ||
+    null;
+  if (fromLine) return String(fromLine).trim();
+  if (carrierTracking?.trackingNumber) {
+    return String(carrierTracking.trackingNumber).trim();
+  }
+  const fromHistory = oi?.latestStatusHistory?.trackingId;
+  return fromHistory ? String(fromHistory).trim() : null;
+}
+
+/** Derive tracking from order list line (fallback when API omits carrierTracking) */
 export function deriveTrackingFromOrderLine(oi) {
   const item = oi?.item || {};
   const provider = String(item.shippingProvider || '').toUpperCase();
@@ -471,10 +863,17 @@ export function deriveTrackingFromOrderLine(oi) {
   const sr = item.shiprocket || {};
 
   let trackingId =
-    sfx.awb || dl.waybill || sr.awbCode || item.trackingId || oi?.latestStatusHistory?.trackingId || null;
+    item.shipping?.awb ||
+    sfx.awb ||
+    dl.waybill ||
+    sr.awbCode ||
+    item.trackingId ||
+    oi?.latestStatusHistory?.trackingId ||
+    null;
   let resolvedProvider = provider;
 
   if (sfx.awb) resolvedProvider = 'SHADOWFAX';
+  else if (looksLikeShadowfaxAwb(trackingId)) resolvedProvider = 'SHADOWFAX';
   else if (dl.waybill) resolvedProvider = 'DELHIVERY';
   else if (sr.awbCode) resolvedProvider = 'SHIPROCKET';
 
@@ -487,15 +886,37 @@ export function deriveTrackingFromOrderLine(oi) {
   );
 
   const rawStatus = sfx.status || dl.status || sr.status || null;
+  const khushStatus = oi?.status ?? oi?.itemStatus;
+  const statusLabel = formatCarrierScanLabel(
+    formatCarrierStatus(rawStatus) || getKhushStatusLabel(khushStatus),
+  );
 
   return {
     trackingNumber: String(trackingId),
     trackingUrl,
-    status: formatCarrierStatus(rawStatus) || getKhushStatusLabel(oi?.status ?? oi?.itemStatus),
+    status: statusLabel,
     rawStatus,
     courier: getProviderLabel(resolvedProvider),
     provider: resolvedProvider,
   };
+}
+
+/** Orders list status pill */
+export function resolveOrderListStatusLabel(statusDisplay, carrierTracking, khushStatus) {
+  const label = resolveUserFacingStatusLabel(
+    khushStatus ?? statusDisplay?.statusLabel,
+    carrierTracking,
+  );
+  return label || statusDisplay.statusLabel || statusDisplay.label;
+}
+
+/** Show external track link when carrier URL is available */
+export function shouldShowExternalTrackLink(carrierTracking, khushStatus) {
+  void khushStatus;
+  if (!carrierTracking?.trackingUrl) return false;
+  const provider = String(carrierTracking.provider || '').toUpperCase();
+  if (provider === 'SELF_SHIPPING' && carrierTracking.selfShipping) return false;
+  return shouldShowCarrierTrackLink(carrierTracking);
 }
 
 /** Line statuses that should show track actions on orders list */
@@ -518,7 +939,7 @@ export const TRACKABLE_LINE_STATUSES = new Set([
   'OUT_FOR_PICKUP',
   'RETURN_REQUESTED',
   'RETURN_APPROVED',
-  'RETURN_PickUP_SCHEDULED',
+  'RETURN_PICKUP_SCHEDULED',
   'RETURNED',
   'EXCHANGE_REQUESTED',
   'EXCHANGE_APPROVED',
