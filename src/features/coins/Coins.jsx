@@ -62,12 +62,13 @@ const Coins = () => {
   const [showRedeemModal, setShowRedeemModal] = useState(false)
   const [showConvertedModal, setShowConvertedModal] = useState(false)
   const [coins, setCoins] = useState(0)
+  const [coinsWorth, setCoinsWorth] = useState(null)
   const [historyItems, setHistoryItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [redeemError, setRedeemError] = useState('')
   const [redeeming, setRedeeming] = useState(false)
-  const [coinWorthDisplay, setCoinWorthDisplay] = useState('₹1,199')
+  const [redeemResult, setRedeemResult] = useState(null)
 
   const fetchRewardsData = useCallback(async () => {
     setLoading(true)
@@ -79,7 +80,24 @@ const Coins = () => {
       ])
       const coinData = coinsRes?.data?.data ?? {}
       const txData = historyRes?.data?.data ?? {}
-      setCoins(Number(coinData?.coins || 0))
+      const availableCoins = Number(
+        coinData?.coins ??
+          coinData?.pointsBalance ??
+          coinData?.rewardWallet?.pointsBalance ??
+          0,
+      )
+      const worthFromApi = coinData?.worth ??
+        coinData?.cashValue ??
+        coinData?.rupeeValue ??
+        coinData?.coinsWorth ??
+        null
+
+      setCoins(availableCoins)
+      setCoinsWorth(
+        worthFromApi != null && !Number.isNaN(Number(worthFromApi))
+          ? Number(worthFromApi)
+          : availableCoins,
+      )
       setHistoryItems(Array.isArray(txData?.transactions) ? txData.transactions : [])
     } catch (err) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load reward data')
@@ -88,6 +106,19 @@ const Coins = () => {
       setLoading(false)
     }
   }, [])
+
+  const coinsWorthPreview = useMemo(() => {
+    if (coinsWorth != null && !Number.isNaN(Number(coinsWorth))) {
+      return Number(coinsWorth)
+    }
+    return Number(coins || 0)
+  }, [coins, coinsWorth])
+
+  const formatRupee = (value) =>
+    `₹${Number(value || 0).toLocaleString('en-IN', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })}`
 
   useEffect(() => {
     fetchRewardsData()
@@ -103,7 +134,16 @@ const Coins = () => {
     try {
       const res = await walletService.redeemPoints({ points: coins })
       const data = res?.data?.data ?? {}
-      setCoinWorthDisplay(`₹${Number(data?.cashCredited || 0).toLocaleString('en-IN')}`)
+      setRedeemResult({
+        redeemedPoints: Number(data?.redeemedPoints ?? coins ?? 0),
+        cashCredited: Number(data?.cashCredited ?? 0),
+        pointsBalance: Number(
+          data?.rewardWallet?.pointsBalance ??
+            data?.pointsBalance ??
+            0,
+        ),
+        cashWalletBalance: Number(data?.cashWallet?.balance ?? 0),
+      })
       setShowRedeemModal(false)
       setShowConvertedModal(true)
       await fetchRewardsData()
@@ -118,6 +158,13 @@ const Coins = () => {
     setShowRedeemModal(false)
     setShowConvertedModal(false)
     setRedeemError('')
+    setRedeemResult(null)
+  }
+
+  const openRedeemModal = () => {
+    setRedeemError('')
+    setRedeemResult(null)
+    setShowRedeemModal(true)
   }
 
   const renderedHistory = useMemo(() => historyItems.slice(0, 6), [historyItems])
@@ -147,7 +194,7 @@ const Coins = () => {
           </ul>
           <button
             type="button"
-            onClick={() => setShowRedeemModal(true)}
+            onClick={openRedeemModal}
             className="font-inter h-14 w-full bg-black px-8 text-base font-medium uppercase tracking-wide text-white transition-colors hover:bg-[#1d1d1d] md:w-[210px]"
           >
             Redeem Coins
@@ -207,7 +254,9 @@ const Coins = () => {
               </div>
               <div className="flex items-center justify-between rounded-md bg-[#f3f3f3] px-5 py-3.5">
                 <span className="font-inter text-[18px] uppercase text-black">Coins Worth</span>
-                <span className="font-['Rubik'] text-[36px] text-black">{coinWorthDisplay}</span>
+                <span className="font-['Rubik'] text-[36px] text-black">
+                  {formatRupee(coinsWorthPreview)}
+                </span>
               </div>
             </div>
 
@@ -247,9 +296,38 @@ const Coins = () => {
             <h3 className="font-inter mt-5 text-[14px] font-medium uppercase leading-[1.28] tracking-[0.34em] text-black">
               Coins Converted Successfully
             </h3>
-            <p className="font-['Poppins'] mx-auto mt-5 max-w-[320px] text-[16px] leading-tight text-[#3c3c3c]">
-              Your coins have been added to your wallet balance. You can now use it for payments across all services.
-            </p>
+            {redeemResult ? (
+              <div className="font-['Poppins'] mx-auto mt-5 max-w-[320px] space-y-2 text-[16px] leading-tight text-[#3c3c3c]">
+                <p>
+                  <span className="font-semibold text-black">
+                    {formatRupee(redeemResult.cashCredited)}
+                  </span>{' '}
+                  added to your wallet balance.
+                </p>
+                <p>
+                  Coins redeemed:{' '}
+                  <span className="font-semibold text-black">
+                    {Number(redeemResult.redeemedPoints || 0).toLocaleString('en-IN')}
+                  </span>
+                </p>
+                <p>
+                  Remaining coins:{' '}
+                  <span className="font-semibold text-black">
+                    {Number(redeemResult.pointsBalance || 0).toLocaleString('en-IN')}
+                  </span>
+                </p>
+                <p>
+                  Wallet balance:{' '}
+                  <span className="font-semibold text-black">
+                    {formatRupee(redeemResult.cashWalletBalance)}
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <p className="font-['Poppins'] mx-auto mt-5 max-w-[320px] text-[16px] leading-tight text-[#3c3c3c]">
+                Your coins have been added to your wallet balance. You can now use it for payments across all services.
+              </p>
+            )}
           </div>
         </div>
       )}

@@ -5,6 +5,50 @@ export const DONATION_PRESETS = [2, 5, 10, 20]
 
 export const DONATION_MAX_AMOUNT = 10000
 
+/** Amount shown in bill summary — UI state first, then price-summary / cart root. */
+export function resolveDonationLineAmount({
+  summaryDonation,
+  rootDonation,
+  donationEnabled,
+  donationAmount,
+  donationPresetUsed,
+}) {
+  if (!donationEnabled) return 0
+
+  const active = getActiveDonationAmount({
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+  })
+  if (active != null && active > 0) return active
+
+  const sources = [summaryDonation, rootDonation]
+  for (const donation of sources) {
+    if (donation?.enabled && Number(donation?.amount) > 0) {
+      return Number(donation.amount)
+    }
+  }
+  return 0
+}
+
+/** Ensure payable total includes donation when API summary omits the donation field. */
+export function applyDonationToFinalPayable({
+  finalPayable,
+  taxableAmount,
+  subTotal,
+  donationLineAmount,
+  donationIncludedInSummary,
+}) {
+  const base = Number(finalPayable ?? (taxableAmount > 0 ? taxableAmount : subTotal) ?? 0)
+  if (donationLineAmount <= 0 || donationIncludedInSummary) return base
+
+  const preDonationBase = Number(taxableAmount > 0 ? taxableAmount : base)
+  if (Math.abs(base - preDonationBase) < 0.01) {
+    return base + donationLineAmount
+  }
+  return base
+}
+
 /** Amount shown in heading and used for API when donation is on. */
 export function getActiveDonationAmount({
   donationEnabled,
@@ -23,7 +67,15 @@ export function getActiveDonationAmount({
 
 /** Restore UI state from cart API `donation` object or checkout navigation state. */
 export function donationStateFromCart(cartDonation) {
-  if (!cartDonation?.enabled) {
+  if (cartDonation == null) {
+    return {
+      donationEnabled: true,
+      donationAmount: String(DEFAULT_DONATION_AMOUNT),
+      donationPresetUsed: true,
+      donationCustomMode: false,
+    }
+  }
+  if (!cartDonation.enabled) {
     return {
       donationEnabled: false,
       donationAmount: '',

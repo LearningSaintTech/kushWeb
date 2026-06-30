@@ -18,6 +18,8 @@ import {
   donationStateFromCart,
   buildDonationApiParams,
   getActiveDonationAmount,
+  resolveDonationLineAmount,
+  applyDonationToFinalPayable,
 } from '../../utils/donation.js'
 import DonationPicker from '../../shared/components/DonationPicker.jsx'
 import CartItemDescription from '../../shared/components/CartItemDescription.jsx'
@@ -35,6 +37,7 @@ import {
   hasBindOffer,
   resolveCartBindOffers,
 } from '../../utils/bindOffer.js'
+import { adjustSummaryForPaymentModeCharges } from '../../utils/cartCharges.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -778,17 +781,31 @@ function CartPage() {
   const subTotal = isAuthenticated
     ? (cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0)
     : guestSubTotal
-  const finalPayable = isAuthenticated ? (summary.finalPayable ?? subTotal) : guestSubTotal
   const coupon = summary.coupon
   const deliverySummary = summary.delivery
-  const otherChargesTotal = summary.otherChargesTotal ?? 0
-  const chargesList = isAuthenticated && Array.isArray(summary.charges) ? summary.charges : []
-  const taxableAmount = summary.taxableAmount ?? 0
+  const chargeAdjustments = adjustSummaryForPaymentModeCharges(summary, null)
+  const chargesList = isAuthenticated ? chargeAdjustments.visibleCharges : []
+  const taxableAmount = chargeAdjustments.taxableAmount
   const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0
-  const donationLineAmount =
-    summary.donation?.enabled && Number(summary.donation?.amount) > 0
-      ? Number(summary.donation.amount)
-      : 0
+  const donationIncludedInSummary = Boolean(
+    summary.donation?.enabled && Number(summary.donation?.amount) > 0,
+  )
+  const donationLineAmount = resolveDonationLineAmount({
+    summaryDonation: summary.donation,
+    rootDonation: priceSummary?.donation ?? cartData?.donation,
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+  })
+  const finalPayable = isAuthenticated
+    ? applyDonationToFinalPayable({
+        finalPayable: chargeAdjustments.finalPayable ?? subTotal,
+        taxableAmount,
+        subTotal,
+        donationLineAmount,
+        donationIncludedInSummary,
+      })
+    : guestSubTotal
   const activeDonationAmount = getActiveDonationAmount({
     donationEnabled,
     donationAmount,

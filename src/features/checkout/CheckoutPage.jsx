@@ -35,7 +35,10 @@ import {
   buildDonationApiParams,
   buildDonationOrderBody,
   getActiveDonationAmount,
+  resolveDonationLineAmount,
+  applyDonationToFinalPayable,
 } from "../../utils/donation.js";
+import { adjustSummaryForPaymentModeCharges } from "../../utils/cartCharges.js";
 import DonationPicker from "../../shared/components/DonationPicker.jsx";
 import {
   BindOfferBillRows,
@@ -1616,7 +1619,6 @@ function CheckoutPage() {
     priceSummary ??
     {};
   const subTotal = cartData?.summary?.subTotal ?? summary.subTotal ?? 0;
-  const finalPayable = summary.finalPayable ?? subTotal;
   const coupon = summary.coupon;
   const bindOffers = summary.bindOffers ?? null;
   const couponDiscountFromSummary = Number(coupon?.discountAmount ?? 0);
@@ -1647,16 +1649,33 @@ function CheckoutPage() {
   const rewardPointsToEarn = Number(
     summary?.rewardPointsPreview?.pointsToEarn ?? 0,
   );
-  const otherChargesTotal = summary.otherChargesTotal ?? 0;
+  const chargeAdjustments = adjustSummaryForPaymentModeCharges(summary, paymentMode);
+  const chargesList = chargeAdjustments.visibleCharges;
   const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0;
-  const chargesList = Array.isArray(summary.charges) ? summary.charges : [];
-  const taxableAmount = summary.taxableAmount ?? 0;
+  const taxableAmount = chargeAdjustments.taxableAmount;
   const subTotalAfterDiscount =
     summary.subTotalAfterDiscount ?? summary.subTotal ?? 0;
-  const donationLineAmount =
-    summary.donation?.enabled && Number(summary.donation?.amount) > 0
-      ? Number(summary.donation.amount)
-      : 0;
+  const donationIncludedInSummary = Boolean(
+    summary.donation?.enabled && Number(summary.donation?.amount) > 0,
+  );
+  const donationLineAmount = resolveDonationLineAmount({
+    summaryDonation: summary.donation,
+    rootDonation:
+      priceSummary?.cartSummary?.donation ??
+      priceSummary?.donation ??
+      cartData?.donation ??
+      donationFromCartNav,
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+  });
+  const finalPayable = applyDonationToFinalPayable({
+    finalPayable: chargeAdjustments.finalPayable ?? subTotal,
+    taxableAmount,
+    subTotal,
+    donationLineAmount,
+    donationIncludedInSummary,
+  });
   const hasSummaryFromApi = Boolean(
     priceSummary?.cartSummary ?? priceSummary?.summary,
   );
