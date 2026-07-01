@@ -215,8 +215,8 @@ const ReferEarn = () => {
 
           <section className="relative mt-4 overflow-hidden rounded-lg border border-[#9A9A9A] text-black p-4 sm:p-5 md:p-6">
             <ul className="font-inter space-y-2 text-base leading-relaxed text-[#000000]">
-              <li>&middot; To qulaify,your refferal account should place a minimum order of ₹500.00.</li>
-              <li>&middot; Or perform a minimum recharge of ₹500.00.</li>
+              <li>&middot; Khush wallet balance can be used for purchase across all khush products</li>
+              <li>&middot; The entered amount will be deducted from your wallet balance. Any remaining amount can be paid using other payment methods.</li>
             </ul>
           </section>
 
