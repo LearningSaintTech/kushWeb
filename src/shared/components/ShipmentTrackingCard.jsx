@@ -15,6 +15,7 @@ export default function ShipmentTrackingCard({
   compact = false,
   highlighted = false,
   legLabel = null,
+  monochrome = false,
 }) {
   const boxClass = compact
     ? `rounded-lg border px-4 py-3 ${highlighted ? 'border-gray-900 bg-white shadow-sm' : 'border-gray-200 bg-white'}`
@@ -41,8 +42,17 @@ export default function ShipmentTrackingCard({
     );
   }
 
-  const providerLabel = getProviderLabel(tracking.provider) || tracking.courier;
+  const providerKey = String(tracking.provider || '').toUpperCase();
+  const isThirdPartyCarrier = ['SHADOWFAX', 'DELHIVERY', 'SHIPROCKET'].includes(providerKey);
+  const showSelfShippingLabel = tracking.selfShipping && !isThirdPartyCarrier;
+  const providerLabel = isThirdPartyCarrier
+    ? getProviderLabel(tracking.provider)
+    : tracking.courier || getProviderLabel(tracking.provider);
   const trackLabel = getTrackButtonLabel(tracking.provider);
+  const awbLabel =
+    showSelfShippingLabel && !tracking.trackingUrl
+      ? 'Reference'
+      : 'AWB / Tracking ID';
 
   return (
     <div className={boxClass}>
@@ -59,20 +69,26 @@ export default function ShipmentTrackingCard({
           {subtitle ? <p className="text-xs text-gray-600 mt-1">{subtitle}</p> : null}
         </div>
         {tracking.status ? (
-          <span className="shrink-0 rounded-full border border-violet-300 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-900">
+          <span
+            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+              monochrome
+                ? 'border-gray-900 bg-gray-100 text-gray-900'
+                : 'border-violet-300 bg-violet-50 text-violet-900'
+            }`}
+          >
             {tracking.status}
           </span>
         ) : null}
       </div>
 
       <div className={`space-y-2 text-sm text-gray-800 ${subtitle || legLabel ? 'mt-3' : 'mt-2'}`}>
-        {tracking.selfShipping ? (
+        {showSelfShippingLabel ? (
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
             {tracking.selfShippingMode === 'EXTERNAL' ? 'External courier' : 'Khush self-shipping'}
           </p>
         ) : null}
 
-        {providerLabel && !tracking.selfShipping ? (
+        {providerLabel && (isThirdPartyCarrier || !showSelfShippingLabel) ? (
           <p>
             <span className="text-gray-500">Delivery partner</span>
             {' — '}
@@ -82,9 +98,7 @@ export default function ShipmentTrackingCard({
 
         {tracking.trackingNumber ? (
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-gray-500">
-              {tracking.selfShipping && !tracking.trackingUrl ? 'Reference' : 'AWB / Tracking ID'}
-            </span>
+            <span className="text-gray-500">{awbLabel}</span>
             <strong className="font-mono text-sm text-gray-900 break-all">{tracking.trackingNumber}</strong>
           </p>
         ) : null}

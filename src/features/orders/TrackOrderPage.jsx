@@ -19,23 +19,28 @@ import {
   formatCarrierStatus,
   findReturnStepHistory,
   formatReturnCarrierStatus,
+  formatStatusHistoryEntryLabel,
+  buildStatusHistoryTimeline,
   getCurrentReturnStepIndex,
   getExchangeDocStatusLabel,
   getKhushStatusLabel,
+  getProviderLabel,
   getReturnDisplayStatus,
   getReturnDocStatusLabel,
-  getReturnStatusBadgeClass,
   getReturnStepCompletion,
-  getStatusBadgeClass,
+  getTrackButtonLabel,
+  hasThirdPartyCarrierManifest,
+  looksLikeShadowfaxAwb,
   mapCarrierTrackingSnapshot as mapSharedCarrierSnapshot,
+  normalizeApiCarrierTracking,
+  resolveTrackPagePrimaryStatus,
   resolveTrackingUrl as resolveCarrierTrackingUrl,
   RETURN_ITEM_STATUSES,
   RETURN_STEPPER,
+  formatCarrierScanLabel,
 } from "../../utils/orderTracking.js";
 import {
   formatPaymentLine,
-  getPaymentStatus,
-  getPaymentStatusLabel,
   isCodPayment,
   resolvePaymentMode,
 } from "../../utils/paymentMode";
@@ -47,6 +52,15 @@ import {
   BindOfferBillRows,
   BindOfferLineNote,
 } from "../../shared/components/BindOfferCartExtras.jsx";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Download,
+  Star,
+  X,
+} from "lucide-react";
 
 const QUANTITY_LABELS = {
   1: "One",
@@ -97,7 +111,7 @@ const FALLBACK_RETURN_REASONS = [
 ];
 
 
-// Delivery lifecycle from ORDER_STATUS_ENUM (order.model.js) â€” used for progress bar
+// Delivery lifecycle from ORDER_STATUS_ENUM (order.model.js) - used for progress bar
 const DELIVERY_STATUS_ORDER = [
   "CREATED",
   "CONFIRMED",
@@ -273,7 +287,7 @@ function ReplacementOrderPriceMark({ compact = false }) {
     <div
       className={`inline-flex flex-col ${compact ? "gap-0.5" : "gap-1"} mt-2`}
     >
-      <span className="inline-block w-fit rounded border border-blue-500 bg-blue-50 px-2 py-0.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-blue-800">
+      <span className="inline-block w-fit rounded border border-gray-900 bg-gray-100 px-2 py-0.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-gray-900">
         Replacement order
       </span>
       <span className="text-xs text-gray-500 uppercase">No charge</span>
@@ -300,6 +314,7 @@ function resolveTrackingUrl(url, trackingNumber, provider) {
 function isSelfShippingDelivery(data) {
   const item = data?.item || {};
   const shipment = data?.shipment || {};
+  if (hasThirdPartyCarrierManifest(item, shipment)) return false;
   const provider = String(
     item.shippingProvider || shipment.shippingProvider || "",
   ).toUpperCase();
@@ -374,16 +389,18 @@ function mapCarrierTrackingSnapshot(snapshot, data = null) {
   };
 }
 
-/** Prefer API `carrierTracking`, then derive from item/shipment fields. */
+/** Prefer API carrierTracking (webhook-sourced), then derive from item fields. */
 function getShipmentTrackingFromOrderItem(data) {
   const fromApi =
+    normalizeApiCarrierTracking(data?.carrierTracking) ||
+    normalizeApiCarrierTracking(data?.carrierTrackingLegs?.forward) ||
     mapCarrierTrackingSnapshot(data?.carrierTracking, data) ||
     mapCarrierTrackingSnapshot(data?.shipment?.carrierTracking, data);
-  if (fromApi) return fromApi;
+  if (fromApi && !fromApi.selfShipping) return fromApi;
   return getCourierTrackingFromOrderItem(data);
 }
 
-/** Unified shipment tracking for NORMAL delivery (Shiprocket, Delhivery, self shipping, or generic trackingId). */
+/** Unified shipment tracking for NORMAL delivery (Shiprocket, Delhivery, Shadowfax, self shipping). */
 function getCourierTrackingFromOrderItem(data) {
   const item = data?.item || {};
   const shipment = data?.shipment || {};
@@ -395,38 +412,8 @@ function getCourierTrackingFromOrderItem(data) {
   const dl = item.delhivery || shipment.delhivery || {};
   const sr = item.shiprocket || shipment.shiprocket || data?.shiprocket || {};
   const sfx = item.shadowfax || shipment.shadowfax || {};
-
-  if (isSelfShippingDelivery(data)) {
-    const selfShip = getSelfShippingDetails(data);
-    const isExternal = isExternalSelfShipping(data);
-    const trackingNumber =
-      item.trackingId || shipment.trackingId || data?.trackingId || null;
-    const trackingUrl =
-      isExternal && typeof selfShip.trackingUrl === "string"
-        ? selfShip.trackingUrl.trim() || null
-        : null;
-    const courier = isExternal
-      ? displayCourierName(
-          selfShip.carrierName || item.courier || shipment.courier,
-        ) || (selfShip.carrierName ? String(selfShip.carrierName).trim() : null)
-      : null;
-    const hasProgress =
-      trackingNumber ||
-      trackingUrl ||
-      courier ||
-      (itemStatus &&
-        !["CREATED", "CONFIRMED", "CANCELLED"].includes(itemStatus));
-    if (!hasProgress) return null;
-    return {
-      trackingNumber,
-      trackingUrl,
-      status: data?.status || item.status || null,
-      courier,
-      selfShipping: true,
-      selfShippingMode: isExternal ? "EXTERNAL" : "INTERNAL",
-      provider: "SELF_SHIPPING",
-    };
-  }
+  const shadowfaxTrackingId =
+    sfx.awb || item.trackingId || data?.trackingId || shipment.trackingId || null;
 
   if (provider === "DELHIVERY" || dl?.waybill) {
     const trackingNumber =
@@ -455,13 +442,12 @@ function getCourierTrackingFromOrderItem(data) {
     };
   }
 
-  if (provider === "SHADOWFAX" || sfx?.awb) {
-    const trackingNumber =
-      sfx.awb ||
-      item.trackingId ||
-      data?.trackingId ||
-      shipment.trackingId ||
-      null;
+  if (
+    provider === "SHADOWFAX" ||
+    sfx?.awb ||
+    looksLikeShadowfaxAwb(shadowfaxTrackingId)
+  ) {
+    const trackingNumber = shadowfaxTrackingId;
     const trackingUrl = resolveTrackingUrl(
       sfx.trackingUrl,
       trackingNumber,
@@ -476,8 +462,10 @@ function getCourierTrackingFromOrderItem(data) {
     return {
       trackingNumber,
       trackingUrl,
-      status: formatCarrierStatus(sfx.status) || sfx.status || null,
-      courier: displayCourierName(item.courier),
+      status: formatCarrierScanLabel(
+        formatCarrierStatus(sfx.status) || sfx.status || null,
+      ),
+      courier: displayCourierName(item.courier) || "Shadowfax",
       provider: "SHADOWFAX",
     };
   }
@@ -513,6 +501,40 @@ function getCourierTrackingFromOrderItem(data) {
       status: formatCarrierStatus(sr.status) || sr.status || null,
       courier: displayCourierName(item.courier),
       provider: "SHIPROCKET",
+    };
+  }
+
+  if (isSelfShippingDelivery(data)) {
+    const selfShip = getSelfShippingDetails(data);
+    const isExternal = isExternalSelfShipping(data);
+    const trackingNumber =
+      item.trackingId || shipment.trackingId || data?.trackingId || null;
+    const trackingUrl =
+      isExternal && typeof selfShip.trackingUrl === "string"
+        ? selfShip.trackingUrl.trim() || null
+        : null;
+    const courier = isExternal
+      ? displayCourierName(
+          selfShip.carrierName || item.courier || shipment.courier,
+        ) || (selfShip.carrierName ? String(selfShip.carrierName).trim() : null)
+      : null;
+    const hasProgress =
+      trackingNumber ||
+      trackingUrl ||
+      courier ||
+      (itemStatus &&
+        !["CREATED", "CONFIRMED", "CANCELLED"].includes(itemStatus));
+    if (!hasProgress) return null;
+    return {
+      trackingNumber,
+      trackingUrl,
+      status: formatCarrierScanLabel(
+        getKhushStatusLabel(data?.status || item.status),
+      ),
+      courier,
+      selfShipping: true,
+      selfShippingMode: isExternal ? "EXTERNAL" : "INTERNAL",
+      provider: "SELF_SHIPPING",
     };
   }
 
@@ -727,7 +749,7 @@ function getStepStatus(statusHistory, currentStatus, step) {
   };
 }
 
-/** Current step index (0â€“5) for progress bar; maps ORDER_STATUS_ENUM to stepper step */
+/** Current step index (0-5) for progress bar; maps ORDER_STATUS_ENUM to stepper step */
 function getCurrentStepIndex(currentStatus) {
   const statusUpper = (currentStatus || "").toUpperCase();
   for (let i = STEPPER.length - 1; i >= 0; i--) {
@@ -764,6 +786,84 @@ function getCurrentExchangeStepIndex(currentStatus) {
   return 0;
 }
 
+function isSameStatusLabel(left, right) {
+  if (!left || !right) return false;
+  return String(left).trim().toLowerCase() === String(right).trim().toLowerCase();
+}
+
+function OrderItemStatusHistory({
+  history,
+  carrierTracking,
+  itemStatus,
+  carrierUpdatedAt,
+}) {
+  const historyContext = {
+    status: itemStatus,
+    itemStatus,
+    carrierTracking: carrierTracking
+      ? {
+          ...carrierTracking,
+          updatedAt: carrierUpdatedAt,
+        }
+      : null,
+  };
+  const entries = buildStatusHistoryTimeline(history, historyContext);
+  if (!entries.length) return null;
+
+  let lastShownAwb = null;
+
+  return (
+    <div className="mb-6 rounded-lg border border-gray-200 bg-white px-4 py-4 sm:px-5">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-900 mb-4">
+        Status updates
+      </p>
+      <ol className="m-0 list-none space-y-0">
+        {entries.map(({ entry, label, notes, trackingId, idx }, listIdx) => {
+          const showNotes =
+            notes &&
+            !/webhook:/i.test(notes) &&
+            !/shadowfax order manifested/i.test(notes) &&
+            !/^payment confirmed/i.test(notes) &&
+            label.toLowerCase() !== notes.toLowerCase();
+          const when = entry.createdAt
+            ? formatOrderDateTime(entry.createdAt)
+            : "";
+          const isLast = listIdx === entries.length - 1;
+          const showAwb = Boolean(trackingId && trackingId !== lastShownAwb);
+          if (showAwb) lastShownAwb = trackingId;
+          return (
+            <li key={`${entry.createdAt}-${entry.status}-${idx}`} className="flex gap-3">
+              <div className="flex w-5 flex-col items-center self-stretch pt-0.5">
+                <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-gray-900" />
+                {!isLast ? (
+                  <div className="my-1 w-px flex-1 min-h-4 bg-gray-200" />
+                ) : null}
+              </div>
+              <div className={`min-w-0 flex-1 ${isLast ? "pb-0" : "pb-4"}`}>
+                <p className="text-sm font-semibold text-gray-900">{label}</p>
+                {when ? (
+                  <p className="text-[11px] text-gray-500 mt-0.5">{when}</p>
+                ) : null}
+                {showAwb ? (
+                  <p className="text-xs text-gray-600 mt-1 font-mono">
+                    AWB / Ref: {trackingId}
+                    {entry.courier ? ` · ${entry.courier}` : ""}
+                  </p>
+                ) : entry.courier && !showAwb ? (
+                  <p className="text-xs text-gray-600 mt-1">{entry.courier}</p>
+                ) : null}
+                {showNotes ? (
+                  <p className="text-xs text-gray-600 mt-1">{notes}</p>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function OrderStatusStepper({
   steps,
   currentStepIndex,
@@ -781,15 +881,13 @@ function OrderStatusStepper({
         reached ? "bg-black border-black" : "bg-gray-300 border-gray-400"
       }`}
     >
-      {reached && (
-        <span className="text-white text-[10px] font-bold leading-none">âœ“</span>
-      )}
+      {reached && <Check className="h-3 w-3 text-white" strokeWidth={3} aria-hidden />}
     </div>
   );
 
   return (
     <>
-      {/* Phone: vertical timeline â€” readable at 320px without overlapping labels */}
+      {/* Phone: vertical timeline - readable at 320px without overlapping labels */}
       <div className="mb-8 md:hidden">
         <ol className="m-0 list-none p-0">
           {steps.map((step, idx) => {
@@ -1555,7 +1653,7 @@ export default function TrackOrderPage() {
     return (
       <div className="min-h-screen bg-gray-100 pt-24 pb-12">
         <div className="container mx-auto px-4 py-16 text-center">
-          <p className="text-gray-600">Loading order detailsâ€¦</p>
+          <p className="text-gray-600">Loading order details...</p>
         </div>
       </div>
     );
@@ -1578,8 +1676,8 @@ export default function TrackOrderPage() {
   }
 
   const item = data.item || {};
-  const brand = item.brandName || item.brand || "â€”";
-  const name = item.name || item.shortDescription || "â€”";
+  const brand = item.brandName || item.brand || "-";
+  const name = item.name || item.shortDescription || "-";
   const imageUrl = item.variant?.imageUrl ?? "";
   const baseTrackingId = data.shipment?.trackingId || data.trackingId || null;
   const deliveryType =
@@ -1628,26 +1726,7 @@ export default function TrackOrderPage() {
       : null
     : normalCourierTracking;
 
-  const shipmentTrackingSubtitle = inExchangeFlow
-    ? shipmentTracking?.trackingUrl
-      ? "Track your exchange shipment using the link below."
-      : "Exchange shipment updates appear in the status timeline below."
-    : isExternalSelfShippingOrder
-      ? shipmentTracking?.trackingUrl
-        ? "Your order was shipped via an external courier. Use the tracking details below."
-        : shipmentTracking?.trackingNumber
-          ? "Your external courier tracking details are below."
-          : "Courier details will appear here once the shipment is booked."
-      : isSelfShippedOrder
-        ? shipmentTracking?.trackingNumber
-          ? "Use your reference below for delivery updates from our team."
-          : "Order updates appear in the status timeline below."
-      : isNormalDelivery
-        ? shipmentTracking?.trackingUrl
-          ? "Your package is shipped with our delivery partner. Use the link below for live updates."
-          : "Shipment updates appear in the status timeline below."
-        : undefined;
-  const orderNo = data.orderId || "â€”";
+  const orderNo = data.orderId || "—";
   const statusHistory = data.statusHistory || [];
   const otherItems = data.otherItemsInOrder || [];
   const currentItemIdStr = (data.itemId ?? itemId)?.toString();
@@ -1727,31 +1806,12 @@ export default function TrackOrderPage() {
     EXCHANGE_STATUSES.includes(currentStatus) &&
     currentStatus !== "EXCHANGE_REJECTED";
 
-  debugLog("[TrackOrder][TrackingDebug]", {
-    orderId,
-    itemId,
-    currentStatus,
-    inExchangeFlow,
-    deliveryType,
-    primaryExchangeLeg,
-    baseTrackingId,
-    activeTrackingId: displayTrackingId,
-    activeTrackingUrl: shipmentTracking?.trackingUrl || null,
-    normalCourierTracking,
-    isSelfShippedOrder,
-    latestExchangeSource: data?.exchange?.latestExchange
-      ? "latestExchange"
-      : "exchanges[]",
-    latestExchangeStatus: latestExchange?.status || null,
-    exchangeTracking,
-  });
-
   // Delivery boy from API (returned for SHIPPED / OUT_FOR_DELIVERY or exchange pickup/delivery when driver assigned)
   const deliveryBoyName =
     data.deliveryBoy?.name ?? data.shipment?.deliveryAgentName ?? null;
   const deliveryBoyPhone =
     data.deliveryBoy?.phoneNumber ?? data.shipment?.deliveryAgentPhone ?? null;
-  // Delivery partner visible only: (1) between Out for delivery â†’ Delivered, (2) between Exchange out for pickup â†’ Exchange picked, (3) between Exchange out for delivery â†’ Exchange delivered
+  // Delivery partner visible only: (1) between Out for delivery -> Delivered, (2) between Exchange out for pickup -> Exchange picked, (3) between Exchange out for delivery -> Exchange delivered
   const deliveryStatusesShowDriver = [
     "OUT_FOR_DELIVERY",
     "EXCHANGE_OUT_FOR_PICKUP",
@@ -1800,8 +1860,15 @@ export default function TrackOrderPage() {
       : null);
 
   const forwardLegTracking =
-    mapCarrierTrackingSnapshot(data?.carrierTrackingLegs?.forward) ||
+    normalizeApiCarrierTracking(data?.carrierTrackingLegs?.forward) ||
+    normalizeApiCarrierTracking(data?.carrierTracking) ||
     normalCourierTracking;
+
+  const trackingForHistory = forwardLegTracking || normalCourierTracking;
+
+  const thirdPartyProvider = String(
+    normalCourierTracking?.provider || "",
+  ).toUpperCase();
 
   const statusPrimaryLabel = showReturnStepper
     ? getReturnDisplayStatus({
@@ -1810,7 +1877,10 @@ export default function TrackOrderPage() {
         carrierRawStatus: returnCarrierRaw,
         returnPickupStatus: activeReturn?.returnPickup?.status,
       })
-    : getKhushStatusLabel(currentStatus);
+    : resolveTrackPagePrimaryStatus(
+        currentStatus,
+        trackingForHistory || normalCourierTracking,
+      );
   let statusSecondaryLabel = null;
   if (inExchangeFlow && latestExchange?.status) {
     const docLabel = getExchangeDocStatusLabel(latestExchange.status);
@@ -1828,9 +1898,24 @@ export default function TrackOrderPage() {
       statusSecondaryLabel = docLabel;
     }
   }
-  if (!statusSecondaryLabel && shipmentTracking?.status) {
-    statusSecondaryLabel = `Courier update: ${shipmentTracking.status}`;
-  }
+
+  const forwardShipmentTracking =
+    forwardLegTracking && !inExchangeFlow && isNormalDelivery
+      ? {
+          ...forwardLegTracking,
+          status: isSameStatusLabel(
+            forwardLegTracking.status,
+            statusPrimaryLabel,
+          )
+            ? null
+            : forwardLegTracking.status,
+        }
+      : null;
+
+  const useDetailHistory = statusHistory.length > 0;
+  const showSummaryTracking =
+    !inExchangeFlow && !forwardLegTracking && Boolean(displayTrackingId);
+  const statusBadgeClass = "border-gray-900 bg-gray-900 text-white";
 
   return (
     <div className="min-h-screen bg-gray-100 pt-26 pb-12">
@@ -1840,21 +1925,18 @@ export default function TrackOrderPage() {
           <h1 className="text-2xl md:text-3xl font-bold text-black uppercase">
             HI {String(userName).toUpperCase()},
           </h1>
-          <p className="text-gray-700 mt-1">
-            Here The Latest Update On Your Order!
+          <p className="text-gray-600 mt-1 text-sm">
+            Order #{orderNo}
           </p>
         </div>
 
         {(orderType === "EXCHANGE" && exchangeMeta?.originalOrderId) ||
         (inExchangeFlow && replacementOrderId) ? (
-          <div className="bg-white rounded-lg shadow-sm border border-blue-200 p-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
             {orderType === "EXCHANGE" && exchangeMeta?.originalOrderId ? (
               <>
-                <p className="text-sm font-semibold uppercase text-blue-900">
+                <p className="text-sm font-semibold uppercase text-black">
                   Replacement order
-                </p>
-                <p className="text-xs text-gray-600 mt-1">
-                  This is your replacement item from an exchange â€” no separate payment applies.
                 </p>
                 {exchangeMeta.originalItemId ? (
                   <Link
@@ -1862,7 +1944,7 @@ export default function TrackOrderPage() {
                       exchangeMeta.originalOrderId,
                       exchangeMeta.originalItemId,
                     )}
-                    className="inline-block mt-3 text-xs font-semibold uppercase text-black hover:underline"
+                    className="inline-block mt-2 text-xs font-semibold uppercase text-black hover:underline"
                   >
                     View original order
                   </Link>
@@ -1875,16 +1957,13 @@ export default function TrackOrderPage() {
             ) : null}
             {inExchangeFlow && replacementOrderId ? (
               <>
-                <p className="text-sm font-semibold uppercase text-blue-900">
-                  Replacement order
-                </p>
-                <p className="text-xs text-gray-600 mt-1">
-                  Order #{replacementOrderId} â€” track replacement delivery here once it ships.
+                <p className="text-sm font-semibold uppercase text-black">
+                  Replacement order #{replacementOrderId}
                 </p>
                 {replacementItemId ? (
                   <Link
                     to={getOrderTrackPath(replacementOrderId, replacementItemId)}
-                    className="inline-block mt-3 text-xs font-semibold uppercase text-black hover:underline"
+                    className="inline-block mt-2 text-xs font-semibold uppercase text-black hover:underline"
                   >
                     Track replacement delivery
                   </Link>
@@ -1914,7 +1993,7 @@ export default function TrackOrderPage() {
               {/* <p className="font-bold text-black uppercase">{brand}</p> */}
               <p className="text-gray-800 mt-1 normal-case">{name}</p>
               {getOfferBadgeText(item?.bindOffer) ? (
-                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-violet-700">
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-gray-800">
                   {getOfferBadgeText(item.bindOffer)}
                 </p>
               ) : null}
@@ -1923,60 +2002,42 @@ export default function TrackOrderPage() {
                 className="normal-case tracking-normal"
               />
               {isExchangeReplacement ? <ReplacementOrderPriceMark compact /> : null}
-              {isExternalSelfShippingOrder && normalCourierTracking?.courier ? (
+              {showSummaryTracking && thirdPartyProvider &&
+              ["SHIPROCKET", "DELHIVERY", "SHADOWFAX"].includes(thirdPartyProvider) ? (
+                <p className="text-gray-600 text-sm mt-2">
+                  Courier : <strong>{getProviderLabel(thirdPartyProvider)}</strong>
+                </p>
+              ) : showSummaryTracking && isExternalSelfShippingOrder && normalCourierTracking?.courier ? (
                 <p className="text-gray-600 text-sm mt-2">
                   Courier : <strong>{normalCourierTracking.courier}</strong>
                 </p>
               ) : null}
-              {displayTrackingId &&
-                (!isSelfShippedOrder ||
-                  isExternalSelfShippingOrder ||
-                  normalCourierTracking?.trackingNumber) && (
+              {showSummaryTracking && displayTrackingId && (
                 <p className="text-gray-600 text-sm mt-2">
-                  {isExternalSelfShippingOrder
-                    ? "Tracking ID / AWB"
-                    : isSelfShippedOrder
-                      ? "Reference"
-                      : "AWB / Tracking ID"}{" "}
-                  : <strong className="font-mono">{displayTrackingId}</strong>
+                  AWB / Tracking ID :{" "}
+                  <strong className="font-mono">{displayTrackingId}</strong>
                 </p>
               )}
-              {normalCourierTracking?.trackingUrl ? (
+              {showSummaryTracking && normalCourierTracking?.trackingUrl ? (
                 <div className="mt-3">
                   <SafeExternalLink
                     href={normalCourierTracking.trackingUrl}
                     className="inline-flex items-center justify-center rounded-sm bg-black px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-gray-800 transition-colors"
                   >
-                    {normalCourierTracking.provider === "SHADOWFAX"
-                      ? "Track on Shadowfax"
-                      : normalCourierTracking.provider === "DELHIVERY"
-                        ? "Track on Delhivery"
-                        : normalCourierTracking.provider === "SHIPROCKET"
-                          ? "Track on Shiprocket"
-                          : "Track shipment"}
+                    {getTrackButtonLabel(normalCourierTracking.provider)}
                   </SafeExternalLink>
                 </div>
               ) : null}
-              <p className="text-gray-600 text-sm mt-0.5">
-                Order No : <strong>{orderNo}</strong>
-              </p>
               {data?.orderCreatedAt && (
-                <p className="text-gray-600 text-sm mt-0.5">
-                  Order placed :{" "}
+                <p className="text-gray-600 text-sm mt-2">
+                  Placed :{" "}
                   <strong>{formatOrderDateTime(data.orderCreatedAt)}</strong>
                 </p>
               )}
               {!isExchangeReplacement ? (
-                <>
-                  <p className="text-gray-600 text-sm mt-0.5">
-                    Payment : <strong>{formatPaymentLine(data)}</strong>
-                  </p>
-                  {getPaymentStatus(data) && getPaymentStatus(data) !== "SUCCESS" && (
-                    <p className="text-gray-500 text-xs mt-0.5">
-                      Payment status: {getPaymentStatusLabel(data)}
-                    </p>
-                  )}
-                </>
+                <p className="text-gray-600 text-sm mt-0.5">
+                  Payment : <strong>{formatPaymentLine(data)}</strong>
+                </p>
               ) : null}
               <div className="mt-4">
                 <button
@@ -2020,21 +2081,6 @@ export default function TrackOrderPage() {
                   Chat with us
                 </button>
               </div>
-              {/* {data?.item?.paymentStatus && (
-                <p className="text-gray-600 text-sm mt-1">
-                  Payment status :{" "}
-                  <strong className="capitalize">
-                    {data.item.paymentStatus.toLowerCase()}
-                  </strong>
-                  {data.item.paymentStatus === "COLLECTED" &&
-                    data.item.paymentCollectedMethod && (
-                      <span className="text-gray-500">
-                        {" "}
-                        ({data.item.paymentCollectedMethod})
-                      </span>
-                    )}
-                </p>
-              )} */}
             </div>
           </div>
         </div>
@@ -2051,15 +2097,13 @@ export default function TrackOrderPage() {
                 <h2 className="font-bold text-black uppercase text-sm">
                   Invoice
                 </h2>
-                <span
-                  className={`inline-block transition-transform duration-200 ${invoiceAccordionOpen ? "rotate-180" : ""}`}
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 transition-transform duration-200 ${invoiceAccordionOpen ? "rotate-180" : ""}`}
                   aria-hidden
-                >
-                  â–¼
-                </span>
+                />
               </div>
               <span className="text-sm font-semibold">
-                â‚¹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
+                      Rs. {(Number(data.item.finalPayable) ?? 0).toFixed(2)}
               </span>
             </button>
             {invoiceAccordionOpen && (
@@ -2078,10 +2122,13 @@ export default function TrackOrderPage() {
                     {invoiceDownloading ? (
                       <>
                         <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Downloadingâ€¦
+                        Downloading...
                       </>
                     ) : (
-                      <>â†“ Download invoice </>
+                      <>
+                        <Download className="h-4 w-4 shrink-0" aria-hidden />
+                        Download invoice
+                      </>
                     )}
                   </button>
                 </div>
@@ -2097,7 +2144,7 @@ export default function TrackOrderPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
                     <span>
-                      â‚¹
+                      Rs.{" "}
                       {(
                         Number(data.item.itemSubtotal) ??
                         (Number(data.item.unitPrice) || 0) *
@@ -2108,7 +2155,7 @@ export default function TrackOrderPage() {
                   <BindOfferBillRows
                     bindOffers={data?.pricing?.bindOffers}
                     formatRsFn={(amount) =>
-                      `- â‚¹${Number(amount).toFixed(2)}`
+                      `- Rs.${Number(amount).toFixed(2)}`
                     }
                   />
                   {data.item.delivery?.charge != null &&
@@ -2118,7 +2165,7 @@ export default function TrackOrderPage() {
                           Delivery ({data.item.delivery?.type || "Delivery"})
                         </span>
                         <span>
-                          â‚¹{Number(data.item.delivery.charge).toFixed(2)}
+                          Rs.{" "}{Number(data.item.delivery.charge).toFixed(2)}
                         </span>
                       </div>
                     )}
@@ -2129,7 +2176,7 @@ export default function TrackOrderPage() {
                         <span className="text-gray-600">
                           {ch.key || ch.description || "Charge"}
                         </span>
-                        <span>â‚¹{(Number(ch.amount) || 0).toFixed(2)}</span>
+                        <span>Rs.{(Number(ch.amount) || 0).toFixed(2)}</span>
                       </div>
                     ))}
                   {data.item.gst?.amount != null &&
@@ -2141,12 +2188,12 @@ export default function TrackOrderPage() {
                             ? `(${data.item.gst.percent}%)`
                             : ""}
                         </span>
-                        <span>â‚¹{Number(data.item.gst.amount).toFixed(2)}</span>
+                        <span>Rs.{Number(data.item.gst.amount).toFixed(2)}</span>
                       </div>
                     )}
                   {data.item.couponDiscount?.discountAmount != null &&
                     Number(data.item.couponDiscount.discountAmount) !== 0 && (
-                      <div className="flex justify-between text-sm text-green-700">
+                      <div className="flex justify-between text-sm text-gray-800">
                         <span>
                           Coupon{" "}
                           {data.item.couponDiscount?.code
@@ -2154,7 +2201,7 @@ export default function TrackOrderPage() {
                             : ""}
                         </span>
                         <span>
-                          - â‚¹
+                          - Rs.{" "}
                           {Number(
                             data.item.couponDiscount.discountAmount,
                           ).toFixed(2)}
@@ -2164,7 +2211,7 @@ export default function TrackOrderPage() {
                   <div className="flex justify-between text-sm font-semibold pt-2 border-t border-gray-200">
                     <span>Total</span>
                     <span>
-                      â‚¹{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
+                      Rs.{" "}{(Number(data.item.finalPayable) ?? 0).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -2175,90 +2222,52 @@ export default function TrackOrderPage() {
 
         {/* Order status card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="font-bold text-black uppercase text-sm mb-1">
-            ORDER STATUS
+          <h2 className="font-bold text-black uppercase text-sm mb-4">
+            Order status
           </h2>
-          <p className="text-gray-600 text-sm mb-4">ORDER #{orderNo}</p>
 
-          <OrderStatusBanner
-            primaryLabel={statusPrimaryLabel}
-            secondaryLabel={statusSecondaryLabel}
-            badgeClass={
-              showReturnStepper
-                ? getReturnStatusBadgeClass(currentStatus)
-                : getStatusBadgeClass(currentStatus)
-            }
-          />
+          {statusPrimaryLabel ? (
+            <OrderStatusBanner
+              primaryLabel={statusPrimaryLabel}
+              secondaryLabel={statusSecondaryLabel}
+              badgeClass={statusBadgeClass}
+            />
+          ) : null}
 
-          {/* Forward delivery tracking (standard orders) */}
-          {!inExchangeFlow && isNormalDelivery && forwardLegTracking && (
+          {!inExchangeFlow && isNormalDelivery && forwardShipmentTracking ? (
             <ShipmentTrackingCard
-              tracking={forwardLegTracking}
-              legLabel="Forward delivery"
-              title="Your shipment"
-              subtitle={shipmentTrackingSubtitle}
+              monochrome
+              tracking={forwardShipmentTracking}
+              title="Shipment"
               highlighted
-              emptyMessage="Tracking will appear here once your order is shipped."
             />
-          )}
+          ) : null}
 
-          {!inExchangeFlow && isNormalDelivery && !forwardLegTracking && (
-            <ShipmentTrackingCard
-              tracking={null}
-              legLabel="Forward delivery"
-              title="Your shipment"
-              subtitle={shipmentTrackingSubtitle}
-              emptyMessage={
-                isExternalSelfShippingOrder
-                  ? "External courier tracking will appear here once your shipment is booked."
-                  : isSelfShippedOrder
-                    ? "Shipment details will appear here once your order is on the way."
-                    : "Tracking will appear here once your order is shipped with our delivery partner."
-              }
-            />
-          )}
-
-          {/* Status: Cancelled */}
           {currentStatus === "CANCELLED" && (
-            <div className="py-4 mb-6 rounded border border-red-200 bg-red-50">
-              <p className="text-red-700 font-semibold uppercase text-sm">
-                Order item cancelled
-              </p>
-              <p className="text-gray-600 text-sm mt-1">
-                This item has been cancelled.
+            <div className="py-4 mb-6 rounded border border-gray-300 bg-gray-50 px-4">
+              <p className="text-gray-900 font-semibold uppercase text-sm">
+                Order cancelled
               </p>
             </div>
           )}
 
-          {/* Return request status */}
           {(returnInProgress || activeReturn) && currentStatus !== "CANCELLED" && (
-            <div className="py-4 mb-6 rounded-lg border border-orange-200 bg-orange-50 px-4">
-              <p className="text-orange-900 font-semibold uppercase text-sm">
-                Return progress
-              </p>
-              <p className="text-gray-800 text-sm mt-1 font-medium">
-                {statusPrimaryLabel}
-              </p>
-              {statusSecondaryLabel ? (
-                <p className="text-orange-800 text-xs mt-1">{statusSecondaryLabel}</p>
-              ) : null}
+            <div className="py-4 mb-6 rounded-lg border border-gray-200 bg-gray-50 px-4">
               {reverseLegTracking ? (
-                <div className="mt-3">
-                  <ShipmentTrackingCard
-                    compact
-                    highlighted
-                    legLabel="Return pickup"
-                    tracking={reverseLegTracking}
-                    title="Return pickup from your address"
-                    emptyMessage="Return pickup tracking is not available yet."
-                  />
-                </div>
+                <ShipmentTrackingCard
+                  monochrome
+                  compact
+                  highlighted
+                  legLabel="Return pickup"
+                  tracking={reverseLegTracking}
+                  title="Return pickup"
+                />
               ) : returnPickupTracking?.trackingUrl ? (
-                <p className="text-sm mt-2">
-                  Return pickup:{' '}
+                <p className="text-sm">
+                  Return AWB:{" "}
                   <SafeExternalLink
                     href={returnPickupTracking.trackingUrl}
-                    className="font-mono text-orange-800 underline"
+                    className="font-mono text-black underline"
                   >
                     {returnPickupTracking.trackingNumber}
                   </SafeExternalLink>
@@ -2266,76 +2275,52 @@ export default function TrackOrderPage() {
               ) : null}
               {(activeReturn?.adminRemark || "").trim() ? (
                 <p className="text-sm text-gray-600 mt-2">
-                  Note: {activeReturn.adminRemark.trim()}
+                  {activeReturn.adminRemark.trim()}
                 </p>
               ) : null}
             </div>
           )}
 
-          {/* Status: Exchange rejected â€“ show admin rejection note when provided */}
           {currentStatus === "EXCHANGE_REJECTED" && (
-            <div className="py-4 mb-6 rounded border border-amber-200 bg-amber-50 px-4">
-              <p className="text-amber-800 font-semibold uppercase text-sm">
-                Exchange request rejected
+            <div className="py-4 mb-6 rounded border border-gray-300 bg-gray-50 px-4">
+              <p className="text-gray-900 font-semibold uppercase text-sm">
+                Exchange rejected
               </p>
-              <p className="text-gray-700 text-sm mt-1">
-                Your exchange request was rejected.
-              </p>
-              {(latestExchange?.adminRemark || "").trim() && (
-                <div className="mt-3 pt-3 border-t border-amber-200">
-                  <p className="text-xs font-semibold uppercase text-amber-900 mb-1">
-                    Reason from store
-                  </p>
-                  <p className="text-sm text-gray-800">
-                    {latestExchange.adminRemark.trim()}
-                  </p>
-                </div>
-              )}
+              {(latestExchange?.adminRemark || "").trim() ? (
+                <p className="text-sm text-gray-700 mt-2">
+                  {latestExchange.adminRemark.trim()}
+                </p>
+              ) : null}
             </div>
           )}
 
-          {/* Exchange tracking (pickup/return + replacement forward). */}
           {inExchangeFlow && exchangeTracking && (
-            <div className="py-4 mb-6 rounded-lg border border-blue-200 bg-blue-50/40 px-4">
-              <p className="text-gray-900 font-semibold uppercase text-sm">
-                Exchange shipments
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Track your return pickup and replacement delivery separately â€” each has its own AWB.
-              </p>
-
-              <div className="mt-3 space-y-3">
+            <div className="py-4 mb-6 rounded-lg border border-gray-200 bg-gray-50 px-4">
+              <div className="space-y-3">
                 {exchangeTracking.returnOrder && (
                   <ShipmentTrackingCard
+                    monochrome
                     compact
                     highlighted={primaryExchangeLeg === "return"}
-                    legLabel="Step 1 Â· Return pickup"
+                    legLabel="Return pickup"
                     tracking={exchangeTracking.returnOrder}
-                    title="Pick up old item from you"
-                    emptyMessage="Return pickup tracking is not available yet."
+                    title="Return pickup"
                   />
                 )}
 
                 {exchangeTracking.forwardOrder ? (
                   <ShipmentTrackingCard
+                    monochrome
                     compact
                     highlighted={primaryExchangeLeg === "forward"}
-                    legLabel="Step 2 Â· Replacement delivery"
+                    legLabel="Replacement"
                     tracking={exchangeTracking.forwardOrder}
-                    title="Deliver replacement item"
-                    emptyMessage="Replacement tracking is not available yet."
+                    title="Replacement delivery"
                   />
                 ) : exchangeTracking.replacementOrder?.orderId ? (
                   <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-                    <span className="inline-block rounded-full bg-gray-900 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                      Step 2 Â· Replacement delivery
-                    </span>
-                    <p className="text-[11px] font-bold tracking-wider text-gray-900 uppercase mt-2">
-                      Replacement order
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs font-bold uppercase text-gray-900">
                       Replacement order #{exchangeTracking.replacementOrder.orderId}
-                      â€” track on that order once it ships.
                     </p>
                     {exchangeTracking.replacementOrder.itemId ? (
                       <Link
@@ -2345,7 +2330,7 @@ export default function TrackOrderPage() {
                         )}
                         className="inline-flex mt-3 items-center justify-center rounded-sm bg-black px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-gray-800 transition-colors"
                       >
-                        Track replacement order
+                        Track replacement
                       </Link>
                     ) : null}
                   </div>
@@ -2354,9 +2339,9 @@ export default function TrackOrderPage() {
             </div>
           )}
 
-          {showReturnStepper && (
-            <div className="mb-6 rounded-lg border border-orange-200 bg-orange-50/50 px-3 py-4 sm:px-4">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-orange-900 mb-3">
+          {showReturnStepper && !useDetailHistory && (
+            <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 px-3 py-4 sm:px-4">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-900 mb-3">
                 Return timeline
               </p>
               <OrderStatusStepper
@@ -2369,7 +2354,7 @@ export default function TrackOrderPage() {
             </div>
           )}
 
-          {showExchangeStepper && (
+          {showExchangeStepper && !useDetailHistory && (
             <OrderStatusStepper
               steps={EXCHANGE_STEPPER}
               currentStepIndex={getCurrentExchangeStepIndex(currentStatus)}
@@ -2379,7 +2364,7 @@ export default function TrackOrderPage() {
             />
           )}
 
-          {showDeliveryStepper && (
+          {showDeliveryStepper && !useDetailHistory && (
             <OrderStatusStepper
               steps={STEPPER}
               currentStepIndex={getCurrentStepIndex(currentStatus)}
@@ -2388,6 +2373,17 @@ export default function TrackOrderPage() {
               resolveStepStatus={getStepStatus}
             />
           )}
+
+          {useDetailHistory ? (
+            <OrderItemStatusHistory
+              history={statusHistory}
+              carrierTracking={trackingForHistory}
+              itemStatus={currentStatus}
+              carrierUpdatedAt={
+                data?.orderUpdatedAt || data?.item?.shadowfax?.manifestedAt
+              }
+            />
+          ) : null}
 
           {/* Contact delivery partner (delivery or exchange pickup/delivery when driver assigned) + Cancel + Exchange */}
           <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-gray-200">
@@ -2417,7 +2413,7 @@ export default function TrackOrderPage() {
                       {deliveryBoyName || "Delivery partner"}
                     </p>
                     <p className="text-gray-600 text-sm">
-                      {deliveryBoyPhone || "â€”"}
+                      {deliveryBoyPhone || "-"}
                     </p>
                   </div>
                 </div>
@@ -2457,14 +2453,14 @@ export default function TrackOrderPage() {
           </div>
         </div>
 
-        {/* Your review â€“ show after delivery */}
+        {/* Your review - show after delivery */}
         {currentStatus === "DELIVERED" && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h2 className="font-bold text-black uppercase text-sm mb-3">
               Your review
             </h2>
             {reviewLoading ? (
-              <p className="text-sm text-gray-500">Loading your reviewâ€¦</p>
+              <p className="text-sm text-gray-500">Loading your review...</p>
             ) : review ? (
               <>
                 <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -2478,9 +2474,12 @@ export default function TrackOrderPage() {
                       return (
                         <span
                           key={star}
-                          className={`text-lg leading-none ${filled ? "text-black" : "text-gray-200"}`}
+                          className={`inline-flex ${filled ? "text-black" : "text-gray-200"}`}
                         >
-                          â˜…
+                          <Star
+                            className={`h-5 w-5 ${filled ? "fill-current" : ""}`}
+                            aria-hidden
+                          />
                         </span>
                       );
                     })}
@@ -2573,7 +2572,7 @@ export default function TrackOrderPage() {
           </div>
         )}
 
-        {/* Booked items card â€“ only when there are other items in the order */}
+        {/* Booked items card - only when there are other items in the order */}
         {showBookedItemsSection && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="font-bold text-black uppercase text-sm mb-4">
@@ -2583,7 +2582,7 @@ export default function TrackOrderPage() {
               {otherBookedItemsForList.map((entry, idx) => {
                 const it = entry.item || {};
                 const img = it.variant?.imageUrl ?? "";
-                const n = it.name || it.shortDescription || "â€”";
+                const n = it.name || it.shortDescription || "-";
                 const trackPath = getOrderTrackPath(orderId, entry.itemId);
                 return (
                   <li key={entry.itemId?.toString() || idx}>
@@ -2607,7 +2606,9 @@ export default function TrackOrderPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-gray-700 text-sm normal-case">{n}</p>
                       </div>
-                      <span className="text-gray-400 shrink-0">â†’</span>
+                      <span className="text-gray-400 shrink-0" aria-hidden>
+                        <ArrowRight className="h-4 w-4" />
+                      </span>
                     </Link>
                   </li>
                 );
@@ -2621,7 +2622,8 @@ export default function TrackOrderPage() {
             to={ROUTES.ORDERS}
             className="text-sm font-medium uppercase text-gray-700 hover:text-black hover:underline"
           >
-            â† Back to orders
+            <ArrowLeft className="inline h-4 w-4 mr-1 align-text-bottom" aria-hidden />
+            Back to orders
           </Link>
         </div>
 
@@ -2645,7 +2647,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeCancelModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="p-4">
@@ -2855,7 +2857,7 @@ export default function TrackOrderPage() {
                       disabled={cancelSubmitting || !policyAccepted}
                       className="w-full bg-black text-white py-3.5 text-sm font-bold tracking-wider uppercase hover:bg-gray-800 active:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-sm"
                     >
-                      {cancelSubmitting ? "Cancellingâ€¦" : "Continue"}
+                      {cancelSubmitting ? "Cancelling..." : "Continue"}
                     </button>
                   </div>
                 </>
@@ -2869,12 +2871,14 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeCancelModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="px-4 pb-6 pt-0 text-center">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 text-green-600 mb-4 relative">
-                      <span className="text-2xl">âœ“</span>
+                      <span className="text-2xl text-black" aria-hidden>
+                        <Check className="h-8 w-8" strokeWidth={2.5} />
+                      </span>
                     </div>
                     <h3 className="font-bold text-black uppercase text-lg mb-2">
                       Order cancelled successfully
@@ -2924,7 +2928,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeReturnModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="p-4">
@@ -2976,7 +2980,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeReturnModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="p-4 space-y-4">
@@ -3061,7 +3065,7 @@ export default function TrackOrderPage() {
                       disabled={returnSubmitting || !returnPolicyAccepted}
                       className="flex-1 bg-black text-white py-3 text-sm font-bold uppercase hover:bg-gray-800 disabled:opacity-50"
                     >
-                      {returnSubmitting ? "Submittingâ€¦" : "Submit return"}
+                      {returnSubmitting ? "Submitting..." : "Submit return"}
                     </button>
                   </div>
                 </>
@@ -3075,12 +3079,14 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeReturnModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="px-4 pb-6 pt-0 text-center">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 text-green-600 mb-4">
-                      <span className="text-2xl">âœ“</span>
+                      <span className="text-2xl text-black" aria-hidden>
+                        <Check className="h-8 w-8" strokeWidth={2.5} />
+                      </span>
                     </div>
                     <h3 className="font-bold text-black uppercase text-lg mb-2">
                       Return request submitted
@@ -3134,7 +3140,7 @@ export default function TrackOrderPage() {
                           aria-label="Close"
                           onClick={closeExchangeModal}
                         >
-                          âœ•
+                          <X className="h-5 w-5" aria-hidden />
                         </button>
                       </div>
                       <div className="p-4 space-y-4">
@@ -3156,7 +3162,7 @@ export default function TrackOrderPage() {
                             ))}
                           </select>
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                            â–¼
+                            <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
                           </span>
                         </div>
                         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5">
@@ -3223,7 +3229,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="p-4">
@@ -3272,12 +3278,12 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="p-4">
                     {exchangeItemLoading ? (
-                      <p className="text-sm text-gray-500">Loading optionsâ€¦</p>
+                      <p className="text-sm text-gray-500">Loading options...</p>
                     ) : !exchangeItemDetails?.variants?.length ? (
                       <p className="text-sm text-gray-500">
                         No size/color options for this item.
@@ -3437,7 +3443,7 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="p-4">
@@ -3493,7 +3499,7 @@ export default function TrackOrderPage() {
                       disabled={exchangeSubmitting || exchangeImages.length < 3}
                       className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {exchangeSubmitting ? "Submittingâ€¦" : "Exchange order"}
+                      {exchangeSubmitting ? "Submitting..." : "Exchange order"}
                     </button>
                   </div>
                 </>
@@ -3507,12 +3513,14 @@ export default function TrackOrderPage() {
                       aria-label="Close"
                       onClick={closeExchangeModal}
                     >
-                      âœ•
+                      <X className="h-5 w-5" aria-hidden />
                     </button>
                   </div>
                   <div className="px-4 pb-6 pt-0 text-center">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 text-green-600 mb-4">
-                      <span className="text-2xl">âœ“</span>
+                      <span className="text-2xl text-black" aria-hidden>
+                        <Check className="h-8 w-8" strokeWidth={2.5} />
+                      </span>
                     </div>
                     <h3 className="font-bold text-black uppercase text-lg mb-2">
                       Exchange request submitted
@@ -3555,13 +3563,13 @@ export default function TrackOrderPage() {
                   aria-label="Close"
                   onClick={() => setReviewModalOpen(false)}
                 >
-                  âœ•
+                  <X className="h-5 w-5" aria-hidden />
                 </button>
               </div>
 
               <div className="px-4 py-4">
                 {reviewLoading ? (
-                  <p className="text-sm text-gray-500">Loading your reviewâ€¦</p>
+                  <p className="text-sm text-gray-500">Loading your review...</p>
                 ) : (
                   <>
                     <div className="mb-4">
@@ -3577,15 +3585,14 @@ export default function TrackOrderPage() {
                             className="p-0.5"
                             aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
                           >
-                            <span
-                              className={`text-xl ${
+                            <Star
+                              className={`h-6 w-6 ${
                                 star <= reviewRating
-                                  ? "text-black"
+                                  ? "fill-current text-black"
                                   : "text-gray-300"
                               }`}
-                            >
-                              â˜…
-                            </span>
+                              aria-hidden
+                            />
                           </button>
                         ))}
                         <span className="ml-2 text-xs text-gray-600">
@@ -3665,8 +3672,8 @@ export default function TrackOrderPage() {
                         >
                           {reviewSubmitting
                             ? review
-                              ? "Savingâ€¦"
-                              : "Postingâ€¦"
+                              ? "Saving..."
+                              : "Posting..."
                             : review
                               ? "Save changes"
                               : "Post review"}
