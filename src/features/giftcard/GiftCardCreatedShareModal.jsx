@@ -4,7 +4,7 @@ import { X, Copy, Check } from 'lucide-react'
 import { FaWhatsapp, FaFacebookF, FaLinkedinIn, FaTelegramPlane } from 'react-icons/fa'
 import { FaXTwitter } from 'react-icons/fa6'
 import frameBanner from '../../assets/temporary/Frame 2147225414.png'
-import { splitCodeForDisplay } from '../../services/giftcard.service.js'
+import { splitCodeForDisplay, normalizeGiftCardImageUrl } from '../../services/giftcard.service.js'
 import GiftCardPromoBanner from './GiftCardPromoBanner.jsx'
 
 export default function GiftCardCreatedShareModal({
@@ -12,7 +12,6 @@ export default function GiftCardCreatedShareModal({
   onClose,
   card,
   bannerImage = '',
-  multiplier = 2,
   shareUrl = '',
   onRedeem,
   redeeming = false,
@@ -22,7 +21,7 @@ export default function GiftCardCreatedShareModal({
 
   const code = card?.code || ''
   const displayCode = splitCodeForDisplay(redeemCode || code)
-  const promoImage = card?.image || bannerImage || frameBanner
+  const promoImage = normalizeGiftCardImageUrl(card?.image || bannerImage) || frameBanner
 
   useEffect(() => {
     if (!open) return undefined
@@ -126,14 +125,18 @@ export default function GiftCardCreatedShareModal({
           <div className="overflow-hidden rounded-lg bg-white px-2 py-4 sm:px-3 sm:py-5">
             <GiftCardPromoBanner
               id="gift-created-modal-title"
-              size="compact"
+              imageUrl={promoImage}
             />
             <div className="mt-4 flex justify-center sm:mt-5">
               <img
                 src={promoImage}
                 alt="Khush Gift Card"
-                className="h-auto max-h-[100px] w-full max-w-[140px] object-contain object-center sm:max-h-[120px] sm:max-w-[160px]"
+                className="h-auto max-h-[120px] w-full max-w-[min(100%,12rem)] object-contain object-center sm:max-h-[140px] sm:max-w-[14rem]"
                 draggable={false}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  if (e.currentTarget.src !== frameBanner) e.currentTarget.src = frameBanner
+                }}
               />
             </div>
           </div>

@@ -125,6 +125,33 @@ export function ProfileIcon({ className }) {
   )
 }
 
+export function GiftCardIcon({ className }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M11.5 6.5V20M11.5 6.5C11.15 5.25 10.6 4.2 9.9 3.45C9.2 2.7 8.35 2.25 7.5 2.25C6.85 2.25 6.2 2.5 5.7 2.95C5.2 3.4 4.9 4 4.9 4.65C4.9 5.3 5.2 5.9 5.7 6.35C6.2 6.8 6.85 7.05 7.5 7.05M11.5 6.5C11.85 5.25 12.4 4.2 13.1 3.45C13.8 2.7 14.65 2.25 15.5 2.25C16.15 2.25 16.8 2.5 17.3 2.95C17.8 3.4 18.1 4 18.1 4.65C18.1 5.3 17.8 5.9 17.3 6.35C16.8 6.8 16.15 7.05 15.5 7.05M19 10.5V18.25C19 18.65 18.85 19.05 18.55 19.35C18.25 19.65 17.85 19.8 17.45 19.8H5.55C5.15 19.8 4.75 19.65 4.45 19.35C4.15 19.05 4 18.65 4 18.25V10.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M19 6.75H4C3.59 6.75 3.25 7.09 3.25 7.5V9.25C3.25 9.66 3.59 10 4 10H19C19.41 10 19.75 9.66 19.75 9.25V7.5C19.75 7.09 19.41 6.75 19 6.75Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export function LocationIcon({ className }) {
   return (
     <svg

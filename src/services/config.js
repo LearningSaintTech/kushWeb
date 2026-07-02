@@ -6,7 +6,7 @@ function envTrim(key) {
     typeof import.meta !== "undefined" && import.meta.env?.[key] != null
       ? String(import.meta.env[key]).trim()
       : "";
-  return raw;
+  return raw.replace(/^["']|["']$/g, "");
 }
 
 /**
@@ -36,7 +36,12 @@ function resolveApiOrigin() {
 const BUILD_MODE = import.meta.env.MODE;
 
 const API_ORIGIN = resolveApiOrigin();
-const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : "";
+/** In dev, use Vite `/api` proxy to avoid browser CORS blocks against the remote API. */
+const API_BASE_URL = API_ORIGIN
+  ? import.meta.env.DEV
+    ? "/api"
+    : `${API_ORIGIN}/api`
+  : "";
 
 /** Public base URL for assets (images). Use CloudFront or API so Razorpay/iframes never request localhost. */
 const ASSET_BASE_URL = (envTrim("VITE_ASSET_URL") || API_ORIGIN || "").replace(
@@ -72,8 +77,22 @@ function warnIfProductionApiUrlMissing() {
  */
 function getPublicImageUrl(url) {
   if (!url || typeof url !== "string") return "";
-  const u = url.trim();
+  let u = url.trim();
   if (!u) return "";
+  try {
+    if (/^https?:\/\//i.test(u)) {
+      const parsed = new URL(u);
+      parsed.pathname = parsed.pathname
+        .split("/")
+        .map((segment) => (segment.includes(" ") ? encodeURIComponent(segment) : segment))
+        .join("/");
+      u = parsed.toString();
+    } else if (u.includes(" ")) {
+      u = u.replace(/ /g, "%20");
+    }
+  } catch {
+    u = u.replace(/ /g, "%20");
+  }
   const isRelative = u.startsWith("/") && !u.startsWith("//");
   const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(u);
   if (isRelative || isLocalhost) {

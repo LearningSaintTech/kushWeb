@@ -307,10 +307,10 @@ function NewArrivals({ section }) {
   const showPaginatedLoading = section?._id && sectionLoading && sectionList.length === 0
 
   return (
-    <section className="bg-white pt-10 md:pt-16 pb-6 md:pb-8 overflow-hidden">
+    <section className="bg-white pt-5 md:pt-2 pb-6 md:pb-8 overflow-hidden">
       <div className="container mx-auto px-4">
 
-        <h2 className="text-2xl md:text-4xl font-extrabold font-Raleway  text-center mb-8 md:mb-10">
+        <h2 className="text-2xl md:text-4xl font-extrabold font-Raleway  text-center mb-4 md:mb-6">
           {sectionTitle}
         </h2>
 

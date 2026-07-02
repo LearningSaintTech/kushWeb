@@ -42,19 +42,19 @@ export const STATIC_CARDS = [
 
 const StaticCard = () => {
     return (
-        <section className="w-full mt-25 bg-white py-3 sm:py-2 md:py-1 lg:py-3 xl:py-4">
-            <div className="w-full max-w-[1024px] mx-auto px-3 sm:px-20 md:px-35 lg:px-25 xl:px-24">
-                <div className="grid grid-cols-2 gap-2 auto-rows-fr sm:gap-1.5 md:gap-3.5 lg:grid-cols-4 lg:gap-4.5">
+        <section className="w-full mt-15 bg-white pt-2 pb-1 sm:pt-3 sm:pb-2 md:pt-4 md:pb-3">
+            <div className="mx-auto w-full max-w-[47rem] px-3 sm:px-4 md:px-6 lg:px-8">
+                <div className="grid auto-rows-fr grid-cols-2 gap-1.5 sm:gap-2 md:gap-2.5 lg:grid-cols-4 lg:gap-3">
                     {STATIC_CARDS.map((card) => (
                         <div
                             key={card.id}
-                            className="flex min-h-[clamp(5.25rem,24vw,7.5rem)] flex-col items-center justify-center rounded-xl border border-[#DD856033] bg-[#DD85600F] p-2 text-center shadow-[0_2px_8px_rgba(221,133,96,0.05)] sm:min-h-[6.25rem] sm:rounded-2xl sm:p-2.5 md:min-h-[6.75rem] md:p-3 lg:min-h-[7.25rem] lg:p-3.5"
+                            className="flex min-h-[4.25rem] flex-col items-center justify-center rounded-lg border border-[#DD856033] bg-[#DD85600F] p-1.5 text-center shadow-[0_2px_8px_rgba(221,133,96,0.05)] sm:min-h-[4.75rem] sm:rounded-xl sm:p-2 md:min-h-[5rem] md:p-2 lg:min-h-[5.25rem]"
                         >
-                            <div className="flex h-[clamp(1.75rem,7vw,2.25rem)] w-[clamp(1.75rem,7vw,2.25rem)] shrink-0 items-center justify-center sm:h-9 sm:w-9 md:h-10 md:w-10 [&_img]:h-full [&_img]:w-full [&_img]:object-contain [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center sm:h-8 sm:w-8 [&_img]:h-full [&_img]:w-full [&_img]:object-contain [&_svg]:h-full [&_svg]:w-full [&_svg]:max-h-full [&_svg]:max-w-full">
                                 {card.icon}
                             </div>
 
-                            <h3 className="mt-1.5 max-w-[9.5rem] font-inter text-[clamp(0.5rem,2.2vw,0.6875rem)] font-semibold uppercase leading-[1.2] tracking-[0.02em] text-black sm:mt-2 sm:max-w-none sm:text-[10px] sm:leading-snug md:mt-2 md:text-[11px] lg:text-xs">
+                            <h3 className="mt-1 max-w-[7.5rem] font-inter text-[0.5rem] font-semibold uppercase leading-tight tracking-[0.02em] text-black sm:mt-1.5 sm:max-w-[8.5rem] sm:text-[9px] md:max-w-none md:text-[10px] lg:text-[11px]">
                                 {card.title}
                             </h3>
                         </div>

@@ -28,7 +28,14 @@ function logErr(label, err) {
 }
 
 function unwrap(res) {
-  return res?.data?.data ?? res?.data ?? {}
+  const body = res?.data
+  if (body?.data != null && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    return body.data
+  }
+  if (body?.cardValue != null || body?.payAmount != null || body?.percent != null) {
+    return body
+  }
+  return body ?? {}
 }
 
 function unwrapItems(res) {
@@ -89,7 +96,115 @@ function resolveUserRef(ref) {
 }
 
 function rulesImage(raw) {
-  return raw?.image ? getPublicImageUrl(raw.image) : ''
+  const url = raw?.image || raw?.imageKey
+  return url ? getPublicImageUrl(url) : ''
+}
+
+export function normalizeGiftCardImageUrl(url) {
+  return url ? getPublicImageUrl(url) : ''
+}
+
+function firstSlabPercent(data) {
+  const slab =
+    data?.matchedSlab ??
+    data?.slabs?.[0] ??
+    data?.allowedRange?.slabs?.[0]
+  const percent = Number(slab?.percent ?? data?.percent)
+  return Number.isFinite(percent) ? percent : null
+}
+
+/** Resolve total gift card value from buy/preview API payload. */
+export function resolveGiftCardValue(data, payAmount = 0) {
+  const pay = Number(data?.payAmount ?? payAmount) || 0
+  if (data?.cardValue != null) {
+    const cardValue = Number(data.cardValue)
+    if (Number.isFinite(cardValue)) return cardValue
+  }
+  if (data?.bonusAmount != null) {
+    const bonus = Number(data.bonusAmount)
+    if (Number.isFinite(bonus)) return pay + bonus
+  }
+  const percent = firstSlabPercent(data)
+  if (percent != null) return pay + pay * (percent / 100)
+  if (data?.multiplier != null) {
+    const multiplier = Number(data.multiplier)
+    if (Number.isFinite(multiplier)) return pay * multiplier
+  }
+  return pay
+}
+
+export function resolveRulesBonusPercent(rules) {
+  return firstSlabPercent(rules)
+}
+
+export function resolveGiftCardRulesList(data) {
+  const rules = data?.rules
+  return Array.isArray(rules) ? rules.filter(Boolean) : []
+}
+
+function getSlabsFromRules(rules) {
+  if (!rules) return []
+  if (Array.isArray(rules.slabs) && rules.slabs.length) return rules.slabs
+  if (Array.isArray(rules.allowedRange?.slabs) && rules.allowedRange.slabs.length) {
+    return rules.allowedRange.slabs
+  }
+  return []
+}
+
+export function findMatchedGiftCardSlab(rules, payAmount) {
+  const pay = Number(payAmount) || 0
+  const slabs = getSlabsFromRules(rules)
+  if (!slabs.length) return null
+  const matched = slabs.find((slab) => {
+    const min = Number(slab?.minPrice ?? 0)
+    const max = Number(slab?.maxPrice ?? Number.POSITIVE_INFINITY)
+    return pay >= min && pay <= max
+  })
+  return matched ?? slabs[0]
+}
+
+/** Client-side preview from public rules slabs (no auth required). */
+export function computeGiftCardPreviewFromRules(rules, payAmount) {
+  const pay = Number(payAmount)
+  if (!Number.isFinite(pay) || pay < 1) {
+    return { payAmount: pay, cardValue: 0, bonusAmount: 0, percent: null }
+  }
+  const matchedSlab = findMatchedGiftCardSlab(rules, pay)
+  const percent = Number(matchedSlab?.percent ?? rules?.percent)
+  if (!Number.isFinite(percent)) {
+    return {
+      payAmount: pay,
+      cardValue: pay,
+      bonusAmount: 0,
+      percent: null,
+      matchedSlab,
+      slabs: getSlabsFromRules(rules),
+      rulesName: rules?.name ?? rules?.rulesName,
+      image: rulesImage(rules),
+      rules: resolveGiftCardRulesList(rules),
+      currency: rules?.currency ?? 'INR',
+    }
+  }
+  const bonusAmount = pay * (percent / 100)
+  return {
+    payAmount: pay,
+    cardValue: pay + bonusAmount,
+    bonusAmount,
+    percent,
+    matchedSlab,
+    slabs: getSlabsFromRules(rules),
+    rulesName: rules?.name ?? rules?.rulesName,
+    image: rulesImage(rules),
+    rules: resolveGiftCardRulesList(rules),
+    currency: rules?.currency ?? 'INR',
+  }
+}
+
+function normalizeGiftCardRulesData(data) {
+  if (!data) return data
+  if (data.image) data.image = getPublicImageUrl(data.image)
+  else if (data.imageKey) data.image = getPublicImageUrl(data.imageKey)
+  return data
 }
 
 /** GET /gift-card/my — ACTIVE cards you bought that are still usable */
@@ -235,8 +350,7 @@ export const giftcardService = {
     logReq('getActiveRules')
     try {
       const res = await publicClient.get(`${RULES}/active`)
-      const data = unwrap(res)
-      if (data?.image) data.image = getPublicImageUrl(data.image)
+      const data = normalizeGiftCardRulesData(unwrap(res))
       logRes('getActiveRules', data)
       return data
     } catch (err) {
@@ -246,18 +360,30 @@ export const giftcardService = {
   },
 
   async previewBuy(amount) {
-    const params = { amount: Number(amount) || 500 }
-    logReq('previewBuy', params)
-    try {
-      const res = await client.get(`${GIFT_CARD}/buy/preview`, { params })
-      const data = unwrap(res)
-      if (data?.image) data.image = getPublicImageUrl(data.image)
-      logRes('previewBuy', data)
-      return data
-    } catch (err) {
-      logErr('previewBuy', err)
-      throw err
+    const payAmount = Number(amount)
+    if (!Number.isFinite(payAmount) || payAmount < 1) {
+      throw new Error('Invalid gift card amount')
     }
+    const payload = { amount: payAmount }
+    logReq('previewBuy', payload)
+    const normalizePreview = (res) => normalizeGiftCardRulesData(unwrap(res))
+    const attempts = [
+      () => client.get(`${GIFT_CARD}/buy/preview`, { params: payload }),
+      () => client.post(`${GIFT_CARD}/buy/preview`, payload),
+    ]
+    let lastErr = null
+    for (const attempt of attempts) {
+      try {
+        const res = await attempt()
+        const data = normalizePreview(res)
+        logRes('previewBuy', data)
+        return data
+      } catch (err) {
+        lastErr = err
+        logErr('previewBuy attempt', err)
+      }
+    }
+    throw lastErr ?? new Error('Gift card preview failed')
   },
 
   async createBuyOrder(amount) {
