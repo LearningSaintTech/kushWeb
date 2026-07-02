@@ -12,7 +12,7 @@ import {
   addRecentKeyword,
   removeRecentKeyword,
 } from "../../app/store/slices/searchSlice.js";
-import { SearchIcon, HeartIcon, CartIcon, ProfileIcon, NotificationIcon } from "../ui/icons";
+import { SearchIcon, HeartIcon, CartIcon, ProfileIcon, NotificationIcon, GiftCardIcon } from "../ui/icons";
 import { useNotification } from "../../app/context/NotificationContext";
 // Location picker in header: no map – shows delivery location as text (current location / search / pincode).
 import LocationPicker from "./LocationPicker";
@@ -210,18 +210,27 @@ function ReferEarnIcon({ className }) {
 
 function IconBadge({ count, children, scrolled, mobileDark = false }) {
   const darkBadge = mobileDark || scrolled;
+  if (count <= 0) {
+    return <span className="inline-flex items-center justify-center">{children}</span>;
+  }
+
+  const label = count > 99 ? "99+" : String(count);
+  const wide = label.length > 1;
+
   return (
     <span className="relative inline-flex items-center justify-center">
       {children}
-      {count > 0 && (
-        <span
-          className={`font-inter absolute -right-1 -top-1 md:-right-0.5 md:-top-0.5 flex h-4 w-4 md:h-3.5 md:min-w-[0.875rem] items-center justify-center rounded-full px-0.5 text-[10px] md:text-[9px] font-medium leading-none ${
-            darkBadge ? "bg-black text-white" : "bg-white text-black"
-          }`}
-        >
-          {count > 99 ? "99+" : count}
-        </span>
-      )}
+      <span
+        className={`absolute right-0 top-0 z-10 flex -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full font-inter font-semibold leading-none tabular-nums ${
+          wide ? "h-[14px] min-w-[17px] px-1 text-[8px]" : "h-[14px] min-w-[14px] text-[9px]"
+        } ${
+          darkBadge
+            ? "bg-black text-white ring-[1.5px] ring-white"
+            : "bg-white text-black ring-[1.5px] ring-black/10"
+        }`}
+      >
+        {label}
+      </span>
     </span>
   );
 }
@@ -258,9 +267,10 @@ function KhushMobileLogo({ className = "h-9 w-9" }) {
 const mobileIconBtn =
   "cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-black hover:opacity-70";
 
-const desktopNavIconSize = "h-5 w-5";
+const navIconSize = "h-6 w-6 shrink-0";
+const profileIconSize = "h-[18px] w-[18px] shrink-0";
 const desktopNavIconBtn =
-  "flex h-6 w-6 shrink-0 items-center justify-center";
+  "flex h-10 w-10 shrink-0 items-center justify-center cursor-pointer";
 
 /** Build search URL for menu links; SearchPage reads categoryId + subcategoryId (or category/subcategory) */
 function getSearchUrl({
@@ -342,6 +352,14 @@ export default function Header() {
 
   const closeMenu = () => setMenuOpen(false);
   const closeSearchModal = () => setSearchModalOpen(false);
+
+  const handleGiftCardNav = useCallback(() => {
+    if (isAuthenticated) {
+      navigate(ROUTES.GIFTCARD);
+      return;
+    }
+    openAuthModal(ROUTES.GIFTCARD);
+  }, [isAuthenticated, navigate, openAuthModal]);
 
   const openSearchModal = useCallback(() => {
     setSearchModalOpen(true);
@@ -466,6 +484,7 @@ export default function Header() {
   const [searchDropdownTop, setSearchDropdownTop] = useState(0);
   // On non-home pages always use white header; on home use white only when scrolled
   const useWhiteStyle = !isHome || scrolled;
+  const navIconTone = useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70";
 
   // Position search dropdown just below header when it opens
   useEffect(() => {
@@ -539,7 +558,7 @@ export default function Header() {
         {/* Mobile: row 1 — menu, bell, logo, profile, cart, wishlist; row 2 — search + location */}
         <div className="md:hidden flex flex-col gap-2.5">
           <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1">
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
@@ -556,7 +575,7 @@ export default function Header() {
                   aria-label="Notifications"
                 >
                   <IconBadge count={unreadCount} scrolled mobileDark>
-                    <NotificationIcon className="h-5 w-5 text-black" />
+                    <NotificationIcon className={`${navIconSize} text-black`} />
                   </IconBadge>
                 </NavLink>
               ) : (
@@ -566,7 +585,7 @@ export default function Header() {
                   className={`${mobileIconBtn} relative`}
                   aria-label="Notifications – sign in"
                 >
-                  <NotificationIcon className="h-5 w-5 text-black" />
+                  <NotificationIcon className={`${navIconSize} text-black`} />
                 </button>
               )}
             </div>
@@ -580,7 +599,15 @@ export default function Header() {
               <KhushMobileLogo className="h-9 w-9 sm:h-10 sm:w-10" />
             </NavLink>
 
-            <div className="flex items-center justify-end gap-0.5">
+            <div className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={handleGiftCardNav}
+                className={mobileIconBtn}
+                aria-label="Gift cards"
+              >
+                <GiftCardIcon className={`${navIconSize} text-black`} />
+              </button>
               {isAuthenticated ? (
                 <button
                   type="button"
@@ -588,7 +615,7 @@ export default function Header() {
                   className={mobileIconBtn}
                   aria-label="Account"
                 >
-                  <ProfileIcon className="h-5 w-5 text-black" />
+                  <ProfileIcon className={`${profileIconSize} text-black`} />
                 </button>
               ) : (
                 <button
@@ -597,17 +624,17 @@ export default function Header() {
                   className={mobileIconBtn}
                   aria-label="Account – sign in"
                 >
-                  <ProfileIcon className="h-5 w-5 text-black" />
+                  <ProfileIcon className={`${profileIconSize} text-black`} />
                 </button>
               )}
               <NavLink to={ROUTES.CART} className={mobileIconBtn} aria-label="Cart">
                 <IconBadge count={cartCount} scrolled mobileDark>
-                  <CartIcon className="h-5 w-5 text-black" />
+                  <CartIcon className={`${navIconSize} text-black`} />
                 </IconBadge>
               </NavLink>
               <NavLink to={ROUTES.WISHLIST} className={mobileIconBtn} aria-label="Wishlist">
                 <IconBadge count={wishlistCount} scrolled mobileDark>
-                  <HeartIcon className="h-5 w-5 text-black" />
+                  <HeartIcon className={`${navIconSize} text-black`} />
                 </IconBadge>
               </NavLink>
             </div>
@@ -709,36 +736,42 @@ export default function Header() {
               </button>
             </form>
 
-            <div className="flex items-center gap-3 md:gap-4">
+            <div className="flex items-center gap-1">
               <NavLink
                 to={ROUTES.REFER_EARN}
-                className={`${desktopNavIconBtn} cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                className={`${desktopNavIconBtn} ${navIconTone}`}
                 aria-label="Refer and Earn"
               >
-                <ReferEarnIcon
-                  className={`${desktopNavIconSize} shrink-0 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                />
+                <ReferEarnIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
               </NavLink>
+              <button
+                type="button"
+                onClick={handleGiftCardNav}
+                className={`${desktopNavIconBtn} ${navIconTone}`}
+                aria-label="Gift cards"
+              >
+                <GiftCardIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
+              </button>
               <NavLink
                 to={ROUTES.WISHLIST}
-                className={`${desktopNavIconBtn} cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                className={`${desktopNavIconBtn} ${navIconTone}`}
                 aria-label="Wishlist"
               >
                 <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
                   <HeartIcon
-                    className={`${desktopNavIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
                   />
                 </IconBadge>
               </NavLink>
 
               <NavLink
                 to={ROUTES.CART}
-                className={`${desktopNavIconBtn} cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                className={`${desktopNavIconBtn} ${navIconTone}`}
                 aria-label="Cart"
               >
                 <IconBadge count={cartCount} scrolled={useWhiteStyle}>
                   <CartIcon
-                    className={`${desktopNavIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
                   />
                 </IconBadge>
               </NavLink>
@@ -749,13 +782,13 @@ export default function Header() {
                     <button
                       type="button"
                       onClick={() => setNotificationDropdownOpen((prev) => !prev)}
-                      className={`${desktopNavIconBtn} cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                      className={`${desktopNavIconBtn} ${navIconTone}`}
                       aria-label="Notifications"
                       aria-expanded={notificationDropdownOpen}
                     >
                       <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
                         <NotificationIcon
-                          className={`${desktopNavIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                          className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
                         />
                       </IconBadge>
                     </button>
@@ -810,11 +843,11 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={() => setProfileModalOpen(true)}
-                    className={`${desktopNavIconBtn} cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                    className={`${desktopNavIconBtn} ${navIconTone}`}
                     aria-label="Account"
                   >
                     <ProfileIcon
-                      className={`${desktopNavIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                      className={`${profileIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
                     />
                   </button>
                 </>
@@ -822,11 +855,11 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                  className={`${desktopNavIconBtn} cursor-pointer ${useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70"}`}
+                  className={`${desktopNavIconBtn} ${navIconTone}`}
                   aria-label="Account – sign in"
                 >
                   <ProfileIcon
-                    className={`${desktopNavIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    className={`${profileIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
                   />
                 </button>
               )}

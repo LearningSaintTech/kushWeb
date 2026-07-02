@@ -1,13 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { debugLog } from '../../utils/debugLog.js';
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import frameBanner from '../../assets/temporary/Frame 2147225414.png'
 import { useAuth } from '../../app/context/AuthContext'
+import { ROUTES } from '../../utils/constants'
 import {
   giftcardService,
   giftcardApiMessage,
   splitCodeForDisplay,
   buildGiftCardShareUrl,
+  resolveGiftCardValue,
+  resolveRulesBonusPercent,
+  resolveGiftCardRulesList,
+  computeGiftCardPreviewFromRules,
+  normalizeGiftCardImageUrl,
 } from '../../services/giftcard.service.js'
 import GiftCardPurchasedModal from './GiftCardPurchasedModal.jsx'
 import GiftCardCreatedShareModal from './GiftCardCreatedShareModal.jsx'
@@ -19,8 +25,7 @@ import GiftCardAlreadyRedeemedModal from './GiftCardAlreadyRedeemedModal.jsx'
 const PRESET_AMOUNTS = [500, 1000, 2000, 3000]
 
 const INFO_POINTS = [
-  
-  'Get an extra 25% bonus value for purchases between ₹1 and ₹1000000 (Gifting Slab).' ,
+  'Bonus value is applied per active gifting slab rules on your purchase amount.',
   'Khush Gift Cards can be purchased instantly by entering your preferred amount.',
   'Redeem gift card balance easily during checkout on eligible products.',
   'Gift cards and wallet transactions are secured with encrypted payment and account protection systems.',
@@ -38,7 +43,11 @@ function formatGiftDate(iso) {
 function formatValue(amount) {
   const n = Number(amount)
   if (!Number.isFinite(n)) return '₹0'
-  return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+  const hasFraction = Math.abs(n % 1) > 0.001
+  return `₹${n.toLocaleString('en-IN', {
+    maximumFractionDigits: hasFraction ? 2 : 0,
+    minimumFractionDigits: 0,
+  })}`
 }
 
 function isAlreadyRedeemedResult(result) {
@@ -61,30 +70,40 @@ function isAlreadyRedeemedError(err) {
 const ALREADY_REDEEMED_MESSAGE = 'This gift card has already been redeemed.'
 
 function GiftCardThumb({ imageUrl, onClick, clickable }) {
-  const src = imageUrl || frameBanner
+  const fallback = frameBanner
+  const [src, setSrc] = useState(() => normalizeGiftCardImageUrl(imageUrl) || fallback)
+
+  useEffect(() => {
+    setSrc(normalizeGiftCardImageUrl(imageUrl) || fallback)
+  }, [imageUrl])
+
+  const frameClass =
+    'relative aspect-[4/3] w-[4.5rem] shrink-0 overflow-hidden rounded-md bg-neutral-900 sm:w-20'
+
   const img = (
     <img
       src={src}
       alt="Khush Gift Card"
-      className="h-full w-full object-cover object-center"
+      className="h-full w-full object-contain object-left-top"
       draggable={false}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        setSrc((current) => (current !== fallback ? fallback : current))
+      }}
     />
   )
 
   if (!clickable) {
-    return (
-      <div className="relative h-[48px] w-[64px] shrink-0 overflow-hidden rounded-md">
-        {img}
-      </div>
-    )
+    return <div className={frameClass}>{img}</div>
   }
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="relative h-[48px] w-[64px] shrink-0 overflow-hidden rounded-md transition hover:opacity-85 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/30"
-      aria-label="View gift card details"
+      className={`${frameClass} transition hover:opacity-85 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/30`}
+      aria-label="View Khush gift card details"
     >
       {img}
     </button>
@@ -120,59 +139,68 @@ function CreatedRow({ card, selected, onThumbClick }) {
 
   return (
     <div
-      className={`flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:gap-6 lg:gap-20 ${selected ? 'bg-gray-50' : 'bg-white'
+      className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-200 px-3 py-3 sm:px-4 sm:gap-4 ${selected ? 'bg-gray-50' : 'bg-white'
         }`}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-6 lg:gap-10">
-        <div className="flex shrink-0 flex-col items-center">
-          <GiftCardThumb
-            imageUrl={card.image}
-            clickable={canOpen}
-            onClick={canOpen ? () => onThumbClick(card) : undefined}
-          />
-          <StatusBadge status={card.status} />
-        </div>
-        <div className="min-w-0 flex-1">
-          {isDepleted ? (
-            <>
-              <p className="flex items-center gap-1 font-inter text-[11px] font-medium text-gray-400">
-                <span className="inline-block h-1 w-1 rounded-full bg-gray-400" />
-                Redeemed By
+      <div className="flex shrink-0 flex-col items-center">
+        <GiftCardThumb
+          imageUrl={card.image}
+          clickable={canOpen}
+          onClick={canOpen ? () => onThumbClick(card) : undefined}
+        />
+        <StatusBadge status={card.status} />
+      </div>
+
+      <div className="min-w-0">
+        {isDepleted ? (
+          <>
+            <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium whitespace-nowrap text-gray-400">
+              <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+              Redeemed By
+            </p>
+            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-inter text-sm whitespace-nowrap">
+              {card.status === 'SELF_REDEEMED' ? (
+                <span className="font-semibold uppercase text-black">You</span>
+              ) : (
+                <>
+                  <span className="font-semibold uppercase text-black">{redeemerName}</span>
+                  {redeemerPhone ? (
+                    <span className="font-medium text-gray-500">{redeemerPhone}</span>
+                  ) : null}
+                </>
+              )}
+            </p>
+            {card.redeemedAt ? (
+              <p className="mt-0.5 flex items-center gap-1.5 font-inter text-[10px] font-medium whitespace-nowrap text-gray-400">
+                <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+                Redeemed On {formatGiftDate(card.redeemedAt)}
               </p>
-              <p className="font-inter text-sm font-semibold uppercase text-black">
-                {card.status === 'SELF_REDEEMED'
-                  ? 'You'
-                  : `${redeemerName}${redeemerPhone ? `, ${redeemerPhone}` : ''}`}
-              </p>
-              {card.redeemedAt ? (
-                <p className="mt-0.5 flex items-center gap-1 font-inter text-[10px] font-medium text-gray-400">
-                  <span className="inline-block h-1 w-1 rounded-full bg-gray-400" />
-                  Redeemed On {formatGiftDate(card.redeemedAt)}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <p className="flex items-center gap-1 font-inter text-[11px] font-medium text-gray-400">
-                <span className="inline-block h-1 w-1 rounded-full bg-gray-400" />
-                Created On
-              </p>
-              <p className="font-inter text-sm font-semibold uppercase text-black">
-                {formatGiftDate(card.createdAt)}
-              </p>
-            </>
-          )}
-          <p className="font-inter text-xl font-semibold text-[#E65100]">
-            {formatValue(card.giftValue)}
-          </p>
-          <p className="font-inter text-[9px] font-medium uppercase tracking-wide text-gray-500">
+            ) : null}
+          </>
+        ) : (
+          <>
+            <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium whitespace-nowrap text-gray-400">
+              <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+              Created On
+            </p>
+            <p className="font-inter text-sm font-semibold uppercase whitespace-nowrap text-black">
+              {formatGiftDate(card.createdAt)}
+            </p>
+          </>
+        )}
+        <p className="mt-0.5 font-inter text-lg font-semibold leading-tight text-[#E65100] sm:text-xl">
+          {formatValue(card.giftValue)}
+        </p>
+        <p className="font-inter text-[9px] font-medium uppercase leading-snug tracking-wide text-gray-500">
+          <span className="whitespace-nowrap">
             Gift Card Value
             {card.paidAmount != null ? ` · Paid ${formatValue(card.paidAmount)}` : ''}
             {card.multiplier ? ` · ${card.multiplier}×` : ''}
-          </p>
-        </div>
+          </span>
+        </p>
       </div>
-      <p className="shrink-0 font-['Poltawski Now'] text-sm text-black">
+
+      <p className="shrink-0 whitespace-nowrap text-right font-['Poltawski_Now'] text-[11px] tracking-[0.14em] text-black sm:text-sm sm:tracking-[0.08em]">
         {splitCodeForDisplay(card.code)}
       </p>
     </div>
@@ -187,35 +215,37 @@ function RedeemedRow({ card }) {
   const dateValue = card.redeemedAt || card.createdAt
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 sm:gap-6 lg:gap-20">
-      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-6 lg:gap-10">
-        <div className="flex shrink-0 flex-col items-center">
-          <GiftCardThumb imageUrl={card.image} />
-          <StatusBadge status={card.status} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1 font-inter text-[11px] font-medium text-gray-400">
-            <span className="inline-block h-1 w-1 rounded-full bg-gray-400" />
-            {rowLabel}
-          </p>
-          <p className="font-inter text-sm font-semibold uppercase text-black">
-            {name}
-            {phone ? `, ${phone}` : ''}
-          </p>
-          <p className="font-inter text-xl font-semibold text-[#E65100]">
-            {formatValue(card.giftValue)}
-          </p>
-          <p className="font-inter text-[9px] font-medium uppercase tracking-wide text-gray-500">
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-200 bg-white px-3 py-3 sm:px-4 sm:gap-4">
+      <div className="flex shrink-0 flex-col items-center">
+        <GiftCardThumb imageUrl={card.image} />
+        <StatusBadge status={card.status} />
+      </div>
+
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium whitespace-nowrap text-gray-400">
+          <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+          {rowLabel}
+        </p>
+        <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-inter text-sm whitespace-nowrap">
+          <span className="font-semibold uppercase text-black">{name}</span>
+          {phone ? <span className="font-medium text-gray-500">{phone}</span> : null}
+        </p>
+        <p className="mt-0.5 font-inter text-lg font-semibold leading-tight text-[#E65100] sm:text-xl">
+          {formatValue(card.giftValue)}
+        </p>
+        <p className="font-inter text-[9px] font-medium uppercase leading-snug tracking-wide text-gray-500">
+          <span className="whitespace-nowrap">
             Gift Card Value
             {card.redeemAmount != null ? ` · Redeemed ${formatValue(card.redeemAmount)}` : ''}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 font-inter text-[10px] font-medium text-gray-400">
-            <span className="inline-block h-1 w-1 rounded-full bg-gray-400" />
-            {dateLabel} {formatGiftDate(dateValue)}
-          </p>
-        </div>
+          </span>
+        </p>
+        <p className="mt-0.5 flex items-center gap-1.5 font-inter text-[10px] font-medium whitespace-nowrap text-gray-400">
+          <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+          {dateLabel} {formatGiftDate(dateValue)}
+        </p>
       </div>
-      <p className="shrink-0 font-['Poltawski Now'] text-sm text-black">
+
+      <p className="shrink-0 whitespace-nowrap text-right font-['Poltawski_Now'] text-[11px] tracking-[0.14em] text-black sm:text-sm sm:tracking-[0.08em]">
         {card.code ? splitCodeForDisplay(card.code) : ''}
       </p>
     </div>
@@ -342,9 +372,11 @@ function GiftCardPurchasePanel({
   onRedeem,
   redeeming,
   theyGet,
-  multiplier,
+  previewBonusAmount,
+  previewPercent,
+  infoPoints,
   bannerImage,
-  bannerRulesLoaded,
+  rulesReady,
   initialRedeemCode,
   previewLoading,
   redeemInputResetKey = 0,
@@ -370,7 +402,6 @@ function GiftCardPurchasePanel({
       <GiftCardPromoBanner
         className="px-1 pb-4 sm:pb-5"
         imageUrl={bannerImage}
-        rulesLoaded={bannerRulesLoaded}
       />
 
       <div className="space-y-5 px-1 pb-1 sm:px-2">
@@ -378,7 +409,7 @@ function GiftCardPurchasePanel({
           <div>
             <p className="font-inter text-[10px] font-medium uppercase tracking-wide text-gray-500">You Pay</p>
             <p className="font-inter text-xl font-bold text-black">
-              {previewLoading ? '…' : formatValue(payAmount)}
+              {previewLoading || !rulesReady ? '…' : formatValue(payAmount)}
             </p>
           </div>
           <span className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 bg-white text-sm text-gray-600">
@@ -404,8 +435,14 @@ function GiftCardPurchasePanel({
               They Get
             </p>
             <p className="font-inter text-xl font-bold text-[#E65100]">
-              {previewLoading ? '…' : formatValue(theyGet)}
+              {previewLoading || !rulesReady ? '…' : formatValue(theyGet)}
             </p>
+            {!previewLoading && rulesReady && previewBonusAmount != null && Number(previewBonusAmount) > 0 ? (
+              <p className="mt-0.5 font-inter text-[10px] font-medium text-[#E65100]">
+                +{formatValue(previewBonusAmount)} bonus
+                {previewPercent != null ? ` (${previewPercent}%)` : ''}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -448,7 +485,7 @@ function GiftCardPurchasePanel({
         </button>
 
         <ul className="space-y-2 rounded-lg border border-gray-200 px-4 py-3">
-          {INFO_POINTS.map((point) => (
+          {infoPoints.map((point) => (
             <li key={point} className="flex gap-2 font-inter text-[10px] leading-snug text-gray-600">
               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400" />
               {point}
@@ -480,16 +517,19 @@ function GiftCardPurchasePanel({
 }
 
 const GiftCardPage = () => {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { isAuthenticated, authChecked, openAuthModal } = useAuth()
 
   const [created, setCreated] = useState([])
   const [redeemed, setRedeemed] = useState([])
   const [payAmount, setPayAmount] = useState(500)
-  const [theyGet, setTheyGet] = useState(1000)
-  const [multiplier, setMultiplier] = useState(2)
+  const [theyGet, setTheyGet] = useState(0)
+  const [previewData, setPreviewData] = useState(null)
+  const [infoPoints, setInfoPoints] = useState(INFO_POINTS)
+  const [bonusPercent, setBonusPercent] = useState(null)
   const [bannerImage, setBannerImage] = useState('')
-  const [bannerRulesLoaded, setBannerRulesLoaded] = useState(false)
+  const [rulesReady, setRulesReady] = useState(false)
   const [buying, setBuying] = useState(false)
   const [redeeming, setRedeeming] = useState(false)
   const [listLoading, setListLoading] = useState(false)
@@ -512,11 +552,27 @@ const GiftCardPage = () => {
     searchParams.get('redeem')?.trim().toUpperCase() ||
     ''
 
-  const multiplierRef = useRef(multiplier)
+  const bonusPercentRef = useRef(bonusPercent)
+  const activeRulesRef = useRef(null)
+  const payAmountRef = useRef(payAmount)
   const historyRequestId = useRef(0)
-  const rulesLoadedRef = useRef(false)
 
-  multiplierRef.current = multiplier
+  bonusPercentRef.current = bonusPercent
+  payAmountRef.current = payAmount
+
+  const applyRulesPreview = useCallback((rules, amount) => {
+    if (!rules) return null
+    const data = computeGiftCardPreviewFromRules(rules, amount)
+    setPreviewData(data)
+    setTheyGet(data.cardValue)
+    if (data.percent != null) {
+      setBonusPercent(data.percent)
+      bonusPercentRef.current = data.percent
+    }
+    if (data.rules?.length) setInfoPoints(data.rules)
+    if (data.image) setBannerImage(data.image)
+    return data
+  }, [])
 
   const loadHistory = useCallback(async () => {
     if (!isAuthenticated) {
@@ -546,41 +602,100 @@ const GiftCardPage = () => {
   }, [isAuthenticated])
 
   const loadPreview = useCallback(async (amount) => {
-    if (amount < 1) return
+    const pay = Number(amount)
+    if (!Number.isFinite(pay) || pay < 1) {
+      setPreviewData(null)
+      setTheyGet(0)
+      return
+    }
+
+    if (activeRulesRef.current) {
+      applyRulesPreview(activeRulesRef.current, pay)
+    }
+
+    if (!isAuthenticated) return
+
     setPreviewLoading(true)
     try {
-      const data = await giftcardService.previewBuy(amount)
-      const m = data.multiplier ?? multiplierRef.current ?? 2
-      setTheyGet(data.cardValue ?? amount * m)
-    } catch {
-      setTheyGet(amount * (multiplierRef.current || 2))
+      const data = await giftcardService.previewBuy(pay)
+      setPreviewData(data)
+      setTheyGet(resolveGiftCardValue(data, pay))
+      const percent = resolveRulesBonusPercent(data)
+      if (percent != null) {
+        setBonusPercent(percent)
+        bonusPercentRef.current = percent
+      }
+      const rulesList = resolveGiftCardRulesList(data)
+      if (rulesList.length > 0) setInfoPoints(rulesList)
+      if (data?.image) setBannerImage(data.image)
+    } catch (err) {
+      debugLog('[GiftCard] preview failed', giftcardApiMessage(err))
     } finally {
       setPreviewLoading(false)
     }
-  }, [])
+  }, [isAuthenticated, applyRulesPreview])
+
+  const handlePayAmountChange = useCallback((amount) => {
+    const next = Number(amount) || 0
+    setPayAmount(next)
+    payAmountRef.current = next
+    if (next < 1) {
+      setTheyGet(0)
+      setPreviewData(null)
+      return
+    }
+    if (activeRulesRef.current) {
+      applyRulesPreview(activeRulesRef.current, next)
+      return
+    }
+    const percent = bonusPercentRef.current
+    if (percent != null) {
+      setTheyGet(next + next * (percent / 100))
+    } else {
+      setTheyGet(next)
+    }
+  }, [applyRulesPreview])
 
   useEffect(() => {
-    if (rulesLoadedRef.current) return
-    rulesLoadedRef.current = true
+    if (!authChecked) return
+    if (!isAuthenticated) {
+      openAuthModal(ROUTES.GIFTCARD)
+      navigate(ROUTES.HOME, { replace: true })
+    }
+  }, [authChecked, isAuthenticated, navigate, openAuthModal])
+
+  useEffect(() => {
     let cancelled = false
     giftcardService
       .getActiveRules()
       .then((rules) => {
         if (cancelled) return
-        if (rules?.multiplier) {
-          setMultiplier(rules.multiplier)
-          multiplierRef.current = rules.multiplier
+        activeRulesRef.current = rules
+        const percent = resolveRulesBonusPercent(rules)
+        if (percent != null) {
+          setBonusPercent(percent)
+          bonusPercentRef.current = percent
         }
+        const rulesList = resolveGiftCardRulesList(rules)
+        if (rulesList.length > 0) setInfoPoints(rulesList)
         if (rules?.image) setBannerImage(rules.image)
+        applyRulesPreview(rules, payAmountRef.current)
       })
-      .catch(() => { })
+      .catch((err) => {
+        debugLog('[GiftCard] rules failed', giftcardApiMessage(err))
+      })
       .finally(() => {
-        if (!cancelled) setBannerRulesLoaded(true)
+        if (!cancelled) setRulesReady(true)
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [applyRulesPreview])
+
+  useEffect(() => {
+    if (!authChecked || !isAuthenticated) return
+    loadPreview(payAmountRef.current)
+  }, [authChecked, isAuthenticated, loadPreview])
 
   useEffect(() => {
     const t = setTimeout(() => loadPreview(payAmount), 300)
@@ -592,11 +707,23 @@ const GiftCardPage = () => {
     loadHistory()
   }, [authChecked, isAuthenticated, loadHistory])
 
+  useEffect(() => {
+    if (urlRedeemCode) setListTab(TAB_REDEEMED)
+  }, [urlRedeemCode])
+
   const requireAuth = () => {
     if (isAuthenticated) return true
-    openAuthModal?.()
-    setError('Please log in to buy or redeem gift cards.')
+    openAuthModal?.(ROUTES.GIFTCARD)
+    navigate(ROUTES.HOME, { replace: true })
     return false
+  }
+
+  if (!authChecked || !isAuthenticated) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center font-inter text-sm text-gray-500">
+        Loading…
+      </div>
+    )
   }
 
   const handleBuy = async () => {
@@ -675,10 +802,6 @@ const GiftCardPage = () => {
       setRedeeming(false)
     }
   }
-
-  useEffect(() => {
-    if (urlRedeemCode) setListTab(TAB_REDEEMED)
-  }, [urlRedeemCode])
 
   const closePurchasedModal = () => setPurchasedModal(null)
 
@@ -785,15 +908,17 @@ const GiftCardPage = () => {
   const purchasePanel = (
     <GiftCardPurchasePanel
       payAmount={payAmount}
-      onPayAmountChange={setPayAmount}
+      onPayAmountChange={handlePayAmountChange}
       onBuy={handleBuy}
       buying={buying}
       onRedeem={handleRedeem}
       redeeming={redeeming}
-      theyGet={theyGet}
-      multiplier={multiplier}
+      theyGet={previewData?.cardValue ?? theyGet}
+      previewBonusAmount={previewData?.bonusAmount}
+      previewPercent={previewData?.percent ?? bonusPercent}
+      infoPoints={infoPoints}
       bannerImage={bannerImage}
-      bannerRulesLoaded={bannerRulesLoaded}
+      rulesReady={rulesReady}
       initialRedeemCode={urlRedeemCode}
       previewLoading={previewLoading}
       redeemInputResetKey={redeemInputResetKey}
@@ -848,7 +973,6 @@ const GiftCardPage = () => {
           onClose={closeCreatedModal}
           card={createdModalCard}
           bannerImage={bannerImage}
-          multiplier={multiplier}
           shareUrl={createdModalShareUrl}
           onRedeem={handleCreatedModalRedeem}
           redeeming={createdModalRedeeming}

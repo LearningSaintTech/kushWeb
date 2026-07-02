@@ -1,40 +1,40 @@
+import { useEffect, useState } from 'react'
 import giftCardPromo from '../../assets/images/giftcard/gift-card-promo.png'
-
-const SIZE_CLASSES = {
-  default:
-    'max-w-[14rem] sm:max-w-[16rem] md:max-w-[18rem] lg:max-w-[20rem]',
-  compact:
-    'max-w-[12rem] sm:max-w-[14rem] md:max-w-[16rem]',
-}
 
 export default function GiftCardPromoBanner({
   className = '',
   id,
-  size = 'default',
   imageUrl,
-  rulesLoaded = true,
 }) {
-  if (!rulesLoaded) {
-    return (
-      <div
-        className={`mx-auto block h-[min(12rem,42vw)] w-full max-w-[14rem] animate-pulse rounded-lg bg-gray-100 sm:max-w-[16rem] md:max-w-[18rem] lg:max-w-[20rem] ${className}`}
-        aria-hidden
-      />
-    )
-  }
+  const [imgSrc, setImgSrc] = useState(giftCardPromo)
 
-  const src = imageUrl || giftCardPromo
+  useEffect(() => {
+    if (imageUrl) {
+      setImgSrc(imageUrl)
+      return
+    }
+    setImgSrc(giftCardPromo)
+  }, [imageUrl])
+
   return (
-    <div className={`w-full text-center ${className}`}>
-      <img
-        id={id}
-        src={src}
-        alt="Gift Card — Gift more, get more. Buy a gift card and get double the value."
-        className={`mx-auto block h-auto w-full object-contain ${SIZE_CLASSES[size] ?? SIZE_CLASSES.default}`}
-        decoding="async"
-        loading="lazy"
-        draggable={false}
-      />
+    <div className={`w-full ${className}`}>
+      <div className="mx-auto w-full max-w-[min(100%,22rem)] overflow-hidden rounded-lg bg-neutral-50">
+        <div className="relative aspect-[16/10] w-full sm:aspect-[5/3]">
+          <img
+            id={id}
+            src={imgSrc}
+            alt="Khush Gift Card — Gift more, get more"
+            className="absolute inset-0 h-full w-full object-contain object-center p-1 sm:p-2"
+            decoding="async"
+            loading="eager"
+            draggable={false}
+            referrerPolicy="no-referrer"
+            onError={() => {
+              setImgSrc((current) => (current !== giftCardPromo ? giftCardPromo : current))
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

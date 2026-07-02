@@ -10,7 +10,6 @@ import OurProduct from './components/OurProduct'
 // import OurCategory from './components/OurCategory'
 import NewArrivals from './components/NewArrivals'
 import HomePageLoader from './components/HomePageLoader'
-import { GiftCardBanner } from '../giftcard'
 import StaticCard from '../staticCards/StaticCard.jsx'
 import { sectionsService } from '../../services/content.service.js'
 
@@ -120,7 +119,6 @@ function HomePage() {
     <div>
       <Banner className="bg-white" />
       <StaticCard className="bg-white" />
-      <GiftCardBanner className="bg-white" />
       {loading && <HomePageLoader />}
       {error && (
         <div className="container mx-auto px-4 py-8 text-center text-red-600">
@@ -129,7 +127,7 @@ function HomePage() {
       )}
       {!loading && !error && (
         <div className="bg-white">
-          <div className="pt-8 md:pt-12 lg:pt-16 space-y-8 md:space-y-12 lg:space-y-16">
+          <div className="pt-5 md:pt-10 lg:pt-16 space-y-8 md:space-y-12 lg:space-y-16">
             {HOME_SLOT_ORDERS.map((order) => {
               const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
               const section = resolveSectionForHomeSlot(order, sectionsByOrder)

@@ -37,8 +37,7 @@ function MainLayout() {
           alt=""
           width={70}
           height={70}
-          className="h-[62px] w-[62px] sm:h-[74px] sm:w-[74px]"
-          draggable={false}
+          className="h-[40px] w-[40px] sm:h-[50px] sm:w-[50px]"          draggable={false}
         />
       </button>
       <Footer />

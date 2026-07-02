@@ -162,7 +162,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
               {triggerLabel}
             </span>
             <span className={`inline-flex shrink-0 ${textClass} transition-transform duration-200 ease-out`}>
-              {open ? <FaChevronUp className="h-4 w-4 md:h-5 md:w-5" /> : <FaChevronDown className="h-4 w-4 md:h-5 md:w-5" />}
+              {open ? <FaChevronUp className="h-3.5 w-3.5 md:h-5 md:w-5" /> : <FaChevronDown className="h-3.5 w-3.5 md:h-5 md:w-5" />}
             </span>
           </>
         )}
