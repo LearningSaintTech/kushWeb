@@ -131,6 +131,17 @@ function StatusBadge({ status }) {
   )
 }
 
+function GiftCardRowCode({ code, className = '' }) {
+  if (!code) return null
+  return (
+    <p
+      className={`max-w-full overflow-x-auto font-['Poltawski_Now'] text-[10px] tracking-[0.1em] text-black sm:overflow-visible sm:text-sm sm:tracking-[0.08em] ${className}`}
+    >
+      {splitCodeForDisplay(code)}
+    </p>
+  )
+}
+
 function CreatedRow({ card, selected, onThumbClick }) {
   const canOpen = card.status === 'AVAILABLE' && Boolean(onThumbClick)
   const isDepleted = card.status === 'SELF_REDEEMED' || card.status === 'REDEEMED_BY_OTHER'
@@ -139,10 +150,10 @@ function CreatedRow({ card, selected, onThumbClick }) {
 
   return (
     <div
-      className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-200 px-3 py-3 sm:px-4 sm:gap-4 ${selected ? 'bg-gray-50' : 'bg-white'
+      className={`grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] gap-x-3 gap-y-1.5 border-b border-gray-200 px-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:grid-rows-1 sm:items-center sm:gap-4 sm:px-4 ${selected ? 'bg-gray-50' : 'bg-white'
         }`}
     >
-      <div className="flex shrink-0 flex-col items-center">
+      <div className="row-span-2 flex shrink-0 flex-col items-center self-start sm:row-span-1 sm:self-center">
         <GiftCardThumb
           imageUrl={card.image}
           clickable={canOpen}
@@ -151,14 +162,14 @@ function CreatedRow({ card, selected, onThumbClick }) {
         <StatusBadge status={card.status} />
       </div>
 
-      <div className="min-w-0">
+      <div className="col-start-2 row-start-1 min-w-0">
         {isDepleted ? (
           <>
-            <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium whitespace-nowrap text-gray-400">
+            <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium text-gray-400 sm:whitespace-nowrap">
               <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
               Redeemed By
             </p>
-            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-inter text-sm whitespace-nowrap">
+            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-inter text-sm">
               {card.status === 'SELF_REDEEMED' ? (
                 <span className="font-semibold uppercase text-black">You</span>
               ) : (
@@ -171,7 +182,7 @@ function CreatedRow({ card, selected, onThumbClick }) {
               )}
             </p>
             {card.redeemedAt ? (
-              <p className="mt-0.5 flex items-center gap-1.5 font-inter text-[10px] font-medium whitespace-nowrap text-gray-400">
+              <p className="mt-0.5 flex items-center gap-1.5 font-inter text-[10px] font-medium text-gray-400 sm:whitespace-nowrap">
                 <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
                 Redeemed On {formatGiftDate(card.redeemedAt)}
               </p>
@@ -179,11 +190,11 @@ function CreatedRow({ card, selected, onThumbClick }) {
           </>
         ) : (
           <>
-            <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium whitespace-nowrap text-gray-400">
+            <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium text-gray-400 sm:whitespace-nowrap">
               <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
               Created On
             </p>
-            <p className="font-inter text-sm font-semibold uppercase whitespace-nowrap text-black">
+            <p className="font-inter text-sm font-semibold uppercase text-black sm:whitespace-nowrap">
               {formatGiftDate(card.createdAt)}
             </p>
           </>
@@ -192,7 +203,7 @@ function CreatedRow({ card, selected, onThumbClick }) {
           {formatValue(card.giftValue)}
         </p>
         <p className="font-inter text-[9px] font-medium uppercase leading-snug tracking-wide text-gray-500">
-          <span className="whitespace-nowrap">
+          <span className="sm:whitespace-nowrap">
             Gift Card Value
             {card.paidAmount != null ? ` · Paid ${formatValue(card.paidAmount)}` : ''}
             {card.multiplier ? ` · ${card.multiplier}×` : ''}
@@ -200,9 +211,10 @@ function CreatedRow({ card, selected, onThumbClick }) {
         </p>
       </div>
 
-      <p className="shrink-0 whitespace-nowrap text-right font-['Poltawski_Now'] text-[11px] tracking-[0.14em] text-black sm:text-sm sm:tracking-[0.08em]">
-        {splitCodeForDisplay(card.code)}
-      </p>
+      <GiftCardRowCode
+        code={card.code}
+        className="col-start-2 row-start-2 sm:col-start-3 sm:row-start-1 sm:shrink-0 sm:whitespace-nowrap sm:text-right"
+      />
     </div>
   )
 }
@@ -215,18 +227,18 @@ function RedeemedRow({ card }) {
   const dateValue = card.redeemedAt || card.createdAt
 
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-200 bg-white px-3 py-3 sm:px-4 sm:gap-4">
-      <div className="flex shrink-0 flex-col items-center">
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] gap-x-3 gap-y-1.5 border-b border-gray-200 bg-white px-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:grid-rows-1 sm:items-center sm:gap-4 sm:px-4">
+      <div className="row-span-2 flex shrink-0 flex-col items-center self-start sm:row-span-1 sm:self-center">
         <GiftCardThumb imageUrl={card.image} />
         <StatusBadge status={card.status} />
       </div>
 
-      <div className="min-w-0">
-        <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium whitespace-nowrap text-gray-400">
+      <div className="col-start-2 row-start-1 min-w-0">
+        <p className="flex items-center gap-1.5 font-inter text-[11px] font-medium text-gray-400 sm:whitespace-nowrap">
           <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
           {rowLabel}
         </p>
-        <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-inter text-sm whitespace-nowrap">
+        <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-inter text-sm">
           <span className="font-semibold uppercase text-black">{name}</span>
           {phone ? <span className="font-medium text-gray-500">{phone}</span> : null}
         </p>
@@ -234,20 +246,21 @@ function RedeemedRow({ card }) {
           {formatValue(card.giftValue)}
         </p>
         <p className="font-inter text-[9px] font-medium uppercase leading-snug tracking-wide text-gray-500">
-          <span className="whitespace-nowrap">
+          <span className="sm:whitespace-nowrap">
             Gift Card Value
             {card.redeemAmount != null ? ` · Redeemed ${formatValue(card.redeemAmount)}` : ''}
           </span>
         </p>
-        <p className="mt-0.5 flex items-center gap-1.5 font-inter text-[10px] font-medium whitespace-nowrap text-gray-400">
+        <p className="mt-0.5 flex items-center gap-1.5 font-inter text-[10px] font-medium text-gray-400 sm:whitespace-nowrap">
           <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-gray-400" />
           {dateLabel} {formatGiftDate(dateValue)}
         </p>
       </div>
 
-      <p className="shrink-0 whitespace-nowrap text-right font-['Poltawski_Now'] text-[11px] tracking-[0.14em] text-black sm:text-sm sm:tracking-[0.08em]">
-        {card.code ? splitCodeForDisplay(card.code) : ''}
-      </p>
+      <GiftCardRowCode
+        code={card.code}
+        className="col-start-2 row-start-2 sm:col-start-3 sm:row-start-1 sm:shrink-0 sm:whitespace-nowrap sm:text-right"
+      />
     </div>
   )
 }
