@@ -50,11 +50,14 @@ function buildBasePayload() {
 
 export async function trackEvent(eventPayload = {}) {
   const payload = { ...buildBasePayload(), ...eventPayload };
+
   try {
     const headers = { "Content-Type": "application/json" };
     headers["x-client-channel"] = "website";
     headers["x-source-platform"] = "website";
+
     if (ANALYTICS_KEY) headers["x-api-key"] = ANALYTICS_KEY;
+
     await fetch(INGEST_URL, {
       method: "POST",
       headers,
@@ -62,10 +65,24 @@ export async function trackEvent(eventPayload = {}) {
       keepalive: true,
       credentials: "include",
     });
+
   } catch (error) {
     if (isDebug()) {
       debugLog("[Analytics] trackEvent failed", error?.message || error);
     }
+  }
+
+
+  // Add this for GTM
+  if (typeof window !== "undefined") {
+    window.dataLayer = window.dataLayer || [];
+
+    window.dataLayer.push({
+      event: eventPayload.eventType,
+      ...eventPayload,
+    });
+
+    debugLog("[GTM] Event pushed:", eventPayload.eventType);
   }
 }
 
