@@ -8,6 +8,7 @@ import AuthModal from '../../features/auth/AuthModal'
 import { trackPageView, trackPixelPageView } from '../../analytics'
 import { useSupportChat } from '../../app/context/SupportChatContext'
 import chatFabImage from '../../assets/images/chat-fab.svg'
+import WhatsAppFab from '../../features/home/components/WhatsAppFab.jsx'
 
 function MainLayout() {
   const location = useLocation();
@@ -26,20 +27,24 @@ function MainLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
-      <button
-        type="button"
-        onClick={() => openSupportChat()}
-        className="fixed bottom-5 right-4 z-40 rounded-full p-0 shadow-lg transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:bottom-6 sm:right-6"
-        aria-label="Open support chat"
-      >
-        <img
-          src={chatFabImage}
-          alt=""
-          width={70}
-          height={70}
-          className="h-[40px] w-[40px] sm:h-[50px] sm:w-[50px]"          draggable={false}
-        />
-      </button>
+      <div className="fixed bottom-5 right-4 z-40 flex flex-col items-center gap-2 sm:bottom-6 sm:right-6">
+        <button
+          type="button"
+          onClick={() => openSupportChat()}
+          className="rounded-full p-0 shadow-lg transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
+          aria-label="Open support chat"
+        >
+          <img
+            src={chatFabImage}
+            alt=""
+            width={70}
+            height={70}
+            className="h-[40px] w-[40px] sm:h-[50px] sm:w-[50px]"
+            draggable={false}
+          />
+        </button>
+        <WhatsAppFab />
+      </div>
       <Footer />
       <AuthModal />
     </div>
