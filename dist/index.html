@@ -17,12 +17,15 @@
     script-src 'self' 'unsafe-inline'
       https://www.googletagmanager.com
       https://www.google-analytics.com
+      https://www.google.com
+      https://www.googleadservices.com
+      https://googleads.g.doubleclick.net
+      https://*.doubleclick.net
+      https://pagead2.googlesyndication.com
       https://connect.facebook.net
       https://checkout.razorpay.com
       https://*.razorpay.com
-      https://maps.googleapis.com
-      https://www.google.com
-https://www.googleadservices.com;
+      https://maps.googleapis.com;
 
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
@@ -37,33 +40,39 @@ https://www.googleadservices.com;
     media-src 'self' blob: https:
       https://d2efmszmuu4pfy.cloudfront.net;
 
-  connect-src 'self' ws: wss:
-  https://api.khushpehno.com
-  https://www.googletagmanager.com
-  https://www.google-analytics.com
-  https://*.google-analytics.com
-  https://region1.google-analytics.com
-  https://analytics.google.com
-  https://stats.g.doubleclick.net
-  https://www.google.com
-  https://www.googleadservices.com
-  https://googleads.g.doubleclick.net
-  https://pagead2.googlesyndication.com
-  https://connect.facebook.net
-  https://www.facebook.com
-  https://graph.facebook.com
-  https://*.facebook.com
-  https://*.a.run.app
-  https://*.on.aws
-  https://*.razorpay.com
-  https://maps.googleapis.com
-  https://nominatim.openstreetmap.org
-  https://*.nimbbl.com
-  https://*.nimbbl.tech;
+    connect-src 'self' ws: wss:
+      https://api.khushpehno.com
+      https://www.googletagmanager.com
+      https://www.google-analytics.com
+      https://*.google-analytics.com
+      https://region1.google-analytics.com
+      https://analytics.google.com
+      https://www.google.com
+      https://www.googleadservices.com
+      https://ad.doubleclick.net
+      https://stats.g.doubleclick.net
+      https://googleads.g.doubleclick.net
+      https://*.doubleclick.net
+      https://pagead2.googlesyndication.com
+      https://connect.facebook.net
+      https://www.facebook.com
+      https://graph.facebook.com
+      https://*.facebook.com
+      https://*.a.run.app
+      https://*.on.aws
+      https://*.razorpay.com
+      https://maps.googleapis.com
+      https://nominatim.openstreetmap.org
+      https://*.nimbbl.com
+      https://*.nimbbl.tech;
+
     frame-src
       https://www.googletagmanager.com
       https://www.google.com
       https://maps.google.com
+      https://googleads.g.doubleclick.net
+      https://td.doubleclick.net
+      https://*.doubleclick.net
       https://www.facebook.com
       https://api.razorpay.com
       https://*.razorpay.com
@@ -108,8 +117,8 @@ https://www.googleadservices.com;
 
   <meta name="referrer" content="strict-origin-when-cross-origin" />
 
-  <script type="module" crossorigin src="/assets/index-DGJP6Mlt.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-D7vq6VPr.css">
+  <script type="module" crossorigin src="/assets/index-C5y0bz1x.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-RPZFs99x.css">
 
     <!-- Meta Pixel Code -->
     <script>
