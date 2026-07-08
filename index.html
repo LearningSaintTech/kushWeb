@@ -32,13 +32,22 @@
 
     img-src 'self' data: blob: https:;
 
+    media-src 'self'
+      https://d2efmszmuu4pfy.cloudfront.net;
+
     connect-src 'self'
       https://api.khushpehno.com
       https://www.googletagmanager.com
       https://www.google-analytics.com
       https://region1.google-analytics.com
+      https://analytics.google.com
+      https://stats.g.doubleclick.net
+      https://connect.facebook.net
       https://www.facebook.com
       https://graph.facebook.com
+      https://*.facebook.com
+      https://mpc2-prod-26-is5qnl632q-uc.a.run.app
+      https://*.ecs.us-east-1.on.aws
       https://*.razorpay.com;
 
     frame-src
@@ -47,7 +56,9 @@
       https://*.razorpay.com;
 
     object-src 'none';
+
     base-uri 'self';
+
     form-action 'self';
   ">
 
@@ -56,6 +67,7 @@
   <script>
     (function(w,d,s,l,i){
       w[l]=w[l]||[];
+
       w[l].push({
         'gtm.start': new Date().getTime(),
         event:'gtm.js'
