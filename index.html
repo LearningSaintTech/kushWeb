@@ -32,13 +32,14 @@
 
     img-src 'self' data: blob: https:;
 
-    media-src 'self'
+    media-src 'self' blob: https:
       https://d2efmszmuu4pfy.cloudfront.net;
 
-    connect-src 'self'
+    connect-src 'self' ws: wss:
       https://api.khushpehno.com
       https://www.googletagmanager.com
       https://www.google-analytics.com
+      https://*.google-analytics.com
       https://region1.google-analytics.com
       https://analytics.google.com
       https://stats.g.doubleclick.net
@@ -46,14 +47,22 @@
       https://www.facebook.com
       https://graph.facebook.com
       https://*.facebook.com
-      https://mpc2-prod-26-is5qnl632q-uc.a.run.app
-      https://*.ecs.us-east-1.on.aws
-      https://*.razorpay.com;
+      https://*.a.run.app
+      https://*.on.aws
+      https://*.razorpay.com
+      https://maps.googleapis.com
+      https://nominatim.openstreetmap.org
+      https://*.nimbbl.com
+      https://*.nimbbl.tech;
 
     frame-src
       https://www.googletagmanager.com
+      https://www.google.com
+      https://maps.google.com
       https://www.facebook.com
-      https://*.razorpay.com;
+      https://api.razorpay.com
+      https://*.razorpay.com
+      https://*.nimbbl.com;
 
     object-src 'none';
 
@@ -91,6 +100,8 @@
   <link rel="icon" type="image/svg+xml" href="/Favicon.svg" />
 
   <title>KhushWeb</title>
+
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
 
 </head>
 
