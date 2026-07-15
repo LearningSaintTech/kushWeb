@@ -18,6 +18,8 @@ import {
   donationStateFromCart,
   buildDonationApiParams,
   getActiveDonationAmount,
+  getDonationFromApiPayload,
+  isDonationUiInSync,
   resolveDonationLineAmount,
   applyDonationToFinalPayable,
 } from '../../utils/donation.js'
@@ -38,6 +40,13 @@ import {
   resolveCartBindOffers,
 } from '../../utils/bindOffer.js'
 import { adjustSummaryForPaymentModeCharges } from '../../utils/cartCharges.js'
+import {
+  getAddressPhoneInputError,
+  shouldConfirmIndianPhoneStartsWith91,
+  ADDRESS_PHONE_91_CONFIRM_MESSAGE,
+  sanitizeAddressPhoneInput,
+  getLoginPhoneForAddress,
+} from '../../utils/validators.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = '+91'
@@ -66,9 +75,10 @@ function validateAddressForm(form) {
   else if (name.length > 60) errors.name = 'Name must be at most 60 characters.'
 
   if (!phone) errors.phoneNumber = 'Phone number is required.'
-  else if (phone.length !== 10) errors.phoneNumber = 'Phone number must be exactly 10 digits.'
-  else if (/^[0]{10}$/.test(phone)) errors.phoneNumber = 'Please enter a valid phone number.'
-
+  else {
+    const phoneErr = getAddressPhoneInputError(phone)
+    if (phoneErr) errors.phoneNumber = phoneErr
+  }
   if (!addressLine) errors.addressLine = 'Address is required.'
   else if (addressLine.length < 5) errors.addressLine = 'Address must be at least 5 characters.'
   else if (addressLine.length > 160) errors.addressLine = 'Address must be at most 160 characters.'
@@ -191,7 +201,7 @@ function guestCartToRows(guestCart) {
 function CartPage() {
   const navigate = useNavigate()
   const dispatch = useDispatch()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const {
     removeFromCart,
     refetchCart,
@@ -236,7 +246,9 @@ function CartPage() {
   const [donationPresetUsed, setDonationPresetUsed] = useState(true)
   const [donationCustomMode, setDonationCustomMode] = useState(false)
   const [donationError, setDonationError] = useState(null)
-  const donationInitializedRef = useRef(false)
+  /** Blocks API→UI sync until price-summary matches the user's last pill tap. */
+  const donationPendingIntentRef = useRef(null)
+  const priceSummaryReqIdRef = useRef(0)
   const cartViewTrackedRef = useRef(false)
 
   useEffect(() => {
@@ -376,6 +388,7 @@ function CartPage() {
   }, [addressId])
 
   const fetchPriceSummary = useCallback(async (couponCode = null) => {
+    const reqId = ++priceSummaryReqIdRef.current
     try {
       const params = couponCode ? { couponCode } : {}
       const donationParams = buildDonationApiParams({
@@ -390,11 +403,13 @@ function CartPage() {
       setDonationError(null)
       Object.assign(params, donationParams)
       const res = await cartService.getPriceSummary(params)
+      if (reqId !== priceSummaryReqIdRef.current) return null
       const data = res?.data?.data ?? res?.data
       setPriceSummary(data?.cartSummary ?? data)
       setCouponError(null)
       return data
     } catch (err) {
+      if (reqId !== priceSummaryReqIdRef.current) return null
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to get price summary'
       setCouponError(msg)
       setPriceSummary(null)
@@ -402,16 +417,34 @@ function CartPage() {
     }
   }, [donationEnabled, donationAmount, donationPresetUsed])
 
+  // Keep pills in sync with latest cart / price-summary donation (fixes bill-on / pill-off race).
   useEffect(() => {
-    if (donationInitializedRef.current || cartData == null) return
-    donationInitializedRef.current = true
-    if (cartData.donation == null) return
-    const s = donationStateFromCart(cartData.donation)
-    setDonationEnabled(s.donationEnabled)
-    setDonationAmount(s.donationAmount)
-    setDonationPresetUsed(s.donationPresetUsed)
-    setDonationCustomMode(s.donationCustomMode)
-  }, [cartData])
+    const apiDonation = getDonationFromApiPayload(priceSummary, cartData)
+    if (apiDonation == null) return
+
+    const apiEnabled = Boolean(apiDonation.enabled && Number(apiDonation.amount) > 0)
+    const pending = donationPendingIntentRef.current
+    if (pending) {
+      if (Boolean(pending.enabled) !== apiEnabled) return
+      if (
+        pending.enabled &&
+        pending.amount != null &&
+        Number(apiDonation.amount) !== Number(pending.amount)
+      ) {
+        return
+      }
+      donationPendingIntentRef.current = null
+    }
+
+    const next = donationStateFromCart(apiDonation)
+    const ui = { donationEnabled, donationAmount, donationPresetUsed }
+    if (isDonationUiInSync(ui, apiDonation)) return
+
+    setDonationEnabled(next.donationEnabled)
+    setDonationAmount(next.donationAmount)
+    setDonationPresetUsed(next.donationPresetUsed)
+    setDonationCustomMode(next.donationCustomMode)
+  }, [priceSummary, cartData, donationEnabled, donationAmount, donationPresetUsed])
 
   const handleDonationPresetSelect = (amount) => {
     const current = getActiveDonationAmount({
@@ -420,13 +453,16 @@ function CartPage() {
       donationPresetUsed,
     })
     if (donationEnabled && current === amount) {
+      donationPendingIntentRef.current = { enabled: false, amount: 0 }
       setDonationEnabled(false)
       setDonationPresetUsed(false)
       setDonationAmount('')
       setDonationCustomMode(false)
     } else {
+      donationPendingIntentRef.current = { enabled: true, amount }
       setDonationEnabled(true)
       setDonationAmount(String(amount))
+      // presetUsed=true always means ₹2 on the backend; other pills send amount explicitly.
       setDonationPresetUsed(amount === DEFAULT_DONATION_AMOUNT)
       setDonationCustomMode(false)
     }
@@ -686,9 +722,11 @@ function CartPage() {
     setAddressFormPhoneError(null)
     setAddressFormTouched({})
     setAddressFormErrors({})
+    const loginPhone =
+      addresses.length === 0 ? getLoginPhoneForAddress(user) : ''
     setAddressForm({
       name: '',
-      phoneNumber: '',
+      phoneNumber: loginPhone,
       addressLine: '',
       city: '',
       state: '',
@@ -700,6 +738,7 @@ function CartPage() {
   }
 
   const handleAddressFormChange = (field, value) => {
+    if (field === 'phoneNumber') setAddressFormPhoneError(null)
     setAddressForm((prev) => {
       const next = { ...prev, [field]: value }
       // keep validation responsive after user starts interacting
@@ -709,10 +748,23 @@ function CartPage() {
   }
 
   const touchAddressField = (field) => {
+    if (field === 'phoneNumber') {
+      const cleaned = sanitizeAddressPhoneInput(addressForm.phoneNumber)
+      if (cleaned !== addressForm.phoneNumber) {
+        setAddressForm((prev) => ({ ...prev, phoneNumber: cleaned }))
+      }
+      setAddressFormTouched((prev) => ({ ...prev, phoneNumber: true }))
+      const phoneErr = getAddressPhoneInputError(cleaned)
+      setAddressFormPhoneError(phoneErr)
+      setAddressFormErrors((prev) => {
+        const next = validateAddressForm({ ...addressForm, phoneNumber: cleaned })
+        return { ...prev, ...next }
+      })
+      return
+    }
     setAddressFormTouched((prev) => ({ ...prev, [field]: true }))
     setAddressFormErrors((prev) => {
       const next = validateAddressForm(addressForm)
-      // if user already has an error object, keep it but refresh values
       return { ...prev, ...next }
     })
   }
@@ -721,7 +773,32 @@ function CartPage() {
     e.preventDefault()
     setAddressFormError(null)
     setAddressFormPhoneError(null)
-    const validation = validateAddressForm(addressForm)
+
+    const phoneDigits = sanitizeAddressPhoneInput(addressForm.phoneNumber)
+    if (phoneDigits !== addressForm.phoneNumber) {
+      setAddressForm((prev) => ({ ...prev, phoneNumber: phoneDigits }))
+    }
+
+    const phoneCheckError = getAddressPhoneInputError(phoneDigits)
+    if (phoneCheckError) {
+      setAddressFormPhoneError(phoneCheckError)
+      setAddressFormTouched((prev) => ({ ...prev, phoneNumber: true }))
+      setAddressFormErrors((prev) => ({ ...prev, phoneNumber: phoneCheckError }))
+      window.alert(phoneCheckError)
+      return
+    }
+    if (shouldConfirmIndianPhoneStartsWith91(phoneDigits)) {
+      const ok = window.confirm(ADDRESS_PHONE_91_CONFIRM_MESSAGE)
+      if (!ok) {
+        const msg =
+          'Please check the number. If +91 was already added, enter only your 10-digit mobile.'
+        setAddressFormPhoneError(msg)
+        return
+      }
+    }
+
+    const formForValidation = { ...addressForm, phoneNumber: phoneDigits }
+    const validation = validateAddressForm(formForValidation)
     setAddressFormTouched({
       name: true,
       phoneNumber: true,
@@ -733,12 +810,14 @@ function CartPage() {
     })
     setAddressFormErrors(validation)
     if (Object.keys(validation).length > 0) {
-      if (validation.phoneNumber) setAddressFormPhoneError(validation.phoneNumber)
+      if (validation.phoneNumber) {
+        setAddressFormPhoneError(validation.phoneNumber)
+        window.alert(validation.phoneNumber)
+      }
       setAddressFormError('Please fix the highlighted fields.')
       return
     }
     const pin = digitsOnly(addressForm.pinCode, 6)
-    const phoneDigits = digitsOnly(addressForm.phoneNumber, 10)
     setAddressFormLoading(true)
     try {
       const payload = {
@@ -792,7 +871,7 @@ function CartPage() {
   )
   const donationLineAmount = resolveDonationLineAmount({
     summaryDonation: summary.donation,
-    rootDonation: priceSummary?.donation ?? cartData?.donation,
+    rootDonation: getDonationFromApiPayload(priceSummary, cartData),
     donationEnabled,
     donationAmount,
     donationPresetUsed,
@@ -804,6 +883,8 @@ function CartPage() {
         subTotal,
         donationLineAmount,
         donationIncludedInSummary,
+        donationEnabled,
+        summaryDonationAmount: Number(summary.donation?.amount) || 0,
       })
     : guestSubTotal
   const activeDonationAmount = getActiveDonationAmount({
@@ -1277,7 +1358,7 @@ function CartPage() {
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-black">Add new address</h3>
                     <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="p-2 text-gray-500 hover:text-black" aria-label="Close">×</button>
                   </div>
-                  <form onSubmit={handleAddressFormSubmit} className="overflow-y-auto p-4 flex-1 space-y-3  scrollbar-hide">
+                  <form onSubmit={handleAddressFormSubmit} autoComplete="off" className="overflow-y-auto p-4 flex-1 space-y-3  scrollbar-hide">
                     {addressFormError && <p className="text-xs text-red-600">{addressFormError}</p>}
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">Name</label>
@@ -1286,6 +1367,7 @@ function CartPage() {
                         value={addressForm.name}
                         onChange={(e) => handleAddressFormChange('name', e.target.value)}
                         onBlur={() => touchAddressField('name')}
+                        autoComplete="off"
                         className="w-full border border-gray-300 py-2 px-3 text-sm"
                         placeholder="Full name"
                         required
@@ -1302,12 +1384,12 @@ function CartPage() {
                         <input
                           type="text"
                           inputMode="numeric"
-                          autoComplete="tel-national"
+                          autoComplete="off"
                           value={addressForm.phoneNumber}
                           onChange={(e) =>
                             handleAddressFormChange(
                               'phoneNumber',
-                              e.target.value.replace(/\D/g, '').slice(0, 10),
+                              sanitizeAddressPhoneInput(e.target.value),
                             )
                           }
                           onBlur={() => touchAddressField('phoneNumber')}
@@ -1330,6 +1412,7 @@ function CartPage() {
                         value={addressForm.addressLine}
                         onChange={(e) => handleAddressFormChange('addressLine', e.target.value)}
                         onBlur={() => touchAddressField('addressLine')}
+                        autoComplete="off"
                         className="w-full border border-gray-300 py-2 px-3 text-sm"
                         placeholder="Street, area, building"
                         required
@@ -1345,6 +1428,7 @@ function CartPage() {
                           value={addressForm.city}
                           onChange={(e) => handleAddressFormChange('city', e.target.value)}
                           onBlur={() => touchAddressField('city')}
+                          autoComplete="off"
                           className="w-full border border-gray-300 py-2 px-3 text-sm"
                           placeholder="City"
                           required
@@ -1359,6 +1443,7 @@ function CartPage() {
                           value={addressForm.state}
                           onChange={(e) => handleAddressFormChange('state', e.target.value)}
                           onBlur={() => touchAddressField('state')}
+                          autoComplete="off"
                           className="w-full border border-gray-300 py-2 px-3 text-sm"
                           placeholder="State"
                           required
@@ -1377,6 +1462,7 @@ function CartPage() {
                           handleAddressFormChange('pinCode', e.target.value.replace(/\D/g, '').slice(0, 6))
                         }
                         onBlur={() => touchAddressField('pinCode')}
+                        autoComplete="off"
                         className="w-full border border-gray-300 py-2 px-3 text-sm"
                         placeholder="Pincode"
                         maxLength={6}

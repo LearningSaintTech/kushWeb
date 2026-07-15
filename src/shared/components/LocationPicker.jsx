@@ -283,7 +283,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
             <button
               type="button"
               onClick={handleGoToAddress}
-              className="font-inter flex w-full items-center justify-between gap-3 rounded-xl border border-neutral-200/80 bg-white px-3.5 py-3 text-left text-sm font-medium text-neutral-800 shadow-sm transition-all hover:border-neutral-300 hover:bg-neutral-50/80 active:scale-[0.99]"
+              className="font-inter flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-neutral-200/80 bg-white px-3.5 py-3 text-left text-sm font-medium text-neutral-800 shadow-sm transition-all hover:border-neutral-300 hover:bg-neutral-50/80 active:scale-[0.99]"
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">

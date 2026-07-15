@@ -23,6 +23,7 @@ import {
   pollUntilOrderSettled,
 } from "./paymentCheckout.js";
 import { navigateToOrderFailed, navigateToThankYou } from "./orderConversion.js";
+import { getAddressPhoneInputError, shouldConfirmIndianPhoneStartsWith91, ADDRESS_PHONE_91_CONFIRM_MESSAGE, sanitizeAddressPhoneInput, getLoginPhoneForAddress } from "../../utils/validators.js";
 // Pay later (Nimbbl) — disabled for now
 // import {
 //   formatNimblePayLaterUnavailableMessage,
@@ -43,6 +44,8 @@ import {
   buildDonationApiParams,
   buildDonationOrderBody,
   getActiveDonationAmount,
+  getDonationFromApiPayload,
+  isDonationUiInSync,
   resolveDonationLineAmount,
   applyDonationToFinalPayable,
 } from "../../utils/donation.js";
@@ -129,15 +132,12 @@ function validateDeliveryAddress(addr) {
     addr.phoneNumber,
     addr.countryCode,
   );
-  if (
-    !phoneDigits ||
-    phoneDigits.length !== 10 ||
-    /^0{10}$/.test(phoneDigits)
-  ) {
+  const phoneErr = getAddressPhoneInputError(phoneDigits);
+  if (phoneErr) {
     return {
       valid: false,
       error:
-        "Please add a valid 10-digit mobile number to your delivery address.",
+        "Please check the number on your delivery address. Enter a valid 10-digit mobile without +91.",
     };
   }
   return {
@@ -209,7 +209,7 @@ function isCouponAppliedInSummary(summaryData, expectedCode) {
 
 function CheckoutPage() {
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { refetchCart } = useCartWishlist();
   const cartState = location.state ?? {};
   const couponCodeFromCart = cartState.couponCode ?? null;
@@ -285,6 +285,7 @@ function CheckoutPage() {
   // const nimbleCheckoutActiveRef = useRef(false)
   // const nimbleVerifyingRef = useRef(false)
   const donationInitializedRef = useRef(Boolean(donationFromCartNav));
+  const donationPendingIntentRef = useRef(null);
 
   const pollingIntervalRef = useRef(null);
   const priceSummaryRequestRef = useRef(0);
@@ -403,14 +404,52 @@ function CheckoutPage() {
   );
 
   useEffect(() => {
-    if (donationInitializedRef.current || !cartData?.donation) return;
-    const s = donationStateFromCart(cartData.donation);
-    setDonationEnabled(s.donationEnabled);
-    setDonationAmount(s.donationAmount);
-    setDonationPresetUsed(s.donationPresetUsed);
-    setDonationCustomMode(s.donationCustomMode);
+    const apiDonation = getDonationFromApiPayload(
+      priceSummary,
+      cartData,
+      donationFromCartNav ? { donation: donationFromCartNav } : null,
+    );
+    if (apiDonation == null) {
+      if (!donationInitializedRef.current && cartData) {
+        donationInitializedRef.current = true;
+      }
+      return;
+    }
+
+    const apiEnabled = Boolean(apiDonation.enabled && Number(apiDonation.amount) > 0);
+    const pending = donationPendingIntentRef.current;
+    if (pending) {
+      if (Boolean(pending.enabled) !== apiEnabled) return;
+      if (
+        pending.enabled &&
+        pending.amount != null &&
+        Number(apiDonation.amount) !== Number(pending.amount)
+      ) {
+        return;
+      }
+      donationPendingIntentRef.current = null;
+    }
+
+    const next = donationStateFromCart(apiDonation);
+    const ui = { donationEnabled, donationAmount, donationPresetUsed };
+    if (isDonationUiInSync(ui, apiDonation)) {
+      donationInitializedRef.current = true;
+      return;
+    }
+
+    setDonationEnabled(next.donationEnabled);
+    setDonationAmount(next.donationAmount);
+    setDonationPresetUsed(next.donationPresetUsed);
+    setDonationCustomMode(next.donationCustomMode);
     donationInitializedRef.current = true;
-  }, [cartData?.donation]);
+  }, [
+    priceSummary,
+    cartData,
+    donationFromCartNav,
+    donationEnabled,
+    donationAmount,
+    donationPresetUsed,
+  ]);
 
   const handleDonationPresetSelect = (amount) => {
     const current = getActiveDonationAmount({
@@ -419,11 +458,13 @@ function CheckoutPage() {
       donationPresetUsed,
     });
     if (donationEnabled && current === amount) {
+      donationPendingIntentRef.current = { enabled: false, amount: 0 };
       setDonationEnabled(false);
       setDonationPresetUsed(false);
       setDonationAmount("");
       setDonationCustomMode(false);
     } else {
+      donationPendingIntentRef.current = { enabled: true, amount };
       setDonationEnabled(true);
       setDonationAmount(String(amount));
       setDonationPresetUsed(amount === DEFAULT_DONATION_AMOUNT);
@@ -826,9 +867,11 @@ function CheckoutPage() {
     debugLog("[Checkout] openAddressForm");
     setAddressFormError(null);
     setAddressFormPhoneError(null);
+    const loginPhone =
+      addresses.length === 0 ? getLoginPhoneForAddress(user) : "";
     setAddressForm({
       name: "",
-      phoneNumber: "",
+      phoneNumber: loginPhone,
       addressLine: "",
       city: "",
       state: "",
@@ -841,6 +884,7 @@ function CheckoutPage() {
 
   const handleAddressFormChange = (field, value) => {
     setAddressForm((prev) => ({ ...prev, [field]: value }));
+    if (field === "phoneNumber") setAddressFormPhoneError(null);
   };
 
   const handleAddressFormSubmit = async (e) => {
@@ -851,8 +895,25 @@ function CheckoutPage() {
     const pin = String(addressForm.pinCode || "")
       .trim()
       .replace(/\D/g, "");
-    const phoneRaw = String(addressForm.phoneNumber || "").trim();
-    const phoneDigits = phoneRaw.replace(/\D/g, "");
+    const phoneDigits = sanitizeAddressPhoneInput(addressForm.phoneNumber);
+    if (phoneDigits !== addressForm.phoneNumber) {
+      setAddressForm((prev) => ({ ...prev, phoneNumber: phoneDigits }));
+    }
+    const phoneCheckError = getAddressPhoneInputError(phoneDigits);
+    if (phoneCheckError) {
+      setAddressFormPhoneError(phoneCheckError);
+      window.alert(phoneCheckError);
+      return;
+    }
+    if (shouldConfirmIndianPhoneStartsWith91(phoneDigits)) {
+      const ok = window.confirm(ADDRESS_PHONE_91_CONFIRM_MESSAGE);
+      if (!ok) {
+        setAddressFormPhoneError(
+          "Please check the number. If +91 was already added, enter only your 10-digit mobile.",
+        );
+        return;
+      }
+    }
     if (
       !addressForm.name?.trim() ||
       !phoneDigits ||
@@ -866,10 +927,6 @@ function CheckoutPage() {
         "Please fill name, phone number, address, city, state and pincode.",
       );
       if (!phoneDigits) setAddressFormPhoneError("Phone number is required.");
-      return;
-    }
-    if (phoneDigits.length !== 10) {
-      setAddressFormPhoneError("Phone number must be 10 digits.");
       return;
     }
     setAddressFormLoading(true);
@@ -1758,11 +1815,11 @@ function CheckoutPage() {
   );
   const donationLineAmount = resolveDonationLineAmount({
     summaryDonation: summary.donation,
-    rootDonation:
-      priceSummary?.cartSummary?.donation ??
-      priceSummary?.donation ??
-      cartData?.donation ??
-      donationFromCartNav,
+    rootDonation: getDonationFromApiPayload(
+      priceSummary,
+      cartData,
+      donationFromCartNav ? { donation: donationFromCartNav } : null,
+    ),
     donationEnabled,
     donationAmount,
     donationPresetUsed,
@@ -1773,6 +1830,8 @@ function CheckoutPage() {
     subTotal,
     donationLineAmount,
     donationIncludedInSummary,
+    donationEnabled,
+    summaryDonationAmount: Number(summary.donation?.amount) || 0,
   });
   const hasSummaryFromApi = Boolean(
     priceSummary?.cartSummary ?? priceSummary?.summary,
@@ -2406,6 +2465,7 @@ function CheckoutPage() {
                   </div>
                   <form
                     onSubmit={handleAddressFormSubmit}
+                    autoComplete="off"
                     className="overflow-y-auto p-4 flex-1 space-y-3"
                   >
                     {addressFormError && (
@@ -2421,6 +2481,7 @@ function CheckoutPage() {
                         onChange={(e) =>
                           handleAddressFormChange("name", e.target.value)
                         }
+                        autoComplete="off"
                         className="w-full border border-gray-300 py-2 px-3 text-sm"
                         placeholder="Full name"
                         required
@@ -2440,14 +2501,25 @@ function CheckoutPage() {
                         <input
                           type="text"
                           inputMode="numeric"
-                          autoComplete="tel-national"
+                          autoComplete="off"
                           value={addressForm.phoneNumber}
                           onChange={(e) =>
                             handleAddressFormChange(
                               "phoneNumber",
-                              e.target.value.replace(/\D/g, "").slice(0, 10),
+                              sanitizeAddressPhoneInput(e.target.value),
                             )
                           }
+                          onBlur={() => {
+                            const cleaned = sanitizeAddressPhoneInput(
+                              addressForm.phoneNumber,
+                            );
+                            if (cleaned !== addressForm.phoneNumber) {
+                              handleAddressFormChange("phoneNumber", cleaned);
+                            }
+                            setAddressFormPhoneError(
+                              getAddressPhoneInputError(cleaned),
+                            );
+                          }}
                           className="min-w-0 flex-1 border-0 py-2 px-3 text-sm outline-none"
                           placeholder="10-digit mobile number"
                           required
@@ -2469,6 +2541,7 @@ function CheckoutPage() {
                         onChange={(e) =>
                           handleAddressFormChange("addressLine", e.target.value)
                         }
+                        autoComplete="off"
                         className="w-full border border-gray-300 py-2 px-3 text-sm"
                         placeholder="Street, area, building"
                         required
@@ -2485,6 +2558,7 @@ function CheckoutPage() {
                           onChange={(e) =>
                             handleAddressFormChange("city", e.target.value)
                           }
+                          autoComplete="off"
                           className="w-full border border-gray-300 py-2 px-3 text-sm"
                           placeholder="City"
                           required
@@ -2500,6 +2574,7 @@ function CheckoutPage() {
                           onChange={(e) =>
                             handleAddressFormChange("state", e.target.value)
                           }
+                          autoComplete="off"
                           className="w-full border border-gray-300 py-2 px-3 text-sm"
                           placeholder="State"
                           required
@@ -2517,6 +2592,7 @@ function CheckoutPage() {
                         onChange={(e) =>
                           handleAddressFormChange("pinCode", e.target.value)
                         }
+                        autoComplete="off"
                         className="w-full border border-gray-300 py-2 px-3 text-sm"
                         placeholder="Pincode"
                         required

@@ -26,7 +26,9 @@ export default function DonationPicker({
       </p>
       <div className="mt-3 flex flex-wrap gap-2.5 sm:gap-3">
         {DONATION_PRESETS.map((amt) => {
-          const selected = donationEnabled && activeAmount === amt
+          const selected =
+            donationEnabled &&
+            (activeAmount === amt || Number(donationAmount) === amt)
           return (
             <button
               key={amt}

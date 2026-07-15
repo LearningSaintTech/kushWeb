@@ -6,6 +6,7 @@ import { reverseGeocode, searchPlaces, getCurrentPosition } from '../../services
 import { setLocation } from '../../app/store/slices/locationSlice'
 import GoogleMapPicker from '../components/GoogleMapPicker'
 import { LocationIcon } from '../ui/icons'
+import { getAddressPhoneInputError, sanitizeAddressPhoneInput, getLoginPhoneForAddress } from '../../utils/validators.js'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = "+91";
@@ -56,7 +57,7 @@ function EditIcon({ className }) {
 
 export default function Address() {
   const dispatch = useDispatch();
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated, openAuthModal, user } = useAuth();
 
   const [addresses, setAddresses] = useState([]);
   const [page, setPage] = useState(1);
@@ -142,9 +143,11 @@ export default function Address() {
     setAddressSearchQuery("");
     setAddressSearchResults([]);
     setAddressSearchOpen(false);
+    const loginPhone =
+      addresses.length === 0 ? getLoginPhoneForAddress(user) : "";
     setForm({
       name: "",
-      phoneNumber: "",
+      phoneNumber: loginPhone,
       addressLine: "",
       city: "",
       state: "",
@@ -165,7 +168,7 @@ export default function Address() {
     setPhoneError(null)
     setForm({
       name: addr?.name ?? '',
-      phoneNumber: addr?.phoneNumber ?? '',
+      phoneNumber: sanitizeAddressPhoneInput(addr?.phoneNumber ?? ''),
       addressLine: addr?.addressLine ?? '',
       city: addr?.city ?? '',
       state: addr?.state ?? '',
@@ -185,6 +188,7 @@ export default function Address() {
 
   const handleFormChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === "phoneNumber") setPhoneError(null);
   };
 
   const handleMapSelect = useCallback((lat, lng) => {
@@ -215,7 +219,7 @@ export default function Address() {
     return () => clearTimeout(t);
   }, [modalOpen, modalMode, addressSearchQuery]);
 
-  // Pincode autofetch: when user enters 6 digits, auto-fill city/state (+lat/lng if available).
+  // App autofill from pincode (city/state). Browser autocomplete stays off on inputs.
   useEffect(() => {
     if (!modalOpen) return
     const pin = String(form.pinCode || '').replace(/\D/g, '').slice(0, 6)
@@ -237,7 +241,6 @@ export default function Address() {
         lastPinAutofetchRef.current = pin
         setForm((prev) => ({
           ...prev,
-          // Only fill if empty so we don't overwrite user edits
           city: prev.city?.trim() ? prev.city : (match.city || prev.city),
           state: prev.state?.trim() ? prev.state : (match.state || prev.state),
           latitude: prev.latitude ?? match.latitude ?? prev.latitude,
@@ -314,13 +317,16 @@ export default function Address() {
     setFormError(null);
     setPhoneError(null);
 
-    const phoneDigits = String(form.phoneNumber || "")
-      .trim()
-      .replace(/\D/g, "");
+    const phoneDigits = sanitizeAddressPhoneInput(form.phoneNumber);
     setPhoneTouched(true);
     const pin = String(form.pinCode || "")
       .trim()
       .replace(/\D/g, "");
+    const phoneCheckError = getAddressPhoneInputError(phoneDigits);
+    if (phoneCheckError) {
+      setPhoneError(phoneCheckError);
+      return;
+    }
     if (
       !form.name?.trim() ||
       !phoneDigits ||
@@ -331,10 +337,6 @@ export default function Address() {
     ) {
       setFormError("Please fill name, phone number, address, city, state and pincode.");
       if (!phoneDigits) setPhoneError("Phone number is required.");
-      return;
-    }
-    if (phoneDigits.length !== 10) {
-      setPhoneError("Phone number must be 10 digits.");
       return;
     }
     if (
@@ -621,6 +623,7 @@ export default function Address() {
             </div>
             <form
               onSubmit={handleSubmit}
+              autoComplete="off"
               className="px-4 sm:px-5 py-4 space-y-3 max-h-[min(85vh,560px)] overflow-y-auto"
             >
               {formError && <p className="text-xs text-red-600">{formError}</p>}
@@ -720,6 +723,7 @@ export default function Address() {
                   value={form.name}
                   onChange={(e) => handleFormChange("name", e.target.value)}
                   placeholder="Name"
+                  autoComplete="off"
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
                 />
@@ -732,6 +736,7 @@ export default function Address() {
                     handleFormChange("addressLine", e.target.value)
                   }
                   placeholder="Address (area, street, flat, building)"
+                  autoComplete="off"
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
                 />
@@ -756,6 +761,7 @@ export default function Address() {
                   value={form.city}
                   onChange={(e) => handleFormChange("city", e.target.value)}
                   placeholder="City"
+                  autoComplete="off"
                   className="w-full border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400 min-w-0"
                   required
                 />
@@ -766,6 +772,7 @@ export default function Address() {
                   value={form.state}
                   onChange={(e) => handleFormChange("state", e.target.value)}
                   placeholder="State"
+                  autoComplete="off"
                   className="flex-1 min-w-[100px] border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
                   required
                 />
@@ -779,6 +786,7 @@ export default function Address() {
                     )
                   }
                   placeholder="PIN code"
+                  autoComplete="off"
                   className="w-24 sm:w-32 border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
                   required
                 />
@@ -802,15 +810,22 @@ export default function Address() {
                   <input
                     type="text"
                     inputMode="numeric"
-                    autoComplete="tel-national"
+                    autoComplete="off"
                     value={form.phoneNumber}
                     onChange={(e) =>
                       handleFormChange(
                         "phoneNumber",
-                        e.target.value.replace(/\D/g, "").slice(0, 10),
+                        sanitizeAddressPhoneInput(e.target.value),
                       )
                     }
-                    onBlur={() => setPhoneTouched(true)}
+                    onBlur={() => {
+                      setPhoneTouched(true);
+                      const cleaned = sanitizeAddressPhoneInput(form.phoneNumber);
+                      if (cleaned !== form.phoneNumber) {
+                        handleFormChange("phoneNumber", cleaned);
+                      }
+                      setPhoneError(getAddressPhoneInputError(cleaned));
+                    }}
                     placeholder="10-digit mobile number"
                     maxLength={10}
                     pattern="[0-9]{10}"

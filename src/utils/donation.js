@@ -5,7 +5,24 @@ export const DONATION_PRESETS = [2, 5, 10, 20]
 
 export const DONATION_MAX_AMOUNT = 10000
 
-/** Amount shown in bill summary — UI state first, then price-summary / cart root. */
+/** Read donation object from price-summary / cart API payloads. */
+export function getDonationFromApiPayload(...sources) {
+  for (const source of sources) {
+    if (!source || typeof source !== 'object') continue
+    if (source.donation != null && typeof source.donation === 'object') {
+      return source.donation
+    }
+    if (source.summary?.donation != null && typeof source.summary.donation === 'object') {
+      return source.summary.donation
+    }
+    if (source.cartSummary?.donation != null && typeof source.cartSummary.donation === 'object') {
+      return source.cartSummary.donation
+    }
+  }
+  return null
+}
+
+/** Amount shown in bill summary — prefer UI when on; never show API donation while UI is off. */
 export function resolveDonationLineAmount({
   summaryDonation,
   rootDonation,
@@ -31,15 +48,25 @@ export function resolveDonationLineAmount({
   return 0
 }
 
-/** Ensure payable total includes donation when API summary omits the donation field. */
+/**
+ * Payable total for display.
+ * If UI donation is off but a stale summary still includes donation, strip it from the total.
+ */
 export function applyDonationToFinalPayable({
   finalPayable,
   taxableAmount,
   subTotal,
   donationLineAmount,
   donationIncludedInSummary,
+  donationEnabled = true,
+  summaryDonationAmount = 0,
 }) {
   const base = Number(finalPayable ?? (taxableAmount > 0 ? taxableAmount : subTotal) ?? 0)
+
+  if (!donationEnabled && donationIncludedInSummary && Number(summaryDonationAmount) > 0) {
+    return Math.max(0, base - Number(summaryDonationAmount))
+  }
+
   if (donationLineAmount <= 0 || donationIncludedInSummary) return base
 
   const preDonationBase = Number(taxableAmount > 0 ? taxableAmount : base)
@@ -84,13 +111,28 @@ export function donationStateFromCart(cartDonation) {
     }
   }
   const amount = Number(cartDonation.amount)
-  const presetUsed = !!cartDonation.presetUsed
+  const normalizedAmount =
+    Number.isFinite(amount) && amount > 0 ? amount : DEFAULT_DONATION_AMOUNT
+  const presetUsed =
+    cartDonation.presetUsed != null
+      ? !!cartDonation.presetUsed
+      : DONATION_PRESETS.includes(normalizedAmount)
   return {
     donationEnabled: true,
-    donationAmount: Number.isFinite(amount) && amount > 0 ? String(amount) : String(DEFAULT_DONATION_AMOUNT),
+    donationAmount: String(normalizedAmount),
     donationPresetUsed: presetUsed,
     donationCustomMode: !presetUsed,
   }
+}
+
+/** True when local donation UI already matches API donation object. */
+export function isDonationUiInSync(ui, apiDonation) {
+  const next = donationStateFromCart(apiDonation)
+  return (
+    Boolean(ui?.donationEnabled) === Boolean(next.donationEnabled) &&
+    String(ui?.donationAmount ?? '') === String(next.donationAmount ?? '') &&
+    Boolean(ui?.donationPresetUsed) === Boolean(next.donationPresetUsed)
+  )
 }
 
 /** Resolved amount sent to price-summary / create-order. */
