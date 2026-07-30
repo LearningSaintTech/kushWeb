@@ -221,7 +221,7 @@ function IconBadge({ count, children, scrolled, mobileDark = false }) {
     <span className="relative inline-flex items-center justify-center">
       {children}
       <span
-        className={`absolute right-0 top-0 z-10 flex -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full font-inter font-semibold leading-none tabular-nums ${
+        className={`absolute right-0 top-0 z-10 flex -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full font-inter font-semibold leading-none tabular-nums uppercase ${
           wide ? "h-[14px] min-w-[17px] px-1 text-[8px]" : "h-[14px] min-w-[14px] text-[9px]"
         } ${
           darkBadge
@@ -271,6 +271,9 @@ const navIconSize = "h-6 w-6 shrink-0";
 const profileIconSize = "h-[18px] w-[18px] shrink-0";
 const desktopNavIconBtn =
   "flex h-10 w-10 shrink-0 items-center justify-center cursor-pointer";
+
+/** Max categories shown in the desktop center nav — keeps layout stable if more are added later */
+const NAVBAR_VISIBLE_CATEGORIES = 3;
 
 /** Build search URL for menu links; SearchPage reads categoryId + subcategoryId (or category/subcategory) */
 function getSearchUrl({
@@ -329,6 +332,8 @@ export default function Header() {
     markAllRead,
   } = useNotification();
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+  const [hoveredCategoryId, setHoveredCategoryId] = useState(null);
+  const hoverCloseTimerRef = useRef(null);
   const {
     categories: navbarCategories,
     subcategoriesByCategoryId,
@@ -336,6 +341,11 @@ export default function Header() {
     loading: menuLoading,
     subcategoriesLoading,
   } = useNavbarMenu();
+
+  const desktopNavCategories = (navbarCategories ?? []).slice(
+    0,
+    NAVBAR_VISIBLE_CATEGORIES,
+  );
 
   // Expand first category by default so subcategories are visible when menu opens
   const firstCategoryId =
@@ -505,6 +515,42 @@ export default function Header() {
     }
   }, [menuOpen, effectiveActiveCategory, loadSubcategoriesForCategory]);
 
+  // Prefetch subcategories for the 3 desktop nav categories so hover menus feel instant
+  useEffect(() => {
+    (navbarCategories ?? []).slice(0, NAVBAR_VISIBLE_CATEGORIES).forEach((cat) => {
+      const id = cat._id ?? cat.id;
+      if (id) loadSubcategoriesForCategory(id);
+    });
+  }, [navbarCategories, loadSubcategoriesForCategory]);
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const openCategoryHover = useCallback(
+    (categoryId) => {
+      clearHoverCloseTimer();
+      setHoveredCategoryId(categoryId);
+      if (categoryId) loadSubcategoriesForCategory(categoryId);
+    },
+    [clearHoverCloseTimer, loadSubcategoriesForCategory],
+  );
+
+  const scheduleCategoryHoverClose = useCallback(() => {
+    clearHoverCloseTimer();
+    hoverCloseTimerRef.current = setTimeout(() => {
+      setHoveredCategoryId(null);
+      hoverCloseTimerRef.current = null;
+    }, 120);
+  }, [clearHoverCloseTimer]);
+
+  useEffect(() => {
+    return () => clearHoverCloseTimer();
+  }, [clearHoverCloseTimer]);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
     onScroll();
@@ -555,9 +601,9 @@ export default function Header() {
           useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
-        {/* Mobile: row 1 — menu, bell, logo, profile, cart, wishlist; row 2 — search + location */}
+        {/* Mobile: row 1 — toggle + logo left, icons right; row 2 — search + location */}
         <div className="md:hidden flex flex-col gap-2.5">
-          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1">
+          <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -568,6 +614,17 @@ export default function Header() {
               >
                 <HamburgerIcon className="h-6 w-6 text-black" open={false} />
               </button>
+              <NavLink
+                to={ROUTES.HOME}
+                onClick={handleLogoClick}
+                className="flex items-center text-black"
+                aria-label="KHUSH home"
+              >
+                <KhushMobileLogo className="h-9 w-9 sm:h-10 sm:w-10" />
+              </NavLink>
+            </div>
+
+            <div className="flex items-center justify-end gap-1">
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.NOTIFICATIONS}
@@ -588,18 +645,6 @@ export default function Header() {
                   <NotificationIcon className={`${navIconSize} text-black`} />
                 </button>
               )}
-            </div>
-
-            <NavLink
-              to={ROUTES.HOME}
-              onClick={handleLogoClick}
-              className="flex items-center justify-center text-black"
-              aria-label="KHUSH home"
-            >
-              <KhushMobileLogo className="h-9 w-9 sm:h-10 sm:w-10" />
-            </NavLink>
-
-            <div className="flex items-center justify-end gap-1">
               <button
                 type="button"
                 onClick={handleGiftCardNav}
@@ -661,210 +706,338 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Desktop/Tablet Layout - Single Row (for screens >= 768px) */}
-        <div className="hidden md:flex flex-row items-center gap-0">
-          {/* Left: Menu (Hamburger) + Location */}
-          <div className="flex shrink-0 items-center gap-[1.04vw]">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className={`cursor-pointer font-inter flex items-center gap-[0.42vw] text-[0.83vw] ${
-                useWhiteStyle
-                  ? "text-black hover:opacity-70"
-                  : "text-white hover:opacity-70"
-              }`}
-              aria-label="Open menu"
-              aria-expanded={menuOpen}
-            >
-              <HamburgerIcon
-                className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                open={false}
-              />
-              <span>Menu</span>
-            </button>
-
-            <LocationPicker scrolled={useWhiteStyle} compact />
-          </div>
-
-          {/* Center: Logo + taglines */}
-          <div className="flex flex-1 items-center justify-center">
-            <NavLink
-              to={ROUTES.HOME}
-              onClick={handleLogoClick}
-              className="cursor-pointer flex flex-col items-center justify-center gap-[0.26vw]"
-            >
-              <img
-                src={logoImg}
-                alt="KHUSH"
-                className={`h-12 md:h-14 lg:h-16 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
-              />
-            </NavLink>
-          </div>
-
-          {/* Right Section */}
-          <div className="flex items-center gap-[0.83vw]">
-            <form
-              action={ROUTES.SEARCH}
-              method="get"
-              onSubmit={() => closeSearchModal()}
-              className={`flex items-center gap-[4.63vw] rounded-full px-[1.04vw] py-[0.63vw] ${
-                useWhiteStyle ? "bg-[#F5F5F5]" : "bg-white/10"
-              }`}
-            >
-              <input
-                type="search"
-                name="q"
-                value={searchInputValue}
-                onChange={(e) => setSearchInputValue(e.target.value)}
-                placeholder="Find Your Choice"
-                onFocus={openSearchModal}
-                onClick={openSearchModal}
-                className={`font-inter w-full bg-transparent text-[0.83vw] focus:outline-none ${
-                  useWhiteStyle
-                    ? "text-black placeholder:text-[#636363]"
-                    : "text-white placeholder:text-white/80"
-                }`}
-              />
-              <button
-                type="submit"
-                className="cursor-pointer shrink-0"
-                aria-label="Search"
-              >
-                <SearchIcon
-                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                />
-              </button>
-            </form>
-
-            <div className="flex items-center gap-1">
-              <NavLink
-                to={ROUTES.REFER_EARN}
-                className={`${desktopNavIconBtn} ${navIconTone}`}
-                aria-label="Refer and Earn"
-              >
-                <ReferEarnIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
-              </NavLink>
+        {/* Desktop/Tablet: top bar + horizontal mega menu on category hover */}
+        <div
+          className="hidden md:block relative"
+          onMouseLeave={scheduleCategoryHoverClose}
+        >
+          <div className="relative flex flex-row items-center gap-0">
+            {/* Left: Hamburger + Logo + Location */}
+            <div className="flex shrink-0 items-center gap-[0.83vw] z-10">
               <button
                 type="button"
-                onClick={handleGiftCardNav}
-                className={`${desktopNavIconBtn} ${navIconTone}`}
-                aria-label="Gift cards"
+                onClick={() => setMenuOpen(true)}
+                className={`cursor-pointer flex items-center justify-center p-1 ${
+                  useWhiteStyle
+                    ? "text-black hover:opacity-70"
+                    : "text-white hover:opacity-70"
+                }`}
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
               >
-                <GiftCardIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
+                <HamburgerIcon
+                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                  open={false}
+                />
               </button>
-              <NavLink
-                to={ROUTES.WISHLIST}
-                className={`${desktopNavIconBtn} ${navIconTone}`}
-                aria-label="Wishlist"
-              >
-                <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
-                  <HeartIcon
-                    className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  />
-                </IconBadge>
-              </NavLink>
 
               <NavLink
-                to={ROUTES.CART}
-                className={`${desktopNavIconBtn} ${navIconTone}`}
-                aria-label="Cart"
+                to={ROUTES.HOME}
+                onClick={handleLogoClick}
+                className="cursor-pointer flex items-center"
+                aria-label="KHUSH home"
               >
-                <IconBadge count={cartCount} scrolled={useWhiteStyle}>
-                  <CartIcon
-                    className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  />
-                </IconBadge>
+                <img
+                  src={logoImg}
+                  alt="KHUSH"
+                  className={`h-7 md:h-8 lg:h-9 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
+                />
               </NavLink>
 
-              {isAuthenticated ? (
-                <>
-                  <div className="relative">
+              <LocationPicker scrolled={useWhiteStyle} compact />
+            </div>
+
+            {/* Center: Category links (max 3) */}
+            <nav
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-[0vw] min-w-[22vw]"
+              aria-label="Product categories"
+            >
+              {menuLoading && desktopNavCategories.length === 0
+                ? Array.from({ length: NAVBAR_VISIBLE_CATEGORIES }).map((_, i) => (
+                    <span
+                      key={`cat-slot-${i}`}
+                      className="inline-block min-w-[4.5vw] h-[0.94vw] rounded bg-transparent "
+                      aria-hidden
+                    />
+                  ))
+                : desktopNavCategories.map((cat) => {
+                    const categoryId = cat._id ?? cat.id;
+                    const categoryName = cat.name ?? "Category";
+                    const isHovered = hoveredCategoryId === categoryId;
+
+                    return (
+                      <div
+                        key={categoryId}
+                        className="relative min-w-[4.5vw] text-center"
+                        onMouseEnter={() => openCategoryHover(categoryId)}
+                      >
+                        <NavLink
+                          to={getSearchUrl({
+                            categoryId,
+                            categoryName,
+                          })}
+                          className={`cursor-pointer font-inter text-[0.75vw] font-medium tracking-wide uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center justify-center gap-1 py-2 ${
+                            useWhiteStyle ? "text-black" : "text-white"
+                          } ${isHovered ? "opacity-100" : ""}`}
+                          aria-expanded={isHovered}
+                          aria-haspopup="true"
+                        >
+                          {categoryName}
+                        </NavLink>
+                      </div>
+                    );
+                  })}
+            </nav>
+
+            {/* Right Section */}
+            <div className="flex items-center gap-[0.83vw] ml-auto z-10">
+              <form
+                action={ROUTES.SEARCH}
+                method="get"
+                onSubmit={() => closeSearchModal()}
+                className={`flex items-center gap-[4.63vw] rounded-full px-[1.04vw] py-[0.63vw] ${
+                  useWhiteStyle ? "bg-[#F5F5F5]" : "bg-white/10"
+                }`}
+              >
+                <input
+                  type="search"
+                  name="q"
+                  value={searchInputValue}
+                  onChange={(e) => setSearchInputValue(e.target.value)}
+                  placeholder="Find Your Choice"
+                  onFocus={openSearchModal}
+                  onClick={openSearchModal}
+                  className={`font-inter w-full bg-transparent text-[0.83vw] focus:outline-none ${
+                    useWhiteStyle
+                      ? "text-black placeholder:text-[#636363]"
+                      : "text-white placeholder:text-white/80"
+                  }`}
+                />
+                <button
+                  type="submit"
+                  className="cursor-pointer shrink-0"
+                  aria-label="Search"
+                >
+                  <SearchIcon
+                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                  />
+                </button>
+              </form>
+
+              <div className="flex items-center gap-1">
+                <NavLink
+                  to={ROUTES.REFER_EARN}
+                  className={`${desktopNavIconBtn} ${navIconTone}`}
+                  aria-label="Refer and Earn"
+                >
+                  <ReferEarnIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={handleGiftCardNav}
+                  className={`${desktopNavIconBtn} ${navIconTone}`}
+                  aria-label="Gift cards"
+                >
+                  <GiftCardIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
+                </button>
+                <NavLink
+                  to={ROUTES.WISHLIST}
+                  className={`${desktopNavIconBtn} ${navIconTone}`}
+                  aria-label="Wishlist"
+                >
+                  <IconBadge count={wishlistCount} scrolled={useWhiteStyle}>
+                    <HeartIcon
+                      className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    />
+                  </IconBadge>
+                </NavLink>
+
+                <NavLink
+                  to={ROUTES.CART}
+                  className={`${desktopNavIconBtn} ${navIconTone}`}
+                  aria-label="Cart"
+                >
+                  <IconBadge count={cartCount} scrolled={useWhiteStyle}>
+                    <CartIcon
+                      className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    />
+                  </IconBadge>
+                </NavLink>
+
+                {isAuthenticated ? (
+                  <>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setNotificationDropdownOpen((prev) => !prev)}
+                        className={`${desktopNavIconBtn} ${navIconTone}`}
+                        aria-label="Notifications"
+                        aria-expanded={notificationDropdownOpen}
+                      >
+                        <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
+                          <NotificationIcon
+                            className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                          />
+                        </IconBadge>
+                      </button>
+                      {notificationDropdownOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            aria-hidden
+                            onClick={() => setNotificationDropdownOpen(false)}
+                          />
+                          <div className="absolute right-0 top-full z-50 mt-1 w-80 max-h-96 overflow-auto rounded-xl bg-white shadow-lg border border-gray-200 py-2">
+                            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                              <span className="font-semibold text-gray-900">Notifications</span>
+                              {unreadCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => { markAllRead(); setNotificationDropdownOpen(false); }}
+                                  className="text-sm text-gray-600 hover:text-gray-900"
+                                >
+                                  Mark all read
+                                </button>
+                              )}
+                            </div>
+                            <div className="max-h-64 overflow-auto">
+                              {dropdownList.length === 0 ? (
+                                <p className="px-3 py-4 text-sm text-gray-500">No notifications</p>
+                              ) : (
+                                dropdownList.map((n) => (
+                                  <button
+                                    key={n._id}
+                                    type="button"
+                                    onClick={() => { markRead(n._id); setNotificationDropdownOpen(false); navigate(ROUTES.NOTIFICATIONS); }}
+                                    className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0 ${!n.read ? "bg-blue-50/50" : ""}`}
+                                  >
+                                    <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
+                                    {n.body ? <p className="text-xs text-gray-600 truncate mt-0.5">{n.body}</p> : null}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                            <NavLink
+                              to={ROUTES.NOTIFICATIONS}
+                              onClick={() => setNotificationDropdownOpen(false)}
+                              className="block px-3 py-2 text-sm text-center text-gray-600 hover:bg-gray-50 font-medium"
+                            >
+                              See all
+                            </NavLink>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setNotificationDropdownOpen((prev) => !prev)}
+                      onClick={() => setProfileModalOpen(true)}
                       className={`${desktopNavIconBtn} ${navIconTone}`}
-                      aria-label="Notifications"
-                      aria-expanded={notificationDropdownOpen}
+                      aria-label="Account"
                     >
-                      <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
-                        <NotificationIcon
-                          className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
-                        />
-                      </IconBadge>
+                      <ProfileIcon
+                        className={`${profileIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                      />
                     </button>
-                    {notificationDropdownOpen && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          aria-hidden
-                          onClick={() => setNotificationDropdownOpen(false)}
-                        />
-                        <div className="absolute right-0 top-full z-50 mt-1 w-80 max-h-96 overflow-auto rounded-xl bg-white shadow-lg border border-gray-200 py-2">
-                          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                            <span className="font-semibold text-gray-900">Notifications</span>
-                            {unreadCount > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => { markAllRead(); setNotificationDropdownOpen(false); }}
-                                className="text-sm text-gray-600 hover:text-gray-900"
-                              >
-                                Mark all read
-                              </button>
-                            )}
-                          </div>
-                          <div className="max-h-64 overflow-auto">
-                            {dropdownList.length === 0 ? (
-                              <p className="px-3 py-4 text-sm text-gray-500">No notifications</p>
-                            ) : (
-                              dropdownList.map((n) => (
-                                <button
-                                  key={n._id}
-                                  type="button"
-                                  onClick={() => { markRead(n._id); setNotificationDropdownOpen(false); navigate(ROUTES.NOTIFICATIONS); }}
-                                  className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0 ${!n.read ? "bg-blue-50/50" : ""}`}
-                                >
-                                  <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
-                                  {n.body ? <p className="text-xs text-gray-600 truncate mt-0.5">{n.body}</p> : null}
-                                </button>
-                              ))
-                            )}
-                          </div>
-                          <NavLink
-                            to={ROUTES.NOTIFICATIONS}
-                            onClick={() => setNotificationDropdownOpen(false)}
-                            className="block px-3 py-2 text-sm text-center text-gray-600 hover:bg-gray-50 font-medium"
-                          >
-                            See all
-                          </NavLink>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setProfileModalOpen(true)}
+                    onClick={() => openAuthModal(ROUTES.ACCOUNT)}
                     className={`${desktopNavIconBtn} ${navIconTone}`}
-                    aria-label="Account"
+                    aria-label="Account – sign in"
                   >
                     <ProfileIcon
                       className={`${profileIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
                     />
                   </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                  className={`${desktopNavIconBtn} ${navIconTone}`}
-                  aria-label="Account – sign in"
-                >
-                  <ProfileIcon
-                    className={`${profileIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  />
-                </button>
-              )}
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Full-width horizontal mega menu */}
+          {hoveredCategoryId && (() => {
+            const hoveredCat = desktopNavCategories.find(
+              (c) => (c._id ?? c.id) === hoveredCategoryId,
+            );
+            const categoryName = hoveredCat?.name ?? "Category";
+            const subs = subcategoriesByCategoryId[hoveredCategoryId] ?? [];
+            const subsLoading = !!subcategoriesLoading?.[hoveredCategoryId];
+            const columnCount = 3;
+            const perCol = Math.max(1, Math.ceil(subs.length / columnCount));
+            const columns = Array.from({ length: columnCount }, (_, colIdx) =>
+              subs.slice(colIdx * perCol, (colIdx + 1) * perCol),
+            );
+
+            return (
+              <div
+                className="absolute left-1/2 top-full z-50 w-screen -translate-x-1/2 bg-white border-t border-gray-100 shadow-md"
+                onMouseEnter={() => openCategoryHover(hoveredCategoryId)}
+                role="menu"
+                aria-label={`${categoryName} subcategories`}
+              >
+                <div className="mx-auto max-w-4xl px-8 py-6">
+                  {subsLoading && subs.length === 0 ? (
+                    <p className="font-inter text-sm text-gray-400">Loading…</p>
+                  ) : subs.length === 0 ? (
+                    <NavLink
+                      to={getSearchUrl({
+                        categoryId: hoveredCategoryId,
+                        categoryName,
+                      })}
+                      className="font-inter text-sm font-medium text-gray-900 hover:text-black"
+                      onClick={() => setHoveredCategoryId(null)}
+                    >
+                      View all {categoryName}
+                    </NavLink>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="grid grid-cols-3 gap-x-16 gap-y-2">
+                        {columns.map((col, colIdx) => (
+                          <ul key={`mega-col-${colIdx}`} className="flex flex-col gap-3">
+                            {col.map((sub, subIdx) => {
+                              const subId =
+                                sub._id ?? sub.id ?? `sub-${colIdx}-${subIdx}`;
+                              const subName =
+                                sub.name ?? sub.label ?? "Subcategory";
+                              return (
+                                <li key={subId}>
+                                  <NavLink
+                                    to={getSearchUrl({
+                                      categoryId: hoveredCategoryId,
+                                      subcategoryId: subId,
+                                      categoryName,
+                                      subcategoryName: subName,
+                                    })}
+                                    className="font-inter text-sm text-gray-800 hover:text-black transition-colors whitespace-nowrap"
+                                    onClick={() => setHoveredCategoryId(null)}
+                                    role="menuitem"
+                                  >
+                                    {subName}
+                                  </NavLink>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ))}
+                      </div>
+                      <NavLink
+                        to={getSearchUrl({
+                          categoryId: hoveredCategoryId,
+                          categoryName,
+                        })}
+                        className="font-inter inline-block text-sm font-semibold text-gray-900 hover:text-black uppercase tracking-wide"
+                        onClick={() => setHoveredCategoryId(null)}
+                        role="menuitem"
+                      >
+                        View all {categoryName}
+                      </NavLink>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Search dropdown: curved panel below header */}

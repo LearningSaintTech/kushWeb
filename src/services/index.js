@@ -20,6 +20,10 @@ export {
 } from './axiosClient.js';
 
 export { authService } from './auth.service.js';
+export {
+  communityProfileService,
+  getCommunityProfileErrorMessage,
+} from './communityProfile.service.js';
 export { itemsService } from './items.service.js';
 export { categoriesService, subcategoriesService } from './categories.service.js';
 export { cartService } from './cart.service.js';

@@ -22,6 +22,17 @@ import { ReferEarnPage } from '../../features/referEarn'
 import { CoinsPage } from '../../features/coins'
 import { GiftCardPage } from '../../features/giftcard'
 import {
+  CommunityPage,
+  CommunityFeedLayout,
+  CommunityFeedHome,
+  CommunitySavedFeed,
+  CommunitySearchFeed,
+  CommunityProfilePage,
+  CommunityCreateJoin,
+  CommunityReelsFeed,
+  CommunityEnterPage,
+} from '../../features/community'
+import {
   RefundCancelPolicyPage,
   PaymentPolicyPage,
   ShippingDeliveryPolicyPage,
@@ -75,6 +86,20 @@ const router = createBrowserRouter([
       { path: 'refer-earn', element: <ReferEarnPage /> },
       { path: 'redeem-coins', element: <CoinsPage /> },
       { path: 'giftcard', element: <GiftCardPage /> },
+      { path: 'community', element: <CommunityPage /> },
+      { path: 'community/enter', element: <CommunityEnterPage /> },
+      {
+        path: 'community/feed',
+        element: <CommunityFeedLayout />,
+        children: [
+          { index: true, element: <CommunityFeedHome /> },
+          { path: 'search', element: <CommunitySearchFeed /> },
+          { path: 'reels', element: <CommunityReelsFeed /> },
+          { path: 'profile', element: <CommunityProfilePage /> },
+          { path: 'create', element: <CommunityCreateJoin /> },
+          { path: 'saved', element: <CommunitySavedFeed /> },
+        ],
+      },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],

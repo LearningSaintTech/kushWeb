@@ -1,0 +1,194 @@
+/**
+ * Community profile API – creator / designer onboarding + username.
+ * Base path: /user/community-profile
+ * Requires: user auth (Bearer via axiosClient)
+ *
+ * Dev logs: filtered with `[CommunityProfile]` when VITE_APP_ENV=dev.
+ */
+
+import client from './axiosClient.js';
+import { debugLog, debugError } from '../utils/debugLog.js';
+import { redactForLog } from '../utils/logRedact.util.js';
+
+const BASE = '/user/community-profile';
+
+function unwrap(res) {
+  return res?.data?.data ?? res?.data ?? null;
+}
+
+function logCommunity(label, payload) {
+  debugLog(`[CommunityProfile] ${label}`, payload);
+}
+
+function wrap(method, path, promise, body) {
+  logCommunity('request', {
+    method,
+    path,
+    body: body != null ? redactForLog(body) : undefined,
+  });
+  return promise
+    .then((res) => {
+      const data = unwrap(res);
+      logCommunity('response', {
+        method,
+        path,
+        message: res?.data?.message,
+        data: redactForLog(data),
+      });
+      return data;
+    })
+    .catch((err) => {
+      debugError(`[CommunityProfile] error`, {
+        method,
+        path,
+        status: err?.response?.status,
+        message: err?.response?.data?.message ?? err?.message,
+        errors: err?.response?.data?.errors ?? null,
+      });
+      throw err;
+    });
+}
+
+/** Prefer API message for UI alerts. */
+export function getCommunityProfileErrorMessage(err, fallback = 'Something went wrong.') {
+  const msg = err?.response?.data?.message;
+  if (typeof msg === 'string' && msg.trim()) return msg.trim();
+  if (typeof err?.message === 'string' && err.message.trim()) return err.message.trim();
+  return fallback;
+}
+
+export const communityProfileService = {
+  /** GET /user/community-profile/ */
+  getProfile: () => wrap('GET', `${BASE}/`, client.get(`${BASE}/`)),
+
+  /** POST /user/community-profile/role — { role: 'creator' | 'designer' } */
+  selectRole: (role) =>
+    wrap('POST', `${BASE}/role`, client.post(`${BASE}/role`, { role }), { role }),
+
+  /** GET /user/community-profile/username/check?username= */
+  checkUsername: (username) =>
+    wrap(
+      'GET',
+      `${BASE}/username/check`,
+      client.get(`${BASE}/username/check`, { params: { username } }),
+      { username },
+    ),
+
+  /** PATCH /user/community-profile/username */
+  updateUsername: (username) =>
+    wrap(
+      'PATCH',
+      `${BASE}/username`,
+      client.patch(`${BASE}/username`, { username }),
+      { username },
+    ),
+
+  // ——— Designer ———
+
+  patchDesignerEssentials: (body) =>
+    wrap(
+      'PATCH',
+      `${BASE}/designer/essentials`,
+      client.patch(`${BASE}/designer/essentials`, body),
+      body,
+    ),
+
+  /** multipart: profileImage?, coverImage? */
+  patchDesignerScene: (formData) =>
+    wrap(
+      'PATCH',
+      `${BASE}/designer/scene`,
+      client.patch(`${BASE}/designer/scene`, formData),
+      formData,
+    ),
+
+  patchDesignerSkills: (skills) =>
+    wrap(
+      'PATCH',
+      `${BASE}/designer/skills`,
+      client.patch(`${BASE}/designer/skills`, { skills }),
+      { skills },
+    ),
+
+  patchDesignerExperience: (experience) =>
+    wrap(
+      'PATCH',
+      `${BASE}/designer/experience`,
+      client.patch(`${BASE}/designer/experience`, { experience }),
+      { experience },
+    ),
+
+  patchDesignerEducation: (education) =>
+    wrap(
+      'PATCH',
+      `${BASE}/designer/education`,
+      client.patch(`${BASE}/designer/education`, { education }),
+      { education },
+    ),
+
+  patchDesignerStory: (body) =>
+    wrap(
+      'PATCH',
+      `${BASE}/designer/story`,
+      client.patch(`${BASE}/designer/story`, body),
+      body,
+    ),
+
+  patchDesignerLinks: (links) =>
+    wrap(
+      'PATCH',
+      `${BASE}/designer/links`,
+      client.patch(`${BASE}/designer/links`, { links }),
+      { links },
+    ),
+
+  skipDesignerStep: () =>
+    wrap('POST', `${BASE}/designer/skip`, client.post(`${BASE}/designer/skip`)),
+
+  completeDesigner: () =>
+    wrap('POST', `${BASE}/designer/complete`, client.post(`${BASE}/designer/complete`)),
+
+  resubmitDesigner: () =>
+    wrap('POST', `${BASE}/designer/resubmit`, client.post(`${BASE}/designer/resubmit`)),
+
+  // ——— Creator ———
+
+  /** multipart: profileImage (required) */
+  patchCreatorPhoto: (formData) =>
+    wrap(
+      'PATCH',
+      `${BASE}/creator/photo`,
+      client.patch(`${BASE}/creator/photo`, formData),
+      formData,
+    ),
+
+  patchCreatorBasic: (body) =>
+    wrap(
+      'PATCH',
+      `${BASE}/creator/basic`,
+      client.patch(`${BASE}/creator/basic`, body),
+      body,
+    ),
+
+  patchCreatorAbout: (body) =>
+    wrap(
+      'PATCH',
+      `${BASE}/creator/about`,
+      client.patch(`${BASE}/creator/about`, body),
+      body,
+    ),
+
+  patchCreatorPrivate: (body) =>
+    wrap(
+      'PATCH',
+      `${BASE}/creator/private`,
+      client.patch(`${BASE}/creator/private`, body),
+      body,
+    ),
+
+  skipCreatorStep: () =>
+    wrap('POST', `${BASE}/creator/skip`, client.post(`${BASE}/creator/skip`)),
+
+  completeCreator: () =>
+    wrap('POST', `${BASE}/creator/complete`, client.post(`${BASE}/creator/complete`)),
+};

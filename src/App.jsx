@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './app/context/AuthContext'
 import { CartWishlistProvider } from './app/context/CartWishlistContext'
 import { NotificationProvider, useNotificationSocket } from './app/context/NotificationContext'
 import { SupportChatProvider } from './app/context/SupportChatContext'
+import { CommunityProfileProvider } from './features/community/context/CommunityProfileContext'
 import { usePushSubscribe } from './app/hooks/usePushSubscribe'
 import { useLocationOnLoad } from './app/hooks/useLocationOnLoad'
 import { useEffect, useRef } from 'react'
@@ -71,13 +72,15 @@ function AppContent() {
     <AuthProvider>
       <CartWishlistProvider>
         <NotificationProvider>
-          <SupportChatProvider>
-            <AnalyticsSessionConnector />
-            <LocationOnLoadConnector />
-            <NotificationSocketConnector />
-            <PushSubscribeConnector />
-            <Routes />
-          </SupportChatProvider>
+          <CommunityProfileProvider>
+            <SupportChatProvider>
+              <AnalyticsSessionConnector />
+              <LocationOnLoadConnector />
+              <NotificationSocketConnector />
+              <PushSubscribeConnector />
+              <Routes />
+            </SupportChatProvider>
+          </CommunityProfileProvider>
         </NotificationProvider>
       </CartWishlistProvider>
     </AuthProvider>

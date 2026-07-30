@@ -1,9 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { debugError } from '../../utils/debugLog.js';
 import { Link } from "react-router-dom";
 import { ROUTES, getSearchPath } from "../../utils/constants";
 import logoImg from "../../assets/images/navBar/SVG.svg";
-import khushDressImg from "../../assets/images/footer/khushDress.png";
+// import khushDressImg from "../../assets/images/footer/khushDress.png";
+import editorialImg from "../../assets/images/limited-edition/editorial.png";
+import fashionDuoImg from "../../assets/images/limited-edition/fashion-duo.png";
+import dunesImg from "../../assets/images/limited-edition/dunes.png";
+import flatlayImg from "../../assets/images/limited-edition/flatlay.png";
+import studioWideImg from "../../assets/images/limited-edition/studio-wide.png";
+import communityGirlImg from "../../assets/images/community/communitygirl.jpg";
+import thumb1Img from "../../assets/images/special-discount/thumb-1.png";
+import thumb2Img from "../../assets/images/special-discount/thumb-2.png";
+import thumb3Img from "../../assets/images/special-discount/thumb-3.png";
+import thumb4Img from "../../assets/images/special-discount/thumb-4.png";
+import photo1 from "../../assets/images/special-discount/photo-15.avif";
+import photo2 from "../../assets/images/special-discount/photo11.avif";
 import {
   categoriesService,
   subcategoriesService,
@@ -18,6 +30,77 @@ import {
   FaGooglePlay,
 } from "react-icons/fa";
 // import { FaXTwitter } from "react-icons/fa6";
+
+const FOOTER_PHOTO_SERIES = [
+  editorialImg,
+  fashionDuoImg,
+  dunesImg,
+  flatlayImg,
+  studioWideImg,
+  photo1,
+  photo2,
+  communityGirlImg,
+  thumb1Img,
+  thumb2Img,
+  thumb3Img,
+  thumb4Img,
+];
+
+function KhushPhotoBanner() {
+  // Two identical halves → CSS translateX(-50%) loops seamlessly
+  const strip = [...FOOTER_PHOTO_SERIES, ...FOOTER_PHOTO_SERIES];
+  const bannerRef = useRef(null);
+
+  // While hovering KHUSH, block mouse-wheel page scroll — only the photo strip moves
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el) return;
+    const blockVerticalScroll = (e) => {
+      e.preventDefault();
+    };
+    el.addEventListener("wheel", blockVerticalScroll, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", blockVerticalScroll);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={bannerRef}
+      className="group/khush relative w-full overflow-x-hidden bg-black outline-none select-none pt-2 sm:pt-3 pb-1 overscroll-none"
+      tabIndex={0}
+      aria-label="KHUSH — hover to reveal scrolling photos"
+    >
+      {/* Text defines height — do not clip vertically or letters collapse */}
+      <div className="relative flex w-full items-center justify-center">
+        {/* Photos only: clip horizontal marquee here, not the KHUSH text */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-0 transition-opacity duration-300 group-hover/khush:opacity-100 group-focus-within/khush:opacity-100">
+          <div className="khush-footer-marquee flex h-full w-max will-change-transform">
+            {strip.map((src, i) => (
+              <div
+                key={`${i}-${typeof src === "string" ? src : i}`}
+                className="h-full w-[clamp(4.5rem,11vw,9rem)] shrink-0"
+              >
+                <img
+                  src={src}
+                  alt=""
+                  className="pointer-events-none h-full w-full object-cover"
+                  draggable={false}
+                  loading={i < 8 ? "eager" : "lazy"}
+                  decoding="async"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <h2 className="relative z-10 w-full text-center text-[24vw] font-extrabold uppercase leading-none tracking-[0.01em] text-white select-none">
+          KHUSH
+        </h2>
+      </div>
+    </div>
+  );
+}
 /** Static fallback when API returns no footer data (matches your copy). */
 const FALLBACK_SECTIONS = [
   {
@@ -262,6 +345,9 @@ function Footer() {
 
   return (
     <footer className="mt-auto bg-black text-white font-inter">
+      {/* Big KHUSH — photo series scrolls on hover */}
+      <KhushPhotoBanner />
+
       {/* ================= TOP SECTION ================= */}
       <div className="border-b border-white/20">
         {/* <div className="px-4 sm:px-6 lg:px-12 py-10"> */}
