@@ -24,6 +24,26 @@ export {
   communityProfileService,
   getCommunityProfileErrorMessage,
 } from './communityProfile.service.js';
+export {
+  communityService,
+  getCommunityErrorMessage,
+  isDesignerNotVerifiedError,
+} from './community.service.js';
+export {
+  COMMUNITY_BASE,
+  unwrapCommunity,
+  logCommunity,
+  wrapCommunity,
+} from './communityApi.js';
+export {
+  compressImage,
+  putToS3,
+  uploadCommunityFile,
+  uploadMultipartSession,
+  waitUntilPublished,
+  createPostFast,
+  createReelFast,
+} from './communityUpload.service.js';
 export { itemsService } from './items.service.js';
 export { categoriesService, subcategoriesService } from './categories.service.js';
 export { cartService } from './cart.service.js';

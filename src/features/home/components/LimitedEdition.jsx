@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { getProductPath, ROUTES } from '../../../utils/constants'
 import { getPublicImageUrl } from '../../../services/config.js'
@@ -7,182 +8,179 @@ import flatlay from '../../../assets/images/limited-edition/flatlay.png'
 import dunes from '../../../assets/images/limited-edition/dunes.png'
 import fashionDuo from '../../../assets/images/limited-edition/fashion-duo.png'
 
-const GRID_IMAGE_COUNT = 8
-
-const GRID_IMAGES = [
-    {
-        src: editorial,
-        alt: 'Model in black blazer with pearl necklace',
-        objectPosition: 'object-[center_25%] sm:object-center',
-    },
-    {
-        src: studioWide,
-        alt: 'Two models in white outfits in minimalist studio',
-        objectPosition: 'object-[center_35%] sm:object-center',
-    },
-    {
-        src: editorial,
-        alt: 'Editorial fashion pose in black outfit',
-        objectPosition: 'object-[center_15%] sm:object-[center_30%]',
-    },
-    {
-        src: flatlay,
-        alt: 'Flat lay of jeans, cardigan, boots and accessories',
-        objectPosition: 'object-center',
-    },
-    {
-        src: dunes,
-        alt: 'Models in flowing dresses walking on sand dunes',
-        objectPosition: 'object-[center_42%] sm:object-[center_38%]',
-    },
-    {
-        src: fashionDuo,
-        alt: 'Two models in high-fashion outfits and sunglasses',
-        objectPosition: 'object-[center_20%] sm:object-center',
-    },
-    {
-        src: studioWide,
-        alt: 'Fashion editorial in studio',
-        objectPosition: 'object-center',
-    },
-    {
-        src: dunes,
-        alt: 'Models on sand dunes at golden hour',
-        objectPosition: 'object-[center_40%] sm:object-center',
-    },
+const FALLBACK_LOOKS = [
+  {
+    id: 'college-fit',
+    title: 'College Fit',
+    subtitle: 'Lecture halls to late-night canteens.',
+    src: editorial,
+    alt: 'College Fit look',
+  },
+  {
+    id: 'weekend-fit',
+    title: 'Weekend Fit',
+    subtitle: 'Slow mornings, spontaneous plans.',
+    src: fashionDuo,
+    alt: 'Weekend Fit look',
+  },
+  {
+    id: 'date-night-fit',
+    title: 'Date Night Fit',
+    subtitle: 'Candlelight and quiet confidence.',
+    src: dunes,
+    alt: 'Date Night Fit look',
+  },
+  {
+    id: 'work-casual-fit',
+    title: 'Work Casual Fit',
+    subtitle: 'Meetings, but make it comfortable.',
+    src: studioWide,
+    alt: 'Work Casual Fit look',
+  },
+  {
+    id: 'street-fit',
+    title: 'Street Fit',
+    subtitle: 'City blocks as a runway.',
+    src: flatlay,
+    alt: 'Street Fit look',
+  },
 ]
 
-const DEFAULT_OBJECT_POSITION = 'object-center'
+function buildLooksFromSection(section) {
+  const products = Array.isArray(section?.products) ? section.products : []
+  const fromProducts = products
+    .filter((p) => p?.item?.thumbnail || p?.item?.name)
+    .slice(0, 8)
+    .map((p, i) => {
+      const item = p.item
+      const fallback = FALLBACK_LOOKS[i % FALLBACK_LOOKS.length]
+      const thumb = item?.thumbnail
+        ? getPublicImageUrl(item.thumbnail) || item.thumbnail
+        : fallback.src
+      return {
+        id: item?._id ?? item?.id ?? fallback.id,
+        title: item?.name || fallback.title,
+        subtitle:
+          item?.shortDescription ||
+          item?.description ||
+          fallback.subtitle,
+        src: thumb,
+        alt: item?.name || fallback.alt,
+        productId: item?._id ?? item?.id ?? p.itemId,
+        name: item?.name || '',
+        shortDescription: item?.shortDescription || '',
+      }
+    })
 
-function buildGridImagesFromSection(section) {
-    const fromProducts =
-        section?.products
-            ?.filter((p) => p?.item?.thumbnail)
-            ?.slice(0, GRID_IMAGE_COUNT)
-            ?.map((p, i) => ({
-                src: getPublicImageUrl(p.item.thumbnail),
-                alt: p.item.name || 'Limited edition product',
-                objectPosition: GRID_IMAGES[i]?.objectPosition ?? DEFAULT_OBJECT_POSITION,
-                productId: p.item._id ?? p.itemId ?? p.item?.id,
-                name: p.item.name || '',
-                shortDescription: p.item.shortDescription || '',
-            })) ?? []
+  if (fromProducts.length >= 3) return fromProducts
 
-    if (fromProducts.length === 0) return GRID_IMAGES
-
-    while (fromProducts.length < GRID_IMAGE_COUNT) {
-        const fallback = GRID_IMAGES[fromProducts.length % GRID_IMAGES.length]
-        fromProducts.push({ ...fallback })
-    }
-    return fromProducts.slice(0, GRID_IMAGE_COUNT)
+  const merged = [...fromProducts]
+  for (const look of FALLBACK_LOOKS) {
+    if (merged.length >= FALLBACK_LOOKS.length) break
+    if (merged.some((m) => m.id === look.id)) continue
+    merged.push({ ...look })
+  }
+  return merged
 }
 
-function GalleryImage({ item }) {
-    const frameClass =
-        'relative aspect-[4/5] w-full overflow-hidden rounded-2xl sm:rounded-[15px]'
+function LookCard({ look }) {
+  const to = look.productId
+    ? getProductPath(look.productId, look.name, look.shortDescription)
+    : ROUTES.SEARCH
 
-    const image = (
-        <img
-            src={item.src}
-            alt={item.alt}
-            className={`absolute inset-0 h-full w-full object-cover ${item.objectPosition ?? DEFAULT_OBJECT_POSITION}`}
-            loading="lazy"
-            decoding="async"
-            sizes="(max-width: 640px) 50vw, 25vw"
-        />
-    )
+  return (
+    <article className="group relative h-full w-full overflow-hidden bg-neutral-200">
+      <img
+        src={look.src}
+        alt={look.alt || look.title}
+        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-500"
+        aria-hidden
+      />
+      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-start p-4 sm:p-5 md:p-6">
+        <h3 className="font-inter text-lg font-bold leading-tight text-white sm:text-xl md:text-[1.35rem]">
+          {look.title}
+        </h3>
 
-    if (item.productId) {
-        return (
-            <Link
-                to={getProductPath(item.productId, item.name, item.shortDescription)}
-                className={`${frameClass} block transition-opacity hover:opacity-90`}
-                aria-label={item.alt}
-            >
-                {image}
-            </Link>
-        )
-    }
-
-    return <div className={frameClass}>{image}</div>
-}
-
-function LimitedEditionGallery({ gridImages }) {
-    return (
         <div
-            className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 md:gap-5"
-            role="list"
+          className={[
+            'grid w-full transition-[grid-template-rows,opacity,margin] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
+            'grid-rows-[0fr] opacity-0',
+            'group-hover:mt-1.5 group-hover:grid-rows-[1fr] group-hover:opacity-100',
+            'group-focus-within:mt-1.5 group-focus-within:grid-rows-[1fr] group-focus-within:opacity-100',
+            '[@media(hover:none)]:mt-1.5 [@media(hover:none)]:grid-rows-[1fr] [@media(hover:none)]:opacity-100',
+          ].join(' ')}
         >
-            {gridImages.map((item, index) => (
-                <GalleryImage
-                    key={item.productId ? String(item.productId) : `${item.src}-${index}`}
-                    item={item}
-                />
-            ))}
+          <div className="min-h-0 overflow-hidden">
+            <p className="line-clamp-4 pr-2 font-inter text-[12px] font-normal leading-[1.45] text-white/90 sm:text-[13px]">
+              {look.subtitle}
+            </p>
+          </div>
         </div>
-    )
-}
 
-function LimitedEditionHeader({ title }) {
-    const words = (title || 'Limited Edition')
-        .trim()
-        .replace(/['']/g, '')
-        .split(/\s+/)
-        .filter(Boolean)
-    const first = words[0] || 'Limited'
-    const rest = words.slice(1).join(' ') || 'Edition'
-
-    return (
-        <header className="mb-6 sm:mb-8 md:mb-10">
-            <h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-0 leading-none text-white">
-                <span className="font-rivera text-[clamp(2rem,9vw,3rem)] text-white sm:text-[clamp(2.5rem,6vw,3.75rem)] md:text-[clamp(3rem,4.5vw,4.25rem)] lg:text-[4.5rem]">
-                    {first}
-                </span>
-                <span className="font-inter text-[clamp(1rem,3.5vw,1.25rem)] font-bold uppercase tracking-[0.14em] text-white sm:text-xl sm:tracking-[0.16em] md:text-2xl lg:text-[2.25rem]">
-                    {rest}
-                </span>
-            </h2>
-        </header>
-    )
-}
-
-function ExploreLink({ to }) {
-    return (
         <Link
-            to={to}
-            className="group inline-flex flex-col items-end gap-1.5 font-inter text-[10px] font-medium uppercase tracking-[0.22em] text-white transition-opacity hover:opacity-80 sm:text-xs md:text-sm"
-            aria-label="Explore limited edition collection"
+          to={to}
+          className="mt-3.5 inline-flex items-center gap-1.5 border border-white bg-transparent px-3.5 py-2 font-inter text-[10px] font-semibold uppercase tracking-[0.14em] text-white transition-colors hover:bg-white hover:text-black sm:mt-4 sm:px-4 sm:text-[11px]"
         >
-            <span className="flex items-center gap-1">
-                Explore
-                <span className="translate-y-px text-sm leading-none" aria-hidden>
-                    &gt;
-                </span>
-            </span>
-            <span className="h-px w-[calc(100%+0.5rem)] bg-white transition-opacity group-hover:opacity-80" />
+          Shop the Look
+          <span aria-hidden className="translate-y-px text-sm leading-none">
+            →
+          </span>
         </Link>
-    )
+      </div>
+    </article>
+  )
 }
 
 function LimitedEdition({ section }) {
-    const gridImages = buildGridImagesFromSection(section)
-    const exploreTo = section?._id
-        ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}`
-        : ROUTES.SEARCH
+  const scrollerRef = useRef(null)
+  const looks = buildLooksFromSection(section)
+  const lookbookTo = section?._id
+    ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}`
+    : ROUTES.SEARCH
+  const heading = (section?.title || 'Limited Edition').trim() || 'Limited Edition'
 
-    return (
-        <section className="w-full overflow-x-hidden bg-black py-10 sm:py-12 md:py-14 lg:py-16 xl:py-20">
-            <div className="mx-auto w-full max-w-[1420px] px-4 sm:px-8 md:px-12 lg:px-16 xl:px-20 2xl:px-24">
-                <LimitedEditionHeader title={section?.title} />
+  return (
+    <section className="w-full overflow-x-hidden bg-white py-8 sm:py-10 md:py-12 lg:py-14">
+      <div className="mb-5 flex items-end justify-between gap-4 px-4 sm:mb-6 sm:px-6 md:mb-8 md:px-8 lg:px-10">
+        <h2 className="min-w-0 whitespace-nowrap font-inter text-[1.65rem] font-extrabold uppercase leading-none tracking-tight text-black sm:text-3xl md:text-4xl lg:text-[2.75rem]">
+          {heading}
+        </h2>
+        <Link
+          to={lookbookTo}
+          className="font-inter mb-0.5 inline-flex shrink-0 items-center gap-1.5 border-b border-black pb-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-black transition-opacity hover:opacity-70 sm:text-xs"
+        >
+          Full Lookbook
+          <span aria-hidden>→</span>
+        </Link>
+      </div>
 
-                <LimitedEditionGallery gridImages={gridImages} />
-
-                <div className="mt-6 flex justify-end sm:mt-8 md:mt-10">
-                    <ExploreLink to={exploreTo} />
-                </div>
+      <div
+        ref={scrollerRef}
+        className="scrollbar-hide flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 sm:gap-3.5 sm:px-6 md:gap-4 md:px-8 lg:px-10 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="list"
+        aria-label="Limited edition looks"
+      >
+        {looks.map((look) => (
+          <div
+            key={String(look.id)}
+            role="listitem"
+            className="w-[72vw] max-w-[280px] shrink-0 snap-start sm:w-[46vw] sm:max-w-[300px] md:w-[32vw] md:max-w-[320px] lg:w-[22vw] lg:max-w-[340px]"
+          >
+            <div className="aspect-[3/4] w-full">
+              <LookCard look={look} />
             </div>
-        </section>
-    )
+          </div>
+        ))}
+        <div className="w-1 shrink-0 sm:w-2" aria-hidden />
+      </div>
+    </section>
+  )
 }
 
 export default LimitedEdition

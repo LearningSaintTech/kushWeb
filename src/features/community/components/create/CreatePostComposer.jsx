@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { debugLog } from '../../../../utils/debugLog'
+import { debugLog, debugError } from '../../../../utils/debugLog'
+import {
+  communityService,
+  getCommunityErrorMessage,
+  isDesignerNotVerifiedError,
+} from '../../../../services/community.service.js'
+import {
+  createPostFast,
+  createReelFast,
+} from '../../../../services/communityUpload.service.js'
+import { logCommunity } from '../../../../services/communityApi.js'
+import {
+  extractHashtagsFromCaption,
+  mapPurchasedItem,
+} from '../../api/communityContentMappers.js'
 import topSvg from '../../../../assets/images/community/top.svg'
 
 const SUGGESTED_TAGS = ['#Minimalist', '#LinenLove', '#SummerLook', '#KhushStyle']
-
-const PRODUCT_CATALOG = [
-  { id: 'p1', name: 'White Tee', thumb: topSvg },
-  { id: 'p2', name: 'Cargo Pants', thumb: topSvg },
-  { id: 'p3', name: 'Linen Shirt', thumb: topSvg },
-  { id: 'p4', name: 'Denim Jacket', thumb: topSvg },
-  { id: 'p5', name: 'Wide Trousers', thumb: topSvg },
-]
-
-const DESIGNERS = ['Alice Mark', 'John Smith']
 
 function formatDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds <= 0) return '0:30'
@@ -23,8 +27,7 @@ function formatDuration(seconds) {
 }
 
 /**
- * Create Post composer — caption, product tags, media preview.
- * Opens after Camera / Gallery for Reel (and Post).
+ * Create Post / Reel composer — purchased-items picker + fast upload publish.
  */
 export default function CreatePostComposer({
   open,
@@ -36,30 +39,70 @@ export default function CreatePostComposer({
   const replaceInputRef = useRef(null)
   const [caption, setCaption] = useState('')
   const [productQuery, setProductQuery] = useState('')
-  const [tagged, setTagged] = useState(() =>
-    PRODUCT_CATALOG.filter((p) => p.id === 'p1' || p.id === 'p2'),
-  )
+  const [catalog, setCatalog] = useState([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogError, setCatalogError] = useState(null)
+  const [tagged, setTagged] = useState([])
   const [previewUrl, setPreviewUrl] = useState('')
   const [durationLabel, setDurationLabel] = useState('0:30')
   const [musicOn, setMusicOn] = useState(false)
   const [posting, setPosting] = useState(false)
+  const [uploadPct, setUploadPct] = useState(0)
+  const [uploadPhase, setUploadPhase] = useState('')
+  const [postError, setPostError] = useState(null)
   const [localFile, setLocalFile] = useState(null)
 
   const activeFile = localFile || mediaFile
   const isVideo = Boolean(
     activeFile?.type?.startsWith('video/') || kind === 'reel',
   )
+  const selectedItem = tagged[0] || null
+  const designedByLabel =
+    selectedItem?.raw?.designedBy ||
+    selectedItem?.raw?.item?.designedBy ||
+    null
 
   useEffect(() => {
     if (!open) return undefined
     setCaption('')
     setProductQuery('')
-    setTagged(PRODUCT_CATALOG.filter((p) => p.id === 'p1' || p.id === 'p2'))
+    setTagged([])
     setMusicOn(false)
     setPosting(false)
+    setUploadPct(0)
+    setUploadPhase('')
+    setPostError(null)
     setLocalFile(null)
     setDurationLabel('0:30')
-    return undefined
+    setCatalogError(null)
+
+    let cancelled = false
+    setCatalogLoading(true)
+    logCommunity('CreatePostComposer load purchased-items')
+    communityService
+      .getPurchasedItems({ limit: 100 })
+      .then((data) => {
+        if (cancelled) return
+        const raw = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
+        const mapped = raw.map(mapPurchasedItem).filter(Boolean)
+        setCatalog(mapped)
+        logCommunity('CreatePostComposer purchased-items ok', { count: mapped.length })
+        if (mapped.length === 1) setTagged([mapped[0]])
+      })
+      .catch((err) => {
+        if (cancelled) return
+        const message = getCommunityErrorMessage(err, 'Could not load purchased products')
+        debugError('[Community] purchased-items failed', message)
+        setCatalogError(message)
+        setCatalog([])
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [open])
 
   useEffect(() => {
@@ -83,12 +126,12 @@ export default function CreatePostComposer({
 
   const suggestions = useMemo(() => {
     const q = productQuery.trim().toLowerCase()
-    if (!q) return []
-    return PRODUCT_CATALOG.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) && !tagged.some((t) => t.id === p.id),
-    ).slice(0, 5)
-  }, [productQuery, tagged])
+    const pool = catalog.filter((p) => !tagged.some((t) => t.id === p.id))
+    if (!q) return pool.slice(0, 5)
+    return pool
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .slice(0, 5)
+  }, [productQuery, tagged, catalog])
 
   const appendHashtag = (tag) => {
     setCaption((prev) => {
@@ -99,8 +142,13 @@ export default function CreatePostComposer({
   }
 
   const addProduct = (product) => {
-    setTagged((prev) => (prev.some((p) => p.id === product.id) ? prev : [...prev, product]))
+    // API publish takes a single itemId — keep one selection
+    setTagged([product])
     setProductQuery('')
+    logCommunity('CreatePostComposer product selected', {
+      itemId: product.itemId || product.id,
+      name: product.name,
+    })
   }
 
   const removeProduct = (id) => {
@@ -115,23 +163,98 @@ export default function CreatePostComposer({
   }
 
   const handlePost = async () => {
+    setPostError(null)
+    if (!activeFile) {
+      setPostError('Add media before posting')
+      return
+    }
+    const itemId = selectedItem?.itemId || selectedItem?.id
+    if (!itemId) {
+      setPostError(
+        catalog.length === 0
+          ? 'Buy & receive a product first — no delivered items to tag'
+          : 'Select a purchased product to tag',
+      )
+      return
+    }
+
     setPosting(true)
-    const payload = {
+    setUploadPct(0)
+    setUploadPhase('upload')
+
+    const captionText = caption.trim()
+    const hashtags = extractHashtagsFromCaption(captionText)
+
+    debugLog('[Community] Post to Community (fast upload)', {
       kind,
-      caption: caption.trim(),
-      products: tagged.map((p) => p.id),
-      designers: DESIGNERS,
-      musicOn,
+      itemId,
+      caption: captionText,
+      hashtags,
       fileName: activeFile?.name || null,
       fileType: activeFile?.type || null,
+      fileSize: activeFile?.size || null,
+    })
+
+    try {
+      const onProgress = (pct, phase) => {
+        setUploadPct(pct)
+        setUploadPhase(phase || '')
+        logCommunity('CreatePostComposer progress', { pct, phase })
+      }
+
+      let result
+      if (kind === 'reel' || isVideo) {
+        result = await createReelFast({
+          itemId,
+          caption: captionText,
+          hashtags,
+          videoFile: activeFile,
+          onProgress,
+        })
+      } else {
+        result = await createPostFast({
+          itemId,
+          caption: captionText,
+          hashtags,
+          imageFiles: [activeFile],
+          onProgress,
+        })
+      }
+
+      debugLog('[Community] Post to Community success', {
+        id: result?._id,
+        status: result?.status,
+        type: result?.type,
+      })
+      setPosting(false)
+      onPosted?.({
+        kind,
+        itemId,
+        caption: captionText,
+        hashtags,
+        content: result,
+      })
+    } catch (err) {
+      const message = isDesignerNotVerifiedError(err)
+        ? 'Designer account must be verified before creating posts'
+        : getCommunityErrorMessage(err, 'Failed to publish')
+      debugError('[Community] Post to Community failed', message)
+      setPostError(message)
+      setPosting(false)
     }
-    debugLog('[Community] Post to Community', payload)
-    await new Promise((r) => setTimeout(r, 450))
-    setPosting(false)
-    onPosted?.(payload)
   }
 
   if (!open) return null
+
+  const canSubmit = Boolean(activeFile) && !posting
+  const progressLabel =
+    uploadPhase === 'publish'
+      ? 'Publishing…'
+      : uploadPhase === 'poll'
+        ? 'Processing…'
+        : uploadPct > 0
+          ? `Uploading ${uploadPct}%`
+          : 'Posting…'
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-black/50 px-4 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-12">
@@ -160,13 +283,12 @@ export default function CreatePostComposer({
         </button>
 
         <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-stretch lg:gap-10 lg:p-10 lg:pr-12">
-          {/* Left — form */}
           <div className="flex min-w-0 flex-col">
             <h2
               id="create-post-title"
               className="pr-10 font-inter text-[1.65rem] font-bold leading-none tracking-tight text-black"
             >
-              Create Post
+              Create {kind === 'reel' ? 'Reel' : 'Post'}
             </h2>
 
             <label className="mt-7 block">
@@ -177,6 +299,7 @@ export default function CreatePostComposer({
                 rows={4}
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
+                maxLength={2200}
                 placeholder="Write something about your style..."
                 className="w-full resize-none rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 font-inter text-sm leading-relaxed text-black outline-none transition placeholder:text-neutral-400 focus:border-neutral-400"
               />
@@ -197,7 +320,7 @@ export default function CreatePostComposer({
 
             <div className="mt-6">
               <span className="mb-2 block font-inter text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400">
-                Tag Products
+                Tag Product (required)
               </span>
               <div className="relative">
                 <svg
@@ -217,8 +340,15 @@ export default function CreatePostComposer({
                 <input
                   value={productQuery}
                   onChange={(e) => setProductQuery(e.target.value)}
-                  placeholder="Search your products..."
-                  className="w-full rounded-full border-0 bg-[#f2f2f2] py-3 pl-10 pr-4 font-inter text-sm text-black outline-none transition placeholder:text-neutral-400 focus:ring-2 focus:ring-black/10"
+                  placeholder={
+                    catalogLoading
+                      ? 'Loading purchased products…'
+                      : catalog.length === 0
+                        ? 'No delivered products yet'
+                        : 'Search your purchased products...'
+                  }
+                  disabled={catalogLoading || catalog.length === 0}
+                  className="w-full rounded-full border-0 bg-[#f2f2f2] py-3 pl-10 pr-4 font-inter text-sm text-black outline-none transition placeholder:text-neutral-400 focus:ring-2 focus:ring-black/10 disabled:opacity-60"
                 />
                 {suggestions.length > 0 ? (
                   <ul className="absolute z-10 mt-2 w-full overflow-hidden rounded-2xl bg-white py-1 shadow-[0_12px_32px_rgba(0,0,0,0.12)] ring-1 ring-black/5">
@@ -229,8 +359,15 @@ export default function CreatePostComposer({
                           onClick={() => addProduct(item)}
                           className="flex w-full cursor-pointer items-center gap-2.5 px-4 py-2.5 text-left font-inter text-sm text-black transition hover:bg-neutral-50"
                         >
-                          <img src={item.thumb} alt="" className="h-5 w-5 object-contain" />
-                          {item.name}
+                          <img
+                            src={item.thumb || topSvg}
+                            alt=""
+                            className="h-5 w-5 object-contain"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                          {item.price ? (
+                            <span className="shrink-0 text-xs text-neutral-500">{item.price}</span>
+                          ) : null}
                         </button>
                       </li>
                     ))}
@@ -238,13 +375,21 @@ export default function CreatePostComposer({
                 ) : null}
               </div>
 
+              {catalogError ? (
+                <p className="mt-2 font-inter text-xs text-amber-700">{catalogError}</p>
+              ) : null}
+
               <div className="mt-3 flex flex-wrap gap-2">
                 {tagged.map((item) => (
                   <span
                     key={item.id}
                     className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1.5 font-inter text-xs font-medium text-black"
                   >
-                    <img src={item.thumb} alt="" className="h-4 w-4 object-contain" />
+                    <img
+                      src={item.thumb || topSvg}
+                      alt=""
+                      className="h-4 w-4 object-contain"
+                    />
                     {item.name}
                     <button
                       type="button"
@@ -259,34 +404,37 @@ export default function CreatePostComposer({
               </div>
             </div>
 
-            <p className="mt-5 font-inter text-[11px] uppercase tracking-[0.06em] text-neutral-500">
-              <span className="font-semibold text-neutral-400">Designed by </span>
-              {DESIGNERS.map((name, index) => (
-                <span key={name}>
-                  {index > 0 ? ', ' : null}
-                  <button
-                    type="button"
-                    className="cursor-pointer font-semibold text-black underline decoration-neutral-300 underline-offset-2 transition hover:decoration-black"
-                  >
-                    {name}
-                  </button>
-                </span>
-              ))}
-            </p>
+            {designedByLabel ? (
+              <p className="mt-5 font-inter text-[11px] uppercase tracking-[0.06em] text-neutral-500">
+                <span className="font-semibold text-neutral-400">Designed by </span>
+                <span className="font-semibold text-black">{designedByLabel}</span>
+              </p>
+            ) : null}
+
+            {postError ? (
+              <p className="mt-4 font-inter text-sm text-red-600">{postError}</p>
+            ) : null}
 
             <div className="mt-8 lg:mt-auto lg:pt-10">
               <button
                 type="button"
                 onClick={handlePost}
-                disabled={posting || !activeFile}
+                disabled={!canSubmit}
                 className="flex h-12 w-full cursor-pointer items-center justify-center rounded-xl bg-[#1a2420] font-inter text-sm font-semibold text-white transition hover:bg-[#243029] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {posting ? 'Posting…' : 'Post to Community'}
+                {posting ? progressLabel : 'Post to Community'}
               </button>
+              {posting && uploadPct > 0 ? (
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                  <div
+                    className="h-full rounded-full bg-[#1a2420] transition-all"
+                    style={{ width: `${Math.min(100, uploadPct)}%` }}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
 
-          {/* Right — preview */}
           <div className="flex items-center justify-center lg:items-end lg:justify-end lg:pb-1">
             <div className="relative flex items-end gap-3">
               <div className="relative h-[min(52vh,420px)] w-[min(calc(52vh*9/16),236px)] overflow-hidden rounded-[22px] bg-[#ececec] sm:h-[440px] sm:w-[248px]">

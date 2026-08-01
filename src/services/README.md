@@ -40,6 +40,10 @@ await authService.login({ countryCode: '+91', phoneNumber: '9999999999' })
 | `config.js` | `API_BASE_URL`, `API_ORIGIN`, `isDebug()` |
 | `axiosClient.js` | Axios instance, Bearer header, device id, 401 refresh, rate-limit messages |
 | `auth.service.js` | User auth endpoints; DEV-only redacted debug logs |
+| `communityProfile.service.js` | Creator/designer onboarding (`/user/community-profile`) |
+| `community.service.js` | Community feed/social (`/community/*`) — feed, like, save, follow, comments |
+| `communityUpload.service.js` | Fast upload: compress → presign → S3 → publish → poll |
+| `communityApi.js` | Shared unwrap / wrap / `[Community]` debug logs |
 | `*.service.js` | One file per backend module |
 | `index.js` | Re-exports config, client, and all services |
 

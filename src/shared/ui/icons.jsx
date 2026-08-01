@@ -84,14 +84,23 @@ export function NotificationIcon({ className }) {
       height="24"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
       className={className}
+      aria-hidden="true"
     >
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      <path
+        d="M6 9.5a6 6 0 1 1 12 0c0 3.2.86 5.05 1.5 6.1.28.46-.05 1.05-.6 1.05H5.1c-.55 0-.88-.59-.6-1.05.64-1.05 1.5-2.9 1.5-6.1Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.5 18.5a2.5 2.5 0 0 0 5 0"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -100,26 +109,25 @@ export function ProfileIcon({ className }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
       fill="none"
       className={className}
+      aria-hidden="true"
     >
-      <mask id="profile-path-1-inside-1" fill="white">
-        <path d="M20 20V17.5385C20 16.2328 19.4732 14.9806 18.5355 14.0573C17.5979 13.1341 16.3261 12.6154 15 12.6154H5C3.67392 12.6154 2.40215 13.1341 1.46447 14.0573C0.526784 14.9806 0 16.2328 0 17.5385V20" />
-      </mask>
-      <path
-        d="M18.5 20V21.5H21.5V20H20H18.5ZM15 12.6154V11.1154V12.6154ZM5 12.6154V11.1154V12.6154ZM0 17.5385H-1.5H0ZM-1.5 20V21.5H1.5V20H0H-1.5ZM20 20H21.5V17.5385H20H18.5V20H20ZM20 17.5385H21.5C21.5 15.8274 20.8094 14.1912 19.5879 12.9885L18.5355 14.0573L17.4831 15.1262C18.137 15.77 18.5 16.6382 18.5 17.5385H20ZM18.5355 14.0573L19.5879 12.9885C18.3672 11.7865 16.7165 11.1154 15 11.1154V12.6154V14.1154C15.9357 14.1154 16.8285 14.4816 17.4831 15.1262L18.5355 14.0573ZM15 12.6154V11.1154H5V12.6154V14.1154H15V12.6154ZM5 12.6154V11.1154C3.28353 11.1154 1.63277 11.7865 0.41206 12.9885L1.46447 14.0573L2.51687 15.1262C3.17153 14.4816 4.0643 14.1154 5 14.1154V12.6154ZM1.46447 14.0573L0.41206 12.9885C-0.809439 14.1912 -1.5 15.8274 -1.5 17.5385H0H1.5C1.5 16.6382 1.86301 15.77 2.51687 15.1262L1.46447 14.0573ZM0 17.5385H-1.5V20H0H1.5V17.5385H0Z"
-        fill="currentColor"
-        mask="url(#profile-path-1-inside-1)"
+      <circle
+        cx="12"
+        cy="8"
+        r="3.25"
+        stroke="currentColor"
+        strokeWidth="1.5"
       />
       <path
-        d="M10 0.75C12.3581 0.75 14.2499 2.62915 14.25 4.92285C14.25 7.21666 12.3582 9.0957 10 9.0957C7.64178 9.0957 5.75 7.21666 5.75 4.92285C5.75012 2.62915 7.64186 0.75 10 0.75Z"
+        d="M5.75 19.25c.9-2.85 3.1-4.25 6.25-4.25s5.35 1.4 6.25 4.25"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
     </svg>
   )

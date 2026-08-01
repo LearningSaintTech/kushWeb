@@ -1,38 +1,30 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
-import { MOCK_POSTS, MOCK_SAVED_ITEMS, MOCK_SAVED_REELS } from '../data/mockFeed'
+import { useCommunitySaves } from '../hooks/useCommunityFeed'
+import { logCommunity } from '../../../services/communityApi.js'
 
 const TABS = [
-  { id: 'images', label: 'Images' },
-  { id: 'reels', label: 'Reels' },
+  { id: 'post', label: 'Images' },
+  { id: 'reel', label: 'Reels' },
 ]
 
 /**
- * Saved / Favourites grid — click opens the post (or reels feed).
+ * Saved / Favourites — GET /community/saves
  */
 export default function CommunitySavedFeed() {
-  const [tab, setTab] = useState('images')
+  const [tab, setTab] = useState('post')
   const navigate = useNavigate()
   const { openPost } = useOutletContext() ?? {}
-  const items = tab === 'reels' ? MOCK_SAVED_REELS : MOCK_SAVED_ITEMS
+  const { items, loading, error, refresh } = useCommunitySaves({ type: tab })
 
   const handleOpen = (item) => {
+    logCommunity('SavedFeed open', { id: item.id, type: item.type })
     if (item.type === 'reel') {
       navigate(ROUTES.COMMUNITY_REELS)
       return
     }
-
-    const post =
-      MOCK_POSTS.find((p) => p.id === item.postId) ??
-      {
-        ...MOCK_POSTS[0],
-        id: item.id,
-        image: item.image ?? MOCK_POSTS[0].image,
-        images: [item.image ?? MOCK_POSTS[0].image],
-      }
-
-    openPost?.(post)
+    openPost?.(item)
   }
 
   return (
@@ -61,13 +53,34 @@ export default function CommunitySavedFeed() {
         })}
       </div>
 
+      {loading ? (
+        <p className="mt-8 font-inter text-sm text-neutral-500">Loading saves…</p>
+      ) : null}
+
+      {error ? (
+        <div className="mt-8 rounded-2xl bg-amber-50 px-4 py-3 font-inter text-sm text-amber-900">
+          {error}
+          <button
+            type="button"
+            onClick={refresh}
+            className="ml-3 cursor-pointer font-semibold underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {!loading && !error && items.length === 0 ? (
+        <p className="mt-8 font-inter text-sm text-neutral-500">No saved items yet</p>
+      ) : null}
+
       <div className="mt-6 grid grid-cols-3 gap-0 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
         {items.map((item) => (
           <button
-            key={item.id}
+            key={item.saveId || item.id}
             type="button"
             onClick={() => handleOpen(item)}
-            className={`aspect-square w-full cursor-pointer overflow-hidden transition hover:opacity-90 ${item.style ?? 'bg-neutral-100'}`}
+            className="aspect-square w-full cursor-pointer overflow-hidden bg-neutral-100 transition hover:opacity-90"
             aria-label={`Open saved ${item.type}`}
           >
             {item.image ? (

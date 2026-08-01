@@ -10,7 +10,11 @@ import OurProduct from './components/OurProduct'
 // import OurCategory from './components/OurCategory'
 import NewArrivals from './components/NewArrivals'
 import HomePageLoader from './components/HomePageLoader'
-import StaticCard from '../staticCards/StaticCard.jsx'
+// import StaticCard from '../staticCards/StaticCard.jsx'
+import DropStory from './components/DropStory'
+import FabricCraft from './components/FabricCraft.jsx'
+import OurStory from './components/OurStory.jsx'
+import CategorySpotlight from './components/CategorySpotlight.jsx'
 import { sectionsService } from '../../services/content.service.js'
 
 /** webOrder → home section component (static fallbacks when no API section for that slot). */
@@ -118,7 +122,8 @@ function HomePage() {
 
     <div>
       <Banner className="bg-white" />
-      <StaticCard className="bg-white" />
+      <CategorySpotlight />
+      {/* <StaticCard className="bg-white" /> */}
       {loading && <HomePageLoader />}
       {error && (
         <div className="container mx-auto px-4 py-8 text-center text-red-600">
@@ -133,10 +138,16 @@ function HomePage() {
               const section = resolveSectionForHomeSlot(order, sectionsByOrder)
               if (!SectionComponent) return null
               return (
-                <SectionComponent
-                  key={`home-slot-${order}`}
-                  section={section}
-                />
+                <div key={`home-slot-${order}`}>
+                  {order === 6 ? (
+                    <>
+                      <FabricCraft />
+                      <OurStory />
+                    </>
+                  ) : null}
+                  <SectionComponent section={section} />
+                  {order === 5 ? <DropStory /> : null}
+                </div>
               )
             })}
           </div>

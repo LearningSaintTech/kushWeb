@@ -1,18 +1,17 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
-import StaticCard from "../../staticCards/StaticCard.jsx"
+import React, { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { getProductPath, ROUTES } from '../../../utils/constants'
 import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
-import { IoChevronForward, IoChevronBack, IoStarSharp } from 'react-icons/io5'
-import { LuClock4 } from 'react-icons/lu'
+import { IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 
 const SECTION_PAGE_SIZE = 10
+const DISPLAY_COUNT = 5
 
-/** Map search API item to carousel card shape */
+/** Map search API item to card shape */
 function mapItemToCard(item, deliveryTypeFallback, section = null) {
   const id = item._id ?? item.id
   const variants = item.variants ?? []
@@ -20,22 +19,31 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
   const images = firstVariant?.images ?? []
   const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   const imageUrl = item.thumbnail ?? sorted[0]?.url ?? ''
-  const delivery = item.deliveryType === '90_MIN'
-    ? '90 min'
-    : item.deliveryType === 'ONE_DAY'
-      ? '1 day'
-      : item.deliveryType
-        ? String(item.deliveryType)
-        : deliveryTypeFallback
-          ? `GET IN ${deliveryTypeFallback}`
-          : '—'
-  const price = item.discountedPrice != null ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0'
-  const originalPrice = item.discountedPrice != null && item.price != null && Number(item.price) > Number(item.discountedPrice)
-    ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-    : undefined
+  const hoverUrl = sorted[1]?.url ?? sorted[0]?.url ?? imageUrl
+  const delivery =
+    item.deliveryType === '90_MIN'
+      ? '90 min'
+      : item.deliveryType === 'ONE_DAY'
+        ? '1 day'
+        : item.deliveryType
+          ? String(item.deliveryType)
+          : deliveryTypeFallback
+            ? `GET IN ${deliveryTypeFallback}`
+            : '—'
+  const price =
+    item.discountedPrice != null
+      ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : '₹0'
+  const originalPrice =
+    item.discountedPrice != null &&
+    item.price != null &&
+    Number(item.price) > Number(item.discountedPrice)
+      ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : undefined
   return {
     id,
     image: imageUrl || productImage,
+    hoverImage: hoverUrl || hoverProductImage,
     title: item.name ?? '',
     shortDescription: item.shortDescription ?? '',
     price,
@@ -48,437 +56,198 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
 }
 
 const NEW_ARRIVALS_DATA = [
-  { id: 1, image: productImage, title: 'DENIM JACKET', price: '₹1500.00', delivery: 'GET IN 6-7 days', rating: 4.5 },
-  { id: 2, image: hoverProductImage, title: 'OVERSIZED SHIRT', price: '₹1299.00', delivery: 'GET IN 4-6 days', rating: 4.2 },
-  { id: 3, image: productImage, title: 'CARGO TROUSERS', price: '₹1899.00', delivery: 'GET IN 5-7 days', rating: 4.6 },
-  { id: 4, image: hoverProductImage, title: 'GRAPHIC TEE', price: '₹899.00', delivery: 'GET IN 3-5 days', rating: 4.3 },
-  { id: 5, image: productImage, title: 'BLAZER COAT', price: '₹2499.00', delivery: 'GET IN 6-8 days', rating: 4.7 },
-  { id: 6, image: hoverProductImage, title: 'SLIM FIT JEANS', price: '₹1599.00', delivery: 'GET IN 4-6 days', rating: 4.4 },
-  { id: 7, image: productImage, title: 'COTTON HOODIE', price: '₹1399.00', delivery: 'GET IN 5-7 days', rating: 4.5 },
-  { id: 8, image: hoverProductImage, title: 'PRINTED TOP', price: '₹999.00', delivery: 'GET IN 3-5 days', rating: 4.1 },
-  { id: 9, image: productImage, title: 'FORMAL SHIRT', price: '₹1199.00', delivery: 'GET IN 4-6 days', rating: 4.6 },
-  { id: 10, image: hoverProductImage, title: 'WINTER JACKET', price: '₹2799.00', delivery: 'GET IN 6-8 days', rating: 4.8 },
+  { id: 1, image: productImage, hoverImage: hoverProductImage, title: 'Casual Dress', price: '₹75.00' },
+  { id: 2, image: hoverProductImage, hoverImage: productImage, title: 'Mens Oversized Pants', price: '₹75.00' },
+  { id: 3, image: productImage, hoverImage: hoverProductImage, title: 'Mens Oversized Tshirt', price: '₹75.00' },
+  { id: 4, image: hoverProductImage, hoverImage: productImage, title: 'Mens Oversized Shirt', price: '₹75.00' },
+  { id: 5, image: productImage, hoverImage: hoverProductImage, title: 'Mens Oversized Tshirt', price: '₹75.00' },
 ]
 
 function NewArrivals({ section }) {
   const navigate = useNavigate()
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
 
-  const listFromSection = section?.products
-    ?.filter((p) => p?.item)
-    ?.map((p) => {
-      const item = p.item
-      const price = item.discountedPrice != null ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0'
-      const originalPrice = item.discountedPrice != null && item.price != null && Number(item.price) > Number(item.discountedPrice)
-        ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-        : undefined
-      return {
-        id: item._id,
-        image: item.thumbnail || productImage,
-        title: item.name || '',
-        shortDescription: item.shortDescription || '',
-        price,
-        originalPrice,
-        delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
-        rating: item.avgRating ?? 0,
-        outOfStock: p.inStock === false,
-        ...listingBindOfferProps(item, section),
-      }
-    }) || []
+  const listFromSection =
+    section?.products
+      ?.filter((p) => p?.item)
+      ?.map((p) => {
+        const item = p.item
+        const variants = item.variants ?? []
+        const firstVariant = variants[0]
+        const images = firstVariant?.images ?? []
+        const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        const imageUrl = item.thumbnail || sorted[0]?.url || productImage
+        const hoverUrl = sorted[1]?.url || sorted[0]?.url || imageUrl
+        const price =
+          item.discountedPrice != null
+            ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+            : '₹0'
+        const originalPrice =
+          item.discountedPrice != null &&
+          item.price != null &&
+          Number(item.price) > Number(item.discountedPrice)
+            ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+            : undefined
+        return {
+          id: item._id,
+          image: imageUrl,
+          hoverImage: hoverUrl || hoverProductImage,
+          title: item.name || '',
+          shortDescription: item.shortDescription || '',
+          price,
+          originalPrice,
+          delivery:
+            section.deliveryType === '90_MIN'
+              ? '90 min'
+              : section.deliveryType === 'ONE_DAY'
+                ? '1 day'
+                : section.deliveryType
+                  ? `GET IN ${section.deliveryType}`
+                  : '',
+          rating: item.avgRating ?? 0,
+          outOfStock: p.inStock === false,
+          ...listingBindOfferProps(item, section),
+        }
+      }) || []
 
   const [sectionList, setSectionList] = useState([])
-  const [sectionPage, setSectionPage] = useState(1)
-  const [sectionHasMore, setSectionHasMore] = useState(false)
   const [sectionLoading, setSectionLoading] = useState(false)
-  const [sectionLoadingMore, setSectionLoadingMore] = useState(false)
 
   const list = section?._id
-    ? (sectionList.length > 0 ? sectionList : listFromSection)
-    : (listFromSection.length > 0 ? listFromSection : NEW_ARRIVALS_DATA)
-  const sectionTitle = section?.title || 'NEW ARRIVALS'
-  const exploreTo = section?._id ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}` : `${ROUTES.SEARCH}?itemsOnly=1`
+    ? sectionList.length > 0
+      ? sectionList
+      : listFromSection
+    : listFromSection.length > 0
+      ? listFromSection
+      : NEW_ARRIVALS_DATA
 
-  const [activeSlide, setActiveSlide] = useState(2)
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
-  const titleRefs = useRef({})
-  const [expandedTitles, setExpandedTitles] = useState({})
-  const [overflowTitles, setOverflowTitles] = useState({})
+  const displayList = list.slice(0, DISPLAY_COUNT)
+  const sectionTitle = section?.title || 'NEW ARRIVAL'
+  const exploreTo = section?._id
+    ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}`
+    : `${ROUTES.SEARCH}?itemsOnly=1`
 
-  const startX = useRef(0)
-  const isDragging = useRef(false)
-  const moved = useRef(false)
-  const didSetInitialSlideRef = useRef(false)
-
-  const fetchSectionPage = useCallback(async (page) => {
-    if (!section?._id) return
-    const isFirst = page === 1
-    if (isFirst) setSectionLoading(true)
-    else setSectionLoadingMore(true)
-    try {
-      const params = { sectionId: section._id, page, limit: SECTION_PAGE_SIZE }
-      if (pincode) params.pinCode = String(pincode)
-      const res = await itemsService.search(params)
-      const data = res?.data?.data ?? res?.data
-      const items = data?.items ?? []
-      const pag = data?.pagination ?? {}
-      const mapped = items.map((it) => mapItemToCard(it, section.deliveryType, section))
-      setSectionList((prev) => (page === 1 ? mapped : [...prev, ...mapped]))
-      setSectionPage(page)
-      const totalPages = Math.max(1, pag.totalPages ?? 1)
-      setSectionHasMore(page < totalPages)
-    } catch {
-      setSectionHasMore(false)
-    } finally {
-      setSectionLoading(false)
-      setSectionLoadingMore(false)
-    }
-  }, [section?._id, section?.deliveryType, pincode])
+  const fetchSectionPage = useCallback(
+    async (page) => {
+      if (!section?._id) return
+      if (page === 1) setSectionLoading(true)
+      try {
+        const params = { sectionId: section._id, page, limit: SECTION_PAGE_SIZE }
+        if (pincode) params.pinCode = String(pincode)
+        const res = await itemsService.search(params)
+        const data = res?.data?.data ?? res?.data
+        const items = data?.items ?? []
+        const mapped = items.map((it) => mapItemToCard(it, section.deliveryType, section))
+        setSectionList(mapped)
+      } catch {
+        /* keep fallback */
+      } finally {
+        setSectionLoading(false)
+      }
+    },
+    [section?._id, section?.deliveryType, pincode],
+  )
 
   useEffect(() => {
     if (section?._id) {
       setSectionList([])
-      setSectionPage(1)
       fetchSectionPage(1)
     } else {
       setSectionList([])
-      setSectionHasMore(false)
     }
   }, [section?._id, pincode, fetchSectionPage])
 
-  const loadMore = () => {
-    if (!sectionHasMore || sectionLoadingMore) return
-    fetchSectionPage(sectionPage + 1)
+  const openProduct = (item) => {
+    if (!item || item.outOfStock) return
+    if (item.id == null) return
+    navigate(getProductPath(String(item.id), item.title, item.shortDescription))
   }
 
-  // Prefetch next 10 when user is on 8th card (3 from end) so next batch is ready before they hit the end
-  const prefetchThreshold = 3
-  useEffect(() => {
-    if (!section?._id || !sectionHasMore || sectionLoadingMore) return
-    if (list.length > 0 && activeSlide >= list.length - prefetchThreshold) {
-      loadMore()
-    }
-  }, [section?._id, sectionHasMore, sectionLoadingMore, list.length, activeSlide])
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  useEffect(() => {
-    // First visit should center from index 2 when possible.
-    if (didSetInitialSlideRef.current || list.length === 0) return
-    setActiveSlide(Math.min(2, list.length - 1))
-    didSetInitialSlideRef.current = true
-  }, [list.length])
-
-  useEffect(() => {
-    if (list.length > 0 && activeSlide >= list.length) {
-      setActiveSlide(list.length - 1)
-    }
-  }, [list.length, activeSlide])
-
-  useEffect(() => {
-    const nextOverflow = {}
-    list.forEach((item, i) => {
-      const key = item.id ?? i
-      const el = titleRefs.current[key]
-      if (!el) return
-      nextOverflow[key] = el.scrollHeight > el.clientHeight + 1
-    })
-    setOverflowTitles(nextOverflow)
-  }, [list, expandedTitles, isMobile, activeSlide])
-
-  const CARD_WIDTH = isMobile ? 260 : 320
-  const CARD_HEIGHT = isMobile ? 380 : 500
-  const STEP_X = isMobile ? 140 : 160   // ↓ Reduced horizontal spacing
-  const STEP_Z = -200
-  const ROTATE_Y = isMobile ? 15 : 22
-
-  const handleMouseDown = (e) => {
-    isDragging.current = true
-    moved.current = false
-    startX.current = e.clientX
-  }
-
-  const handleMouseMove = (e) => {
-    if (!isDragging.current) return
-    if (Math.abs(e.clientX - startX.current) > 5) {
-      moved.current = true
-    }
-  }
-
-  const handleMouseUp = (e) => {
-    if (!isDragging.current) return
-    const diff = e.clientX - startX.current
-    const n = list.length
-    if (n === 0) { isDragging.current = false; return }
-    if (diff > 80) setActiveSlide((prev) => (prev - 1 + n) % n)
-    if (diff < -80) setActiveSlide((prev) => (prev + 1) % n)
-    isDragging.current = false
-  }
-
-  const handleTouchStart = (e) => {
-    isDragging.current = true
-    moved.current = false
-    startX.current = e.touches[0].clientX
-  }
-
-  const handleTouchMove = (e) => {
-    if (!isDragging.current) return
-    if (Math.abs(e.touches[0].clientX - startX.current) > 5) {
-      moved.current = true
-    }
-  }
-
-  const handleTouchEnd = (e) => {
-    if (!isDragging.current) return
-    const endX = e.changedTouches[0].clientX
-    const diff = endX - startX.current
-    const n = list.length
-    if (n === 0) { isDragging.current = false; return }
-    if (diff > 80) setActiveSlide((prev) => (prev - 1 + n) % n)
-    if (diff < -80) setActiveSlide((prev) => (prev + 1) % n)
-    isDragging.current = false
-  }
-
-  const n = list.length
-  const goPrev = (e) => {
-    e?.preventDefault?.()
-    e?.stopPropagation?.()
-    if (n === 0) return
-    setActiveSlide((prev) => (prev - 1 + n) % n)
-  }
-
-  const goNext = (e) => {
-    e?.preventDefault?.()
-    e?.stopPropagation?.()
-    if (n === 0) return
-    setActiveSlide((prev) => (prev + 1) % n)
-  }
-
-  const handleCardClick = (index) => {
-    if (moved.current) return
-    const item = list[index]
-    if (item?.outOfStock) return
-    if (index !== activeSlide) {
-      setActiveSlide(index)
-      return
-    }
-    const productId = item?.id
-    if (productId != null)
-      navigate(
-        getProductPath(String(productId), item?.title, item?.shortDescription),
-      )
-  }
-
-  const getStyles = (index) => {
-    if (isMobile) {
-      if (activeSlide === index)
-        return { opacity: 1, transform: 'translateX(0) scale(1)', zIndex: 10 }
-
-      if (activeSlide - 1 === index)
-        return { opacity: 0.6, transform: `translateX(-${STEP_X}px) scale(0.9)`, zIndex: 8 }
-
-      if (activeSlide + 1 === index)
-        return { opacity: 0.6, transform: `translateX(${STEP_X}px) scale(0.9)`, zIndex: 8 }
-
-      return { opacity: 0 }
-    }
-
-    if (activeSlide === index)
-      return { opacity: 1, transform: 'translateX(0) translateZ(0) rotateY(0deg)', zIndex: 10 }
-
-    if (activeSlide - 1 === index)
-      return { opacity: 1, transform: `translateX(-${STEP_X}px) translateZ(${STEP_Z}px) rotateY(${ROTATE_Y}deg)`, zIndex: 9 }
-
-    if (activeSlide + 1 === index)
-      return { opacity: 1, transform: `translateX(${STEP_X}px) translateZ(${STEP_Z}px) rotateY(-${ROTATE_Y}deg)`, zIndex: 9 }
-
-    if (activeSlide - 2 === index)
-      return { opacity: 0.9, transform: `translateX(-${STEP_X * 2}px) translateZ(${STEP_Z * 1.4}px) rotateY(${ROTATE_Y * 1.5}deg)`, zIndex: 8 }
-
-    if (activeSlide + 2 === index)
-      return { opacity: 0.9, transform: `translateX(${STEP_X * 2}px) translateZ(${STEP_Z * 1.4}px) rotateY(-${ROTATE_Y * 1.5}deg)`, zIndex: 8 }
-
-    return { opacity: 0 }
-  }
-
-  const showPaginatedLoading = section?._id && sectionLoading && sectionList.length === 0
+  const showLoading = section?._id && sectionLoading && sectionList.length === 0
 
   return (
-    <section className="bg-white pt-5 md:pt-2 pb-6 md:pb-8 overflow-hidden">
-      <div className="container mx-auto px-4">
+    <section className="bg-white pt-6 md:pt-8 pb-8 md:pb-12">
+      <h2 className="mb-5 px-4 text-center font-Raleway text-2xl font-extrabold tracking-tight text-black md:mb-8 md:text-4xl">
+        {sectionTitle}
+      </h2>
 
-        <h2 className="text-2xl md:text-4xl font-extrabold font-Raleway  text-center mb-4 md:mb-6">
-          {sectionTitle}
-        </h2>
-
-        {showPaginatedLoading ? (
-          <div className="flex justify-center items-center py-16 text-gray-500">
-            Loading…
-          </div>
-        ) : (
+      {showLoading ? (
+        <div className="flex items-center justify-center py-16 font-inter text-sm text-neutral-500">
+          Loading…
+        </div>
+      ) : (
         <>
-        <div
-          className="relative mx-auto cursor-grab active:cursor-grabbing select-none touch-pan-y"
-          style={{
-            width: '100%',
-            maxWidth: isMobile ? '320px' : '1100px',
-            height: CARD_HEIGHT + 60, // ↓ Reduced height to remove extra gap
-            perspective: '1200px'
-          }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => (isDragging.current = false)}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {list.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={goPrev}
-                aria-label="Previous card"
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/90 hover:bg-white shadow-md border border-gray-200 flex items-center justify-center hover:scale-105 transition-all"
-              >
-                <IoChevronBack className="w-5 h-5 md:w-6 md:h-6 text-black" />
-              </button>
-              <button
-                type="button"
-                onClick={goNext}
-                aria-label="Next card"
-                className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/90 hover:bg-white shadow-md border border-gray-200 flex items-center justify-center hover:scale-105 transition-all"
-              >
-                <IoChevronForward className="w-5 h-5 md:w-6 md:h-6 text-black" />
-              </button>
-            </>
-          )}
-          <div
-            className="relative mx-auto"
-            style={{
-              width: CARD_WIDTH,
-              height: CARD_HEIGHT,
-              transformStyle: 'preserve-3d'
-            }}
-          >
-            {list.map((item, i) => (
-              <div
-                key={item.id ?? i}
-                onClick={() => handleCardClick(i)}
-                className={`absolute top-0 left-0 rounded-2xl overflow-hidden bg-gray-100 shadow-xl cursor-pointer ${item.outOfStock ? 'pointer-events-none' : ''}`}
-                style={{
-                  width: CARD_WIDTH,
-                  height: CARD_HEIGHT,
-                  transition: 'transform 500ms cubic-bezier(0.34, 1.2, 0.64, 1), opacity 500ms ease',
-                  ...getStyles(i)
-                }}
-              >
-                {(
-                  isMobile
-                    ? i === activeSlide || i === activeSlide - 1 || i === activeSlide + 1
-                    : i === activeSlide ||
-                      i === activeSlide - 1 ||
-                      i === activeSlide + 1 ||
-                      i === activeSlide - 2 ||
-                      i === activeSlide + 2
-                ) ? (
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                    decoding="async"
-                    loading="eager"
-                  />
-                ) : (
-                  // Keep the card size stable while skipping remote image fetch for offscreen cards.
-                  <div className="w-full h-full bg-gray-100" aria-hidden />
-                )}
+          {/* Full-bleed flush row — zero gap between images */}
+          <div className="scrollbar-hide flex w-full overflow-x-auto md:overflow-visible">
+            <div className="flex w-full min-w-0 md:grid md:grid-cols-5 gap-0.25">
+              {displayList.map((item, i) => (
+                <button
+                  key={item.id ?? i}
+                  type="button"
+                  onClick={() => openProduct(item)}
+                  disabled={item.outOfStock}
+                  className={`group relative flex w-[72vw] shrink-0 flex-col text-left sm:w-[48vw] md:w-auto md:min-w-0 ${
+                    item.outOfStock ? 'cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                >
+                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-neutral-100">
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+                        item.hoverImage && item.hoverImage !== item.image
+                          ? 'opacity-100 group-hover:opacity-0'
+                          : 'opacity-100'
+                      }`}
+                      loading={i < 2 ? 'eager' : 'lazy'}
+                      decoding="async"
+                    />
+                    {item.hoverImage && item.hoverImage !== item.image ? (
+                      <img
+                        src={item.hoverImage}
+                        alt=""
+                        aria-hidden
+                        className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : null}
+                    {item.outOfStock ? (
+                      <div
+                        className="absolute inset-0 z-10 flex items-center justify-center bg-black/40"
+                        aria-hidden
+                      >
+                        <span className="rounded-md bg-black/80 px-3 py-1.5 font-inter text-xs font-semibold uppercase tracking-wider text-white">
+                          Out of stock
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
 
-                <div className="absolute bottom-0 left-0 right-0 h-2/5 bg-linear-to-t from-black/85 to-transparent pointer-events-none" />
-
-                <div className="absolute bottom-0 left-0 right-0 px-5 py-4 text-white flex flex-col gap-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <h3
-                      ref={(el) => {
-                        titleRefs.current[item.id ?? i] = el
-                      }}
-                      className="uppercase tracking-widest text-sm md:text-base font-medium"
-                      style={{
-                        display: expandedTitles[item.id ?? i] ? 'block' : '-webkit-box',
-                        WebkitLineClamp: expandedTitles[item.id ?? i] ? 'unset' : 2,
-                        WebkitBoxOrient: expandedTitles[item.id ?? i] ? 'unset' : 'vertical',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
+                  <div className="flex items-baseline justify-between gap-2 bg-white px-2.5 py-2.5 sm:px-3 sm:py-3">
+                    <p className="min-w-0 truncate font-inter text-[11px] font-medium leading-tight text-neutral-800 sm:text-xs">
                       {item.title}
-                    </h3>
-                    {item.rating != null && item.rating !== "" && Number(item.rating) > 0 && (
-                      <span className="flex items-center gap-1 text-xs md:text-sm">
-                        <IoStarSharp className="h-3.5 w-3.5 text-white" />
-                        {item.rating}
-                      </span>
-                    )}
+                    </p>
+                    <p className="shrink-0 font-inter text-[11px] font-medium leading-tight text-neutral-800 sm:text-xs">
+                      {item.price}
+                    </p>
                   </div>
-                  {overflowTitles[item.id ?? i] && !expandedTitles[item.id ?? i] && (
-                    <button
-                      type="button"
-                      className="self-start -mt-1 text-[11px] md:text-xs text-white/90 underline underline-offset-2"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setExpandedTitles((prev) => ({ ...prev, [item.id ?? i]: true }))
-                      }}
-                    >
-                      See more
-                    </button>
-                  )}
-
-                  <div className="flex justify-between items-center gap-2 text-xs md:text-sm flex-wrap">
-                    <div className="flex items-center gap-2 flex-nowrap min-w-0">
-                      <span className="font-medium">{item.price}</span>
-                      {item.originalPrice && (
-                        <span className="font-medium text-white/80 line-through">{item.originalPrice}</span>
-                      )}
-                    </div>
-                    {/* <span className="flex items-center gap-1 font-medium shrink-0">
-                      <LuClock4 className="h-3.5 w-3.5 text-white" />
-                      {item.delivery}
-                    </span> */}
-                  </div>
-                </div>
-                {item.outOfStock && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none" aria-hidden>
-                    <span className="rounded-md bg-black/80 px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white">
-                      Out of stock
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="text-center mt-2 md:mt-4 flex flex-col items-center gap-2">
-          {/* <span className="text-xs text-red-400" aria-live="polite">
-            Cards: {list.length} {sectionLoadingMore ? '(loading more…)' : ''}
-          </span> */}
-          <Link
-            to={exploreTo}
-            className="inline-flex items-center gap-1 uppercase text-xs md:text-sm tracking-widest text-black border-b pb-1 hover:opacity-70 transition-opacity"
-          >
-            <span>Explore More</span>
-            <IoChevronForward />
-          </Link>
-          
-        </div>
+          <div className="mt-6 flex justify-center md:mt-8">
+            <Link
+              to={exploreTo}
+              className="inline-flex items-center gap-1 border-b border-black pb-1 font-inter text-xs uppercase tracking-widest text-black transition-opacity hover:opacity-70 md:text-sm"
+            >
+              <span>Explore More</span>
+              <IoChevronForward />
+            </Link>
+          </div>
         </>
-        )}
-
-      </div>
+      )}
     </section>
   )
 }

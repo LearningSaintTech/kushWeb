@@ -38,8 +38,8 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
         <div className="max-w-xl text-left text-white">
           {/* <p className="font-inter text-sm font-normal font-weight-[300] tracking-[0.1em] text-white/95 sm:text-base md:text-xs lg:text-sm">
             KHUSH @2026
-          </p>
-          {/* <h2
+          </p> */}
+           {/* <h2
             className="font-raleway font-bold uppercase leading-none text-white"
             style={{
               fontSize: '28px',
@@ -47,9 +47,9 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
             }}
           >
             FASHION WEEK
-          </h2> */}
+          </h2>  */}
 
-          {/* {slideCount > 1 && (
+          {slideCount > 1 && (
             <div className="mt-4 flex items-center gap-1.5 sm:mt-5" role="tablist" aria-label="Banner slides">
               {Array.from({ length: slideCount }, (_, i) => (
                 <DiamondDot
@@ -60,9 +60,9 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
                 />
               ))}
             </div>
-          )} */}
+          )} 
 
-          {/* <button
+           {/* <button
             type="button"
             onClick={onExploreFashion}
             className="btn-shine mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full border-3 border-white/80 bg-gradient-to-r from-black via-neutral-800 to-white/35 px-5 py-2.5 font-inter text-xs font-medium tracking-wide text-white shadow-sm transition hover:opacity-95 sm:mt-6 sm:px-6 sm:py-3 sm:text-sm"
@@ -78,7 +78,7 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
   )
 }
 
-/** Mobile header is fixed + white; keep banner clear of it. */
+/*Mobile header is fixed + white; keep banner clear of it. */
 const bannerShellClass =
   'relative w-full overflow-hidden max-md:mt-[7.25rem] max-md:aspect-[9/16] md:mt-0 md:aspect-auto md:h-[70vh] lg:h-screen'
 

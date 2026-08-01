@@ -12,12 +12,12 @@ import {
   addRecentKeyword,
   removeRecentKeyword,
 } from "../../app/store/slices/searchSlice.js";
-import { SearchIcon, HeartIcon, CartIcon, ProfileIcon, NotificationIcon, GiftCardIcon } from "../ui/icons";
+import { SearchIcon, HeartIcon, CartIcon, ProfileIcon, NotificationIcon } from "../ui/icons";
 import { useNotification } from "../../app/context/NotificationContext";
 // Location picker in header: no map – shows delivery location as text (current location / search / pincode).
 import LocationPicker from "./LocationPicker";
 import ProfileModal from "./ProfileModal";
-import logoImg from "../../assets/images/navBar/khush-logo.svg";
+import logoImg from "../../assets/images/navBar/khushlogo.png";
 
 function ChevronDownIcon({ className }) {
   return (
@@ -125,12 +125,11 @@ function HamburgerIcon({ className, open }) {
       viewBox="0 0 24 24"
       stroke="currentColor"
       strokeWidth="2"
+      strokeLinecap="round"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M4 6h16M4 12h16M4 18h16"
-      />
+      <path d="M6 7h12" />
+      <path d="M4 12h16" />
+      <path d="M6 17h12" />
     </svg>
   );
 }
@@ -235,42 +234,13 @@ function IconBadge({ count, children, scrolled, mobileDark = false }) {
   );
 }
 
-function KhushMobileLogo({ className = "h-9 w-9" }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 40 40"
-      fill="none"
-      className={className}
-      aria-hidden="true"
-    >
-      <path
-        d="M9.86179 8.1033L17.0941 7.9089C17.8917 7.88925 19.4662 7.79205 20.0497 7.20887C20.1863 7.07236 20.2639 6.9566 20.2049 6.74255L20.3218 6.6257L22.8688 9.17136L22.7519 9.28821C19.4083 8.08364 15.9282 8.5303 12.4284 8.56962C17.2886 12.5721 8.30694 21.394 11.3587 24.4453C11.9805 25.0667 12.895 25.2807 13.7309 25.0667L13.7888 25.2414C12.5836 25.5134 11.3194 25.1049 10.4638 24.2509C6.16752 19.9568 14.7798 11.3479 12.1356 8.70504L12.0187 8.58818L9.25755 8.70504L3.5801 14.3795C3.05563 14.9037 2.86114 15.7206 3.11354 16.4392L3.01629 16.5364L0.0803223 13.602L0.17757 13.5048C0.916207 13.6992 1.73242 13.5048 2.27766 12.9609L13.0676 2.17653C13.6315 1.61302 13.8259 0.874763 13.5735 0.116854L13.6905 0L16.6264 2.93444L16.5095 3.05129C15.8288 2.79902 15.0126 2.9541 14.4881 3.4783L9.8607 8.1033H9.86179Z"
-        fill="currentColor"
-      />
-      <path
-        d="M8.10752 29.8889L7.91302 22.6604C7.89335 21.8631 7.79611 20.2894 7.21263 19.7063C7.07605 19.5698 6.96023 19.4922 6.74606 19.5512L6.62915 19.4343L9.17614 16.8887L9.29305 17.0055C8.08785 20.3473 8.53475 23.8256 8.57408 27.3236C12.5787 22.466 21.4052 31.4429 24.458 28.3927C25.0798 27.7713 25.2939 26.8573 25.0798 26.0218L25.2546 25.9639C25.5267 27.1685 25.118 28.432 24.2635 29.2872C19.9672 33.5812 11.3538 24.9734 8.70957 27.6163L8.59265 27.7331L8.70957 30.4928L14.387 36.1673C14.9115 36.6915 15.7288 36.8859 16.4478 36.6336L16.545 36.7308L13.609 39.6653L13.5118 39.5681C13.7063 38.8298 13.5118 38.014 12.9677 37.4691L2.17766 26.6847C1.61385 26.1212 0.875219 25.9268 0.116915 26.1791L0 26.0622L2.93597 23.1278L3.05288 23.2446C2.80048 23.925 2.95564 24.7408 3.48011 25.265L8.10752 29.89V29.8889Z"
-        fill="currentColor"
-      />
-      <path
-        d="M29.9047 31.6435L22.6724 31.8379C21.8748 31.8576 20.3002 31.9548 19.7168 32.5379C19.5802 32.6744 19.5026 32.7902 19.5616 33.0042L19.4447 33.1211L16.8977 30.5754L17.0146 30.4586C20.3581 31.6632 23.8383 31.2165 27.338 31.1772C22.4779 27.1747 31.4595 18.3528 28.4078 15.3015C27.786 14.6801 26.8715 14.4661 26.0356 14.6801L25.9777 14.5054C27.1829 14.2334 28.4471 14.6419 29.3026 15.4959C33.599 19.79 24.9866 28.3989 27.6309 31.0418L27.7478 31.1586L30.5089 31.0418L36.1864 25.3673C36.7109 24.8431 36.9054 24.0262 36.6529 23.3076L36.7502 23.2104L39.6862 26.1448L39.5889 26.242C38.8503 26.0476 38.0341 26.242 37.4888 26.7859L26.6988 37.5703C26.135 38.1338 25.9405 38.872 26.1929 39.6299L26.076 39.7468L23.14 36.8124L23.257 36.6955C23.9377 36.9478 24.7539 36.7927 25.2784 36.2685L29.9058 31.6435H29.9047Z"
-        fill="currentColor"
-      />
-      <path
-        d="M31.6596 9.85645L31.854 17.085C31.8737 17.8822 31.971 19.4559 32.5544 20.0391C32.691 20.1756 32.8069 20.2531 33.021 20.1942L33.1379 20.311L30.5909 22.8567L30.474 22.7398C31.6792 19.398 31.2323 15.9197 31.193 12.4218C27.1884 17.2794 18.3619 8.30241 15.309 11.3526C14.6873 11.974 14.4732 12.8881 14.6873 13.7235L14.5125 13.7814C14.2404 12.5768 14.6491 11.3133 15.5035 10.4582C19.7999 6.1641 28.4133 14.7719 31.0575 12.1291L31.1744 12.0122L31.0575 9.25253L25.3801 3.57804C24.8556 3.05383 24.0383 2.85944 23.3193 3.11171L23.2221 3.01452L26.158 0.0800781L26.2553 0.177272C26.0608 0.915524 26.2553 1.73131 26.7994 2.27627L37.5894 13.0606C38.1532 13.6242 38.8919 13.8185 39.6502 13.5663L39.7671 13.6831L36.8311 16.6176L36.7142 16.5007C36.9666 15.8203 36.8114 15.0046 36.287 14.4804L31.6596 9.85536V9.85645Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-const mobileIconBtn =
-  "cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-black hover:opacity-70";
-
-const navIconSize = "h-6 w-6 shrink-0";
-const profileIconSize = "h-[18px] w-[18px] shrink-0";
-const desktopNavIconBtn =
-  "flex h-10 w-10 shrink-0 items-center justify-center cursor-pointer";
+const navIconBtn =
+  "cursor-pointer inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg";
+/** Shared optical size — profile/notification use matching outline weight */
+const navIconSize = "h-[22px] w-[22px] shrink-0";
+/** Alias kept for existing mobile class references */
+const mobileIconBtn = navIconBtn;
+const desktopNavIconBtn = navIconBtn;
 
 /** Max categories shown in the desktop center nav — keeps layout stable if more are added later */
 const NAVBAR_VISIBLE_CATEGORIES = 3;
@@ -362,14 +332,6 @@ export default function Header() {
 
   const closeMenu = () => setMenuOpen(false);
   const closeSearchModal = () => setSearchModalOpen(false);
-
-  const handleGiftCardNav = useCallback(() => {
-    if (isAuthenticated) {
-      navigate(ROUTES.GIFTCARD);
-      return;
-    }
-    openAuthModal(ROUTES.GIFTCARD);
-  }, [isAuthenticated, navigate, openAuthModal]);
 
   const openSearchModal = useCallback(() => {
     setSearchModalOpen(true);
@@ -582,53 +544,48 @@ export default function Header() {
   return (
     <header
       ref={headerRef}
-      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-md:bg-white ${
+      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-md:bg-white border-t-[3px] border-[#2196F3] ${
         useWhiteStyle ? "bg-white" : "bg-transparent"
       }`}
     >
-      {/* Promo Bar */}
-      {/* <div
-        className={`font-inter rounded-lg md:rounded-[0.7vw] py-2 md:pt-[0.42vw] md:pb-[0.42vw] mx-3 md:ml-[0.83vw] md:mr-[0.83vw] text-center font-light text-xs sm:text-sm md:text-[1.04vw] px-2 md:px-0 transition-colors duration-300 ${
-          useWhiteStyle ? 'bg-black text-white' : 'bg-transparent text-white'
-        }`}
-      >
-        <span className="block truncate">get</span>
-      </div> */}
-
       {/* Main */}
       <div
-        className={`px-4 md:px-[1.56vw] py-2 md:py-[0.52vw] transition-colors duration-300 ${
+        className={`px-4 md:px-[1.56vw] py-2.5 md:py-2 lg:py-2.5 transition-colors duration-300 ${
           useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
         {/* Mobile: row 1 — toggle + logo left, icons right; row 2 — search + location */}
         <div className="md:hidden flex flex-col gap-2.5">
           <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
-                className={mobileIconBtn}
+                className={`${mobileIconBtn} text-black hover:opacity-70`}
                 aria-label="Open menu"
                 aria-expanded={menuOpen}
               >
-                <HamburgerIcon className="h-6 w-6 text-black" open={false} />
+                <HamburgerIcon className={`${navIconSize} text-black`} open={false} />
               </button>
               <NavLink
                 to={ROUTES.HOME}
                 onClick={handleLogoClick}
-                className="flex items-center text-black"
+                className="flex items-center pl-0.5"
                 aria-label="KHUSH home"
               >
-                <KhushMobileLogo className="h-9 w-9 sm:h-10 sm:w-10" />
+                <img
+                  src={logoImg}
+                  alt="KHUSH"
+                  className="h-9 w-auto object-contain sm:h-10"
+                />
               </NavLink>
             </div>
 
-            <div className="flex items-center justify-end gap-1">
+            <div className="flex items-center justify-end gap-0">
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.NOTIFICATIONS}
-                  className={`${mobileIconBtn} relative`}
+                  className={`${mobileIconBtn} relative text-black hover:opacity-70`}
                   aria-label="Notifications"
                 >
                   <IconBadge count={unreadCount} scrolled mobileDark>
@@ -639,56 +596,56 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.NOTIFICATIONS)}
-                  className={`${mobileIconBtn} relative`}
+                  className={`${mobileIconBtn} relative text-black hover:opacity-70`}
                   aria-label="Notifications – sign in"
                 >
                   <NotificationIcon className={`${navIconSize} text-black`} />
                 </button>
               )}
-              <button
-                type="button"
-                onClick={handleGiftCardNav}
-                className={mobileIconBtn}
-                aria-label="Gift cards"
+              <NavLink
+                to={ROUTES.WISHLIST}
+                className={`${mobileIconBtn} text-black hover:opacity-70`}
+                aria-label="Wishlist"
               >
-                <GiftCardIcon className={`${navIconSize} text-black`} />
-              </button>
+                <IconBadge count={wishlistCount} scrolled mobileDark>
+                  <HeartIcon className={`${navIconSize} text-black`} />
+                </IconBadge>
+              </NavLink>
+              <NavLink
+                to={ROUTES.CART}
+                className={`${mobileIconBtn} text-black hover:opacity-70`}
+                aria-label="Cart"
+              >
+                <IconBadge count={cartCount} scrolled mobileDark>
+                  <CartIcon className={`${navIconSize} text-black`} />
+                </IconBadge>
+              </NavLink>
               {isAuthenticated ? (
                 <button
                   type="button"
                   onClick={() => setProfileModalOpen(true)}
-                  className={mobileIconBtn}
+                  className={`${mobileIconBtn} text-black hover:opacity-70`}
                   aria-label="Account"
                 >
-                  <ProfileIcon className={`${profileIconSize} text-black`} />
+                  <ProfileIcon className={`${navIconSize} text-black`} />
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => openAuthModal(ROUTES.ACCOUNT)}
-                  className={mobileIconBtn}
+                  className={`${mobileIconBtn} text-black hover:opacity-70`}
                   aria-label="Account – sign in"
                 >
-                  <ProfileIcon className={`${profileIconSize} text-black`} />
+                  <ProfileIcon className={`${navIconSize} text-black`} />
                 </button>
               )}
-              <NavLink to={ROUTES.CART} className={mobileIconBtn} aria-label="Cart">
-                <IconBadge count={cartCount} scrolled mobileDark>
-                  <CartIcon className={`${navIconSize} text-black`} />
-                </IconBadge>
-              </NavLink>
-              <NavLink to={ROUTES.WISHLIST} className={mobileIconBtn} aria-label="Wishlist">
-                <IconBadge count={wishlistCount} scrolled mobileDark>
-                  <HeartIcon className={`${navIconSize} text-black`} />
-                </IconBadge>
-              </NavLink>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <form
               onSubmit={handleSearchModalSubmit}
-              className="flex min-w-0 flex-1 items-center rounded-full border border-gray-200 bg-white px-4 py-2.5"
+              className="flex min-w-0 flex-1 items-center rounded-full border border-gray-200/80 bg-[#F2F2F2] px-4 py-2.5"
             >
               <input
                 type="search"
@@ -706,97 +663,85 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Desktop/Tablet: top bar + horizontal mega menu on category hover */}
+        {/* Desktop/Tablet: location + categories | centered logo | search + icons */}
         <div
           className="hidden md:block relative"
           onMouseLeave={scheduleCategoryHoverClose}
         >
-          <div className="relative flex flex-row items-center gap-0">
-            {/* Left: Hamburger + Logo + Location */}
-            <div className="flex shrink-0 items-center gap-[0.83vw] z-10">
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                className={`cursor-pointer flex items-center justify-center p-1 ${
-                  useWhiteStyle
-                    ? "text-black hover:opacity-70"
-                    : "text-white hover:opacity-70"
-                }`}
-                aria-label="Open menu"
-                aria-expanded={menuOpen}
-              >
-                <HamburgerIcon
-                  className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
-                  open={false}
-                />
-              </button>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 lg:gap-3">
+            {/* Left: Location + Category links */}
+            <div className="flex min-w-0 items-center gap-6 lg:gap-8 xl:gap-10 z-10">
+              <LocationPicker scrolled={useWhiteStyle} compact className="max-w-[12vw] shrink" />
 
-              <NavLink
-                to={ROUTES.HOME}
-                onClick={handleLogoClick}
-                className="cursor-pointer flex items-center"
-                aria-label="KHUSH home"
+              <nav
+                className="flex min-w-0 items-center gap-2.5 lg:gap-3.5"
+                aria-label="Product categories"
               >
-                <img
-                  src={logoImg}
-                  alt="KHUSH"
-                  className={`h-7 md:h-8 lg:h-9 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
-                />
-              </NavLink>
+                {menuLoading && desktopNavCategories.length === 0
+                  ? Array.from({ length: NAVBAR_VISIBLE_CATEGORIES }).map((_, i) => (
+                      <span
+                        key={`cat-slot-${i}`}
+                        className="inline-block min-w-[3.5vw] h-[0.75vw] rounded bg-transparent"
+                        aria-hidden
+                      />
+                    ))
+                  : desktopNavCategories.map((cat) => {
+                      const categoryId = cat._id ?? cat.id;
+                      const categoryName = cat.name ?? "Category";
+                      const isHovered = hoveredCategoryId === categoryId;
 
-              <LocationPicker scrolled={useWhiteStyle} compact />
+                      return (
+                        <div
+                          key={categoryId}
+                          className="relative"
+                          onMouseEnter={() => openCategoryHover(categoryId)}
+                        >
+                          <NavLink
+                            to={getSearchUrl({
+                              categoryId,
+                              categoryName,
+                            })}
+                            className={`cursor-pointer font-inter text-[0.8vw] font-medium tracking-[0.06em] uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center gap-0.5 py-1.5 ${
+                              useWhiteStyle ? "text-black" : "text-white"
+                            } ${isHovered ? "opacity-100" : ""}`}
+                            aria-expanded={isHovered}
+                            aria-haspopup="true"
+                          >
+                            {categoryName}
+                            <ChevronDownIcon
+                              className={`h-3 w-3 shrink-0 ${
+                                useWhiteStyle ? "text-black" : "text-white"
+                              }`}
+                            />
+                          </NavLink>
+                        </div>
+                      );
+                    })}
+              </nav>
             </div>
 
-            {/* Center: Category links (max 3) */}
-            <nav
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-[0vw] min-w-[22vw]"
-              aria-label="Product categories"
+            {/* Center: Logo */}
+            <NavLink
+              to={ROUTES.HOME}
+              onClick={handleLogoClick}
+              className="z-20 cursor-pointer flex items-center justify-center px-3"
+              aria-label="KHUSH home"
             >
-              {menuLoading && desktopNavCategories.length === 0
-                ? Array.from({ length: NAVBAR_VISIBLE_CATEGORIES }).map((_, i) => (
-                    <span
-                      key={`cat-slot-${i}`}
-                      className="inline-block min-w-[4.5vw] h-[0.94vw] rounded bg-transparent "
-                      aria-hidden
-                    />
-                  ))
-                : desktopNavCategories.map((cat) => {
-                    const categoryId = cat._id ?? cat.id;
-                    const categoryName = cat.name ?? "Category";
-                    const isHovered = hoveredCategoryId === categoryId;
+              <img
+                src={logoImg}
+                alt="KHUSH"
+                className={`h-9 lg:h-14 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
+              />
+            </NavLink>
 
-                    return (
-                      <div
-                        key={categoryId}
-                        className="relative min-w-[4.5vw] text-center"
-                        onMouseEnter={() => openCategoryHover(categoryId)}
-                      >
-                        <NavLink
-                          to={getSearchUrl({
-                            categoryId,
-                            categoryName,
-                          })}
-                          className={`cursor-pointer font-inter text-[0.75vw] font-medium tracking-wide uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center justify-center gap-1 py-2 ${
-                            useWhiteStyle ? "text-black" : "text-white"
-                          } ${isHovered ? "opacity-100" : ""}`}
-                          aria-expanded={isHovered}
-                          aria-haspopup="true"
-                        >
-                          {categoryName}
-                        </NavLink>
-                      </div>
-                    );
-                  })}
-            </nav>
-
-            {/* Right Section */}
-            <div className="flex items-center gap-[0.83vw] ml-auto z-10">
+            {/* Right: Search + action icons */}
+            <div className="flex min-w-0 items-center justify-end gap-1.5 lg:gap-2 z-10">
               <form
                 action={ROUTES.SEARCH}
                 method="get"
                 onSubmit={() => closeSearchModal()}
-                className={`flex items-center gap-[4.63vw] rounded-full px-[1.04vw] py-[0.63vw] ${
-                  useWhiteStyle ? "bg-[#F5F5F5]" : "bg-white/10"
+                className={`flex items-center gap-1.5 rounded-full px-3 py-2 w-[min(100%,12vw)] min-w-[8.5rem] ${
+                  useWhiteStyle ? "bg-[#F2F2F2]" : "bg-white/15"
                 }`}
               >
                 <input
@@ -804,12 +749,12 @@ export default function Header() {
                   name="q"
                   value={searchInputValue}
                   onChange={(e) => setSearchInputValue(e.target.value)}
-                  placeholder="Find Your Choice"
+                  placeholder="Search"
                   onFocus={openSearchModal}
                   onClick={openSearchModal}
-                  className={`font-inter w-full bg-transparent text-[0.83vw] focus:outline-none ${
+                  className={`font-inter w-full min-w-0 bg-transparent text-[0.72vw] leading-none focus:outline-none ${
                     useWhiteStyle
-                      ? "text-black placeholder:text-[#636363]"
+                      ? "text-black placeholder:text-[#9E9E9E]"
                       : "text-white placeholder:text-white/80"
                   }`}
                 />
@@ -819,27 +764,88 @@ export default function Header() {
                   aria-label="Search"
                 >
                   <SearchIcon
-                    className={`h-5 w-5 ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    className={`h-3.5 w-3.5 ${useWhiteStyle ? "text-black" : "text-white"}`}
                   />
                 </button>
               </form>
 
-              <div className="flex items-center gap-1">
-                <NavLink
-                  to={ROUTES.REFER_EARN}
-                  className={`${desktopNavIconBtn} ${navIconTone}`}
-                  aria-label="Refer and Earn"
-                >
-                  <ReferEarnIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
-                </NavLink>
-                <button
-                  type="button"
-                  onClick={handleGiftCardNav}
-                  className={`${desktopNavIconBtn} ${navIconTone}`}
-                  aria-label="Gift cards"
-                >
-                  <GiftCardIcon className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`} />
-                </button>
+              <div className="flex items-center gap-0">
+                {isAuthenticated ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setNotificationDropdownOpen((prev) => !prev)}
+                      className={`${desktopNavIconBtn} ${navIconTone}`}
+                      aria-label="Notifications"
+                      aria-expanded={notificationDropdownOpen}
+                    >
+                      <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
+                        <NotificationIcon
+                          className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                        />
+                      </IconBadge>
+                    </button>
+                    {notificationDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          aria-hidden
+                          onClick={() => setNotificationDropdownOpen(false)}
+                        />
+                        <div className="absolute right-0 top-full z-50 mt-1 w-80 max-h-96 overflow-auto rounded-xl bg-white shadow-lg border border-gray-200 py-2">
+                          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                            <span className="font-semibold text-gray-900">Notifications</span>
+                            {unreadCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => { markAllRead(); setNotificationDropdownOpen(false); }}
+                                className="text-sm text-gray-600 hover:text-gray-900"
+                              >
+                                Mark all read
+                              </button>
+                            )}
+                          </div>
+                          <div className="max-h-64 overflow-auto">
+                            {dropdownList.length === 0 ? (
+                              <p className="px-3 py-4 text-sm text-gray-500">No notifications</p>
+                            ) : (
+                              dropdownList.map((n) => (
+                                <button
+                                  key={n._id}
+                                  type="button"
+                                  onClick={() => { markRead(n._id); setNotificationDropdownOpen(false); navigate(ROUTES.NOTIFICATIONS); }}
+                                  className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0 ${!n.read ? "bg-blue-50/50" : ""}`}
+                                >
+                                  <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
+                                  {n.body ? <p className="text-xs text-gray-600 truncate mt-0.5">{n.body}</p> : null}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                          <NavLink
+                            to={ROUTES.NOTIFICATIONS}
+                            onClick={() => setNotificationDropdownOpen(false)}
+                            className="block px-3 py-2 text-sm text-center text-gray-600 hover:bg-gray-50 font-medium"
+                          >
+                            See all
+                          </NavLink>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openAuthModal(ROUTES.NOTIFICATIONS)}
+                    className={`${desktopNavIconBtn} ${navIconTone}`}
+                    aria-label="Notifications – sign in"
+                  >
+                    <NotificationIcon
+                      className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    />
+                  </button>
+                )}
+
                 <NavLink
                   to={ROUTES.WISHLIST}
                   className={`${desktopNavIconBtn} ${navIconTone}`}
@@ -865,80 +871,16 @@ export default function Header() {
                 </NavLink>
 
                 {isAuthenticated ? (
-                  <>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setNotificationDropdownOpen((prev) => !prev)}
-                        className={`${desktopNavIconBtn} ${navIconTone}`}
-                        aria-label="Notifications"
-                        aria-expanded={notificationDropdownOpen}
-                      >
-                        <IconBadge count={unreadCount} scrolled={useWhiteStyle}>
-                          <NotificationIcon
-                            className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
-                          />
-                        </IconBadge>
-                      </button>
-                      {notificationDropdownOpen && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-40"
-                            aria-hidden
-                            onClick={() => setNotificationDropdownOpen(false)}
-                          />
-                          <div className="absolute right-0 top-full z-50 mt-1 w-80 max-h-96 overflow-auto rounded-xl bg-white shadow-lg border border-gray-200 py-2">
-                            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                              <span className="font-semibold text-gray-900">Notifications</span>
-                              {unreadCount > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => { markAllRead(); setNotificationDropdownOpen(false); }}
-                                  className="text-sm text-gray-600 hover:text-gray-900"
-                                >
-                                  Mark all read
-                                </button>
-                              )}
-                            </div>
-                            <div className="max-h-64 overflow-auto">
-                              {dropdownList.length === 0 ? (
-                                <p className="px-3 py-4 text-sm text-gray-500">No notifications</p>
-                              ) : (
-                                dropdownList.map((n) => (
-                                  <button
-                                    key={n._id}
-                                    type="button"
-                                    onClick={() => { markRead(n._id); setNotificationDropdownOpen(false); navigate(ROUTES.NOTIFICATIONS); }}
-                                    className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0 ${!n.read ? "bg-blue-50/50" : ""}`}
-                                  >
-                                    <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
-                                    {n.body ? <p className="text-xs text-gray-600 truncate mt-0.5">{n.body}</p> : null}
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                            <NavLink
-                              to={ROUTES.NOTIFICATIONS}
-                              onClick={() => setNotificationDropdownOpen(false)}
-                              className="block px-3 py-2 text-sm text-center text-gray-600 hover:bg-gray-50 font-medium"
-                            >
-                              See all
-                            </NavLink>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setProfileModalOpen(true)}
-                      className={`${desktopNavIconBtn} ${navIconTone}`}
-                      aria-label="Account"
-                    >
-                      <ProfileIcon
-                        className={`${profileIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
-                      />
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => setProfileModalOpen(true)}
+                    className={`${desktopNavIconBtn} ${navIconTone}`}
+                    aria-label="Account"
+                  >
+                    <ProfileIcon
+                      className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    />
+                  </button>
                 ) : (
                   <button
                     type="button"
@@ -947,10 +889,23 @@ export default function Header() {
                     aria-label="Account – sign in"
                   >
                     <ProfileIcon
-                      className={`${profileIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                      className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
                     />
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(true)}
+                  className={`${desktopNavIconBtn} ${navIconTone}`}
+                  aria-label="Open menu"
+                  aria-expanded={menuOpen}
+                >
+                  <HamburgerIcon
+                    className={`${navIconSize} ${useWhiteStyle ? "text-black" : "text-white"}`}
+                    open={false}
+                  />
+                </button>
               </div>
             </div>
           </div>
@@ -971,21 +926,21 @@ export default function Header() {
 
             return (
               <div
-                className="absolute left-1/2 top-full z-50 w-screen -translate-x-1/2 bg-white border-t border-gray-100 shadow-md"
+                className="absolute left-1/2 top-full z-50 w-screen -translate-x-1/2 border-t border-white/40 bg-white/55 shadow-[0_12px_40px_rgba(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/40"
                 onMouseEnter={() => openCategoryHover(hoveredCategoryId)}
                 role="menu"
                 aria-label={`${categoryName} subcategories`}
               >
-                <div className="mx-auto max-w-4xl px-8 py-6">
+                <div className="mx-auto max-w-4xl px-8 py-6 animate-nav-mega-panel">
                   {subsLoading && subs.length === 0 ? (
-                    <p className="font-inter text-sm text-gray-400">Loading…</p>
+                    <p className="font-inter text-sm text-black/40">Loading…</p>
                   ) : subs.length === 0 ? (
                     <NavLink
                       to={getSearchUrl({
                         categoryId: hoveredCategoryId,
                         categoryName,
                       })}
-                      className="font-inter text-sm font-medium text-gray-900 hover:text-black"
+                      className="font-inter text-sm font-medium text-black/90 hover:text-black"
                       onClick={() => setHoveredCategoryId(null)}
                     >
                       View all {categoryName}
@@ -1001,7 +956,13 @@ export default function Header() {
                               const subName =
                                 sub.name ?? sub.label ?? "Subcategory";
                               return (
-                                <li key={subId}>
+                                <li
+                                  key={subId}
+                                  className="animate-nav-mega-item"
+                                  style={{
+                                    animationDelay: `${40 + (colIdx * perCol + subIdx) * 35}ms`,
+                                  }}
+                                >
                                   <NavLink
                                     to={getSearchUrl({
                                       categoryId: hoveredCategoryId,
@@ -1009,7 +970,7 @@ export default function Header() {
                                       categoryName,
                                       subcategoryName: subName,
                                     })}
-                                    className="font-inter text-sm text-gray-800 hover:text-black transition-colors whitespace-nowrap"
+                                    className="font-inter rounded-md px-1.5 py-0.5 -mx-1.5 text-sm text-black/80 transition-colors hover:bg-black/5 hover:text-black whitespace-nowrap"
                                     onClick={() => setHoveredCategoryId(null)}
                                     role="menuitem"
                                   >
@@ -1026,7 +987,7 @@ export default function Header() {
                           categoryId: hoveredCategoryId,
                           categoryName,
                         })}
-                        className="font-inter inline-block text-sm font-semibold text-gray-900 hover:text-black uppercase tracking-wide"
+                        className="font-inter inline-block rounded-md px-1.5 py-0.5 -mx-1.5 text-sm font-semibold text-black/90 hover:bg-black/5 hover:text-black uppercase tracking-wide transition-colors"
                         onClick={() => setHoveredCategoryId(null)}
                         role="menuitem"
                       >
@@ -1044,12 +1005,13 @@ export default function Header() {
         {searchModalOpen && (
           <>
             <div
-              className="fixed inset-0 z-40 cursor-pointer bg-black/20  transition-opacity duration-300"
+              className="fixed inset-x-0 bottom-0 z-40 cursor-pointer bg-black/20 transition-opacity duration-300"
+              style={{ top: searchDropdownTop }}
               onClick={closeSearchModal}
               aria-hidden
             />
             <div
-              className="fixed left-4 right-4 z-50 rounded-2xl shadow-2xl flex flex-col bg-black/40 backdrop-blur-xl border border-white/10 overflow-hidden transition-all duration-300 ease-out"
+              className="fixed left-4 right-4 z-50 flex flex-col overflow-hidden rounded-2xl border border-white/45 bg-white/50 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out supports-[backdrop-filter]:bg-white/40"
               style={{
                 top: searchDropdownTop + 8,
                 maxHeight: `calc(100vh - ${searchDropdownTop}px - 1.5rem)`,
@@ -1058,43 +1020,16 @@ export default function Header() {
               aria-modal="true"
               aria-label="Search - recent and popular"
             >
-              {/* Search row: input + close */}
-              <div className="flex items-center gap-3 shrink-0 p-4 pb-3">
-                <form
-                  onSubmit={handleSearchModalSubmit}
-                  className="flex-1 min-w-0 flex items-center gap-2 rounded-xl bg-black/10 backdrop-blur-sm px-3 py-2.5"
-                >
-                  <SearchIcon className="h-5 w-5 text-gray-400 shrink-0" />
-                  <input
-                    type="search"
-                    name="q"
-                    value={searchInputValue}
-                    onChange={(e) => setSearchInputValue(e.target.value)}
-                    placeholder="Search T-Shirts"
-                    className="font-inter flex-1 bg-transparent text-sm text-gray-100 placeholder:text-gray-500 focus:outline-none"
-                    autofocus
-                  />
-                </form>
-                  {/* <button
-                  type="button"
-                  onClick={closeSearchModal}
-                  className="cursor-pointer shrink-0 flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
-                  aria-label="Close"
-                >
-                  <CloseIcon className="h-6 w-6" /> 
-                </button>   */}
-              </div>
-
-              {/* Recent & Popular in scrollable area */}
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+              {/* Recent & Popular — type only in the navbar search field */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
                 {searchModalLoading ? (
-                  <div className="font-inter text-sm text-gray-400 py-6">
+                  <div className="font-inter text-sm text-gray-500 py-6">
                     Loading…
                   </div>
                 ) : (
                   <>
                     <div className="mb-5">
-                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
+                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-500 mb-3">
                         Recent Searches
                       </h3>
                       {recentSearches.length === 0 ? (
@@ -1113,12 +1048,12 @@ export default function Header() {
                             return (
                               <span
                                 key={text}
-                                className="font-inter inline-flex items-center gap-1.5 shrink-0 rounded-full bg-white/10 backdrop-blur-sm pl-3 pr-1.5 py-2 text-sm text-gray-200"
+                                className="font-inter inline-flex items-center gap-1.5 shrink-0 rounded-full border border-white/50 bg-white/55 pl-3 pr-1.5 py-2 text-sm text-gray-800 shadow-sm"
                               >
                                 <button
                                   type="button"
                                   onClick={() => goToSearch(text)}
-                                  className="cursor-pointer hover:text-white transition-colors"
+                                  className="cursor-pointer hover:text-black transition-colors"
                                 >
                                   {text}
                                 </button>
@@ -1128,10 +1063,10 @@ export default function Header() {
                                     e.stopPropagation();
                                     removeRecentItem(text);
                                   }}
-                                  className="cursor-pointer text-gray-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                                  className="cursor-pointer text-gray-400 hover:text-black p-1 rounded-full hover:bg-black/5 transition-colors"
                                   aria-label={`Remove ${text}`}
                                 >
-                                  {/* <span aria-hidden>×</span> */}
+                                  <CloseIcon className="h-3 w-3" />
                                 </button>
                               </span>
                             );
@@ -1140,7 +1075,7 @@ export default function Header() {
                       )}
                     </div>
                     <div>
-                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
+                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-500 mb-3">
                         Popular Searches
                       </h3>
                       {popularSearches.length === 0 ? (
@@ -1161,7 +1096,7 @@ export default function Header() {
                                 key={text}
                                 type="button"
                                 onClick={() => goToSearch(text)}
-                                className="cursor-pointer font-inter shrink-0 rounded-full bg-white/10 backdrop-blur-sm px-3 py-2 text-sm text-gray-200 hover:bg-white/20 hover:text-white transition-colors"
+                                className="cursor-pointer font-inter shrink-0 rounded-full border border-white/50 bg-white/55 px-3 py-2 text-sm text-gray-800 shadow-sm hover:bg-white/80 hover:text-black transition-colors"
                               >
                                 {text}
                               </button>
@@ -1187,11 +1122,11 @@ export default function Header() {
             />
 
             <div
-              className="fixed left-0 top-0 uppercase bottom-0 z-50 w-[80vw] min-w-[280px] max-w-[400px] bg-white flex flex-col transition-transform duration-300 ease-out"
+              className="fixed right-0 top-0 uppercase bottom-0 z-50 w-[80vw] min-w-[280px] max-w-[400px] bg-white flex flex-col transition-transform duration-300 ease-out shadow-2xl"
               style={{
                 transform: panelAnimated
                   ? "translateX(0)"
-                  : "translateX(-100%)",
+                  : "translateX(100%)",
               }}
               role="dialog"
               aria-modal="true"

@@ -124,10 +124,9 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
   }
 
   const isLight = scrolled
-  const textClass = isLight ? 'text-[#636363]' : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]'
+  const textClass = isLight ? 'text-[#4A4A4A]' : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]'
   const iconClass = isLight ? 'text-black' : 'text-white'
-  const bgClass = isLight ? 'bg-[#F5F5F5]' : 'bg-white/10'
-  const iconBgClass = isLight ? 'bg-white shadow-sm' : 'bg-white/20'
+  const bgClass = isLight ? 'bg-[#F2F2F2]' : 'bg-white/15'
 
   const triggerLabel = resolvedLabel || displayPlaceholder
 
@@ -137,9 +136,9 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
         type="button"
         className={
           iconOnly
-            ? `flex h-10 w-10 shrink-0 cursor-pointer   items-center justify-center rounded-full ${isLight ? 'bg-[#F5F5F5]' : 'bg-white/20'} ${error ? 'ring-1 ring-amber-400/80' : ''}`
-            : `flex min-w-0 flex-1 cursor-pointer   items-center gap-2 rounded-full px-2 py-1 md:gap-[0.83vw] md:px-[0.83vw] md:py-[0.3vw] ${bgClass} ${
-                compact ? 'w-full md:w-[18.1vw]' : ''
+            ? `flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full ${isLight ? 'bg-[#F2F2F2]' : 'bg-white/20'} ${error ? 'ring-1 ring-amber-400/80' : ''}`
+            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 md:gap-1.5 md:px-3 md:py-2 ${bgClass} ${
+                compact ? 'w-full md:w-auto md:max-w-[12vw]' : ''
               } ${error ? 'ring-1 ring-amber-400/80' : ''}`
         }
         onClick={() => setOpen((o) => !o)}
@@ -152,18 +151,18 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           <LocationIcon className={`h-5 w-5 ${iconClass}`} />
         ) : (
           <>
-            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full md:h-[1.8vw] md:w-[1.8vw] ${iconBgClass}`}>
-              <LocationIcon className={`h-4 w-4 md:h-5 md:w-5 ${iconClass}`} />
-            </div>
+            <LocationIcon className={`h-4 w-4 shrink-0 md:h-[0.95vw] md:w-[0.95vw] ${iconClass}`} />
             <span
               title={triggerLabel}
-              className={`font-inter min-w-0 flex-1 truncate text-left text-xs md:text-[0.83vw] ${textClass} ${!resolvedLabel ? 'opacity-70' : ''}`}
+              className={`font-inter min-w-0 flex-1 truncate text-left text-xs md:text-[0.72vw] ${textClass} ${!resolvedLabel ? 'opacity-70' : ''}`}
             >
               {triggerLabel}
             </span>
-            <span className={`inline-flex shrink-0 ${textClass} transition-transform duration-200 ease-out`}>
-              {open ? <FaChevronUp className="h-3.5 w-3.5 md:h-5 md:w-5" /> : <FaChevronDown className="h-3.5 w-3.5 md:h-5 md:w-5" />}
-            </span>
+            {!compact && (
+              <span className={`inline-flex shrink-0 ${textClass} transition-transform duration-200 ease-out`}>
+                {open ? <FaChevronUp className="h-3.5 w-3.5 md:h-5 md:w-5" /> : <FaChevronDown className="h-3.5 w-3.5 md:h-5 md:w-5" />}
+              </span>
+            )}
           </>
         )}
       </button>
