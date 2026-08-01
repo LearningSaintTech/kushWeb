@@ -238,8 +238,10 @@ const navIconBtn =
   "cursor-pointer inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg";
 /** Shared optical size — profile/notification use matching outline weight */
 const navIconSize = "h-[22px] w-[22px] shrink-0";
-/** Alias kept for existing mobile class references */
-const mobileIconBtn = navIconBtn;
+/** Mobile top-bar icons — slightly tighter so logo + actions don’t collide */
+const mobileIconBtn =
+  "cursor-pointer inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg";
+const mobileNavIconSize = "h-5 w-5 shrink-0";
 const desktopNavIconBtn = navIconBtn;
 
 /** Max categories shown in the desktop center nav — keeps layout stable if more are added later */
@@ -554,34 +556,23 @@ export default function Header() {
           useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
-        {/* Mobile: row 1 — toggle + logo left, icons right; row 2 — search + location */}
+        {/* Mobile: logo left | icons right; search + location below */}
         <div className="md:hidden flex flex-col gap-2.5">
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                className={`${mobileIconBtn} text-black hover:opacity-70`}
-                aria-label="Open menu"
-                aria-expanded={menuOpen}
-              >
-                <HamburgerIcon className={`${navIconSize} text-black`} open={false} />
-              </button>
-              <NavLink
-                to={ROUTES.HOME}
-                onClick={handleLogoClick}
-                className="flex items-center pl-0.5"
-                aria-label="KHUSH home"
-              >
-                <img
-                  src={logoImg}
-                  alt="KHUSH"
-                  className="h-9 w-auto object-contain sm:h-10"
-                />
-              </NavLink>
-            </div>
+          <div className="flex items-center justify-between gap-3 min-h-10">
+            <NavLink
+              to={ROUTES.HOME}
+              onClick={handleLogoClick}
+              className="flex min-w-0 shrink items-center"
+              aria-label="KHUSH home"
+            >
+              <img
+                src={logoImg}
+                alt="KHUSH"
+                className="h-8 w-auto max-w-[7.5rem] object-contain object-left sm:h-9 sm:max-w-[8.5rem]"
+              />
+            </NavLink>
 
-            <div className="flex items-center justify-end gap-0">
+            <div className="flex shrink-0 items-center justify-end -mr-1.5">
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.NOTIFICATIONS}
@@ -589,7 +580,7 @@ export default function Header() {
                   aria-label="Notifications"
                 >
                   <IconBadge count={unreadCount} scrolled mobileDark>
-                    <NotificationIcon className={`${navIconSize} text-black`} />
+                    <NotificationIcon className={`${mobileNavIconSize} text-black`} />
                   </IconBadge>
                 </NavLink>
               ) : (
@@ -599,7 +590,7 @@ export default function Header() {
                   className={`${mobileIconBtn} relative text-black hover:opacity-70`}
                   aria-label="Notifications – sign in"
                 >
-                  <NotificationIcon className={`${navIconSize} text-black`} />
+                  <NotificationIcon className={`${mobileNavIconSize} text-black`} />
                 </button>
               )}
               <NavLink
@@ -608,7 +599,7 @@ export default function Header() {
                 aria-label="Wishlist"
               >
                 <IconBadge count={wishlistCount} scrolled mobileDark>
-                  <HeartIcon className={`${navIconSize} text-black`} />
+                  <HeartIcon className={`${mobileNavIconSize} text-black`} />
                 </IconBadge>
               </NavLink>
               <NavLink
@@ -617,7 +608,7 @@ export default function Header() {
                 aria-label="Cart"
               >
                 <IconBadge count={cartCount} scrolled mobileDark>
-                  <CartIcon className={`${navIconSize} text-black`} />
+                  <CartIcon className={`${mobileNavIconSize} text-black`} />
                 </IconBadge>
               </NavLink>
               {isAuthenticated ? (
@@ -627,7 +618,7 @@ export default function Header() {
                   className={`${mobileIconBtn} text-black hover:opacity-70`}
                   aria-label="Account"
                 >
-                  <ProfileIcon className={`${navIconSize} text-black`} />
+                  <ProfileIcon className={`${mobileNavIconSize} text-black`} />
                 </button>
               ) : (
                 <button
@@ -636,9 +627,18 @@ export default function Header() {
                   className={`${mobileIconBtn} text-black hover:opacity-70`}
                   aria-label="Account – sign in"
                 >
-                  <ProfileIcon className={`${navIconSize} text-black`} />
+                  <ProfileIcon className={`${mobileNavIconSize} text-black`} />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className={`${mobileIconBtn} text-black hover:opacity-70`}
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
+              >
+                <HamburgerIcon className={`${mobileNavIconSize} text-black`} open={false} />
+              </button>
             </div>
           </div>
 

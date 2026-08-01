@@ -36,10 +36,10 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/55 via-black/25 to-transparent pt-24 pb-8 sm:pb-10 md:pb-12">
       <div className="pointer-events-auto px-4 sm:px-6 md:px-10 lg:px-14">
         <div className="max-w-xl text-left text-white">
-          {/* <p className="font-inter text-sm font-normal font-weight-[300] tracking-[0.1em] text-white/95 sm:text-base md:text-xs lg:text-sm">
+           {/* <p className="font-inter text-sm font-normal font-weight-[300] tracking-[0.1em] text-white/95 sm:text-base md:text-xs lg:text-sm">
             KHUSH @2026
-          </p> */}
-           {/* <h2
+          </p>  */}
+            {/* <h2
             className="font-raleway font-bold uppercase leading-none text-white"
             style={{
               fontSize: '28px',
@@ -47,9 +47,9 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
             }}
           >
             FASHION WEEK
-          </h2>  */}
+          </h2>   */}
 
-          {slideCount > 1 && (
+          {/* {slideCount > 1 && (
             <div className="mt-4 flex items-center gap-1.5 sm:mt-5" role="tablist" aria-label="Banner slides">
               {Array.from({ length: slideCount }, (_, i) => (
                 <DiamondDot
@@ -60,7 +60,7 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
                 />
               ))}
             </div>
-          )} 
+          )}  */}
 
            {/* <button
             type="button"
@@ -71,7 +71,7 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
             <span aria-hidden className="text-sm leading-none">
               ›
             </span>
-          </button> */}
+          </button>  */}
         </div>
       </div>
     </div>

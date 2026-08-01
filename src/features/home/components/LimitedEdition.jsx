@@ -147,13 +147,13 @@ function LimitedEdition({ section }) {
 
   return (
     <section className="w-full overflow-x-hidden bg-white py-8 sm:py-10 md:py-12 lg:py-14">
-      <div className="mb-5 flex items-end justify-between gap-4 px-4 sm:mb-6 sm:px-6 md:mb-8 md:px-8 lg:px-10">
-        <h2 className="min-w-0 whitespace-nowrap font-inter text-[1.65rem] font-extrabold uppercase leading-none tracking-tight text-black sm:text-3xl md:text-4xl lg:text-[2.75rem]">
+      <div className="mb-5 flex flex-col gap-3 px-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:px-6 md:mb-8 md:px-8 lg:px-10">
+        <h2 className="font-inter text-[1.5rem] font-extrabold uppercase leading-none tracking-tight text-black whitespace-nowrap sm:text-3xl md:text-4xl lg:text-[2.75rem]">
           {heading}
         </h2>
         <Link
           to={lookbookTo}
-          className="font-inter mb-0.5 inline-flex shrink-0 items-center gap-1.5 border-b border-black pb-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-black transition-opacity hover:opacity-70 sm:text-xs"
+          className="font-inter inline-flex w-fit items-center gap-1.5 border-b border-black pb-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-black transition-opacity hover:opacity-70 sm:mb-0.5 sm:text-xs"
         >
           Full Lookbook
           <span aria-hidden>→</span>
