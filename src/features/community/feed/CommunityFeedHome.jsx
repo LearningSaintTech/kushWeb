@@ -7,9 +7,9 @@ import {
   useCommunityFeed,
   toggleCommunityLike,
   toggleCommunitySave,
+  toggleCommunityFollow,
 } from '../hooks/useCommunityFeed'
-import { communityService } from '../../../services/community.service.js'
-import { logCommunity } from '../../../services/communityApi.js'
+import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { debugError } from '../../../utils/debugLog.js'
 
 /**
@@ -18,6 +18,7 @@ import { debugError } from '../../../utils/debugLog.js'
 export default function CommunityFeedHome() {
   const [activeFilter, setActiveFilter] = useState('All')
   const { openProfile, openPost } = useOutletContext() ?? {}
+  const social = useCommunitySocial()
 
   const scope =
     activeFilter === 'Discover' || activeFilter === 'Trending'
@@ -33,6 +34,7 @@ export default function CommunityFeedHome() {
     loadingMore,
     patchItem,
     refresh,
+    setItems,
   } = useCommunityFeed({
     scope,
     type: 'post',
@@ -50,11 +52,22 @@ export default function CommunityFeedHome() {
   }, [activeFilter, items])
 
   const handleFollow = async (post) => {
-    const userId = post?.author?.id
-    if (!userId) return
-    logCommunity('PostCard follow', { userId })
     try {
-      await communityService.follow(userId)
+      await toggleCommunityFollow(
+        post?.author,
+        (userId, patch) => {
+          setItems((prev) =>
+            prev.map((item) => {
+              if (item.author?.id !== userId) return item
+              return {
+                ...item,
+                author: { ...item.author, ...patch },
+              }
+            }),
+          )
+        },
+        social,
+      )
     } catch (err) {
       debugError('[Community] follow failed', err?.message)
     }
@@ -99,8 +112,8 @@ export default function CommunityFeedHome() {
             onProfileClick={() => openProfile?.(post.author)}
             onOpenPost={() => openPost?.(post)}
             onFollow={() => handleFollow(post)}
-            onLike={() => toggleCommunityLike(post, patchItem)}
-            onSave={() => toggleCommunitySave(post, patchItem)}
+            onLike={() => toggleCommunityLike(post, patchItem, social)}
+            onSave={() => toggleCommunitySave(post, patchItem, social)}
           />
         ))}
       </div>

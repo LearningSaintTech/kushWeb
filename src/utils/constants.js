@@ -12,6 +12,8 @@ export const ROUTES = {
   SEARCH: '/search',
   /** Section explore (Explore More from home sections): /section/:sectionId */
   SECTION_EXPLORE: '/section/:sectionId',
+  /** Shaktiman limited-edition collection */
+  SHAKTIMAN_COLLECTION: '/collections/shaktiman',
   ACCOUNT: '/account',
   PROFILE_UPDATE: '/account/profile-update',
   ORDERS: '/orders',

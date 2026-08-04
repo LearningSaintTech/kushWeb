@@ -14,6 +14,7 @@ import HomePageLoader from './components/HomePageLoader'
 import DropStory from './components/DropStory'
 import FabricCraft from './components/FabricCraft.jsx'
 import OurStory from './components/OurStory.jsx'
+// import ShaktimanCollection from './components/ShaktimanCollection.jsx'
 import CategorySpotlight from './components/CategorySpotlight.jsx'
 import { sectionsService } from '../../services/content.service.js'
 
@@ -142,6 +143,7 @@ function HomePage() {
                   {order === 6 ? (
                     <>
                       <FabricCraft />
+                      {/* <ShaktimanCollection /> */}
                       <OurStory />
                     </>
                   ) : null}

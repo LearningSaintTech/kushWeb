@@ -42,7 +42,10 @@ function primaryImageUrl(content) {
   const image = list.find((m) => m.kind === 'image' && m.url);
   if (image?.url) return image.url;
   const any = list.find((m) => m.url && !String(m.mimeType || '').startsWith('video/'));
-  return any?.url || list[0]?.url || '';
+  if (any?.url) return any.url;
+  // Reel / video-only: prefer first url (often used as poster) or product image
+  if (content?.item?.imageUrl) return content.item.imageUrl;
+  return list[0]?.url || '';
 }
 
 function videoUrl(content) {
@@ -83,13 +86,19 @@ export function mapContentToPost(content) {
   const chip = mapItemChip(content.item, content.itemName);
 
   const post = {
-    id: content._id,
+    id: content._id || content.id,
     author: {
-      id: content.authorId,
-      name: content.authorName || 'Member',
-      handle: content.authorUsername || '',
-      role: (content.authorRole || 'creator').toUpperCase(),
-      avatar: content.authorAvatar || content.authorProfileImage || image,
+      id: content.authorId || content.author?._id || content.author?.id,
+      name: content.authorName || content.author?.name || 'Member',
+      handle: content.authorUsername || content.author?.username || '',
+      role: (content.authorRole || content.author?.role || 'creator').toUpperCase(),
+      avatar:
+        content.authorAvatar ||
+        content.authorProfileImage ||
+        content.author?.profileImage ||
+        content.author?.avatar ||
+        image,
+      isFollowing: Boolean(content.isFollowing ?? content.authorIsFollowing),
     },
     image,
     images: images.length ? images : image ? [image] : [],
@@ -137,6 +146,7 @@ export function mapContentToReel(content) {
     commentCount: post.commentCount,
     isLiked: post.isLiked,
     isSaved: post.isSaved,
+    isFollowing: Boolean(post.author?.isFollowing),
     designedBy: post.designedBy,
     taggedProducts: post.taggedProducts,
     raw: content,
@@ -163,15 +173,63 @@ export function mapPurchasedItem(item) {
 
 /** saves list item → post card */
 export function mapSaveItem(row) {
-  const content = row?.content ?? row;
-  const mapped = mapContentToPost(content);
-  if (!mapped) return null;
-  return {
-    ...mapped,
-    saveId: row?.saveId,
-    savedAt: row?.savedAt,
+  if (!row) return null;
+
+  // Common shapes: { saveId, savedAt, content } | content itself | { contentId, content }
+  const content =
+    row.content ??
+    row.post ??
+    row.reel ??
+    (row._id || row.id || row.media ? row : null);
+
+  if (!content) {
+    logCommunity('mapSaveItem skip — no content', { keys: Object.keys(row) });
+    return null;
+  }
+
+  // Normalize id fields before mapping
+  const normalized = {
+    ...content,
+    _id: content._id || content.id || row.contentId || row.content_id,
     isSaved: true,
   };
+
+  const mapped = mapContentToPost(normalized);
+  if (!mapped) return null;
+
+  // Reels often lack image thumbs — use poster/thumbnail, then item image
+  let image = mapped.image;
+  if (!image) {
+    const list = mediaList(normalized);
+    image =
+      list.find((m) => m.kind === 'thumbnail')?.url ||
+      list.find((m) => m.kind === 'image')?.url ||
+      normalized.item?.imageUrl ||
+      mapped.videoUrl ||
+      '';
+  }
+
+  return {
+    ...mapped,
+    id: mapped.id || normalized._id,
+    image,
+    poster: image,
+    saveId: row.saveId || row._id || row.id,
+    savedAt: row.savedAt || row.createdAt,
+    isSaved: true,
+    type: mapped.type || content.type || 'post',
+  };
+}
+
+/** Normalize GET /saves payload → array of save rows */
+export function extractSavesList(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.saves)) return data.saves;
+  if (Array.isArray(data.results)) return data.results;
+  if (Array.isArray(data.data)) return data.data;
+  return [];
 }
 
 export function extractHashtagsFromCaption(caption = '') {

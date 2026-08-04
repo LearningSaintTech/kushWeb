@@ -4,6 +4,7 @@ import { CartWishlistProvider } from './app/context/CartWishlistContext'
 import { NotificationProvider, useNotificationSocket } from './app/context/NotificationContext'
 import { SupportChatProvider } from './app/context/SupportChatContext'
 import { CommunityProfileProvider } from './features/community/context/CommunityProfileContext'
+import { CommunitySocialProvider } from './features/community/context/CommunitySocialContext'
 import { usePushSubscribe } from './app/hooks/usePushSubscribe'
 import { useLocationOnLoad } from './app/hooks/useLocationOnLoad'
 import { useEffect, useRef } from 'react'
@@ -73,13 +74,15 @@ function AppContent() {
       <CartWishlistProvider>
         <NotificationProvider>
           <CommunityProfileProvider>
-            <SupportChatProvider>
-              <AnalyticsSessionConnector />
-              <LocationOnLoadConnector />
-              <NotificationSocketConnector />
-              <PushSubscribeConnector />
-              <Routes />
-            </SupportChatProvider>
+            <CommunitySocialProvider>
+              <SupportChatProvider>
+                <AnalyticsSessionConnector />
+                <LocationOnLoadConnector />
+                <NotificationSocketConnector />
+                <PushSubscribeConnector />
+                <Routes />
+              </SupportChatProvider>
+            </CommunitySocialProvider>
           </CommunityProfileProvider>
         </NotificationProvider>
       </CartWishlistProvider>

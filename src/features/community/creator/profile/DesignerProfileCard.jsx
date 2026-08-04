@@ -1,15 +1,46 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import whiteBg from '../../../../assets/images/community/whitebg.png'
 import { CREATOR_MEDIA, DESIGNER_PROFILE } from '../../data/mockCreator'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
+function CameraIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.055-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+    </svg>
+  )
+}
+
+function PencilIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"
+      />
+    </svg>
+  )
+}
+
 /**
- * Dark designer profile card — View Portfolio opens portfolio panel.
+ * Dark designer profile card — matches community mock (camera + edit icons).
  */
-export default function DesignerProfileCard({ onOpenMedia, onViewPortfolio }) {
+export default function DesignerProfileCard({
+  onOpenMedia,
+  onViewPortfolio,
+  onEditProfile,
+  onAvatarChange,
+}) {
   const [tab, setTab] = useState('Posts')
+  const avatarInputRef = useRef(null)
   const media = CREATOR_MEDIA[tab] ?? []
   const { profile: communityProfile } = useCommunityProfile()
 
@@ -24,19 +55,62 @@ export default function DesignerProfileCard({ onOpenMedia, onViewPortfolio }) {
       DESIGNER_PROFILE.tagline,
     cover: communityProfile?.designerCoverImage || whiteBg,
     badge: communityProfile?.designerTagline ? 'DESIGNER' : DESIGNER_PROFILE.badge,
+    openToWork: DESIGNER_PROFILE.openToWork,
+    stats: {
+      followers: communityProfile?.counts?.followers ?? DESIGNER_PROFILE.stats.followers,
+      following: communityProfile?.counts?.following ?? DESIGNER_PROFILE.stats.following,
+      posts: communityProfile?.counts?.posts ?? DESIGNER_PROFILE.stats.posts,
+    },
+  }
+
+  const handleAvatarPick = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (onAvatarChange) {
+      onAvatarChange(file)
+      return
+    }
+    onEditProfile?.()
   }
 
   return (
-    <div className="w-full max-w-[420px] overflow-hidden rounded-xl bg-black text-white shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
-      <div className="relative  w-full h-full sm:h-32">
+    <div className="w-full max-w-[380px] overflow-hidden rounded-2xl bg-[#111111] text-white shadow-[0_16px_48px_rgba(0,0,0,0.18)]">
+      <div className="relative h-28 w-full sm:h-32">
         <img src={profile.cover} alt="" className="h-full w-full object-cover" />
-        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#111111] to-transparent" />
       </div>
 
-      <div className="relative -mt-12 px-5 pb-6 text-center sm:px-7">
-        <div className="mx-auto h-[5.5rem] w-[5.5rem] overflow-hidden rounded-full border-[3px] border-black bg-neutral-800 sm:h-24 sm:w-24">
-          <img src={profile.avatar} alt="" className="h-full w-full object-cover" />
+      <div className="relative -mt-14 px-5 pb-5 text-center sm:px-6">
+        <div className="relative mx-auto h-[5.75rem] w-[5.75rem] sm:h-24 sm:w-24">
+          <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-[#111111] bg-neutral-800">
+            <img src={profile.avatar} alt="" className="h-full w-full object-cover" />
+          </div>
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            aria-label="Change profile photo"
+            className="absolute bottom-0.5 right-0.5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white text-black shadow-md transition hover:bg-neutral-100"
+          >
+            <CameraIcon className="h-3.5 w-3.5" />
+          </button>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarPick}
+          />
         </div>
+
+        <button
+          type="button"
+          onClick={onEditProfile}
+          aria-label="Edit profile"
+          className="absolute right-4 top-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-black text-white ring-1 ring-white/15 transition hover:bg-neutral-900 sm:right-5"
+        >
+          <PencilIcon className="h-4 w-4" />
+        </button>
 
         <h1 className="mt-4 font-refer-display text-[1.85rem] font-normal tracking-tight text-white">
           {profile.name}
@@ -56,7 +130,7 @@ export default function DesignerProfileCard({ onOpenMedia, onViewPortfolio }) {
           </p>
         ) : null}
 
-        <div className="mt-5 grid grid-cols-3 gap-2">
+        <div className="mt-5 grid grid-cols-3 gap-1 rounded-2xl bg-[#1c1c1c] px-2 py-3.5">
           {[
             [profile.stats.followers, 'Followers'],
             [profile.stats.following, 'Following'],
@@ -69,12 +143,12 @@ export default function DesignerProfileCard({ onOpenMedia, onViewPortfolio }) {
           ))}
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2.5">
+        <div className="mt-4 grid grid-cols-2 gap-2.5">
           <button
             type="button"
-            className="cursor-pointer rounded-xl border border-dashed border-[#60a5fa] py-2.5 font-inter text-sm font-semibold text-[#60a5fa] transition hover:bg-white/5"
+            className="cursor-pointer rounded-xl bg-[#2a2a2a] py-2.5 font-inter text-sm font-semibold text-white transition hover:bg-[#333]"
           >
-            Follow
+            Share Profile
           </button>
           <button
             type="button"

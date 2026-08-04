@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { debugLog } from '../../../utils/debugLog.js';
 import { useSelector } from "react-redux";
+import { IoChevronForward } from "react-icons/io5";
 import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from "../../../shared/components/ProductCard";
 import productImage from "../../../assets/temporary/productimage.png";
 import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
@@ -12,14 +13,6 @@ import { listingBindOfferProps } from "../../../utils/bindOffer.js";
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const ALL_CATEGORY_KEY = "__ALL__";
 const CATEGORY_PRODUCT_LIMIT = 8;
-/** Artificial pause before each infinite-scroll fetch (page 2+). */
-const LOAD_MORE_BATCH_DELAY_MS = 1700;
-
-function delayMs(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 const PRODUCTS_STATIC = Array.from({ length: 8 }, (_, i) => ({
   id: i + 1,
@@ -82,6 +75,10 @@ function itemToCardProps(item, index, section = null) {
   };
 }
 
+/**
+ * Our Products — first batch on load; next batches only via Explore More (same page).
+ * No infinite / auto scroll loading.
+ */
 function OurProduct({ section }) {
   const pincode = useSelector((s) => s?.location?.pincode) ?? null;
   const [sectionCategoriesResolved, setSectionCategoriesResolved] = useState(
@@ -89,8 +86,6 @@ function OurProduct({ section }) {
   );
 
   const hasPopulatedCategories = section?.categories?.length > 0;
-  const hasCategoryIds =
-    Array.isArray(section?.categoryId) && section.categoryId.length > 0;
 
   useEffect(() => {
     if (!section || (section.categories?.length ?? 0) > 0) {
@@ -139,8 +134,7 @@ function OurProduct({ section }) {
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const loadMoreRef = useRef(null);
+  const [hasMore, setHasMore] = useState(false);
   const loadingMoreLockRef = useRef(false);
 
   const sectionTitle = section?.title || "OUR PRODUCTS";
@@ -156,34 +150,17 @@ function OurProduct({ section }) {
         };
       }) ?? [];
 
+  /** When a category tab uses section products, Explore More is not used for paging. */
+  const usesSectionList =
+    listFromSection.length > 0 && activeCategoryId !== ALL_CATEGORY_KEY;
+
   useEffect(() => {
     if (import.meta.env.PROD) return;
-    const rawProducts = section?.products ?? [];
-    const withItem = rawProducts.filter((p) => p?.item);
     debugLog("[OurProduct] section meta:", {
       _id: section?._id,
       title: section?.title,
-      type: section?.type,
-      webOrder: section?.webOrder ?? section?.webinfo?.webOrder,
-      bindOffer: section?.bindOffer,
-      categoryId: section?.categoryId,
+      listFromSection: listFromSection.length,
     });
-    debugLog("[OurProduct] section products:", {
-      total: rawProducts.length,
-      withItem: withItem.length,
-      offerBadges: withItem.map((p) => {
-        const item = sectionProductItem(p);
-        const props = listingBindOfferProps(item, section);
-        return {
-          itemId: item?._id,
-          name: item?.name,
-          itemBindOffer: item?.bindOffer,
-          productBindOffer: p?.bindOffer,
-          ...props,
-        };
-      }),
-    });
-    debugLog("[OurProduct] listFromSection count:", listFromSection.length);
   }, [section, listFromSection.length]);
 
   const fetchByCategory = useCallback(
@@ -262,28 +239,33 @@ function OurProduct({ section }) {
     [pincode, section],
   );
 
-  const loadMoreByActiveTab = useCallback(
-    async (nextPage) => {
-      if (loadingMoreLockRef.current) return;
-      loadingMoreLockRef.current = true;
-      try {
-        if (nextPage > 1) {
-          setLoadingMore(true);
-          await delayMs(LOAD_MORE_BATCH_DELAY_MS);
-        }
+  const handleExploreMore = useCallback(async () => {
+    if (!hasMore || loadingMore || loadingInitial || loadingMoreLockRef.current) {
+      return;
+    }
+    if (usesSectionList) return;
 
-        if (activeCategoryId === ALL_CATEGORY_KEY) {
-          await fetchAllVersion2(nextPage);
-          return;
-        }
-
+    loadingMoreLockRef.current = true;
+    const nextPage = currentPage + 1;
+    try {
+      if (activeCategoryId === ALL_CATEGORY_KEY) {
+        await fetchAllVersion2(nextPage);
+      } else if (activeCategoryId) {
         await fetchByCategory(activeCategoryId, nextPage);
-      } finally {
-        loadingMoreLockRef.current = false;
       }
-    },
-    [activeCategoryId, fetchByCategory, fetchAllVersion2],
-  );
+    } finally {
+      loadingMoreLockRef.current = false;
+    }
+  }, [
+    hasMore,
+    loadingMore,
+    loadingInitial,
+    usesSectionList,
+    currentPage,
+    activeCategoryId,
+    fetchAllVersion2,
+    fetchByCategory,
+  ]);
 
   useEffect(() => {
     setActiveCategoryId(ALL_CATEGORY_KEY);
@@ -301,10 +283,10 @@ function OurProduct({ section }) {
       setCurrentPage(1);
       setHasMore(false);
       loadingMoreLockRef.current = false;
-      fetchAllVersion2();
+      fetchAllVersion2(1);
     } else if (activeCategoryId) {
       setCurrentPage(1);
-      setHasMore(true);
+      setHasMore(false);
       loadingMoreLockRef.current = false;
       fetchByCategory(activeCategoryId, 1);
     } else {
@@ -320,48 +302,6 @@ function OurProduct({ section }) {
     fetchAllVersion2,
   ]);
 
-  useEffect(() => {
-    if (
-      (listFromSection.length > 0 && activeCategoryId !== ALL_CATEGORY_KEY) ||
-      !activeCategoryId
-    ) {
-      return;
-    }
-    const el = loadMoreRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (
-          first.isIntersecting &&
-          hasMore &&
-          !loadingInitial &&
-          !loadingMore &&
-          !loadingMoreLockRef.current
-        ) {
-          const nextPage = currentPage + 1;
-          loadMoreByActiveTab(nextPage);
-        }
-      },
-      { root: null, rootMargin: "120px", threshold: 0.1 },
-    );
-
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      loadingMoreLockRef.current = false;
-    };
-  }, [
-    activeCategoryId,
-    currentPage,
-    hasMore,
-    loadingInitial,
-    loadingMore,
-    loadMoreByActiveTab,
-    listFromSection.length,
-  ]);
-
   const productsToShow =
     activeCategoryId === ALL_CATEGORY_KEY
       ? categoryProducts
@@ -370,6 +310,12 @@ function OurProduct({ section }) {
         : categoryProducts.length > 0
           ? categoryProducts
           : PRODUCTS_STATIC;
+
+  const showExploreMore =
+    !usesSectionList &&
+    Boolean(activeCategoryId) &&
+    hasMore &&
+    !loadingInitial;
 
   const handleTabClick = (cat) => {
     if (cat.id === ALL_CATEGORY_KEY) {
@@ -382,24 +328,20 @@ function OurProduct({ section }) {
   return (
     <section className="bg-white py-10 sm:py-14">
       <div className="mx-auto max-w-9xl px-4 sm:px-8 md:px-8 lg:px-8">
-        {/* ================= HEADER ================= */}
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-10">
-          {/* LEFT SIDE */}
-          <div className="flex flex-col items-center lg:items-start text-center lg:text-left w-full">
-            {/* TITLE */}
-            <h2 className="font-raleway text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-wide text-black">
+        <div className="mb-10 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex w-full flex-col items-center text-center lg:items-start lg:text-left">
+            <h2 className="font-raleway text-2xl font-extrabold tracking-wide text-black sm:text-4xl md:text-5xl">
               {sectionTitle}
             </h2>
 
-            {/* CATEGORY TABS */}
-            <div className="font-inter flex gap-6 mt-6 overflow-x-auto scrollbar-hide">
+            <div className="font-inter mt-6 flex gap-6 overflow-x-auto scrollbar-hide">
               <button
                 key={ALL_CATEGORY_KEY}
                 type="button"
                 onClick={() => setActiveCategoryId(ALL_CATEGORY_KEY)}
-                className={`uppercase text-xs sm:text-sm tracking-widest pb-2 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                className={`shrink-0 cursor-pointer whitespace-nowrap pb-2 text-xs uppercase tracking-widest transition-all sm:text-sm ${
                   activeCategoryId === ALL_CATEGORY_KEY
-                    ? "text-black border-b border-black"
+                    ? "border-b border-black text-black"
                     : "text-gray-400 hover:text-black"
                 }`}
               >
@@ -410,9 +352,9 @@ function OurProduct({ section }) {
                   key={cat.id ?? cat.label}
                   type="button"
                   onClick={() => handleTabClick(cat)}
-                  className={`uppercase text-xs sm:text-sm tracking-widest pb-2 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                  className={`shrink-0 cursor-pointer whitespace-nowrap pb-2 text-xs uppercase tracking-widest transition-all sm:text-sm ${
                     activeCategoryId === cat.id
-                      ? "text-black border-b border-black"
+                      ? "border-b border-black text-black"
                       : "text-gray-400 hover:text-black"
                   }`}
                 >
@@ -423,44 +365,42 @@ function OurProduct({ section }) {
           </div>
         </div>
 
-        {/* ================= PRODUCT GRID (2 cards on phone) ================= */}
         {loadingInitial && (
-          <div className="text-center py-8 text-gray-500 text-sm">
+          <div className="py-8 text-center text-sm text-gray-500">
             Loading...
           </div>
         )}
-        <div className="grid grid-cols-2 items-stretch gap-x-1.5 gap-y-2.5 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 lg:grid-cols-4 md:gap-3">
+        <div className="grid grid-cols-2 items-stretch gap-x-1.5 gap-y-2.5 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 md:gap-3 lg:grid-cols-4">
           {!loadingInitial &&
-            productsToShow.map((product, idx) => {
-              if (!import.meta.env.PROD && (product.bindOffer || product.offerBadge)) {
-                debugLog("[OurProduct][ProductCard] offer props", {
-                  id: product.id,
-                  title: product.title,
-                  bindOffer: product.bindOffer,
-                  offerBadge: product.offerBadge,
-                });
-              }
-              return (
-              <div key={product.id ?? idx} className="flex min-w-0 h-full flex-col">
+            productsToShow.map((product, idx) => (
+              <div key={product.id ?? idx} className="flex h-full min-w-0 flex-col">
                 <ProductCard
                   {...product}
                   {...PRODUCT_CARD_COMPACT_GRID_PROPS}
                 />
               </div>
-            );
-            })}
+            ))}
         </div>
-        {(activeCategoryId === ALL_CATEGORY_KEY ||
-          listFromSection.length === 0) &&
-          activeCategoryId &&
-          hasMore && <div ref={loadMoreRef} className="h-2 w-full" />}
-        {(activeCategoryId === ALL_CATEGORY_KEY ||
-          listFromSection.length === 0) &&
-          loadingMore && (
-            <div className="text-center py-6 text-gray-500 text-sm">
-              Loading more products...
-            </div>
-          )}
+
+        {loadingMore ? (
+          <div className="py-6 text-center text-sm text-gray-500">
+            Loading more products...
+          </div>
+        ) : null}
+
+        {showExploreMore ? (
+          <div className="mt-10 flex justify-center sm:mt-12">
+            <button
+              type="button"
+              onClick={handleExploreMore}
+              disabled={loadingMore}
+              className="font-inter inline-flex cursor-pointer items-center gap-1 border-b border-black pb-1 text-xs uppercase tracking-widest text-black transition-opacity hover:opacity-70 disabled:cursor-wait disabled:opacity-50 sm:text-sm"
+            >
+              <span>Explore More</span>
+              <IoChevronForward className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
       </div>
     </section>
   );

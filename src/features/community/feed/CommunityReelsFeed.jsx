@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import ReelCard from '../components/reels/ReelCard'
-import { useCommunityFeed } from '../hooks/useCommunityFeed'
+import {
+  useCommunityFeed,
+  toggleCommunityLike,
+  toggleCommunitySave,
+  toggleCommunityFollow,
+} from '../hooks/useCommunityFeed'
+import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { communityService } from '../../../services/community.service.js'
 import { logCommunity } from '../../../services/communityApi.js'
-import { debugError } from '../../../utils/debugLog.js'
+import { debugError, debugLog } from '../../../utils/debugLog.js'
 
 export default function CommunityReelsFeed() {
-  const { openProfile } = useOutletContext() ?? {}
+  const { openProfile, openPost } = useOutletContext() ?? {}
+  const social = useCommunitySocial()
   const scrollerRef = useRef(null)
   const itemRefs = useRef([])
   const viewedRef = useRef(new Set())
@@ -20,6 +27,8 @@ export default function CommunityReelsFeed() {
     hasMore,
     loadMore,
     refresh,
+    patchItem,
+    setItems,
   } = useCommunityFeed({
     scope: 'explore',
     type: 'reel',
@@ -34,7 +43,7 @@ export default function CommunityReelsFeed() {
       (entries) => {
         let best = null
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue
+          if (!entry.intersectionRatio) continue
           if (!best || entry.intersectionRatio > best.intersectionRatio) {
             best = entry
           }
@@ -55,7 +64,6 @@ export default function CommunityReelsFeed() {
     return () => observer.disconnect()
   }, [reels.length])
 
-  // Prefetch next page near end
   useEffect(() => {
     if (!hasMore) return
     if (activeIndex >= Math.max(0, reels.length - 3)) {
@@ -64,7 +72,6 @@ export default function CommunityReelsFeed() {
     }
   }, [activeIndex, hasMore, loadMore, reels.length])
 
-  // Record view after ~1.5s on active reel
   useEffect(() => {
     const reel = reels[activeIndex]
     if (!reel?.id || viewedRef.current.has(reel.id)) return undefined
@@ -77,6 +84,84 @@ export default function CommunityReelsFeed() {
     }, 1500)
     return () => clearTimeout(t)
   }, [activeIndex, reels])
+
+  const patchByAuthorId = useCallback(
+    (userId, patch) => {
+      setItems((prev) =>
+        prev.map((item) => {
+          if (item.author?.id !== userId) return item
+          return {
+            ...item,
+            isFollowing: patch.isFollowing ?? item.isFollowing,
+            author: { ...item.author, ...patch },
+          }
+        }),
+      )
+    },
+    [setItems],
+  )
+
+  const handleLike = useCallback(
+    async (reel) => {
+      try {
+        await toggleCommunityLike(reel, patchItem, social)
+      } catch (err) {
+        debugError('[Community] reel like failed', err?.message)
+      }
+    },
+    [patchItem, social],
+  )
+
+  const handleSave = useCallback(
+    async (reel) => {
+      try {
+        await toggleCommunitySave(reel, patchItem, social)
+      } catch (err) {
+        debugError('[Community] reel save failed', err?.message)
+      }
+    },
+    [patchItem, social],
+  )
+
+  const handleFollow = useCallback(
+    async (reel) => {
+      try {
+        await toggleCommunityFollow(
+          { ...reel.author, isFollowing: reel.isFollowing },
+          patchByAuthorId,
+          social,
+        )
+      } catch (err) {
+        debugError('[Community] reel follow failed', err?.message)
+      }
+    },
+    [patchByAuthorId, social],
+  )
+
+  const handleShare = useCallback(async (reel) => {
+    const url = `${window.location.origin}${window.location.pathname}?reel=${reel.id}`
+    logCommunity('ReelsFeed share', { id: reel.id, url })
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: reel.caption || 'Khush Reel', url })
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+        debugLog('[Community] reel link copied', url)
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        debugError('[Community] reel share failed', err?.message)
+      }
+    }
+  }, [])
+
+  const handleComment = useCallback(
+    (reel) => {
+      logCommunity('ReelsFeed open comments', { id: reel.id })
+      openPost?.(reel)
+    },
+    [openPost],
+  )
 
   const goTo = useCallback(
     (index) => {
@@ -148,13 +233,18 @@ export default function CommunityReelsFeed() {
               itemRefs.current[index] = el
             }}
             data-reel-index={index}
-            className="flex min-h-full snap-start snap-always flex-col items-center justify-center py-6"
+            className="flex min-h-full snap-start snap-always flex-col items-center justify-center py-4 sm:py-5"
             aria-label={`Reel ${index + 1} of ${reels.length}`}
           >
             <ReelCard
               reel={reel}
               active={index === activeIndex}
               onProfileClick={openProfile}
+              onLike={() => handleLike(reel)}
+              onSave={() => handleSave(reel)}
+              onShare={() => handleShare(reel)}
+              onComment={() => handleComment(reel)}
+              onFollow={() => handleFollow(reel)}
             />
           </section>
         ))}

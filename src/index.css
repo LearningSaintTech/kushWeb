@@ -156,7 +156,7 @@ body::-webkit-scrollbar,
   }
 }
 .khush-footer-marquee {
-  animation: khush-footer-marquee 22s linear infinite;
+  animation: khush-footer-marquee 20s linear infinite;
   animation-play-state: paused;
   will-change: transform;
   /* Horizontal image motion only — never create a scrollbar */
@@ -165,6 +165,20 @@ body::-webkit-scrollbar,
 .group\/khush:hover .khush-footer-marquee,
 .group\/khush:focus-within .khush-footer-marquee {
   animation-play-state: running;
+}
+
+/* MADE IN INDIA strip above footer */
+@keyframes made-in-india-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.made-in-india-marquee {
+  animation: made-in-india-marquee 50s linear infinite;
+  will-change: transform;
 }
 
 /* CTA shine sweep (Explore Fashion / similar pill buttons) */

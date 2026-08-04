@@ -344,7 +344,7 @@ function Footer() {
       }));
 
   return (
-    <footer className="mt-auto bg-black text-white font-inter">
+    <footer className="mt-0 bg-black text-white font-inter border-t border-white/20">
       {/* Big KHUSH — photo series scrolls on hover */}
       <KhushPhotoBanner />
 

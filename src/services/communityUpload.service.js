@@ -14,7 +14,7 @@ import {
   logCommunity,
   warnCommunity,
 } from './communityApi.js';
-import { debugError } from '../utils/debugLog.js';
+import { debugError, debugLog } from '../utils/debugLog.js';
 
 const DEFAULT_POLL_MS = 1500;
 const DEFAULT_POLL_TIMEOUT_MS = 60000;
@@ -23,7 +23,13 @@ const MULTIPART_PARALLEL = 3;
 const SMALL_VIDEO_PUT_MAX_BYTES = 8 * 1024 * 1024;
 
 function logUpload(step, payload) {
+  // Mirror dummy-UI “Flow log” steps so upload is easy to trace in DevTools
   logCommunity(`[Upload] ${step}`, payload);
+  if (payload !== undefined) {
+    debugLog(`▶ ${step}`, payload);
+  } else {
+    debugLog(`▶ ${step}`);
+  }
 }
 
 /**
@@ -112,6 +118,9 @@ export async function putToS3(uploadUrl, body, headers = {}, { onProgress } = {}
       if (!e.lengthComputable) return;
       const pct = Math.round((e.loaded / e.total) * 100);
       onProgress?.(pct, e.loaded, e.total);
+      if (pct === 0 || pct === 100 || pct % 25 === 0) {
+        logUpload('PUT → S3 progress', { pct, loaded: e.loaded, total: e.total });
+      }
     };
     xhr.onload = () => {
       const etag = xhr.getResponseHeader('ETag');

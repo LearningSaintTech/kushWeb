@@ -1,51 +1,56 @@
-import { useState } from 'react'
 import ReelPlayer from './ReelPlayer'
 import ReelActions from './ReelActions'
 import TaggedProductsCarousel from './TaggedProductsCarousel'
 
 /**
- * Matches mock layout:
- * [ 500×768 player ] [ actions ]
- * [ tagged products under player only ]
+ * Immersive reel — large on laptop + desktop (not height-starved on short screens).
+ * [ tall 9:16 player ] [ actions ]
+ * [ tagged products under player ]
  */
+const REEL_WIDTH =
+  'w-[min(100%,calc(100vw-5rem))] sm:w-[min(400px,calc(100vw-5.5rem))] md:w-[min(440px,calc(100vw-7rem))] lg:w-[460px] xl:w-[480px]'
+
 export default function ReelCard({
   reel,
   active = false,
   onProfileClick,
+  onLike,
+  onSave,
+  onShare,
+  onComment,
+  onFollow,
 }) {
-  const [liked, setLiked] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [following, setFollowing] = useState(false)
-
   return (
     <article className="mx-auto w-fit max-w-full">
-      <div className="flex items-center gap-4 sm:gap-5">
-        <div className="w-[min(100vw-6rem,500px)] shrink-0 sm:w-[min(100%,500px)]">
+      <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
+        <div className={`aspect-[9/16] shrink-0 ${REEL_WIDTH}`}>
           <ReelPlayer
             src={reel.video}
             poster={reel.poster}
             active={active}
             author={reel.author}
             caption={reel.caption}
-            following={following}
-            onFollow={() => setFollowing((v) => !v)}
+            following={Boolean(reel.isFollowing)}
+            onFollow={onFollow}
             onProfileClick={() => onProfileClick?.(reel.author)}
           />
         </div>
 
-        <div className="shrink-0 pb-2">
+        <div className="shrink-0 self-center pb-2">
           <ReelActions
             likes={reel.likes}
             comments={reel.comments}
-            liked={liked}
-            saved={saved}
-            onLike={() => setLiked((v) => !v)}
-            onSave={() => setSaved((v) => !v)}
+            liked={Boolean(reel.isLiked)}
+            saved={Boolean(reel.isSaved)}
+            onLike={onLike}
+            onSave={onSave}
+            onShare={onShare}
+            onComment={onComment}
           />
         </div>
       </div>
 
-      <div className="mt-4 w-[min(100vw-6rem,500px)] sm:w-[min(100%,500px)]">
+      <div className={`mt-4 ${REEL_WIDTH}`}>
         <TaggedProductsCarousel
           products={reel.taggedProducts}
           designedBy={reel.designedBy}

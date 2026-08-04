@@ -46,7 +46,7 @@ export default function PostCard({
           onClick={onFollow}
           className="cursor-pointer font-inter text-sm font-semibold text-[#2563EB] transition hover:opacity-80"
         >
-          Follow
+          {author?.isFollowing ? 'Following' : 'Follow'}
         </button>
       </header>
 

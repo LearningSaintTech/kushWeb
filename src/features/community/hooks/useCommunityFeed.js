@@ -1,16 +1,19 @@
 /**
  * Community feed + engagement hooks — centralized data loading with debug logs.
+ * Follow / save / like persist via CommunitySocialContext across pages.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { communityService, getCommunityErrorMessage } from '../../../services/community.service.js';
 import { logCommunity } from '../../../services/communityApi.js';
-import { debugError } from '../../../utils/debugLog.js';
+import { debugError, debugLog } from '../../../utils/debugLog.js';
 import {
   mapContentToPost,
   mapContentToReel,
   mapSaveItem,
+  extractSavesList,
 } from '../api/communityContentMappers.js';
+import { useCommunitySocial } from '../context/CommunitySocialContext.jsx';
 
 /**
  * Cursor-paginated feed.
@@ -27,6 +30,7 @@ export function useCommunityFeed(options = {}) {
     enabled = true,
   } = options;
 
+  const { seedFromContentItems, withSocial } = useCommunitySocial();
   const [items, setItems] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
@@ -64,6 +68,7 @@ export function useCommunityFeed(options = {}) {
             ? rawItems.map(mapContentToReel).filter(Boolean)
             : rawItems.map(mapContentToPost).filter(Boolean);
 
+        seedFromContentItems(mapped);
         setItems((prev) => (append ? [...prev, ...mapped] : mapped));
         setNextCursor(data?.nextCursor ?? null);
         setHasMore(Boolean(data?.hasMore));
@@ -85,7 +90,7 @@ export function useCommunityFeed(options = {}) {
         }
       }
     },
-    [enabled, scope, type, q, hashtag, itemId, limit],
+    [enabled, scope, type, q, hashtag, itemId, limit, seedFromContentItems],
   );
 
   useEffect(() => {
@@ -104,8 +109,13 @@ export function useCommunityFeed(options = {}) {
     );
   }, []);
 
+  const socialItems = useMemo(
+    () => items.map((item) => withSocial(item)),
+    [items, withSocial],
+  );
+
   return {
-    items,
+    items: socialItems,
     loading,
     loadingMore,
     error,
@@ -119,6 +129,7 @@ export function useCommunityFeed(options = {}) {
 }
 
 export function useCommunitySaves({ type = 'all', enabled = true } = {}) {
+  const { seedFromContentItems, withSocial } = useCommunitySocial();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -132,11 +143,21 @@ export function useCommunitySaves({ type = 'all', enabled = true } = {}) {
     logCommunity('useCommunitySaves.fetch', { type });
     try {
       const data = await communityService.getSaves({ type, limit: 20 });
-      const raw = Array.isArray(data?.items) ? data.items : [];
-      setItems(raw.map(mapSaveItem).filter(Boolean));
+      const raw = extractSavesList(data);
+      const mapped = raw.map(mapSaveItem).filter(Boolean);
+      seedFromContentItems(mapped.map((m) => ({ ...m, isSaved: true })));
+      setItems(mapped);
       setNextCursor(data?.nextCursor ?? null);
       setHasMore(Boolean(data?.hasMore));
-      logCommunity('useCommunitySaves.ok', { count: raw.length });
+      debugLog('[Community] useCommunitySaves.ok', {
+        type,
+        rawCount: raw.length,
+        mappedCount: mapped.length,
+        sample: mapped[0]
+          ? { id: mapped[0].id, type: mapped[0].type, image: Boolean(mapped[0].image) }
+          : null,
+      });
+      logCommunity('useCommunitySaves.ok', { count: mapped.length, rawCount: raw.length });
     } catch (err) {
       const message = getCommunityErrorMessage(err, 'Failed to load saves');
       debugError('[Community] useCommunitySaves error', message);
@@ -145,27 +166,54 @@ export function useCommunitySaves({ type = 'all', enabled = true } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [enabled, type]);
+  }, [enabled, type, seedFromContentItems]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return { items, loading, error, hasMore, nextCursor, refresh, setItems };
+  const socialItems = useMemo(
+    () => items.map((item) => withSocial({ ...item, isSaved: true })),
+    [items, withSocial],
+  );
+
+  return { items: socialItems, loading, error, hasMore, nextCursor, refresh, setItems };
 }
 
-/** Optimistic like toggle */
-export async function toggleCommunityLike(item, patchItem) {
+/** Optimistic like toggle — updates local patch + global social store */
+export async function toggleCommunityLike(item, patchItem, social) {
   const id = item?.id;
   if (!id) return;
-  const nextLiked = !item.isLiked;
+  const current = social
+    ? social.isLikedContent(id, item.isLiked)
+    : Boolean(item.isLiked);
+  const nextLiked = !current;
   const nextCount = Math.max(0, (item.likeCount || 0) + (nextLiked ? 1 : -1));
+  const likesLabel = social
+    ? social.formatEngagementCount(nextCount)
+    : String(nextCount);
+
   patchItem?.(id, {
     isLiked: nextLiked,
     likeCount: nextCount,
-    likes: String(nextCount),
+    likes: likesLabel,
   });
-  logCommunity('toggleLike', { id, nextLiked });
+
+  if (social?.toggleLike) {
+    try {
+      await social.toggleLike(id, current);
+    } catch (err) {
+      patchItem?.(id, {
+        isLiked: current,
+        likeCount: item.likeCount,
+        likes: item.likes,
+      });
+      throw err;
+    }
+    return;
+  }
+
+  logCommunity('toggleLike', { id, nextLiked, nextCount });
   try {
     if (nextLiked) await communityService.like(id);
     else await communityService.unlike(id);
@@ -180,17 +228,62 @@ export async function toggleCommunityLike(item, patchItem) {
 }
 
 /** Optimistic save toggle */
-export async function toggleCommunitySave(item, patchItem) {
+export async function toggleCommunitySave(item, patchItem, social) {
   const id = item?.id;
   if (!id) return;
-  const nextSaved = !item.isSaved;
+  const current = social
+    ? social.isSavedContent(id, item.isSaved)
+    : Boolean(item.isSaved);
+  const nextSaved = !current;
   patchItem?.(id, { isSaved: nextSaved });
+
+  if (social?.toggleSave) {
+    try {
+      await social.toggleSave(id, current);
+    } catch (err) {
+      patchItem?.(id, { isSaved: current });
+      throw err;
+    }
+    return;
+  }
+
   logCommunity('toggleSave', { id, nextSaved });
   try {
     if (nextSaved) await communityService.save(id);
     else await communityService.unsave(id);
   } catch (err) {
     patchItem?.(id, { isSaved: item.isSaved });
+    throw err;
+  }
+}
+
+/** Optimistic follow / unfollow — always prefer global social store */
+export async function toggleCommunityFollow(author, patchByAuthorId, social) {
+  const userId = author?.id;
+  if (!userId) return;
+  const current = social
+    ? social.isFollowingUser(userId, author?.isFollowing)
+    : Boolean(author?.isFollowing);
+  const nextFollowing = !current;
+
+  patchByAuthorId?.(userId, { isFollowing: nextFollowing });
+
+  if (social?.toggleFollow) {
+    try {
+      await social.toggleFollow(userId, current);
+    } catch (err) {
+      patchByAuthorId?.(userId, { isFollowing: current });
+      throw err;
+    }
+    return;
+  }
+
+  logCommunity('toggleFollow', { userId, nextFollowing });
+  try {
+    if (nextFollowing) await communityService.follow(userId);
+    else await communityService.unfollow(userId);
+  } catch (err) {
+    patchByAuthorId?.(userId, { isFollowing: Boolean(author?.isFollowing) });
     throw err;
   }
 }

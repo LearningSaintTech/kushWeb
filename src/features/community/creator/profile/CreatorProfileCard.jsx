@@ -1,15 +1,41 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { CREATOR_MEDIA, CREATOR_PROFILE } from '../../data/mockCreator'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import { useCommunityRole } from '../../hooks/useCommunityRole'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
+function CameraIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.055-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+    </svg>
+  )
+}
+
+function PencilIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"
+      />
+    </svg>
+  )
+}
+
 /**
  * Creator profile card + content tabs/grid (center column).
  */
 export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
   const [tab, setTab] = useState('Posts')
+  const avatarInputRef = useRef(null)
   const media = CREATOR_MEDIA[tab] ?? []
   const role = useCommunityRole()
   const { profile: communityProfile } = useCommunityProfile()
@@ -22,17 +48,48 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
       communityProfile?.designerBio ||
       CREATOR_PROFILE.bio,
     avatar: communityProfile?.profileImage || CREATOR_PROFILE.avatar,
+    stats: {
+      posts: communityProfile?.counts?.posts ?? CREATOR_PROFILE.stats.posts,
+      followers: communityProfile?.counts?.followers ?? CREATOR_PROFILE.stats.followers,
+      following: communityProfile?.counts?.following ?? CREATOR_PROFILE.stats.following,
+    },
   }
   const roleBadge = role === 'designer' ? 'DESIGNER' : 'CREATOR'
 
   return (
-    <div className="w-full max-w-[420px]">
+    <div className="relative w-full max-w-[380px]">
+      <button
+        type="button"
+        onClick={onEditProfile}
+        aria-label="Edit profile"
+        className="absolute right-3 top-3 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-black text-white shadow-md transition hover:bg-neutral-800"
+      >
+        <PencilIcon className="h-4 w-4" />
+      </button>
+
       <section className="rounded-[1.75rem] bg-white px-6 py-8 text-center shadow-[0_8px_28px_rgba(0,0,0,0.05)] sm:px-8">
-        <div className="mx-auto h-28 w-28 overflow-hidden rounded-full border-[3px] border-[#ff5b67] bg-neutral-100 p-0.5 sm:h-32 sm:w-32">
-          <img
-            src={profile.avatar}
-            alt=""
-            className="h-full w-full rounded-full object-cover"
+        <div className="relative mx-auto h-28 w-28 sm:h-32 sm:w-32">
+          <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-[#ff5b67] bg-neutral-100 p-0.5">
+            <img
+              src={profile.avatar}
+              alt=""
+              className="h-full w-full rounded-full object-cover"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            aria-label="Change profile photo"
+            className="absolute bottom-1 right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white text-black shadow-md ring-1 ring-black/5 transition hover:bg-neutral-100"
+          >
+            <CameraIcon className="h-3.5 w-3.5" />
+          </button>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={() => onEditProfile?.()}
           />
         </div>
 

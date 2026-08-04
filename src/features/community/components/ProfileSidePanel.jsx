@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useCommunitySocial } from '../context/CommunitySocialContext'
+import { debugError } from '../../../utils/debugLog.js'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
 export default function ProfileSidePanel({ profile, onClose }) {
   const [activeTab, setActiveTab] = useState('Posts')
+  const social = useCommunitySocial()
 
   useEffect(() => {
     if (!profile) return undefined
@@ -20,6 +23,18 @@ export default function ProfileSidePanel({ profile, onClose }) {
   }, [profile])
 
   if (!profile) return null
+
+  const userId = profile.id
+  const following = social.isFollowingUser(userId, profile.isFollowing)
+
+  const handleFollow = async () => {
+    if (!userId) return
+    try {
+      await social.toggleFollow(userId, following)
+    } catch (err) {
+      debugError('[Community] side panel follow failed', err?.message)
+    }
+  }
 
   return (
     <aside
@@ -86,9 +101,10 @@ export default function ProfileSidePanel({ profile, onClose }) {
             </button>
             <button
               type="button"
+              onClick={handleFollow}
               className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"
             >
-              Edit Profile
+              {following ? 'Following' : 'Follow'}
             </button>
           </div>
         </div>

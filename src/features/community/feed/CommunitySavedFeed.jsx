@@ -10,7 +10,7 @@ const TABS = [
 ]
 
 /**
- * Saved / Favourites — GET /community/saves
+ * Saved / Favourites — GET /community/saves?type=post|reel
  */
 export default function CommunitySavedFeed() {
   const [tab, setTab] = useState('post')
@@ -75,23 +75,46 @@ export default function CommunitySavedFeed() {
       ) : null}
 
       <div className="mt-6 grid grid-cols-3 gap-0 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-        {items.map((item) => (
-          <button
-            key={item.saveId || item.id}
-            type="button"
-            onClick={() => handleOpen(item)}
-            className="aspect-square w-full cursor-pointer overflow-hidden bg-neutral-100 transition hover:opacity-90"
-            aria-label={`Open saved ${item.type}`}
-          >
-            {item.image ? (
-              <img
-                src={item.image}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : null}
-          </button>
-        ))}
+        {items.map((item) => {
+          const thumb = item.image || item.poster || item.videoUrl
+          const isReel = item.type === 'reel'
+          return (
+            <button
+              key={item.saveId || item.id}
+              type="button"
+              onClick={() => handleOpen(item)}
+              className="relative aspect-square w-full cursor-pointer overflow-hidden bg-neutral-100 transition hover:opacity-90"
+              aria-label={`Open saved ${item.type}`}
+            >
+              {thumb ? (
+                isReel && !item.image && !item.poster ? (
+                  <video
+                    src={thumb}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <img
+                    src={thumb}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                )
+              ) : (
+                <span className="flex h-full w-full items-center justify-center font-inter text-xs text-neutral-400">
+                  {isReel ? 'Reel' : 'Post'}
+                </span>
+              )}
+              {isReel ? (
+                <span className="pointer-events-none absolute right-1.5 top-1.5 rounded bg-black/55 px-1.5 py-0.5 font-inter text-[9px] font-semibold uppercase tracking-wide text-white">
+                  Reel
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

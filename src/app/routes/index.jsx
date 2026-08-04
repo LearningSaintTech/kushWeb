@@ -16,6 +16,7 @@ import { OrdersPage, TrackOrderPage } from '../../features/orders'
 import { NotificationsPage } from '../../features/notifications'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
+import ShaktimanCollectionPage from '../../features/home/ShaktimanCollectionPage'
 import { CouponsPage } from '../../features/coupons'
 import { WalletPage } from '../../features/wallet'
 import { ReferEarnPage } from '../../features/referEarn'
@@ -70,6 +71,7 @@ const router = createBrowserRouter([
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'section/:sectionId', element: <SectionExplorePage /> },
+      { path: 'collections/shaktiman', element: <ShaktimanCollectionPage /> },
       { path: 'refund-cancel-policy', element: <RefundCancelPolicyPage /> },
       { path: 'return-policy', element: <ReturnPolicyPage /> },
       { path: 'payment-policy', element: <PaymentPolicyPage /> },

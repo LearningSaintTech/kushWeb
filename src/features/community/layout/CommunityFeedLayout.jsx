@@ -49,7 +49,10 @@ export default function CommunityFeedLayout({
   const isReels = activeNav === 'reels'
   const isProfile = activeNav === 'profile'
   const isCreateJoin = activeNav === 'create'
+  /** Soft gray canvas: join chooser + own profile (dashboard layout) */
   const isJoinCanvas = isProfile || isCreateJoin
+  /** Profile with card+dashboard — hug sidebar, no huge centered gap */
+  const isProfileShell = isProfile
 
   const role = useCommunityRole()
   const { user } = useAuth()
@@ -206,14 +209,14 @@ export default function CommunityFeedLayout({
           isSaved || isJoinCanvas
             ? ''
             : isReels
-              ? 'items-stretch justify-center px-6 lg:px-10 xl:px-16'
+              ? 'items-stretch justify-center px-3 sm:px-4 lg:px-6 xl:px-10'
               : 'justify-center px-4 lg:px-8 xl:px-10'
         } ${isJoinCanvas ? 'bg-[#f5f5f5]' : 'bg-white'}`}
       >
         {isReels ? (
-          /* Centered reels cluster: player + actions + right rail */
-          <div className="flex h-full max-w-full shrink-0 items-stretch gap-8 lg:gap-10 xl:gap-12">
-            <main className="h-full min-h-0 w-[min(100vw-8rem,560px)] shrink-0 overflow-hidden sm:w-[560px]">
+          /* Centered reels cluster: large player + actions + right rail */
+          <div className="flex h-full max-w-full shrink-0 items-stretch gap-4 sm:gap-5 lg:gap-8 xl:gap-10">
+            <main className="h-full min-h-0 w-[min(100vw-4rem,600px)] shrink-0 overflow-hidden sm:w-[min(100%,540px)] lg:w-[min(100%,580px)]">
               <div className="flex h-full min-h-0 w-full flex-col items-center justify-center">
                 <Outlet context={{ openProfile, openPost }} />
               </div>
@@ -243,11 +246,14 @@ export default function CommunityFeedLayout({
                 className={
                   isSaved
                     ? 'w-full px-6 py-6 sm:px-8 lg:px-10'
-                    : isJoinCanvas
-                      ? 'flex min-h-full w-full items-stretch px-4 py-6 sm:px-8 lg:px-12'
-                      : isSearch
-                        ? 'w-full py-6 pr-1'
-                        : 'mx-auto w-full max-w-[520px] py-6'
+                    : isProfileShell
+                      ? // Profile + dashboard: tight to sidebar (matches mock on lg/xl)
+                        'w-full px-3 py-4 sm:px-4 lg:px-5 lg:py-5 xl:px-6'
+                      : isCreateJoin
+                        ? 'flex min-h-full w-full items-stretch px-4 py-6 sm:px-8 lg:px-12'
+                        : isSearch
+                          ? 'w-full py-6 pr-1'
+                          : 'mx-auto w-full max-w-[520px] py-6'
                 }
               >
                 <Outlet context={{ openProfile, openPost }} />

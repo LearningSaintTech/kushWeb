@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import MadeInIndiaMarquee from '../components/MadeInIndiaMarquee'
 import ScrollToTop from '../components/ScrollToTop'
 import AuthModal from '../../features/auth/AuthModal'
 import { trackPageView, trackPixelPageView } from '../../analytics'
@@ -48,6 +49,7 @@ function MainLayout() {
             </button>
             <WhatsAppFab />
           </div>
+          <MadeInIndiaMarquee />
           <Footer />
         </>
       ) : null}

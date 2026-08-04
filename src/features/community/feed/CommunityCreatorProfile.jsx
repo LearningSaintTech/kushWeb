@@ -7,7 +7,8 @@ import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
 import DesignerDashboard from '../creator/profile/DesignerDashboard'
 
 /**
- * Creator profile screen — profile or edit form (center) + dashboard (right).
+ * Creator profile — profile or edit form (left) + dashboard (right).
+ * Hugs the sidebar on large screens (matches mock spacing).
  */
 export default function CommunityCreatorProfile() {
   const navigate = useNavigate()
@@ -24,8 +25,8 @@ export default function CommunityCreatorProfile() {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[980px] flex-col items-center justify-start gap-8 py-2 lg:flex-row lg:items-start lg:justify-center lg:gap-8 xl:max-w-[1040px]">
-      <div className="mx-auto w-full min-w-0 max-w-[420px] lg:mx-0">
+    <div className="flex w-full flex-col items-stretch gap-5 py-1 lg:flex-row lg:items-start lg:gap-6 xl:gap-7">
+      <div className="w-full min-w-0 max-w-[380px] shrink-0">
         {editing ? (
           <CreatorEditProfile
             onBack={() => setEditing(false)}
@@ -38,7 +39,7 @@ export default function CommunityCreatorProfile() {
           />
         )}
       </div>
-      <div className="mx-auto w-full max-w-[420px] shrink-0 lg:mx-0 lg:sticky lg:top-2">
+      <div className="min-w-0 flex-1 lg:sticky lg:top-2 lg:max-w-[520px]">
         <DesignerDashboard mode={dashMode} onModeChange={setDashMode} />
       </div>
     </div>

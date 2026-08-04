@@ -8,10 +8,11 @@ import DesignerPortfolio from '../creator/profile/DesignerPortfolio'
 import DesignerDashboard from '../creator/profile/DesignerDashboard'
 import DesignerProjects from '../creator/profile/DesignerProjects'
 import AddProjectModal from '../creator/profile/AddProjectModal'
+import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
 
 /**
  * Designer profile — portfolio stays; View Projects slides in from the right.
- * Add Project opens a left→right slide panel.
+ * Layout hugs the sidebar on large screens (matches mock).
  */
 export default function CommunityDesignerProfile() {
   const navigate = useNavigate()
@@ -19,6 +20,7 @@ export default function CommunityDesignerProfile() {
   const [showPortfolio, setShowPortfolio] = useState(false)
   const [showProjects, setShowProjects] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [dashMode, setDashMode] = useState('designer')
   const [projects, setProjects] = useState(DESIGNER_PROJECTS)
 
@@ -57,7 +59,7 @@ export default function CommunityDesignerProfile() {
   if (showPortfolio) {
     return (
       <>
-        <div className="mx-auto flex w-full max-w-[1180px] flex-col items-stretch gap-4 lg:min-h-[640px] lg:flex-row lg:gap-5">
+        <div className="flex w-full flex-col items-stretch gap-4 lg:min-h-[640px] lg:flex-row lg:gap-5">
           <div className="w-full shrink-0 overflow-hidden rounded-[1.5rem] bg-black shadow-[0_8px_32px_rgba(0,0,0,0.12)] lg:w-[360px]">
             <DesignerPortfolio
               onBack={handleClosePortfolio}
@@ -66,7 +68,6 @@ export default function CommunityDesignerProfile() {
           </div>
 
           <div className="relative min-h-[520px] min-w-0 flex-1 overflow-hidden rounded-[1.5rem] bg-white shadow-[0_8px_32px_rgba(0,0,0,0.06)]">
-            {/* Dashboard — slides out left when projects open */}
             <div
               className={`scrollbar-hide absolute inset-0 overflow-y-auto px-4 py-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-5 lg:px-6 lg:py-6 ${
                 showProjects
@@ -77,7 +78,6 @@ export default function CommunityDesignerProfile() {
               <DesignerDashboard mode={dashMode} onModeChange={setDashMode} />
             </div>
 
-            {/* Projects — slides in from the right */}
             <div
               className={`scrollbar-hide absolute inset-0 overflow-y-auto bg-white px-3 py-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-4 lg:px-5 lg:py-5 ${
                 showProjects
@@ -104,14 +104,23 @@ export default function CommunityDesignerProfile() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[980px] flex-col items-center gap-8 py-2 lg:flex-row lg:items-start lg:justify-center lg:gap-8 xl:max-w-[1040px]">
-      <div className="mx-auto w-full min-w-0 max-w-[420px] lg:mx-0">
-        <DesignerProfileCard
-          onOpenMedia={handleOpenMedia}
-          onViewPortfolio={() => setShowPortfolio(true)}
-        />
+    <div className="flex w-full flex-col items-stretch gap-5 py-1 lg:flex-row lg:items-start lg:gap-6 xl:gap-7">
+      <div className="w-full min-w-0 max-w-[380px] shrink-0">
+        {editing ? (
+          <CreatorEditProfile
+            onBack={() => setEditing(false)}
+            onSaved={() => setEditing(false)}
+          />
+        ) : (
+          <DesignerProfileCard
+            onOpenMedia={handleOpenMedia}
+            onViewPortfolio={() => setShowPortfolio(true)}
+            onEditProfile={() => setEditing(true)}
+            onAvatarChange={() => setEditing(true)}
+          />
+        )}
       </div>
-      <div className="mx-auto w-full max-w-[420px] shrink-0 lg:mx-0 lg:sticky lg:top-2">
+      <div className="min-w-0 flex-1 lg:sticky lg:top-2 lg:max-w-[520px]">
         <DesignerDashboard mode={dashMode} onModeChange={setDashMode} />
       </div>
     </div>
