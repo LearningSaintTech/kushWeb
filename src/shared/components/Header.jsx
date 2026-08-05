@@ -554,23 +554,23 @@ export default function Header() {
           useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
-        {/* Mobile: centered logo | icons + menu right; search + location below */}
+        {/* Mobile: logo left | icons + menu right; search + location below */}
         <div className="md:hidden flex flex-col gap-2.5">
-          <div className="relative flex items-center justify-end min-h-10">
+          <div className="flex min-h-10 items-center justify-between gap-2">
             <NavLink
               to={ROUTES.HOME}
               onClick={handleLogoClick}
-              className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center"
+              className="flex shrink-0 items-center max-w-[42%]"
               aria-label="KHUSH home"
             >
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className="h-9 w-auto object-contain sm:h-10"
+                className="h-9 w-auto max-w-full object-contain object-left sm:h-10"
               />
             </NavLink>
 
-            <div className="flex items-center justify-end gap-0">
+            <div className="flex shrink-0 items-center justify-end gap-0">
               {isAuthenticated ? (
                 <NavLink
                   to={ROUTES.NOTIFICATIONS}
