@@ -17,7 +17,7 @@ import { useNotification } from "../../app/context/NotificationContext";
 // Location picker in header: no map – shows delivery location as text (current location / search / pincode).
 import LocationPicker from "./LocationPicker";
 import ProfileModal from "./ProfileModal";
-import logoImg from "../../assets/images/navBar/khushlogo.png";
+import logoImg from "../../assets/images/navBar/Khush1.png";
 
 function ChevronDownIcon({ className }) {
   return (
@@ -728,7 +728,9 @@ export default function Header() {
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className={`h-9 lg:h-14 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
+                className="h-9 lg:h-14 w-auto object-contain"
+                // TEMP: keep colored logo on home hero (was: brightness-0 invert when transparent)
+                // className={`h-9 lg:h-14 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
               />
             </NavLink>
 
