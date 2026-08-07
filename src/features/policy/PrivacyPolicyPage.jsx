@@ -131,6 +131,48 @@ export default function PrivacyPolicyPage() {
             </p>
           </div>
 
+          {/* AI-Generated Images */}
+          <div className="bg-white p-5 rounded-xl shadow border">
+            <h2 className="text-lg font-semibold text-black mb-2">
+              AI-Generated Images
+            </h2>
+
+            <p>
+              Some images displayed on the Khush website may be generated or enhanced using
+              artificial intelligence (AI). While these images are intended to represent
+              fictional individuals or illustrative concepts, they may, in rare cases, bear
+              an unintended resemblance to real persons.
+            </p>
+
+            <p className="mt-3">
+              If you believe that an image on our website resembles you or infringes upon
+              your rights, please contact us at{' '}
+              <a
+                href="mailto:support@khushpehno.com"
+                className="text-blue-600 font-medium hover:underline"
+              >
+                support@khushpehno.com
+              </a>
+              . Upon receiving your request, we will review the matter promptly and take
+              appropriate action, including the removal of the image where deemed necessary.
+            </p>
+          </div>
+
+          {/* Governing Law */}
+          <div className="bg-white p-5 rounded-xl shadow border">
+            <h2 className="text-lg font-semibold text-black mb-2">
+              Governing Law and Jurisdiction
+            </h2>
+
+            <p>
+              This Privacy Policy shall be governed by and construed in accordance with the
+              laws of India. Any dispute, claim, or legal proceeding arising out of or
+              relating to this Privacy Policy shall be subject to the exclusive jurisdiction
+              of the competent courts located in Noida, Uttar Pradesh, India, to the
+              exclusion of all other jurisdictions.
+            </p>
+          </div>
+
         </div>
       </PolicyPageLayout>
     </>

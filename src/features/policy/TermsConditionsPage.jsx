@@ -104,8 +104,46 @@ export default function TermsConditionsPage() {
         <p>All content on the platform including:
         All content on the platform including: Logos, Images, Graphics, Product designs, Text and UI elements are the property of Khush and may not be copied or used without permission.
         </p>
-       
-        <p>Agreement <br /> By accessing or using our platform, you acknowledge that you have read, understood, and agreed to these Terms & Conditions.</p>
+      </section>
+
+      <section className="mt-6 space-y-2">
+        <h2 className="text-lg font-semibold text-black">9. AI-Generated Images</h2>
+        <p>
+          Some images displayed on the Khush website may be generated or enhanced using
+          artificial intelligence (AI). While these images are intended to represent
+          fictional individuals or illustrative concepts, they may, in rare cases, bear an
+          unintended resemblance to real persons.
+        </p>
+        <p>
+          If you believe that an image on our website resembles you or infringes upon your
+          rights, please contact us at{' '}
+          <a href="mailto:support@khushpehno.com" className="underline hover:text-black">
+            support@khushpehno.com
+          </a>
+          . Upon receiving your request, we will review the matter promptly and take
+          appropriate action, including the removal of the image where deemed necessary.
+        </p>
+      </section>
+
+      <section className="mt-6 space-y-2">
+        <h2 className="text-lg font-semibold text-black">
+          10. Governing Law and Jurisdiction
+        </h2>
+        <p>
+          These Terms &amp; Conditions shall be governed by and construed in accordance with
+          the laws of India. Any dispute, claim, or legal proceeding arising out of or
+          relating to these Terms &amp; Conditions shall be subject to the exclusive
+          jurisdiction of the competent courts located in Noida, Uttar Pradesh, India, to
+          the exclusion of all other jurisdictions.
+        </p>
+      </section>
+
+      <section className="mt-6 space-y-2">
+        <h2 className="text-lg font-semibold text-black">11. Agreement</h2>
+        <p>
+          By accessing or using our platform, you acknowledge that you have read, understood,
+          and agreed to these Terms &amp; Conditions.
+        </p>
       </section>
     </PolicyPageLayout>
   )

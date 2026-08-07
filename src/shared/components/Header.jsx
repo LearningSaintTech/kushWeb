@@ -544,7 +544,7 @@ export default function Header() {
   return (
     <header
       ref={headerRef}
-      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-md:bg-white border-t-[3px] border-[#2196F3] ${
+      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-md:bg-white  ${
         useWhiteStyle ? "bg-white" : "bg-transparent"
       }`}
     >
