@@ -1,4 +1,12 @@
 import { useEffect, useState } from 'react'
+import {
+  communityService,
+  getCommunityErrorMessage,
+  mapComment,
+  extractCommentsList,
+} from '../../../services/community.service.js'
+import { logCommunity } from '../../../services/communityApi.js'
+import { debugError, debugLog } from '../../../utils/debugLog.js'
 
 function CommentRow({ comment }) {
   return (
@@ -18,22 +26,7 @@ function CommentRow({ comment }) {
             <p className="mt-0.5 font-inter text-xs leading-relaxed text-neutral-700">
               {comment.text}
             </p>
-            <button
-              type="button"
-              className="mt-1.5 cursor-pointer font-inter text-xs font-medium text-neutral-400 transition hover:text-neutral-600"
-            >
-              Reply
-            </button>
           </div>
-          <button
-            type="button"
-            aria-label="Like comment"
-            className="mt-0.5 shrink-0 cursor-pointer text-neutral-400 transition hover:text-black"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>
@@ -56,16 +49,40 @@ function ProductCard({ product }) {
   )
 }
 
+/** Normalize post or reel card → detail media fields */
+function normalizeDetail(post) {
+  if (!post) return null
+  const image = post.image || post.poster || ''
+  const images = post.images?.length
+    ? post.images
+    : image
+      ? [image]
+      : []
+  return {
+    ...post,
+    image,
+    images,
+    videoUrl: post.videoUrl || post.video || null,
+    taggedProducts: post.taggedProducts ?? [],
+  }
+}
+
 /**
- * Reusable post detail modal — same for user / creator / designer feeds.
+ * Reusable post/reel detail modal — loads & posts comments via community API.
  */
 export default function PostDetailModal({
-  post,
+  post: rawPost,
   onClose,
   onProfileClick,
 }) {
+  const post = normalizeDetail(rawPost)
   const [imageIndex, setImageIndex] = useState(0)
   const [draft, setDraft] = useState('')
+  const [comments, setComments] = useState([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [commentError, setCommentError] = useState('')
+  const [commentCountLabel, setCommentCountLabel] = useState(post?.comments ?? '0')
 
   useEffect(() => {
     if (!post) return undefined
@@ -87,15 +104,86 @@ export default function PostDetailModal({
   useEffect(() => {
     setImageIndex(0)
     setDraft('')
+    setCommentError('')
+    setComments([])
+    setCommentCountLabel(rawPost?.comments ?? '0')
+  }, [rawPost?.id, rawPost?.comments])
+
+  useEffect(() => {
+    if (!post?.id) return undefined
+    let cancelled = false
+    setCommentsLoading(true)
+    setCommentError('')
+    logCommunity('PostDetail listComments', { id: post.id })
+    communityService
+      .listComments(post.id, { limit: 50 })
+      .then((data) => {
+        if (cancelled) return
+        const list = extractCommentsList(data)
+          .map(mapComment)
+          .filter(Boolean)
+        setComments(list)
+        debugLog('[Community] comments loaded', { id: post.id, count: list.length })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        debugError('[Community] listComments failed', err?.message)
+        setCommentError(getCommunityErrorMessage(err, 'Could not load comments.'))
+      })
+      .finally(() => {
+        if (!cancelled) setCommentsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [post?.id])
 
   if (!post) return null
 
-  const images = post.images?.length ? post.images : [post.image].filter(Boolean)
+  const images = post.images
   const products = post.taggedProducts ?? []
-  const comments = post.commentList ?? []
   const canPrev = imageIndex > 0
   const canNext = imageIndex < images.length - 1
+  const mediaSrc = images[imageIndex] || post.poster || ''
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const text = draft.trim()
+    if (!text || !post.id || submitting) return
+
+    setSubmitting(true)
+    setCommentError('')
+    logCommunity('PostDetail addComment', { id: post.id, text })
+    try {
+      const created = await communityService.addComment(post.id, text)
+      const mapped =
+        mapComment(created?.comment || created?.data || created) ||
+        mapComment({
+          _id: `local-${Date.now()}`,
+          text,
+          authorName: 'You',
+          createdAt: new Date().toISOString(),
+        })
+      if (mapped) {
+        setComments((prev) => {
+          const next = [...prev, mapped]
+          setCommentCountLabel(String(next.length))
+          return next
+        })
+      }
+      setDraft('')
+      debugLog('[Community] comment posted', { id: post.id })
+    } catch (err) {
+      debugError('[Community] addComment failed', {
+        message: err?.message,
+        status: err?.response?.status,
+        body: err?.response?.data,
+      })
+      setCommentError(getCommunityErrorMessage(err, 'Could not post comment.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6 lg:p-8">
@@ -126,11 +214,25 @@ export default function PostDetailModal({
         {/* Media */}
         <div className="relative hidden h-full w-[60%] shrink-0 items-center justify-center bg-white p-8 md:flex lg:p-10">
           <div className="relative h-full max-h-[560px] w-full overflow-hidden bg-neutral-100">
-            <img
-              src={images[imageIndex]}
-              alt=""
-              className="h-full w-full object-cover"
-            />
+            {post.videoUrl && !mediaSrc ? (
+              <video
+                src={post.videoUrl}
+                poster={post.poster}
+                controls
+                playsInline
+                className="h-full w-full object-cover"
+              />
+            ) : mediaSrc ? (
+              <img src={mediaSrc} alt="" className="h-full w-full object-cover" />
+            ) : post.videoUrl ? (
+              <video
+                src={post.videoUrl}
+                poster={post.poster}
+                controls
+                playsInline
+                className="h-full w-full object-cover"
+              />
+            ) : null}
           </div>
 
           {canPrev ? (
@@ -177,44 +279,26 @@ export default function PostDetailModal({
                 <button
                   type="button"
                   onClick={() => onProfileClick?.(post.author)}
-                  className="cursor-pointer truncate font-inter text-xs font-semibold text-black hover:opacity-70"
+                  className="cursor-pointer truncate font-inter text-sm font-semibold text-black"
                 >
-                  {post.author?.name}
+                  {post.author?.name || 'Member'}
                 </button>
-                <span className="font-inter text-[8px] font-semibold uppercase tracking-[0.12em] text-[#2563EB]">
-                  {post.author?.role}
-                </span>
+                {post.author?.role ? (
+                  <span className="font-inter text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                    {post.author.role}
+                  </span>
+                ) : null}
               </div>
+              {post.author?.handle ? (
+                <p className="font-inter text-xs text-neutral-400">@{post.author.handle}</p>
+              ) : null}
             </div>
-            <button
-              type="button"
-              className="cursor-pointer pr-6 font-inter text-xs font-semibold text-black transition hover:opacity-70"
-            >
-              Follow
-            </button>
           </div>
 
-          {/* Mobile media */}
-          <div className="relative aspect-[4/5] w-full bg-neutral-100 md:hidden">
-            <img src={images[imageIndex]} alt="" className="h-full w-full object-cover" />
-            {canNext ? (
-              <button
-                type="button"
-                onClick={() => setImageIndex((i) => i + 1)}
-                aria-label="Next image"
-                className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/45 text-white"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.25" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
-              </button>
+          <div className="min-h-0 flex-1 overflow-y-auto px-0 pb-2 pt-4">
+            {post.caption ? (
+              <p className="font-inter text-sm leading-relaxed text-neutral-800">{post.caption}</p>
             ) : null}
-          </div>
-
-          <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4">
-            <p className="font-inter text-xs leading-relaxed text-neutral-800">
-              {post.caption}
-            </p>
 
             {products.length ? (
               <div className="mt-3 pt-1">
@@ -236,36 +320,35 @@ export default function PostDetailModal({
             ) : null}
 
             <div className="mt-5 border-t border-neutral-100 pt-4">
-              {comments.map((comment) => (
-                <CommentRow key={comment.id} comment={comment} />
-              ))}
+              {commentsLoading ? (
+                <p className="py-4 font-inter text-xs text-neutral-400">Loading comments…</p>
+              ) : comments.length === 0 ? (
+                <p className="py-4 font-inter text-xs text-neutral-400">No comments yet</p>
+              ) : (
+                comments.map((comment) => (
+                  <CommentRow key={comment.id} comment={comment} />
+                ))
+              )}
+              {commentError ? (
+                <p className="mt-2 font-inter text-xs text-amber-700">{commentError}</p>
+              ) : null}
             </div>
           </div>
 
           <div className="border-t border-neutral-100 pt-3">
             <div className="flex items-center gap-4">
-              <button type="button" className="inline-flex cursor-pointer items-center gap-1.5 text-black transition hover:opacity-70">
+              <span className="inline-flex items-center gap-1.5 text-black">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
                 </svg>
                 <span className="font-inter text-xs font-medium">{post.likes}</span>
-              </button>
-              <button type="button" className="inline-flex cursor-pointer items-center gap-1.5 text-black transition hover:opacity-70">
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-black">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 01-.923 1.785A5.969 5.969 0 006 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337z" />
                 </svg>
-                <span className="font-inter text-xs font-medium">{post.comments}</span>
-              </button>
-              <button type="button" className="cursor-pointer text-black transition hover:opacity-70" aria-label="Share">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                </svg>
-              </button>
-              <button type="button" className="ml-auto cursor-pointer text-black transition hover:opacity-70" aria-label="Save">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
-                </svg>
-              </button>
+                <span className="font-inter text-xs font-medium">{commentCountLabel}</span>
+              </span>
             </div>
             {post.date ? (
               <p className="mt-2 font-inter text-[9px] font-medium uppercase tracking-[0.14em] text-neutral-400">
@@ -276,10 +359,7 @@ export default function PostDetailModal({
 
           <form
             className="mt-3 flex items-center gap-2 border-t border-neutral-100 py-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              setDraft('')
-            }}
+            onSubmit={handleSubmit}
           >
             <span className="text-neutral-400" aria-hidden>
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -291,14 +371,15 @@ export default function PostDetailModal({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Add a comment..."
-              className="min-w-0 flex-1 border-0 bg-transparent font-inter text-xs text-black outline-none placeholder:text-neutral-400"
+              disabled={submitting}
+              className="min-w-0 flex-1 border-0 bg-transparent font-inter text-xs text-black outline-none placeholder:text-neutral-400 disabled:opacity-60"
             />
             <button
               type="submit"
-              disabled={!draft.trim()}
+              disabled={!draft.trim() || submitting}
               className="cursor-pointer font-inter text-xs font-semibold text-[#2563EB] transition disabled:cursor-default disabled:opacity-40"
             >
-              Post
+              {submitting ? '…' : 'Post'}
             </button>
           </form>
         </div>

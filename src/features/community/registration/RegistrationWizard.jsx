@@ -17,8 +17,6 @@ import { useCommunityProfile } from '../context/CommunityProfileContext'
 import {
   communityProfileService,
   getCommunityProfileErrorMessage,
-} from '../../../services/communityProfile.service'
-import {
   buildDesignerEducationBody,
   buildDesignerEssentialsBody,
   buildDesignerExperienceBody,
@@ -28,7 +26,7 @@ import {
   buildDesignerStoryBody,
   designerStepIndex,
   hydrateDesignerForm,
-} from '../api/communityProfileMappers'
+} from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
 const STEP_COMPONENTS = {

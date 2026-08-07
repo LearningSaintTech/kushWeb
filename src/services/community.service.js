@@ -3,7 +3,8 @@
  * Base path: /community  (gateway → community service)
  * Auth: Bearer via axiosClient
  *
- * See Downloads/FRONTEND_INTEGRATION.md for contract.
+ * See docs/FRONTEND_INTEGRATION.md for contract.
+ * Mappers: communityContent.mappers.js (re-exported below).
  * Dev logs: [Community] via communityApi.js
  */
 
@@ -300,3 +301,14 @@ export const communityService = {
 };
 
 export { getCommunityErrorMessage, isDesignerNotVerifiedError };
+export {
+  mapContentToPost,
+  mapContentToReel,
+  mapPurchasedItem,
+  mapSaveItem,
+  extractSavesList,
+  extractHashtagsFromCaption,
+  mapSocialProfile,
+  mapComment,
+  extractCommentsList,
+} from './communityContent.mappers.js';

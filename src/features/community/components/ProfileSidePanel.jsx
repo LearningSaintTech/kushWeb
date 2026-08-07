@@ -1,39 +1,64 @@
 import { useEffect, useState } from 'react'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
+import { useCommunitySocialProfile } from '../hooks/useCommunitySocialProfile'
 import { debugError } from '../../../utils/debugLog.js'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
-export default function ProfileSidePanel({ profile, onClose }) {
+export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost }) {
   const [activeTab, setActiveTab] = useState('Posts')
   const social = useCommunitySocial()
+  const userId = seed?.id || seed?.userId || null
+  const { profile, loading } = useCommunitySocialProfile({
+    userId,
+    enabled: Boolean(userId),
+  })
+
+  const display = profile || {
+    id: userId,
+    name: seed?.name || 'Member',
+    handle: seed?.handle || '',
+    bio: seed?.bio || '',
+    avatar: seed?.avatar || '',
+    isFollowing: Boolean(seed?.isFollowing),
+    isOwnProfile: false,
+    stats: { posts: '—', followers: '—', following: '—' },
+    mediaByTab: { Posts: [], Reels: [], Tagged: [] },
+  }
 
   useEffect(() => {
-    if (!profile) return undefined
+    if (!seed) return undefined
 
     const onKeyDown = (event) => {
       if (event.key === 'Escape') onClose?.()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [profile, onClose])
+  }, [seed, onClose])
 
   useEffect(() => {
-    if (profile) setActiveTab('Posts')
-  }, [profile])
+    if (seed) setActiveTab('Posts')
+  }, [seed])
 
-  if (!profile) return null
+  if (!seed) return null
 
-  const userId = profile.id
-  const following = social.isFollowingUser(userId, profile.isFollowing)
+  const following = social.isFollowingUser(display.id, display.isFollowing)
+  const media = display.mediaByTab?.[activeTab] ?? []
 
   const handleFollow = async () => {
-    if (!userId) return
+    if (!display.id || display.isOwnProfile) return
     try {
-      await social.toggleFollow(userId, following)
+      await social.toggleFollow(display.id, following)
     } catch (err) {
       debugError('[Community] side panel follow failed', err?.message)
     }
+  }
+
+  const handleOpenMedia = (item) => {
+    if (item?.type === 'reel') {
+      // Parent can navigate; for now open post detail if mapped
+    }
+    if (item?.post) onOpenPost?.(item.post)
   }
 
   return (
@@ -41,7 +66,7 @@ export default function ProfileSidePanel({ profile, onClose }) {
       className="scrollbar-hide fixed inset-y-0 right-0 z-[70] w-full max-w-[380px] overflow-y-auto bg-[#f4f4f4] p-3 shadow-[-16px_0_42px_rgba(0,0,0,0.12)] animate-[community-profile-in_280ms_cubic-bezier(0.22,1,0.36,1)] sm:p-4 pointer-events-auto"
       role="dialog"
       aria-modal="false"
-      aria-label={`${profile.name} profile`}
+      aria-label={`${display.name} profile`}
     >
       <div className="flex min-h-full flex-col overflow-hidden rounded-2xl bg-white">
         <div className="px-4 pt-4">
@@ -59,31 +84,33 @@ export default function ProfileSidePanel({ profile, onClose }) {
 
         <div className="px-5 pb-5 text-center sm:px-6">
           <div className="mx-auto mt-2 h-24 w-24 overflow-hidden rounded-full border-[3px] border-[#ff5b67] bg-neutral-100 p-0.5">
-            <img
-              src={profile.avatar}
-              alt={`${profile.name} profile`}
-              className="h-full w-full rounded-full object-cover"
-            />
+            {display.avatar ? (
+              <img
+                src={display.avatar}
+                alt={`${display.name} profile`}
+                className="h-full w-full rounded-full object-cover"
+              />
+            ) : null}
           </div>
 
           <h2 className="mt-4 font-inter text-2xl font-bold tracking-tight text-black">
-            {profile.name}
+            {loading && !profile ? '…' : display.name}
           </h2>
           <p className="mt-0.5 font-inter text-sm text-neutral-500">
-            @{profile.handle}
+            @{display.handle || 'username'}
           </p>
 
-          <p className="mx-auto mt-4 max-w-[18rem] font-inter text-sm leading-relaxed text-neutral-500">
-            Exploring the intersection of art and tech. 🎨
-            <br />
-            New video every Sunday! ✨
-          </p>
+          {display.bio ? (
+            <p className="mx-auto mt-4 max-w-[18rem] font-inter text-sm leading-relaxed text-neutral-500">
+              {display.bio}
+            </p>
+          ) : null}
 
           <div className="mt-6 grid grid-cols-3">
             {[
-              ['482', 'Posts'],
-              ['124k', 'Followers'],
-              ['854', 'Following'],
+              [display.stats?.posts ?? '0', 'Posts'],
+              [display.stats?.followers ?? '0', 'Followers'],
+              [display.stats?.following ?? '0', 'Following'],
             ].map(([value, label]) => (
               <div key={label}>
                 <p className="font-inter text-base font-bold text-black">{value}</p>
@@ -99,13 +126,22 @@ export default function ProfileSidePanel({ profile, onClose }) {
             >
               Share Profile
             </button>
-            <button
-              type="button"
-              onClick={handleFollow}
-              className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"
-            >
-              {following ? 'Following' : 'Follow'}
-            </button>
+            {display.isOwnProfile ? (
+              <button
+                type="button"
+                className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"
+              >
+                Edit Profile
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleFollow}
+                className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"
+              >
+                {following ? 'Following' : 'Follow'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -128,24 +164,29 @@ export default function ProfileSidePanel({ profile, onClose }) {
         </div>
 
         <div className="grid grid-cols-3">
-          <div className="aspect-square overflow-hidden bg-[#dcebf2]">
-            <img
-              src={profile.avatar}
-              alt=""
-              className="h-full w-full object-cover opacity-75 mix-blend-multiply"
-            />
-          </div>
-          <div className="aspect-square bg-[linear-gradient(145deg,#a23eea_0%,#e94cc1_34%,#00c3e8_68%,#086acf_100%)]" />
-          <div className="aspect-square bg-[radial-gradient(circle_at_35%_30%,#ffffff_0_13%,transparent_14%),radial-gradient(circle_at_68%_62%,#ffffff_0_14%,transparent_15%),linear-gradient(135deg,#f4f4f4,#d7d7d7)]" />
-          <div className="aspect-square bg-[linear-gradient(135deg,#dde7eb_0%,#f7fbfc_45%,#b8d7e4_100%)]" />
-          <div className="aspect-square bg-[linear-gradient(155deg,#1b7cc1_0%,#2ad3d1_45%,#7356e8_100%)]" />
-          <div className="aspect-square overflow-hidden bg-neutral-100">
-            <img
-              src={profile.avatar}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          </div>
+          {loading && media.length === 0 ? (
+            <p className="col-span-3 py-12 text-center font-inter text-xs text-neutral-400">
+              Loading…
+            </p>
+          ) : media.length === 0 ? (
+            <p className="col-span-3 py-12 text-center font-inter text-xs text-neutral-400">
+              No {activeTab.toLowerCase()} yet
+            </p>
+          ) : (
+            media.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleOpenMedia(item)}
+                className="aspect-square cursor-pointer overflow-hidden bg-neutral-100"
+                aria-label={`Open ${item.type}`}
+              >
+                {item.image ? (
+                  <img src={item.image} alt="" className="h-full w-full object-cover" />
+                ) : null}
+              </button>
+            ))
+          )}
         </div>
       </div>
     </aside>

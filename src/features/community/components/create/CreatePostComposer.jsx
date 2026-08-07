@@ -13,7 +13,7 @@ import { logCommunity } from '../../../../services/communityApi.js'
 import {
   extractHashtagsFromCaption,
   mapPurchasedItem,
-} from '../../api/communityContentMappers.js'
+} from '../../../../services/communityContent.mappers.js'
 import topSvg from '../../../../assets/images/community/top.svg'
 
 const SUGGESTED_TAGS = ['#Minimalist', '#LinenLove', '#SummerLook', '#KhushStyle']

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../app/context/AuthContext'
 import { useCommunityProfile } from '../context/CommunityProfileContext'
 import { useCommunityRole } from '../hooks/useCommunityRole'
-import { resolveCommunityDestination } from '../api/resolveCommunityDestination'
+import { resolveCommunityDestination } from '../utils/resolveCommunityDestination'
 import { ROUTES } from '../../../utils/constants'
 import { debugLog } from '../../../utils/debugLog'
 

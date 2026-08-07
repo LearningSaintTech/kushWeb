@@ -272,7 +272,11 @@ export default function CommunityFeedLayout({
         )}
       </div>
 
-      <ProfileSidePanel profile={selectedProfile} onClose={closeProfile} />
+      <ProfileSidePanel
+        profile={selectedProfile}
+        onClose={closeProfile}
+        onOpenPost={openPost}
+      />
       <PostDetailModal
         post={selectedPost}
         onClose={closePost}

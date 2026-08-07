@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
-import { MOCK_POSTS } from '../data/mockFeed'
 import { DESIGNER_PROJECTS } from '../data/mockCreator'
 import DesignerProfileCard from '../creator/profile/DesignerProfileCard'
 import DesignerPortfolio from '../creator/profile/DesignerPortfolio'
@@ -25,11 +24,11 @@ export default function CommunityDesignerProfile() {
   const [projects, setProjects] = useState(DESIGNER_PROJECTS)
 
   const handleOpenMedia = (item) => {
-    if (item.type === 'reel') {
+    if (item?.type === 'reel') {
       navigate(ROUTES.COMMUNITY_REELS)
       return
     }
-    openPost?.(MOCK_POSTS[0])
+    if (item?.post) openPost?.(item.post)
   }
 
   const handleSaveProject = (payload) => {

@@ -192,3 +192,26 @@ export const communityProfileService = {
   completeCreator: () =>
     wrap('POST', `${BASE}/creator/complete`, client.post(`${BASE}/creator/complete`)),
 };
+
+export {
+  DESIGNER_STEP_TO_INDEX,
+  CREATOR_STEP_TO_INDEX,
+  designerStepIndex,
+  creatorStepIndex,
+  mapGenderToApi,
+  mapGenderFromApi,
+  normalizePhoneForApi,
+  buildDesignerEssentialsBody,
+  buildDesignerSceneFormData,
+  buildDesignerSkillsBody,
+  buildDesignerExperienceBody,
+  buildDesignerEducationBody,
+  buildDesignerStoryBody,
+  buildDesignerLinksBody,
+  buildCreatorPhotoFormData,
+  buildCreatorBasicBody,
+  buildCreatorAboutBody,
+  buildCreatorPrivateBody,
+  hydrateDesignerForm,
+  hydrateCreatorForm,
+} from './communityProfile.mappers.js';

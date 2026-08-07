@@ -5,8 +5,10 @@ import { CREATOR_PROFILE } from '../../data/mockCreator'
 import {
   communityProfileService,
   getCommunityProfileErrorMessage,
+  normalizePhoneForApi,
+  mapGenderToApi,
+  mapGenderFromApi,
 } from '../../../../services/communityProfile.service'
-import { normalizePhoneForApi, mapGenderToApi, mapGenderFromApi } from '../../api/communityProfileMappers'
 import { debugLog } from '../../../../utils/debugLog'
 
 const CATEGORIES = [

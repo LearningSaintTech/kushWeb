@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import whiteBg from '../../../../assets/images/community/whitebg.png'
-import { CREATOR_MEDIA, DESIGNER_PROFILE } from '../../data/mockCreator'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
+import { useCommunitySocialProfile } from '../../hooks/useCommunitySocialProfile'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -31,7 +31,7 @@ function PencilIcon({ className }) {
 }
 
 /**
- * Dark designer profile card — matches community mock (camera + edit icons).
+ * Dark designer profile card — live /community/profile/me data.
  */
 export default function DesignerProfileCard({
   onOpenMedia,
@@ -41,27 +41,30 @@ export default function DesignerProfileCard({
 }) {
   const [tab, setTab] = useState('Posts')
   const avatarInputRef = useRef(null)
-  const media = CREATOR_MEDIA[tab] ?? []
-  const { profile: communityProfile } = useCommunityProfile()
+  const { profile: onboarding } = useCommunityProfile()
+  const { profile: social, loading } = useCommunitySocialProfile()
 
   const profile = {
-    ...DESIGNER_PROFILE,
-    name: communityProfile?.name || DESIGNER_PROFILE.name,
-    handle: communityProfile?.username || DESIGNER_PROFILE.handle,
-    avatar: communityProfile?.profileImage || DESIGNER_PROFILE.avatar,
+    name: social?.name || onboarding?.name || 'Member',
+    handle: social?.handle || onboarding?.username || '',
+    avatar: social?.avatar || onboarding?.profileImage || '',
     tagline:
-      communityProfile?.designerTagline ||
-      communityProfile?.designerBio ||
-      DESIGNER_PROFILE.tagline,
-    cover: communityProfile?.designerCoverImage || whiteBg,
-    badge: communityProfile?.designerTagline ? 'DESIGNER' : DESIGNER_PROFILE.badge,
-    openToWork: DESIGNER_PROFILE.openToWork,
+      social?.bio ||
+      onboarding?.designerTagline ||
+      onboarding?.designerBio ||
+      onboarding?.shortBio ||
+      '',
+    cover: onboarding?.designerCoverImage || whiteBg,
+    badge: social?.isDesigner || onboarding?.isDesigner ? 'DESIGNER' : 'CREATOR',
+    openToWork: Boolean(onboarding?.openToWork),
     stats: {
-      followers: communityProfile?.counts?.followers ?? DESIGNER_PROFILE.stats.followers,
-      following: communityProfile?.counts?.following ?? DESIGNER_PROFILE.stats.following,
-      posts: communityProfile?.counts?.posts ?? DESIGNER_PROFILE.stats.posts,
+      followers: social?.stats?.followers ?? '0',
+      following: social?.stats?.following ?? '0',
+      posts: social?.stats?.posts ?? '0',
     },
   }
+
+  const media = social?.mediaByTab?.[tab] ?? []
 
   const handleAvatarPick = (event) => {
     const file = event.target.files?.[0]
@@ -84,7 +87,9 @@ export default function DesignerProfileCard({
       <div className="relative -mt-14 px-5 pb-5 text-center sm:px-6">
         <div className="relative mx-auto h-[5.75rem] w-[5.75rem] sm:h-24 sm:w-24">
           <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-[#111111] bg-neutral-800">
-            <img src={profile.avatar} alt="" className="h-full w-full object-cover" />
+            {profile.avatar ? (
+              <img src={profile.avatar} alt="" className="h-full w-full object-cover" />
+            ) : null}
           </div>
           <button
             type="button"
@@ -113,15 +118,23 @@ export default function DesignerProfileCard({
         </button>
 
         <h1 className="mt-4 font-refer-display text-[1.85rem] font-normal tracking-tight text-white">
-          {profile.name}
+          {loading && !social ? '…' : profile.name}
         </h1>
 
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
-          <p className="font-inter text-sm text-white/50">@{profile.handle}</p>
+          <p className="font-inter text-sm text-white/50">
+            @{profile.handle || 'username'}
+          </p>
           <span className="rounded-md border border-[#8B5CF6]/60 px-2 py-0.5 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-[#c4b5fd]">
             {profile.badge}
           </span>
         </div>
+
+        {profile.tagline ? (
+          <p className="mx-auto mt-3 max-w-[18rem] font-inter text-xs leading-relaxed text-white/55">
+            {profile.tagline}
+          </p>
+        ) : null}
 
         {profile.openToWork ? (
           <p className="mt-2 inline-flex items-center gap-1.5 font-inter text-xs text-emerald-400">
@@ -181,19 +194,29 @@ export default function DesignerProfileCard({
       </div>
 
       <div className="grid grid-cols-3 gap-0.5 bg-white">
-        {media.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onOpenMedia?.(item)}
-            className={`aspect-square cursor-pointer overflow-hidden ${item.style ?? 'bg-neutral-800'}`}
-            aria-label={`Open ${item.type}`}
-          >
-            {item.image ? (
-              <img src={item.image} alt="" className="h-full w-full object-cover opacity-90" />
-            ) : null}
-          </button>
-        ))}
+        {loading && media.length === 0 ? (
+          <p className="col-span-3 py-10 text-center font-inter text-xs text-neutral-400">
+            Loading…
+          </p>
+        ) : media.length === 0 ? (
+          <p className="col-span-3 py-10 text-center font-inter text-xs text-neutral-400">
+            No {tab.toLowerCase()} yet
+          </p>
+        ) : (
+          media.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onOpenMedia?.(item)}
+              className="aspect-square cursor-pointer overflow-hidden bg-neutral-800"
+              aria-label={`Open ${item.type}`}
+            >
+              {item.image ? (
+                <img src={item.image} alt="" className="h-full w-full object-cover opacity-90" />
+              ) : null}
+            </button>
+          ))
+        )}
       </div>
     </div>
   )

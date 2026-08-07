@@ -233,7 +233,7 @@ export default function CommunityReelsFeed() {
               itemRefs.current[index] = el
             }}
             data-reel-index={index}
-            className="flex min-h-full snap-start snap-always flex-col items-center justify-center py-4 sm:py-5"
+            className="flex min-h-full snap-start snap-always flex-col items-center justify-center py-2 sm:py-3 md:py-4 xl:py-5"
             aria-label={`Reel ${index + 1} of ${reels.length}`}
           >
             <ReelCard

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
-import { MOCK_POSTS } from '../data/mockFeed'
 import CreatorProfileCard from '../creator/profile/CreatorProfileCard'
 import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
 import DesignerDashboard from '../creator/profile/DesignerDashboard'
@@ -17,11 +16,11 @@ export default function CommunityCreatorProfile() {
   const [dashMode, setDashMode] = useState('creator')
 
   const handleOpenMedia = (item) => {
-    if (item.type === 'reel') {
+    if (item?.type === 'reel') {
       navigate(ROUTES.COMMUNITY_REELS)
       return
     }
-    openPost?.(MOCK_POSTS[0])
+    if (item?.post) openPost?.(item.post)
   }
 
   return (

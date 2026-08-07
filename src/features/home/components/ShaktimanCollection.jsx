@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
-import saktimanBanner from '../../../assets/images/special-discount/Saktiman.png'
+import saktimanBanner from '../../../assets/images/navbar/Shakbanners.PNG'
 
 /**
  * Shaktiman limited-edition promo — full banner visible (no crop).

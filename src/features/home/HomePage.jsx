@@ -14,7 +14,8 @@ import HomePageLoader from './components/HomePageLoader'
 import DropStory from './components/DropStory'
 import FabricCraft from './components/FabricCraft.jsx'
 import OurStory from './components/OurStory.jsx'
-// import ShaktimanCollection from './components/ShaktimanCollection.jsx'
+import ShaktimanCollection from './components/ShaktimanCollection.jsx'
+import ShaktimaanFab from './components/ShaktimaanFab.jsx'
 import CategorySpotlight from './components/CategorySpotlight.jsx'
 import { sectionsService } from '../../services/content.service.js'
 
@@ -123,6 +124,7 @@ function HomePage() {
 
     <div>
       <Banner className="bg-white" />
+      <ShaktimaanFab />
       <CategorySpotlight />
       {/* <StaticCard className="bg-white" /> */}
       {loading && <HomePageLoader />}
@@ -143,7 +145,7 @@ function HomePage() {
                   {order === 6 ? (
                     <>
                       <FabricCraft />
-                      {/* <ShaktimanCollection /> */}
+                      <ShaktimanCollection />
                       <OurStory />
                     </>
                   ) : null}

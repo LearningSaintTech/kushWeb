@@ -200,7 +200,7 @@ function SubcategoryTile({ item, featured = false, revealed = false, delayMs = 0
           onError={() => setSrc(productImage)}
         />
       </div>
-      <div className="bg-white px-2.5 py-2.5 sm:px-3 sm:py-3">
+      <div className="  border-b border-gray-300 bg-white px-2.5 py-2.5 sm:px-3 sm:py-3">
         <p className="truncate font-inter text-[11px] font-medium leading-tight text-black sm:text-xs">
           {item.title}
         </p>

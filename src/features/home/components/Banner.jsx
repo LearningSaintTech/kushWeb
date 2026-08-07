@@ -32,28 +32,54 @@ function DiamondDot({ active, onClick, label }) {
   )
 }
 
-function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide }) {
+function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFashion }) {
   const showDots = slideCount > 1
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/55 via-black/25 to-transparent pt-24 pb-8 sm:pb-10 md:pb-12">
       <div className="pointer-events-auto px-4 sm:px-6 md:px-10 lg:px-14">
-        {showDots ? (
-          <div
-            className="flex w-full items-center justify-center gap-1.5"
-            role="tablist"
-            aria-label="Banner slides"
+        <div className="max-w-xl text-left text-white">
+          {/* <p className="font-inter text-sm font-light tracking-[0.1em] text-white/95 sm:text-base md:text-xs lg:text-sm">
+            KHUSH @2026
+          </p> */}
+          {/* <h2
+            className="font-raleway font-bold uppercase leading-none text-white"
+            style={{
+              fontSize: '28px',
+              letterSpacing: '-0.02em',
+            }}
           >
-            {Array.from({ length: slideCount }, (_, i) => (
-              <DiamondDot
-                key={i}
-                active={i === slideIndex}
-                label={`Slide ${i + 1}`}
-                onClick={() => onSelectSlide?.(i)}
-              />
-            ))}
-          </div>
-        ) : null}
+            FASHION WEEK
+          </h2> */}
+
+          {showDots ? (
+            <div
+              className="mt-4 flex items-center gap-1.5 sm:mt-5"
+              role="tablist"
+              aria-label="Banner slides"
+            >
+              {Array.from({ length: slideCount }, (_, i) => (
+                <DiamondDot
+                  key={i}
+                  active={i === slideIndex}
+                  label={`Slide ${i + 1}`}
+                  onClick={() => onSelectSlide?.(i)}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {/* <button
+            type="button"
+            onClick={onExploreFashion}
+            className="btn-shine mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full border-3 border-white/80 bg-gradient-to-r from-black via-neutral-800 to-white/35 px-5 py-2.5 font-inter text-xs font-medium tracking-wide text-white shadow-sm transition hover:opacity-95 sm:mt-6 sm:px-6 sm:py-3 sm:text-sm"
+          >
+            <span>Explore Fashion</span>
+            <span aria-hidden className="text-sm leading-none">
+              ›
+            </span>
+          </button> */}
+        </div>
       </div>
     </div>
   )
@@ -264,6 +290,7 @@ const Banner = () => {
           slideCount={1}
           slideIndex={0}
           onSelectSlide={setSlideIndex}
+          onExploreFashion={handleExploreFashion}
         />
       </div>
     )
@@ -280,6 +307,7 @@ const Banner = () => {
           slideCount={0}
           slideIndex={0}
           onSelectSlide={setSlideIndex}
+          onExploreFashion={handleExploreFashion}
         />
       </div>
     )
@@ -303,6 +331,7 @@ const Banner = () => {
         slideCount={slides.length}
         slideIndex={activeIndex}
         onSelectSlide={setSlideIndex}
+        onExploreFashion={handleExploreFashion}
       />
     </div>
   )

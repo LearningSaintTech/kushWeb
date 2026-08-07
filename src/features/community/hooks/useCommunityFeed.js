@@ -12,7 +12,7 @@ import {
   mapContentToReel,
   mapSaveItem,
   extractSavesList,
-} from '../api/communityContentMappers.js';
+} from '../../../services/communityContent.mappers.js';
 import { useCommunitySocial } from '../context/CommunitySocialContext.jsx';
 
 /**

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { CREATOR_MEDIA, CREATOR_PROFILE } from '../../data/mockCreator'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import { useCommunityRole } from '../../hooks/useCommunityRole'
+import { useCommunitySocialProfile } from '../../hooks/useCommunitySocialProfile'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -31,30 +31,33 @@ function PencilIcon({ className }) {
 }
 
 /**
- * Creator profile card + content tabs/grid (center column).
+ * Creator profile card — live /community/profile/me data.
  */
 export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
   const [tab, setTab] = useState('Posts')
   const avatarInputRef = useRef(null)
-  const media = CREATOR_MEDIA[tab] ?? []
   const role = useCommunityRole()
-  const { profile: communityProfile } = useCommunityProfile()
+  const { profile: onboarding } = useCommunityProfile()
+  const { profile: social, loading } = useCommunitySocialProfile()
+
   const profile = {
-    ...CREATOR_PROFILE,
-    name: communityProfile?.name || CREATOR_PROFILE.name,
-    handle: communityProfile?.username || CREATOR_PROFILE.handle,
+    name: social?.name || onboarding?.name || 'Member',
+    handle: social?.handle || onboarding?.username || '',
     bio:
-      communityProfile?.creatorBio ||
-      communityProfile?.designerBio ||
-      CREATOR_PROFILE.bio,
-    avatar: communityProfile?.profileImage || CREATOR_PROFILE.avatar,
+      social?.bio ||
+      onboarding?.creatorBio ||
+      onboarding?.designerBio ||
+      onboarding?.shortBio ||
+      '',
+    avatar: social?.avatar || onboarding?.profileImage || '',
     stats: {
-      posts: communityProfile?.counts?.posts ?? CREATOR_PROFILE.stats.posts,
-      followers: communityProfile?.counts?.followers ?? CREATOR_PROFILE.stats.followers,
-      following: communityProfile?.counts?.following ?? CREATOR_PROFILE.stats.following,
+      posts: social?.stats?.posts ?? '0',
+      followers: social?.stats?.followers ?? '0',
+      following: social?.stats?.following ?? '0',
     },
   }
   const roleBadge = role === 'designer' ? 'DESIGNER' : 'CREATOR'
+  const media = social?.mediaByTab?.[tab] ?? []
 
   return (
     <div className="relative w-full max-w-[380px]">
@@ -70,11 +73,13 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
       <section className="rounded-[1.75rem] bg-white px-6 py-8 text-center shadow-[0_8px_28px_rgba(0,0,0,0.05)] sm:px-8">
         <div className="relative mx-auto h-28 w-28 sm:h-32 sm:w-32">
           <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-[#ff5b67] bg-neutral-100 p-0.5">
-            <img
-              src={profile.avatar}
-              alt=""
-              className="h-full w-full rounded-full object-cover"
-            />
+            {profile.avatar ? (
+              <img
+                src={profile.avatar}
+                alt=""
+                className="h-full w-full rounded-full object-cover"
+              />
+            ) : null}
           </div>
           <button
             type="button"
@@ -98,13 +103,17 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
         </p>
 
         <h1 className="mt-2 font-inter text-2xl font-bold tracking-tight text-black sm:text-[1.75rem]">
-          {profile.name}
+          {loading && !social ? '…' : profile.name}
         </h1>
-        <p className="mt-1 font-inter text-sm text-neutral-500">@{profile.handle}</p>
-
-        <p className="mx-auto mt-4 max-w-[20rem] whitespace-pre-line font-inter text-sm leading-relaxed text-neutral-500">
-          {profile.bio}
+        <p className="mt-1 font-inter text-sm text-neutral-500">
+          @{profile.handle || 'username'}
         </p>
+
+        {profile.bio ? (
+          <p className="mx-auto mt-4 max-w-[20rem] whitespace-pre-line font-inter text-sm leading-relaxed text-neutral-500">
+            {profile.bio}
+          </p>
+        ) : null}
 
         <div className="mt-6 grid grid-cols-3">
           {[
@@ -158,19 +167,29 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
         </div>
 
         <div className="grid grid-cols-3 gap-0.5 bg-neutral-100">
-          {media.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onOpenMedia?.(item)}
-              className={`aspect-square cursor-pointer overflow-hidden ${item.style ?? 'bg-neutral-200'}`}
-              aria-label={`Open ${item.type}`}
-            >
-              {item.image ? (
-                <img src={item.image} alt="" className="h-full w-full object-cover" />
-              ) : null}
-            </button>
-          ))}
+          {loading && media.length === 0 ? (
+            <p className="col-span-3 bg-white py-10 text-center font-inter text-xs text-neutral-400">
+              Loading…
+            </p>
+          ) : media.length === 0 ? (
+            <p className="col-span-3 bg-white py-10 text-center font-inter text-xs text-neutral-400">
+              No {tab.toLowerCase()} yet
+            </p>
+          ) : (
+            media.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenMedia?.(item)}
+                className="aspect-square cursor-pointer overflow-hidden bg-neutral-200"
+                aria-label={`Open ${item.type}`}
+              >
+                {item.image ? (
+                  <img src={item.image} alt="" className="h-full w-full object-cover" />
+                ) : null}
+              </button>
+            ))
+          )}
         </div>
       </div>
     </div>

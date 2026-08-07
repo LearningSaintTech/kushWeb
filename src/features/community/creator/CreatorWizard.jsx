@@ -16,15 +16,13 @@ import { useCommunityProfile } from '../context/CommunityProfileContext'
 import {
   communityProfileService,
   getCommunityProfileErrorMessage,
-} from '../../../services/communityProfile.service'
-import {
   buildCreatorAboutBody,
   buildCreatorBasicBody,
   buildCreatorPhotoFormData,
   buildCreatorPrivateBody,
   creatorStepIndex,
   hydrateCreatorForm,
-} from '../api/communityProfileMappers'
+} from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
 const STEP_COMPONENTS = {

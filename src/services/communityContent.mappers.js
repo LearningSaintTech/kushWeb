@@ -3,7 +3,7 @@
  * Keeps screens free of raw API field names.
  */
 
-import { logCommunity } from '../../../services/communityApi.js';
+import { logCommunity } from './communityApi.js';
 
 function formatCount(n) {
   const num = Number(n) || 0;
@@ -242,3 +242,153 @@ export function extractHashtagsFromCaption(caption = '') {
   }
   return tags;
 }
+
+function formatCommentTime(iso) {
+  if (!iso) return '';
+  try {
+    const then = new Date(iso).getTime();
+    const sec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+    if (sec < 60) return 'just now';
+    if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+    if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
+    if (sec < 604800) return `${Math.floor(sec / 86400)}d`;
+    return new Date(iso).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return '';
+  }
+}
+
+/** API comment row → CommentRow UI shape */
+export function mapComment(row) {
+  if (!row) return null;
+  const author = row.author || {};
+  return {
+    id: row._id || row.id || `${row.createdAt}-${row.text}`,
+    name:
+      row.authorName ||
+      author.name ||
+      author.fullName ||
+      author.username ||
+      'Member',
+    avatar:
+      row.authorAvatar ||
+      row.authorProfileImage ||
+      author.profileImage ||
+      author.avatar ||
+      '',
+    text: row.text || row.body || row.comment || '',
+    time: formatCommentTime(row.createdAt || row.updatedAt),
+    raw: row,
+  };
+}
+
+/** Normalize GET comments payload → array */
+export function extractCommentsList(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.comments)) return data.comments;
+  if (Array.isArray(data.results)) return data.results;
+  return [];
+}
+
+
+/** Grid tile for profile Posts / Reels / Tagged tabs */
+function toGridItem(content, typeHint) {
+  if (!content) return null;
+  if (typeHint === 'tagged' || content.itemId || content.imageUrl) {
+    const id = content.itemId || content._id || content.id;
+    const image =
+      content.imageUrl ||
+      content.item?.imageUrl ||
+      primaryImageUrl(content) ||
+      '';
+    return {
+      id: id || `tagged-${image}`,
+      type: 'tagged',
+      image,
+      name: content.itemName || content.name || content.item?.name || 'Product',
+      post: null,
+    };
+  }
+  const mapped =
+    typeHint === 'reel' || content.type === 'reel'
+      ? mapContentToReel(content)
+      : mapContentToPost(content);
+  if (!mapped) return null;
+  return {
+    id: mapped.id,
+    type: mapped.type === 'reel' ? 'reel' : 'post',
+    image: mapped.image || mapped.poster || '',
+    post: mapped,
+  };
+}
+
+/**
+ * GET /community/profile/me | /profile/:userId → UI profile shape.
+ * Covers name, bio, counts (posts/followers/following), posts, reels, tagged.
+ */
+export function mapSocialProfile(raw) {
+  if (!raw) return null;
+
+  const counts = raw.counts || {};
+  const posts = Array.isArray(raw.posts) ? raw.posts : [];
+  const reels = Array.isArray(raw.reels) ? raw.reels : [];
+  const tagged = Array.isArray(raw.taggedProducts) ? raw.taggedProducts : [];
+
+  const postsGrid = posts.map((c) => toGridItem(c, 'post')).filter(Boolean);
+  const reelsGrid = reels.map((c) => toGridItem(c, 'reel')).filter(Boolean);
+  const taggedGrid = tagged.map((c) => toGridItem(c, 'tagged')).filter(Boolean);
+
+  const profile = {
+    id: raw.userId || raw._id || raw.id,
+    name: raw.fullName || raw.name || 'Member',
+    handle: String(raw.username || '')
+      .replace(/^@/, '')
+      .trim(),
+    bio: raw.shortBio || raw.bio || '',
+    avatar: raw.profileImage || '',
+    isCreator: Boolean(raw.isCreator),
+    isDesigner: Boolean(raw.isDesigner),
+    designerVerificationStatus: raw.designerVerificationStatus || null,
+    isFollowing: Boolean(raw.isFollowing),
+    isOwnProfile: Boolean(raw.isOwnProfile),
+    stats: {
+      posts: formatCount(counts.posts),
+      followers: formatCount(counts.followers),
+      following: formatCount(counts.following),
+    },
+    statsRaw: {
+      posts: Number(counts.posts) || 0,
+      followers: Number(counts.followers) || 0,
+      following: Number(counts.following) || 0,
+    },
+    posts: posts.map(mapContentToPost).filter(Boolean),
+    reels: reels.map(mapContentToReel).filter(Boolean),
+    taggedProducts: tagged,
+    mediaByTab: {
+      Posts: postsGrid,
+      Reels: reelsGrid,
+      Tagged: taggedGrid,
+    },
+    postsNextCursor: raw.postsNextCursor ?? null,
+    postsHasMore: Boolean(raw.postsHasMore),
+    reelsNextCursor: raw.reelsNextCursor ?? null,
+    reelsHasMore: Boolean(raw.reelsHasMore),
+    raw,
+  };
+
+  logCommunity('mapSocialProfile', {
+    id: profile.id,
+    stats: profile.statsRaw,
+    posts: postsGrid.length,
+    reels: reelsGrid.length,
+    tagged: taggedGrid.length,
+  });
+
+  return profile;
+}
+

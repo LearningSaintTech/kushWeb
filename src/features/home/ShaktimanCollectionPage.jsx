@@ -12,7 +12,7 @@ import { ROUTES } from '../../utils/constants'
 import { getItemStockTotal } from '../../utils/productStock.js'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { debugLog, debugError } from '../../utils/debugLog.js'
-import saktimanBanner from '../../assets/images/special-discount/Saktiman.png'
+import saktimanBanner from '../../assets/images/navbar/Shakbanners.PNG'
 
 const PAGE_LIMIT = 24
 const SEARCH_KEYWORDS = ['shaktiman', 'shakti man', 'shakti']

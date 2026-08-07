@@ -926,12 +926,12 @@ export default function Header() {
 
             return (
               <div
-                className="absolute left-1/2 top-full z-50 w-screen -translate-x-1/2 border-t border-white/40 bg-white/55 shadow-[0_12px_40px_rgba(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/40"
+                className="absolute left-1/2 top-full z-50 mt-1 w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/45 bg-white/55 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/40"
                 onMouseEnter={() => openCategoryHover(hoveredCategoryId)}
                 role="menu"
                 aria-label={`${categoryName} subcategories`}
               >
-                <div className="mx-auto max-w-4xl px-8 py-6 animate-nav-mega-panel">
+                <div className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 animate-nav-mega-panel">
                   {subsLoading && subs.length === 0 ? (
                     <p className="font-inter text-sm text-black/40">Loading…</p>
                   ) : subs.length === 0 ? (
