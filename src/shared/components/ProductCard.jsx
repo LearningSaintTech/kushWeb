@@ -485,7 +485,7 @@ const ProductCard = React.memo(function ProductCard({
                         : "text-[9px] sm:text-[10px]"
                     }`}
                   >
-                    Available by 27th August
+                    Launching on 27th August
                   </span>
                 </div>
               </div>

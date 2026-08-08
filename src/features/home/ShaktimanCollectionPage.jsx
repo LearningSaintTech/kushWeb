@@ -230,7 +230,7 @@ export default function ShaktimanCollectionPage() {
                 Limited Edition
               </p>
               <h1 className="mt-1 font-inter text-2xl font-bold tracking-tight text-black sm:text-3xl">
-                Shaktiman Collection
+                Shaktimaan Collection
               </h1>
             </div>
             <Link
