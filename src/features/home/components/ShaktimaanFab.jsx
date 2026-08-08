@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
 import { debugLog } from '../../../utils/debugLog'
-import shaktimaanImg from '../../../assets/images/navBar/Shaktimaan.png'
+import shaktimaanImg from '../../../assets/images/navBar/Shaktimaan.gif'
 
 /**
  * Fixed floating Shaktimaan on the homepage — phone: below full header;
@@ -38,11 +38,11 @@ export default function ShaktimaanFab() {
             src={shaktimaanImg}
             alt="Shaktimaan — tap to enter"
             draggable={false}
-            className="select-none object-cover object-[center_8%] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.05]
-              h-[3.75rem] w-[2.9rem]
-              sm:h-[4.5rem] sm:w-[3.5rem]
-              md:h-[5.75rem] md:w-[4.4rem]
-              lg:h-[6.75rem] lg:w-[5.15rem]"
+            className="select-none object-contain transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.05]
+              h-[3.75rem] w-[3.75rem]
+              sm:h-[4.5rem] sm:w-[4.5rem]
+              md:h-[5.75rem] md:w-[5.75rem]
+              lg:h-[6.75rem] lg:w-[6.75rem]"
           />
         </button>
       </div>

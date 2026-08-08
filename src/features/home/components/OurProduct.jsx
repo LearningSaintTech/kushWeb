@@ -9,6 +9,7 @@ import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
 import { getItemStockTotal } from "../../../utils/productStock.js";
 import { listingBindOfferProps } from "../../../utils/bindOffer.js";
+import { isShaktimanComingSoonItem } from "../../../utils/shaktiman.js";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const ALL_CATEGORY_KEY = "__ALL__";
@@ -71,6 +72,7 @@ function itemToCardProps(item, index, section = null) {
     delivery,
     rating: item.avgRating ?? 4.5,
     outOfStock: item.inStock === false,
+    comingSoonLock: isShaktimanComingSoonItem(item),
     ...listingBindOfferProps(item, section),
   };
 }

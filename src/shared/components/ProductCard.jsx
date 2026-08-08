@@ -12,6 +12,7 @@ import { getLowStockLabel } from "../../utils/productStock.js";
 import { getProductCardOfferBadge, getOfferHint } from "../../utils/bindOffer.js";
 import { trackPixelAddToCart } from "../../analytics";
 import BindOfferBadge from "./BindOfferBadge.jsx";
+import { isShaktimanComingSoonId } from "../../utils/shaktiman.js";
 
 const ROUNDED_CLASSES = {
   none: "",
@@ -172,6 +173,11 @@ const ProductCard = React.memo(function ProductCard({
   bindOffer = null,
   /** BOGO / bind-offer chip; overrides `bindOffer` when set. */
   offerBadge = null,
+  /**
+   * Shaktiman coming-soon: show blurred image + lock + Coming Soon tag;
+   * hide price/name/actions (image only). Used only on Shaktiman collection.
+   */
+  comingSoonLock = false,
 }) {
   const navigate = useNavigate();
   const { cart, addToCart, removeFromCart, toggleWishlist, isInWishlist } =
@@ -336,12 +342,18 @@ const ProductCard = React.memo(function ProductCard({
   const imageRoundedClass =
     `${imageIsNumeric ? "" : roundedTopClass} ${imageIsNumeric ? "" : roundedBottomClass}`.trim();
 
-  const CardWrapper = id != null ? Link : "div";
+  const showComingSoonLock = Boolean(
+    comingSoonLock || isShaktimanComingSoonId(id),
+  );
+
+  const CardWrapper = id != null && !showComingSoonLock ? Link : "div";
   const wrapperProps =
-    id != null ? { to: getProductPath(id, title, shortDescription) } : {};
+    id != null && !showComingSoonLock
+      ? { to: getProductPath(id, title, shortDescription) }
+      : {};
 
   const showHoverImage = Boolean(
-    hoverImage && hoverImageLoaded && hoverImage !== image,
+    hoverImage && hoverImageLoaded && hoverImage !== image && !showComingSoonLock,
   );
 
   const shortDescText = (shortDescription ?? "").trim();
@@ -390,7 +402,7 @@ const ProductCard = React.memo(function ProductCard({
       style={cardStyle}
     >
       <div
-        className={`flex h-full min-h-0 flex-1 flex-col ${outOfStock ? "select-none" : ""}`}
+        className={`flex h-full min-h-0 flex-1 flex-col ${outOfStock || showComingSoonLock ? "select-none" : ""}`}
       >
         {/* IMAGE */}
         <div
@@ -403,7 +415,7 @@ const ProductCard = React.memo(function ProductCard({
               alt={title}
               width={400}
               height={520}
-              className={resolvedImageClassName}
+              className={`${resolvedImageClassName}${showComingSoonLock ? " scale-105 blur-[6px] sm:blur-[8px]" : ""}`}
               decoding="async"
               loading={imageLoading}
               fetchPriority={imageLoading === "eager" ? "high" : "auto"}
@@ -427,7 +439,7 @@ const ProductCard = React.memo(function ProductCard({
             />
           )}
 
-          {displayOfferBadge ? (
+          {displayOfferBadge && !showComingSoonLock ? (
             <div
               className={`absolute z-20 max-w-[calc(100%-3rem)] ${
                 resolvedCompactOverlays ? "top-1.5 left-1.5 lg:top-4 lg:left-4" : "top-4 left-4"
@@ -438,8 +450,64 @@ const ProductCard = React.memo(function ProductCard({
             </div>
           ) : null}
 
+          {/* Shaktiman coming soon: blur curtain + lock + swiping tag */}
+          {showComingSoonLock ? (
+            <div
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/45"
+              aria-label="Coming soon — available by 27th August"
+              role="img"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <div
+                className={`absolute overflow-hidden bg-black/80 font-inter font-semibold uppercase tracking-[0.14em] text-white ${
+                  resolvedCompactOverlays
+                    ? "top-2 left-2 h-5 w-[9.5rem] sm:top-3 sm:left-3 sm:h-6 sm:w-[11.5rem] lg:top-4 lg:left-4 lg:h-7 lg:w-[13rem]"
+                    : "top-3 left-3 h-6 w-[11rem] sm:h-7 sm:w-[13rem]"
+                }`}
+              >
+                <div className="coming-soon-tag-swipe flex h-[200%] w-full flex-col">
+                  <span
+                    className={`flex h-1/2 w-full items-center justify-center px-2 text-center ${
+                      resolvedCompactOverlays
+                        ? "text-[8px] sm:text-[10px] lg:text-xs"
+                        : "text-[10px] sm:text-xs"
+                    }`}
+                  >
+                    Coming Soon
+                  </span>
+                  <span
+                    className={`flex h-1/2 w-full items-center justify-center px-2 text-center ${
+                      resolvedCompactOverlays
+                        ? "text-[7px] sm:text-[9px] lg:text-[10px]"
+                        : "text-[9px] sm:text-[10px]"
+                    }`}
+                  >
+                    Available by 27th August
+                  </span>
+                </div>
+              </div>
+              <svg
+                className="h-[22%] w-auto max-h-20 min-h-11 text-white/70 sm:max-h-24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V8a4 4 0 018 0v3" />
+                <circle cx="12" cy="16" r="1.25" fill="currentColor" stroke="none" />
+              </svg>
+            </div>
+          ) : null}
+
           {/* ACTION ICONS */}
-          {id != null && (
+          {id != null && !showComingSoonLock && (
             <div
               className={`absolute flex flex-col z-10 ${imageActionsWrapClass}`}
               onClick={(e) => e.stopPropagation()}
@@ -605,7 +673,7 @@ const ProductCard = React.memo(function ProductCard({
             </div>
           )}
 
-          {id != null && resolvedShowBuyNow && (
+          {id != null && resolvedShowBuyNow && !showComingSoonLock && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden justify-center px-3 pb-3 pt-0 sm:flex sm:px-4 sm:pb-4 max-md:pointer-events-auto md:group-hover:pointer-events-auto">
               <button
                 type="button"
@@ -622,7 +690,9 @@ const ProductCard = React.memo(function ProductCard({
           )}
         </div>
 
-        {/* INFO STRIP — on phone + Buy Now below, bottom radius moves to the button row */}
+        {/* INFO STRIP — hidden for Shaktiman coming-soon (image only) */}
+        {!showComingSoonLock ? (
+          <>
         <div
           className={`flex flex-1 flex-col ${
             isCompactGrid
@@ -776,8 +846,10 @@ const ProductCard = React.memo(function ProductCard({
             </button>
           </div>
         )}
+          </>
+        ) : null}
       </div>
-      {outOfStock && (
+      {outOfStock && !showComingSoonLock && (
         <div
           className={`absolute z-20 pointer-events-none ${
             resolvedCompactOverlays

@@ -12,10 +12,11 @@ import { ROUTES } from '../../utils/constants'
 import { getItemStockTotal } from '../../utils/productStock.js'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { debugLog, debugError } from '../../utils/debugLog.js'
+import { SHAKTIMAN_KEYWORDS } from '../../utils/shaktiman.js'
 import saktimanBanner from '../../assets/images/navbar/Shakbanners.PNG'
 
 const PAGE_LIMIT = 24
-const SEARCH_KEYWORDS = ['shaktiman', 'shakti man', 'shakti']
+const SEARCH_KEYWORDS = SHAKTIMAN_KEYWORDS
 
 function itemToCardProps(item, section = null) {
   const id = item._id ?? item.id
@@ -46,6 +47,10 @@ function itemToCardProps(item, section = null) {
           ? String(item.deliveryType)
           : '—'
   const offerProps = listingBindOfferProps(item, section)
+  const stockTotal = getItemStockTotal(item)
+  const outOfStock =
+    item.inStock === false ||
+    (stockTotal != null && stockTotal <= 0)
   return {
     id,
     image: imageUrl
@@ -54,11 +59,13 @@ function itemToCardProps(item, section = null) {
     hoverImage: hoverUrl ? getPublicImageUrl(hoverUrl) || hoverUrl : undefined,
     title: item.name ?? 'Product',
     shortDescription: item.shortDescription ?? '',
-    stock: getItemStockTotal(item),
+    stock: stockTotal,
     price,
     originalPrice,
     delivery,
     rating: 4,
+    outOfStock,
+    comingSoonLock: true,
     ...offerProps,
   }
 }

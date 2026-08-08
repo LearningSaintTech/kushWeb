@@ -167,6 +167,30 @@ body::-webkit-scrollbar,
   animation-play-state: running;
 }
 
+/* Shaktiman coming-soon tag — swipe between messages */
+@keyframes coming-soon-tag-swipe {
+  0%,
+  42% {
+    transform: translateY(0);
+  }
+  50%,
+  92% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.coming-soon-tag-swipe {
+  animation: coming-soon-tag-swipe 4.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .coming-soon-tag-swipe {
+    animation: none;
+  }
+}
+
 /* MADE IN INDIA strip above footer */
 @keyframes made-in-india-marquee {
   from {
