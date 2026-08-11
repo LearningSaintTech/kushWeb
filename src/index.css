@@ -146,25 +146,52 @@ body::-webkit-scrollbar,
   animation: search-card-in 0.4s ease-out forwards;
 }
 
-/* Footer KHUSH photo strip — visible + scrolling only on hover */
+/* Footer KHUSH — clipped band + gray divider; no overlap into footer links */
+.khush-footer-banner {
+  isolation: isolate;
+  overflow: hidden;
+}
+.khush-footer-banner__stage {
+  font-size: 22vw;
+  /* Tall enough for full capitals; overflow clips any glyph overhang */
+  height: 0.92em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+.khush-footer-word {
+  font-size: 1em;
+  line-height: 0.85;
+  letter-spacing: 0.01em;
+  max-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 @keyframes khush-footer-marquee {
   from {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translateX(-50%);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 .khush-footer-marquee {
-  animation: khush-footer-marquee 20s linear infinite;
+  height: 100%;
+  animation: khush-footer-marquee 28s linear infinite;
   animation-play-state: paused;
-  will-change: transform;
-  /* Horizontal image motion only — never create a scrollbar */
-  overflow: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
 }
-.group\/khush:hover .khush-footer-marquee,
-.group\/khush:focus-within .khush-footer-marquee {
+.group\/khush:hover .khush-footer-marquee {
   animation-play-state: running;
+}
+@media (prefers-reduced-motion: reduce) {
+  .khush-footer-marquee {
+    animation: none;
+  }
 }
 
 /* Shaktiman coming-soon tag — swipe between messages */
@@ -293,11 +320,22 @@ body::-webkit-scrollbar,
   will-change: transform;
 }
 
+/* Homepage: gentler bob so it pairs with the slower GIF */
+.shaktimaan-banner-float--home {
+  animation-duration: 5.6s;
+}
+
 .shaktimaan-banner-enter {
   animation:
     shaktimaan-enter 1s cubic-bezier(0.22, 1, 0.36, 1) both,
     shaktimaan-glow 3.4s ease-in-out 0.85s infinite;
   will-change: transform, filter, opacity;
+}
+
+.shaktimaan-banner-enter--home {
+  animation:
+    shaktimaan-enter 1.15s cubic-bezier(0.22, 1, 0.36, 1) both,
+    shaktimaan-glow 5.6s ease-in-out 1s infinite;
 }
 
 .shaktimaan-banner-enter:hover {
@@ -308,7 +346,9 @@ body::-webkit-scrollbar,
 
 @media (prefers-reduced-motion: reduce) {
   .shaktimaan-banner-float,
-  .shaktimaan-banner-enter {
+  .shaktimaan-banner-float--home,
+  .shaktimaan-banner-enter,
+  .shaktimaan-banner-enter--home {
     animation: none !important;
     opacity: 1;
     transform: none;

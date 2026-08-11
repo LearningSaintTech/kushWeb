@@ -14,6 +14,7 @@ import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { debugLog, debugError } from '../../utils/debugLog.js'
 import { SHAKTIMAN_KEYWORDS } from '../../utils/shaktiman.js'
 import saktimanBanner from '../../assets/images/navbar/Shakbanners.PNG'
+import ShaktimaanFab from './components/ShaktimaanFab.jsx'
 
 const PAGE_LIMIT = 24
 const SEARCH_KEYWORDS = SHAKTIMAN_KEYWORDS
@@ -207,6 +208,7 @@ export default function ShaktimanCollectionPage() {
       </Helmet>
 
       <div className="min-h-screen bg-white pt-[6.5rem] md:pt-[4.25rem] lg:pt-[4.5rem]">
+        <ShaktimaanFab variant="collection" />
         <section
           className="w-full overflow-x-hidden"
           aria-label="Shaktiman banner"

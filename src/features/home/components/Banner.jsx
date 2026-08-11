@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { bannerService } from '../../../services/content.service.js'
 import { getPublicImageUrl } from '../../../services/config.js'
-import { ROUTES } from '../../../utils/constants'
+import { ROUTES, getSearchPath } from '../../../utils/constants'
 import { useAuth } from '../../../app/context/AuthContext'
 import { debugLog } from '../../../utils/debugLog'
 import bannerDesktopPreview from '../../../assets/images/community/banners.jpeg'
@@ -39,24 +39,13 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/55 via-black/25 to-transparent pt-24 pb-8 sm:pb-10 md:pb-12">
       <div className="pointer-events-auto px-4 sm:px-6 md:px-10 lg:px-14">
         <div className="max-w-xl text-left text-white">
-          {/* <p className="font-inter text-sm font-light tracking-[0.1em] text-white/95 sm:text-base md:text-xs lg:text-sm">
-            KHUSH @2026
-          </p> */}
-          {/* <h2
-            className="font-raleway font-bold uppercase leading-none text-white"
-            style={{
-              fontSize: '28px',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            FASHION WEEK
-          </h2> */}
-
           {showDots ? (
             <div
               className="mt-4 flex items-center gap-1.5 sm:mt-5"
               role="tablist"
               aria-label="Banner slides"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             >
               {Array.from({ length: slideCount }, (_, i) => (
                 <DiamondDot
@@ -68,17 +57,6 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
               ))}
             </div>
           ) : null}
-
-          {/* <button
-            type="button"
-            onClick={onExploreFashion}
-            className="btn-shine mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full border-3 border-white/80 bg-gradient-to-r from-black via-neutral-800 to-white/35 px-5 py-2.5 font-inter text-xs font-medium tracking-wide text-white shadow-sm transition hover:opacity-95 sm:mt-6 sm:px-6 sm:py-3 sm:text-sm"
-          >
-            <span>Explore Fashion</span>
-            <span aria-hidden className="text-sm leading-none">
-              ›
-            </span>
-          </button> */}
         </div>
       </div>
     </div>
@@ -100,57 +78,121 @@ function mediaItems(source) {
     : []
 }
 
+function hasWebsiteMedia(banner) {
+  return (
+    mediaItems(banner?.desktopBanner).length > 0 ||
+    mediaItems(banner?.websiteMobileBanner).length > 0
+  )
+}
+
+function isShaktimanBanner(banner) {
+  const title = String(banner?.title || '').toLowerCase()
+  const nav = String(
+    banner?.navigation?.navigate || banner?.navigation?.url || '',
+  ).toLowerCase()
+  return (
+    title.includes('shaktimaan') ||
+    title.includes('shaktiman') ||
+    title.includes('shakti') ||
+    nav.includes('shaktimaan') ||
+    nav.includes('shaktiman') ||
+    nav === 'shakti' ||
+    nav.includes('/collections/shaktiman')
+  )
+}
+
+/**
+ * Resolve backend `navigation.navigate` → in-app path.
+ * - Shaktiman banners → /collections/shaktiman
+ * - Absolute http(s) / root path → use as-is
+ * - Mongo-style id → /search?categoryId=… (e.g. Men banner)
+ */
+export function resolveBannerNavigatePath(banner) {
+  if (!banner) return null
+  if (isShaktimanBanner(banner)) return ROUTES.SHAKTIMAN_COLLECTION
+
+  const raw = banner?.navigation?.navigate ?? banner?.navigation?.url ?? null
+  if (raw == null || raw === '') return null
+
+  const value = String(raw).trim()
+  if (!value) return null
+
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.startsWith('/')) return value
+
+  const lower = value.toLowerCase()
+  if (
+    lower === 'shaktiman' ||
+    lower === 'shaktimaan' ||
+    lower === 'shakti'
+  ) {
+    return ROUTES.SHAKTIMAN_COLLECTION
+  }
+
+  if (banner?.categoryId) {
+    return getSearchPath({ categoryId: banner.categoryId })
+  }
+  if (banner?.subcategoryId) {
+    return getSearchPath({
+      categoryId: banner.categoryId,
+      subcategoryId: banner.subcategoryId,
+    })
+  }
+
+  // Backend sends category ObjectId in navigation.navigate (Men example)
+  return getSearchPath({ categoryId: value })
+}
+
 /**
  * Banner schema fields:
  * - desktopBanner.items[]        → website desktop carousel slides
  * - websiteMobileBanner.items[]  → website phone slides (paired by index)
  * - mobileBanner                 → native app only (ignored here)
- *
- * Homepage carousel = ONE banner document’s desktop items (not every banner flat-mapped).
+ * - navigation.navigate          → destination id / path for click
  */
 function mapBannerToSlides(banner) {
   if (!banner) return []
 
   const desktopItems = mediaItems(banner?.desktopBanner)
   const websiteMobileItems = mediaItems(banner?.websiteMobileBanner)
-  // App-only (mobileBanner with no website media) → skip
   if (!desktopItems.length && !websiteMobileItems.length) return []
 
-  // Desktop drives slide count. Do NOT Math.max with website/app lists — that created ghost slides.
   const leadItems = desktopItems.length ? desktopItems : websiteMobileItems
   const type =
     banner?.desktopBanner?.type ||
     banner?.websiteMobileBanner?.type ||
     'image'
   const bannerId = banner._id || banner.id || 'banner'
+  const href = resolveBannerNavigatePath(banner)
 
   return leadItems.map((lead, i) => {
     const desktop = desktopItems[i] || lead
-    const websiteMobile = websiteMobileItems[i] || websiteMobileItems[0] || desktop
+    const websiteMobile =
+      websiteMobileItems[i] || websiteMobileItems[0] || desktop
 
     return {
       id: `${bannerId}-${i}`,
+      bannerId,
+      title: banner.title || '',
       type,
       desktopUrl: getPublicImageUrl(desktop.url),
       mobileUrl: getPublicImageUrl(websiteMobile.url),
+      href,
+      navigateTarget: banner?.navigation?.navigate ?? null,
     }
   })
 }
 
-/** Prefer NORMAL home banners; otherwise newest with desktop (or website-mobile) media. */
-function pickHomepageBanner(list) {
+/** All NORMAL banners with website media (carousel). Fallback: first usable banner. */
+function pickHomepageBanners(list) {
   const sorted = sortBanners(list)
-  const withWebsiteMedia = sorted.filter(
-    (b) =>
-      mediaItems(b?.desktopBanner).length > 0 ||
-      mediaItems(b?.websiteMobileBanner).length > 0,
-  )
-  if (!withWebsiteMedia.length) return null
+  const withWebsiteMedia = sorted.filter(hasWebsiteMedia)
+  if (!withWebsiteMedia.length) return []
 
-  const normal = withWebsiteMedia.find(
+  const normals = withWebsiteMedia.filter(
     (b) => String(b?.type || '').toUpperCase() === 'NORMAL',
   )
-  return normal || withWebsiteMedia[0]
+  return normals.length ? normals : [withWebsiteMedia[0]]
 }
 
 function sortBanners(list) {
@@ -222,6 +264,24 @@ const Banner = () => {
     navigate(ROUTES.COMMUNITY_ENTER)
   }
 
+  const handleBannerClick = () => {
+    const slide = slides[Math.min(slideIndex, slides.length - 1)]
+    const href = slide?.href
+    if (!href) return
+
+    debugLog('[Banner] navigate', {
+      title: slide?.title,
+      navigateTarget: slide?.navigateTarget,
+      href,
+    })
+
+    if (/^https?:\/\//i.test(href)) {
+      window.location.assign(href)
+      return
+    }
+    navigate(href)
+  }
+
   useEffect(() => {
     if (USE_LOCAL_BANNER_PREVIEW) {
       setLoaded(true)
@@ -235,17 +295,19 @@ const Banner = () => {
         const list = Array.isArray(res?.data?.data?.banners)
           ? res.data.data.banners
           : []
-        const primary = pickHomepageBanner(list)
-        const nextSlides = mapBannerToSlides(primary)
+        const banners = pickHomepageBanners(list)
+        const nextSlides = banners.flatMap((b) => mapBannerToSlides(b))
 
         debugLog('[Banner] slides', {
           apiCount: list.length,
-          primaryId: primary?._id || primary?.id,
-          primaryTitle: primary?.title,
+          normalCount: banners.length,
           slideCount: nextSlides.length,
-          desktopItems: mediaItems(primary?.desktopBanner).length,
-          websiteMobileItems: mediaItems(primary?.websiteMobileBanner).length,
-          ignoredAppItems: mediaItems(primary?.mobileBanner).length,
+          slides: nextSlides.map((s) => ({
+            id: s.id,
+            title: s.title,
+            href: s.href,
+            navigateTarget: s.navigateTarget,
+          })),
         })
         setSlides(nextSlides)
         setSlideIndex(0)
@@ -315,9 +377,32 @@ const Banner = () => {
 
   const isCarousel = slides.length > 1
   const activeIndex = Math.min(slideIndex, slides.length - 1)
+  const activeHref = slides[activeIndex]?.href
+  const clickable = Boolean(activeHref)
 
   return (
-    <div className={bannerShellClass} aria-roledescription={isCarousel ? 'carousel' : undefined}>
+    <div
+      className={`${bannerShellClass}${clickable ? ' cursor-pointer' : ''}`}
+      aria-roledescription={isCarousel ? 'carousel' : undefined}
+      role={clickable ? 'link' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? handleBannerClick : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                handleBannerClick()
+              }
+            }
+          : undefined
+      }
+      aria-label={
+        clickable
+          ? `Open ${slides[activeIndex]?.title || 'banner'}`
+          : undefined
+      }
+    >
       {slides.map((slide, index) => (
         <SlideMedia
           key={slide.id || index}

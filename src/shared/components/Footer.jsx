@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { debugError } from '../../utils/debugLog.js';
 import { Link } from "react-router-dom";
 import { ROUTES, getSearchPath } from "../../utils/constants";
@@ -49,33 +49,19 @@ const FOOTER_PHOTO_SERIES = [
 function KhushPhotoBanner() {
   // Two identical halves → CSS translateX(-50%) loops seamlessly
   const strip = [...FOOTER_PHOTO_SERIES, ...FOOTER_PHOTO_SERIES];
-  const bannerRef = useRef(null);
-
-  // While hovering KHUSH, block mouse-wheel page scroll — only the photo strip moves
-  useEffect(() => {
-    const el = bannerRef.current;
-    if (!el) return;
-    const blockVerticalScroll = (e) => {
-      e.preventDefault();
-    };
-    el.addEventListener("wheel", blockVerticalScroll, { passive: false });
-    return () => {
-      el.removeEventListener("wheel", blockVerticalScroll);
-    };
-  }, []);
 
   return (
     <div
-      ref={bannerRef}
-      className="group/khush relative w-full overflow-x-hidden bg-black outline-none select-none pt-2 sm:pt-3 pb-1 overscroll-none"
-      tabIndex={0}
-      aria-label="KHUSH — hover to reveal scrolling photos"
+      className="khush-footer-banner group/khush relative w-full overflow-hidden bg-black select-none border-b border-white/20"
+      aria-label="KHUSH — hover to move photos"
     >
-      {/* Text defines height — do not clip vertically or letters collapse */}
-      <div className="relative flex w-full items-center justify-center">
-        {/* Photos only: clip horizontal marquee here, not the KHUSH text */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-0 transition-opacity duration-300 group-hover/khush:opacity-100 group-focus-within/khush:opacity-100">
-          <div className="khush-footer-marquee flex h-full w-max will-change-transform">
+      {/* Locked band: clip letters so they never overlap footer links */}
+      <div className="khush-footer-banner__stage relative w-full overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-0 overflow-hidden opacity-0 transition-opacity duration-300 group-hover/khush:opacity-100"
+          aria-hidden
+        >
+          <div className="khush-footer-marquee flex h-full w-max">
             {strip.map((src, i) => (
               <div
                 key={`${i}-${typeof src === "string" ? src : i}`}
@@ -86,7 +72,7 @@ function KhushPhotoBanner() {
                   alt=""
                   className="pointer-events-none h-full w-full object-cover"
                   draggable={false}
-                  loading={i < 8 ? "eager" : "lazy"}
+                  loading="lazy"
                   decoding="async"
                 />
               </div>
@@ -94,7 +80,7 @@ function KhushPhotoBanner() {
           </div>
         </div>
 
-        <h2 className="relative z-10 w-full text-center text-[24vw] font-extrabold uppercase leading-none tracking-[0.01em] text-white select-none">
+        <h2 className="khush-footer-word relative z-10 m-0 w-full overflow-hidden text-center font-extrabold uppercase text-white select-none">
           KHUSH
         </h2>
       </div>
@@ -344,59 +330,13 @@ function Footer() {
       }));
 
   return (
-    <footer className="mt-0 bg-black text-white font-inter border-t border-white/20">
-      {/* Big KHUSH — photo series scrolls on hover */}
+    <footer className="mt-0 bg-black text-white font-inter">
+      {/* Big KHUSH — photo series behind letters */}
       <KhushPhotoBanner />
-
-      {/* ================= TOP SECTION ================= */}
-      <div className="border-b border-white/20">
-        {/* <div className="px-4 sm:px-6 lg:px-12 py-10"> */}
-          {/* <div className="max-w-[1600px] mx-auto"> */}
-            {/* <div className="flex flex-col xl:flex-row gap-10"> */}
-              {/* COLLECTION GRID – from API (isFooter) or fallback */}
-              {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 flex-1">
-                {sectionsToRender.map((section, index) => (
-                  <div key={section.categoryId || index}>
-                    <h3 className="mb-4 text-lg sm:text-xl font-semibold uppercase tracking-wider">
-                      {section.title}
-                    </h3>
-
-                    <ul className="space-y-3">
-                      {section.items.map((item, i) => (
-                        <li key={i}>
-                          <Link
-                            to={
-                              typeof item === "string"
-                                ? ROUTES.SEARCH
-                                : item.searchUrl
-                            }
-                            className="text-sm sm:text-base text-[#808282] hover:text-white transition-colors"
-                          >
-                            {typeof item === "string" ? item : item.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div> */}
-
-              {/* PROMO IMAGE */}
-              {/* <div className="w-full xl:w-[420px]">
-                <img
-                  src={khushDressImg}
-                  alt="KHUSH dress"
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-              </div> */}
-            {/* </div> */}
-          {/* </div> */}
-        {/* </div> */}
-      </div>
 
       {/* ================= MIDDLE SECTION ================= */}
       <div className="border-b border-white/20">
-        <div className="px-4 sm:px-6 lg:px-12 py-10">
+        <div className="px-4 sm:px-6 lg:px-12 pt-8 pb-10 sm:pt-10 sm:pb-12">
           <div className="max-w-[1600px] mx-auto">
             <div className="flex flex-col lg:flex-row gap-12">
               {/* LEFT SIDE */}
