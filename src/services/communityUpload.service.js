@@ -1,11 +1,14 @@
 /**
  * Community fast upload — compress → presign → S3 PUT/multipart → publish → poll.
- * Per FRONTEND_INTEGRATION.md + FAST_UPLOAD_E2E.md.
+ * Per docs/FAST_UPLOAD_E2E.md (dummy UI “Fast (presign)” path).
  *
- * Heavy bytes go Browser → S3 (not through gateway).
+ * Flow log labels match §6:
+ *   COMPRESS → POST /uploads/presign → PUT → S3 (direct) → POST /posts/publish → Poll #N
+ *
+ * Heavy bytes → S3 (not through gateway). In DEV, Vite `/__dev/s3-put` proxies the PUT
+ * so localhost works when bucket CORS is not yet updated (set VITE_S3_DEV_PROXY=false to disable).
+ *
  * Progress callbacks fire on S3 upload, not on /publish.
- *
- * Dev logs: [Community][Upload]
  */
 
 import { communityService } from './community.service.js';
@@ -22,6 +25,14 @@ const MULTIPART_PARALLEL = 3;
 /** Dummy-UI style: force put for small videos */
 const SMALL_VIDEO_PUT_MAX_BYTES = 8 * 1024 * 1024;
 
+const DEV_S3_PROXY_PATH = '/__dev/s3-put';
+
+function useDevS3Proxy() {
+  if (!import.meta.env.DEV) return false;
+  const flag = String(import.meta.env.VITE_S3_DEV_PROXY ?? 'true').toLowerCase();
+  return flag !== 'false' && flag !== '0';
+}
+
 function logUpload(step, payload) {
   // Mirror dummy-UI “Flow log” steps so upload is easy to trace in DevTools
   logCommunity(`[Upload] ${step}`, payload);
@@ -33,11 +44,11 @@ function logUpload(step, payload) {
 }
 
 /**
- * Compress image via canvas → JPEG blob.
+ * Compress image via canvas → JPEG blob. (Step A — no server)
  * @returns {Promise<{ blob: Blob, mimeType: string, name: string, size: number, file: File }>}
  */
 export async function compressImage(file, { maxEdge = 1440, quality = 0.8 } = {}) {
-  logUpload('COMPRESS start', {
+  logUpload('COMPRESS', {
     name: file?.name,
     type: file?.type,
     size: file?.size,
@@ -97,20 +108,65 @@ export async function compressImage(file, { maxEdge = 1440, quality = 0.8 } = {}
   };
 }
 
+function s3CorsHint() {
+  const origin =
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5174';
+  return (
+    `S3 upload blocked (likely CORS). Add ${origin} to the community bucket CORS ` +
+    `AllowedOrigins, allow PUT, ExposeHeaders: ETag — or keep VITE_S3_DEV_PROXY=true (default) in local DEV.`
+  );
+}
+
+/** Normalize presign / sign-part payloads from various envelope shapes. */
+export function normalizePresignSession(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const s =
+    raw.uploadUrl || raw.url
+      ? raw
+      : raw.session || raw.data || raw.result || raw;
+  if (!s || typeof s !== 'object') return null;
+  const uploadUrl = s.uploadUrl || s.url || s.signedUrl || null;
+  return {
+    ...s,
+    mode: s.mode || 'put',
+    key: s.key || null,
+    uploadUrl,
+    publicUrl: s.publicUrl || null,
+    headers: s.headers && typeof s.headers === 'object' ? s.headers : {},
+    uploadId: s.uploadId || null,
+    partSize: s.partSize || null,
+    expiresIn: s.expiresIn,
+  };
+}
+
 /**
- * PUT binary to S3 with optional progress.
+ * PUT binary to S3 with optional progress. (Step C)
  * @returns {Promise<{ etag: string | null }>}
  */
 export async function putToS3(uploadUrl, body, headers = {}, { onProgress } = {}) {
-  logUpload('PUT → S3 start', {
-    uploadUrl: String(uploadUrl).slice(0, 80) + '…',
+  if (!uploadUrl) {
+    throw new Error('Missing S3 uploadUrl from presign');
+  }
+
+  const viaProxy = useDevS3Proxy();
+  const requestUrl = viaProxy ? DEV_S3_PROXY_PATH : uploadUrl;
+
+  logUpload('PUT → S3 (direct)', {
+    uploadUrl: String(uploadUrl).slice(0, 120) + '…',
+    viaDevProxy: viaProxy,
     headers,
     size: body?.size ?? body?.byteLength ?? null,
+    pageOrigin: typeof window !== 'undefined' ? window.location.origin : null,
   });
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
+    xhr.open('PUT', requestUrl);
+    // Never send cookies cross-origin — that breaks S3 CORS when ACAO is "*".
+    xhr.withCredentials = false;
+    if (viaProxy) {
+      xhr.setRequestHeader('x-s3-upload-url', uploadUrl);
+    }
     Object.entries(headers || {}).forEach(([k, v]) => {
       if (v != null) xhr.setRequestHeader(k, String(v));
     });
@@ -124,31 +180,53 @@ export async function putToS3(uploadUrl, body, headers = {}, { onProgress } = {}
     };
     xhr.onload = () => {
       const etag = xhr.getResponseHeader('ETag');
-      logUpload('PUT → S3 done', { status: xhr.status, etag });
+      logUpload('PUT → S3 done', { status: xhr.status, etag, viaDevProxy: viaProxy });
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve({ etag });
       } else {
-        reject(new Error(`S3 upload failed (${xhr.status})`));
+        const detail = (xhr.responseText || '').slice(0, 200);
+        reject(
+          new Error(
+            `S3 upload failed (${xhr.status})${detail ? `: ${detail}` : ''}`,
+          ),
+        );
       }
     };
     xhr.onerror = () => {
-      debugError('[Community][Upload] PUT → S3 network error');
-      reject(new Error('S3 upload network error'));
+      debugError('[Community][Upload] PUT → S3 network error', {
+        pageOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+        viaDevProxy: viaProxy,
+        uploadHost: (() => {
+          try {
+            return new URL(uploadUrl).host;
+          } catch {
+            return null;
+          }
+        })(),
+      });
+      reject(new Error(s3CorsHint()));
     };
     xhr.send(body);
   });
 }
 
 async function uploadPutSession(session, fileOrBlob, { onProgress } = {}) {
-  await putToS3(session.uploadUrl, fileOrBlob, session.headers || {}, { onProgress });
-  return { key: session.key, mode: 'put' };
+  const normalized = normalizePresignSession(session);
+  if (!normalized?.uploadUrl) {
+    throw new Error('Presign response missing uploadUrl');
+  }
+  await putToS3(normalized.uploadUrl, fileOrBlob, normalized.headers || {}, {
+    onProgress,
+  });
+  return { key: normalized.key, mode: 'put' };
 }
 
 /**
  * Multipart upload: sign-part → PUT chunks (parallel) → complete.
  */
 export async function uploadMultipartSession(session, fileOrBlob, { onProgress, signal } = {}) {
-  const { key, uploadId, partSize } = session;
+  const normalized = normalizePresignSession(session) || session;
+  const { key, uploadId, partSize } = normalized;
   if (!key || !uploadId || !partSize) {
     throw new Error('Invalid multipart session');
   }
@@ -166,11 +244,12 @@ export async function uploadMultipartSession(session, fileOrBlob, { onProgress, 
     const end = Math.min(start + partSize, blob.size);
     const chunk = blob.slice(start, end);
 
-    const signed = await communityService.signMultipartPart({
+    const signedRaw = await communityService.signMultipartPart({
       key,
       uploadId,
       partNumber,
     });
+    const signed = normalizePresignSession(signedRaw) || signedRaw;
 
     const { etag } = await putToS3(signed.uploadUrl, chunk, signed.headers || {}, {
       onProgress: (pct, loaded) => {
@@ -241,15 +320,24 @@ export async function uploadCommunityFile(file, {
     ...(requestedMode ? { mode: requestedMode } : {}),
   };
 
-  logUpload('PRESIGN request', body);
-  const session = await communityService.presignUpload(body);
+  logUpload('POST /uploads/presign', body);
+  const sessionRaw = await communityService.presignUpload(body);
+  const session = normalizePresignSession(sessionRaw);
   const sessionMode = session?.mode || requestedMode || 'put';
-  logUpload('PRESIGN response', {
+  logUpload('POST /uploads/presign response', {
     mode: sessionMode,
     key: session?.key,
     hasUploadUrl: Boolean(session?.uploadUrl),
     partSize: session?.partSize,
+    headerKeys: session?.headers ? Object.keys(session.headers) : [],
   });
+
+  if (!session?.key) {
+    throw new Error('Presign response missing key');
+  }
+  if (sessionMode !== 'multipart' && !session.uploadUrl) {
+    throw new Error('Presign response missing uploadUrl');
+  }
 
   if (sessionMode === 'multipart') {
     await uploadMultipartSession(session, uploadFile, { onProgress, signal });
@@ -261,7 +349,7 @@ export async function uploadCommunityFile(file, {
 }
 
 /**
- * Poll GET /content/:id until published | draft | timeout.
+ * Poll GET /content/:id until published | draft | timeout. (Step E)
  */
 export async function waitUntilPublished(contentId, {
   intervalMs = DEFAULT_POLL_MS,
@@ -276,7 +364,7 @@ export async function waitUntilPublished(contentId, {
     n += 1;
     const data = await communityService.getContent(contentId);
     const status = data?.status;
-    logUpload(`POLL #${n}`, { contentId, status });
+    logUpload(`Poll #${n} status=${status || 'unknown'}`, { contentId });
     onPoll?.(data, n);
     if (status === 'published') return data;
     if (status === 'draft') {
@@ -288,7 +376,7 @@ export async function waitUntilPublished(contentId, {
 }
 
 /**
- * Full fast create post flow.
+ * Full fast create post flow — FAST_UPLOAD_E2E Steps A–E.
  * @param {{ itemId: string, caption?: string, hashtags?: string[], imageFiles: File[], onProgress?: (pct: number, phase: string) => void }} opts
  */
 export async function createPostFast({
@@ -303,6 +391,7 @@ export async function createPostFast({
     captionLen: caption?.length,
     hashtags,
     files: imageFiles?.length,
+    devS3Proxy: useDevS3Proxy(),
   });
 
   if (!itemId) throw new Error('Pick a purchased product before posting');
@@ -322,13 +411,14 @@ export async function createPostFast({
   }
 
   onProgress?.(92, 'publish');
+  logUpload('POST /posts/publish', { itemId, mediaKeys: media.map((m) => m.key) });
   const created = await communityService.publishPost({
     itemId,
     caption,
     hashtags,
     media,
   });
-  logUpload('publishPost accepted', { id: created?._id, status: created?.status });
+  logUpload('POST /posts/publish accepted', { id: created?._id, status: created?.status });
 
   const id = created?._id;
   if (!id) return created;
@@ -351,7 +441,7 @@ export async function createPostFast({
 }
 
 /**
- * Full fast create reel flow.
+ * Full fast create reel flow (FAST_UPLOAD_E2E §4).
  * @param {{ itemId: string, caption?: string, hashtags?: string[], videoFile: File, thumbnailFile?: File, onProgress?: Function }} opts
  */
 export async function createReelFast({
@@ -368,6 +458,7 @@ export async function createReelFast({
     hashtags,
     video: videoFile?.name,
     thumb: thumbnailFile?.name,
+    devS3Proxy: useDevS3Proxy(),
   });
 
   if (!itemId) throw new Error('Pick a purchased product before posting');
@@ -401,8 +492,13 @@ export async function createReelFast({
       ? { thumbnail: { key: thumbnail.key, mimeType: thumbnail.mimeType } }
       : {}),
   };
+  logUpload('POST /reels/publish', {
+    itemId,
+    videoKey: video.key,
+    hasThumb: Boolean(thumbnail),
+  });
   const created = await communityService.publishReel(body);
-  logUpload('publishReel accepted', { id: created?._id, status: created?.status });
+  logUpload('POST /reels/publish accepted', { id: created?._id, status: created?.status });
 
   const id = created?._id;
   if (!id) return created;

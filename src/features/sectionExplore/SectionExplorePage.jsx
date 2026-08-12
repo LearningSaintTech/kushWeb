@@ -6,7 +6,7 @@ import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/compo
 import { sectionsService } from '../../services/content.service.js'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
-import { ROUTES, getSearchPath } from '../../utils/constants'
+import { ROUTES } from '../../utils/constants'
 import { getItemStockTotal } from '../../utils/productStock.js'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
 
@@ -285,120 +285,18 @@ export function SectionExplorePage() {
   const totalPages = pagination?.totalPages ?? 0
   const hasMore = page < totalPages
   const sectionTitle = section?.title ?? 'Section'
-  const isCategorySection = section?.type === 'CATEGORY'
-  const exploreSearchUrl = isCategorySection && section?.categoryId?.[0]
-    ? getSearchPath({
-        categoryId: section.categoryId[0],
-        categoryName: categories.find(
-          (c) => String(c._id ?? c.id) === String(section.categoryId[0]),
-        )?.name,
-      })
-    : ROUTES.SEARCH
-
-  const showOurProductDropdown = isOurProductSection(section) && categories.length > 0
-  const showOurCategoryDropdown = isOurCategorySection(section) && (categories.length > 0 || subcategories.length > 0)
-
-  const handleOurProductChange = (e) => {
-    const id = e.target.value || null
-    setSelectedCategoryId(id)
-    setPage(1)
-  }
-
-  const handleOurCategoryChange = (e) => {
-    const val = e.target.value
-    if (!val) {
-      setSelectedFilter(null)
-      setPage(1)
-      return
-    }
-    const [type, id] = val.split('::')
-    setSelectedFilter(type && id ? { type, id } : null)
-    setPage(1)
-  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <Link to={ROUTES.HOME} className="text-black underline text-sm">← Back to home</Link>
-        <h1 className="font-raleway text-2xl sm:text-4xl font-extrabold tracking-wide text-black mt-4">
+        <Link to={ROUTES.HOME} className="text-sm text-black underline">← Back to home</Link>
+        <h1 className="mt-4 font-raleway text-2xl font-extrabold tracking-wide text-black sm:text-4xl">
           {sectionTitle}
         </h1>
-        {isCategorySection && (
-          <Link
-            to={exploreSearchUrl}
-            className="inline-flex items-center gap-1 uppercase text-xs sm:text-sm tracking-widest text-black border-b border-black pb-1 mt-2 hover:opacity-70 transition-opacity"
-          >
-            <span>Explore more in search</span>
-          </Link>
-        )}
       </div>
 
-      {/* Our Product: only section's categories in dropdown */}
-      {showOurProductDropdown && (
-        <div className="mb-6">
-          <label htmlFor="section-category-select" className="font-inter text-sm font-medium text-gray-700 mr-2">
-            Category
-          </label>
-          <select
-            id="section-category-select"
-            value={selectedCategoryId ?? section.categoryId?.[0] ?? ''}
-            onChange={handleOurProductChange}
-            className="font-inter border border-black px-4 py-2 min-w-[200px] focus:outline-none focus:ring-2 focus:ring-black/20"
-          >
-            {categories.map((cat) => (
-              <option key={cat._id} value={cat._id}>
-                {cat.name ?? cat._id}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Our Category: categories + subcategories in one dropdown (only section's) */}
-      {showOurCategoryDropdown && (
-        <div className="mb-6">
-          <label htmlFor="section-filter-select" className="font-inter text-sm font-medium text-gray-700 mr-2">
-            Category / Subcategory
-          </label>
-          <select
-            id="section-filter-select"
-            value={
-              selectedFilter
-                ? `${selectedFilter.type}::${selectedFilter.id}`
-                : section?.subcategoryId?.[0]
-                  ? `subcategory::${section.subcategoryId[0]}`
-                  : section?.categoryId?.[0]
-                    ? `category::${section.categoryId[0]}`
-                    : ''
-            }
-            onChange={handleOurCategoryChange}
-            className="font-inter border border-black px-4 py-2 min-w-[220px] focus:outline-none focus:ring-2 focus:ring-black/20"
-          >
-            <option value="">Select…</option>
-            {categories.length > 0 && (
-              <optgroup label="Categories">
-                {categories.map((cat) => (
-                  <option key={`cat-${cat._id}`} value={`category::${cat._id}`}>
-                    {cat.name ?? cat._id}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {subcategories.length > 0 && (
-              <optgroup label="Subcategories">
-                {subcategories.map((sub) => (
-                  <option key={`sub-${sub._id}`} value={`subcategory::${sub._id}`}>
-                    {sub.name ?? sub._id}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </div>
-      )}
-
       {loading && products.length === 0 && (
-        <div className="text-center py-12 text-gray-500">Loading...</div>
+        <div className="py-12 text-center text-gray-500">Loading...</div>
       )}
 
       {!loading && products.length > 0 && (
@@ -411,12 +309,12 @@ export function SectionExplorePage() {
             ))}
           </div>
           {pagination && totalPages > 1 && (
-            <div className="flex justify-center gap-4 mt-10">
+            <div className="mt-10 flex justify-center gap-4">
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-4 py-2 border border-black disabled:opacity-40"
+                className="border border-black px-4 py-2 disabled:opacity-40"
               >
                 Previous
               </button>
@@ -427,7 +325,7 @@ export function SectionExplorePage() {
                 type="button"
                 disabled={!hasMore}
                 onClick={() => setPage((p) => p + 1)}
-                className="px-4 py-2 border border-black disabled:opacity-40"
+                className="border border-black px-4 py-2 disabled:opacity-40"
               >
                 Next
               </button>
@@ -437,7 +335,7 @@ export function SectionExplorePage() {
       )}
 
       {!loading && section && products.length === 0 && !error && (
-        <p className="text-center py-12 text-gray-500">No products in this section.</p>
+        <p className="py-12 text-center text-gray-500">No products in this section.</p>
       )}
     </div>
   )

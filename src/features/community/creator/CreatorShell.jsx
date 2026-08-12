@@ -5,9 +5,12 @@ export default function CreatorShell({
   step,
   onBack,
   onClose,
+  onSkip,
   onContinue,
   continueLabel,
   continueDisabled = false,
+  skipDisabled = false,
+  showSkip = false,
   error = null,
   children,
   footerExtra = null,
@@ -53,16 +56,27 @@ export default function CreatorShell({
           ) : null}
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="mt-0.5 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-neutral-200 text-neutral-500 transition hover:border-neutral-300 hover:text-black"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {showSkip ? (
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={skipDisabled}
+            className="mt-0.5 cursor-pointer px-1 font-inter text-sm font-medium text-neutral-500 transition hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Skip
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="mt-0.5 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-neutral-200 text-neutral-500 transition hover:border-neutral-300 hover:text-black"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className="scrollbar-hide flex-1 overflow-y-auto px-6 pb-2 pt-8 sm:px-7">

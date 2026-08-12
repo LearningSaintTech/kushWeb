@@ -3,7 +3,7 @@ import { debugLog, debugError } from '../../utils/debugLog.js';
 import { Helmet } from "react-helmet-async"
 import { useSelector } from 'react-redux'
 import Banner from './components/Banner'
-//  import SpecialDiscount from './components/SpecialDiscount'
+import SpecialDiscount from './components/SpecialDiscount'
 import LimitedEdition from './components/LimitedEdition'
 import OurProduct from './components/OurProduct'
 // import Collection from './components/Collection'
@@ -27,13 +27,14 @@ const WEB_ORDER_TO_COMPONENT = {
   // 4: SpecialDiscount,
   5: LimitedEdition,
   6: OurProduct,
-  // 9: SpecialDiscount,
+  /** Independence Day Sale (CATEGORY) — banner + explore */
+  9: SpecialDiscount,
 }
 
-/** Render order on home; slot 9 = Fathers Day / special offer (falls back to webOrder 4). */
-const HOME_SLOT_ORDERS = [1,  5, 6]
+/** Render order on home; slot 9 sits directly under New Arrival. */
+const HOME_SLOT_ORDERS = [1, 9, 5, 6]
 
-const HOME_WEB_ORDERS = new Set([1, 4, 5, 6,  10])
+const HOME_WEB_ORDERS = new Set([1, 4, 5, 6, 9, 10])
 
 function getSectionWebOrder(section) {
   let order = section.webOrder ?? section.webinfo?.webOrder ?? 999
@@ -42,7 +43,6 @@ function getSectionWebOrder(section) {
 }
 
 function resolveSectionForHomeSlot(order, sectionsByOrder) {
-  if (order === 9) return sectionsByOrder[9] ?? sectionsByOrder[4]
   return sectionsByOrder[order]
 }
 
@@ -140,6 +140,8 @@ function HomePage() {
               const SectionComponent = WEB_ORDER_TO_COMPONENT[order]
               const section = resolveSectionForHomeSlot(order, sectionsByOrder)
               if (!SectionComponent) return null
+              // Sale / promo slots need live API data (no static fallback banner).
+              if (order === 9 && !section) return null
               return (
                 <div key={`home-slot-${order}`}>
                   {order === 6 ? (

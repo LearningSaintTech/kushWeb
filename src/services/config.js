@@ -49,8 +49,18 @@ const ASSET_BASE_URL = (envTrim("VITE_ASSET_URL") || API_ORIGIN || "").replace(
   "",
 );
 
-/** Socket host (no /api suffix) — same origin as VITE_API_URL. */
+/**
+ * Socket.IO host (no /api suffix).
+ * In DEV, use the page origin so Vite proxies `/socket.io` → VITE_API_URL
+ * (direct wss:// to free tunnels like Pinggy often fails).
+ */
 function getSocketUrl() {
+  if (import.meta.env.DEV && API_ORIGIN) {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return window.location.origin;
+    }
+    return "";
+  }
   return API_ORIGIN;
 }
 

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import { notificationService } from '../../services/notification.service.js';
 import { io } from 'socket.io-client';
 import { getSocketUrl } from '../../services/config.js';
+import { debugLog } from '../../utils/debugLog.js';
 
 const NotificationContext = createContext(null);
 const LIST_PAGE_SIZE = 20;
@@ -115,9 +116,13 @@ export function useNotificationSocket(token) {
     const socketUrl = getSocketUrl();
     if (!token || !socketUrl) return;
 
+    // Prefer polling first in DEV — remote tunnels often break WebSocket upgrades.
     const socket = io(socketUrl, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: import.meta.env.DEV
+        ? ['polling', 'websocket']
+        : ['websocket', 'polling'],
+      reconnectionAttempts: 8,
     });
     socketRef.current = socket;
 
@@ -130,7 +135,13 @@ export function useNotificationSocket(token) {
       prependFromSocket(payload);
     });
 
-    socket.on('connect_error', () => {
+    socket.on('connect_error', (err) => {
+      if (import.meta.env.DEV) {
+        debugLog('[Notifications] socket connect_error', {
+          message: err?.message,
+          socketUrl,
+        });
+      }
       refreshList(1, LIST_PAGE_SIZE).catch(() => {});
       refreshUnreadCount().catch(() => {});
     });

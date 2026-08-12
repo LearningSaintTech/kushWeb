@@ -143,6 +143,15 @@ export default function CreatorWizard({ open, onClose }) {
     return profile
   }
 
+  const advanceAfterSave = (updated) => {
+    if (step >= TOTAL_STEPS) {
+      setStep(SUCCESS_STEP)
+      return
+    }
+    const nextFromApi = creatorStepIndex(updated)
+    setStep(Math.max(step + 1, nextFromApi))
+  }
+
   const handleContinue = async () => {
     if (step === SUCCESS_STEP) {
       handleClose()
@@ -163,13 +172,27 @@ export default function CreatorWizard({ open, onClose }) {
         uiStep: step,
         creatorOnboardingStep: updated?.creatorOnboardingStep,
       })
-      if (step === TOTAL_STEPS) {
-        setStep(SUCCESS_STEP)
-        await refresh()
-        return
-      }
-      const nextFromApi = creatorStepIndex(updated)
-      setStep(Math.max(step + 1, nextFromApi))
+      advanceAfterSave(updated)
+      if (step >= TOTAL_STEPS) await refresh()
+    } catch (err) {
+      setError(getCommunityProfileErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** POST /user/community-profile/creator/skip — advance current onboarding step */
+  const handleSkip = async () => {
+    if (step >= TOTAL_STEPS || step === SUCCESS_STEP || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = applyProfile(await communityProfileService.skipCreatorStep())
+      debugLog('[CommunityProfile] creator skip', {
+        uiStep: step,
+        creatorOnboardingStep: updated?.creatorOnboardingStep,
+      })
+      advanceAfterSave(updated)
     } catch (err) {
       setError(getCommunityProfileErrorMessage(err))
     } finally {
@@ -190,6 +213,7 @@ export default function CreatorWizard({ open, onClose }) {
 
   const StepComponent = STEP_COMPONENTS[step]
   const isSuccess = step === SUCCESS_STEP
+  const canSkip = !isSuccess && step < TOTAL_STEPS
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80 p-3 sm:p-6">
@@ -204,6 +228,7 @@ export default function CreatorWizard({ open, onClose }) {
           step={step}
           onBack={handleBack}
           onClose={handleClose}
+          onSkip={handleSkip}
           onContinue={handleContinue}
           continueLabel={
             saving
@@ -213,6 +238,8 @@ export default function CreatorWizard({ open, onClose }) {
                 : STEPS[step - 1].continueLabel
           }
           continueDisabled={saving}
+          skipDisabled={saving}
+          showSkip={canSkip}
           error={error}
           footerExtra={
             isSuccess ? (

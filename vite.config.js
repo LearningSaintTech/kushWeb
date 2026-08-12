@@ -54,6 +54,97 @@ function resolveBuildAppEnv(env, mode) {
   return mode === 'development' ? 'dev' : 'prod'
 }
 
+/**
+ * DEV-only: proxy Browser → Vite → S3 PUT so local community uploads work when
+ * the bucket CORS does not yet allow localhost (see FAST_UPLOAD_E2E Step C).
+ * Client sends PUT /__dev/s3-put with header x-s3-upload-url=<presigned URL>.
+ */
+function s3DevPutProxyPlugin() {
+  return {
+    name: 's3-dev-put-proxy',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const path = req.url?.split('?')[0]
+        if (path !== '/__dev/s3-put') return next()
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204
+          res.end()
+          return
+        }
+
+        if (req.method !== 'PUT') {
+          res.statusCode = 405
+          res.setHeader('Allow', 'PUT, OPTIONS')
+          res.end('Method Not Allowed')
+          return
+        }
+
+        const target = req.headers['x-s3-upload-url']
+        if (!target || typeof target !== 'string') {
+          res.statusCode = 400
+          res.end('Missing x-s3-upload-url')
+          return
+        }
+
+        let parsed
+        try {
+          parsed = new URL(target)
+        } catch {
+          res.statusCode = 400
+          res.end('Invalid x-s3-upload-url')
+          return
+        }
+
+        const host = parsed.hostname
+        const allowed =
+          /\.amazonaws\.com$/i.test(host) ||
+          /^s3[.-]/i.test(host) ||
+          /\.cloudfront\.net$/i.test(host)
+        if (!allowed) {
+          res.statusCode = 403
+          res.end('Host not allowed for S3 proxy')
+          return
+        }
+
+        const chunks = []
+        for await (const chunk of req) chunks.push(chunk)
+        const body = Buffer.concat(chunks)
+
+        const forwardHeaders = {}
+        if (req.headers['content-type']) {
+          forwardHeaders['Content-Type'] = req.headers['content-type']
+        }
+        if (req.headers['cache-control']) {
+          forwardHeaders['Cache-Control'] = req.headers['cache-control']
+        }
+        for (const [key, value] of Object.entries(req.headers)) {
+          if (/^x-amz-/i.test(key) && value != null) {
+            forwardHeaders[key] = Array.isArray(value) ? value.join(',') : value
+          }
+        }
+
+        try {
+          const upstream = await fetch(target, {
+            method: 'PUT',
+            headers: forwardHeaders,
+            body,
+          })
+          const etag = upstream.headers.get('etag')
+          res.statusCode = upstream.status
+          if (etag) res.setHeader('ETag', etag)
+          const text = await upstream.text()
+          res.end(text)
+        } catch (err) {
+          console.error('[kushWeb] S3 DEV proxy failed', err?.message || err)
+          res.statusCode = 502
+          res.end(String(err?.message || 'S3 proxy failed'))
+        }
+      })
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const pixelId = env.VITE_META_PIXEL_ID || ''
@@ -61,6 +152,8 @@ export default defineConfig(({ mode }) => {
   const apiOrigin = resolveApiOrigin(env)
   const exposeDevServerOnLan = env.VITE_DEV_LAN === 'true'
   const isProdApp = resolveBuildAppEnv(env, mode) === 'prod'
+  const s3DevProxyOff =
+    String(env.VITE_S3_DEV_PROXY ?? 'true').toLowerCase() === 'false'
   const devProxy = apiOrigin
     ? {
         '/api': {
@@ -80,9 +173,19 @@ export default defineConfig(({ mode }) => {
       '[kushWeb] VITE_API_URL is not set — dev /api proxy disabled. Add it to .env.',
     )
   }
+  if (mode === 'development' && !s3DevProxyOff) {
+    console.info(
+      '[kushWeb] S3 DEV PUT proxy enabled at /__dev/s3-put (set VITE_S3_DEV_PROXY=false to use direct browser→S3).',
+    )
+  }
 
   return {
-    plugins: [tailwindcss(), react(), metaPixelPlugin].filter(Boolean),
+    plugins: [
+      tailwindcss(),
+      react(),
+      metaPixelPlugin,
+      mode === 'development' && !s3DevProxyOff ? s3DevPutProxyPlugin() : null,
+    ].filter(Boolean),
     esbuild: {
       drop: isProdApp ? ['console', 'debugger'] : [],
     },

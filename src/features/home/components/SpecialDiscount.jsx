@@ -1,280 +1,212 @@
-import { useEffect } from 'react'
-import { debugLog } from '../../../utils/debugLog.js';
+import { useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
-import { ROUTES, getSectionExplorePath, getProductPath } from '../../../utils/constants'
+import { IoChevronForward } from 'react-icons/io5'
+import { debugLog, debugError } from '../../../utils/debugLog.js'
+import { ROUTES, getSectionExplorePath } from '../../../utils/constants'
 import { getPublicImageUrl } from '../../../services/config.js'
+import { itemsService } from '../../../services/items.service.js'
+import ProductCard, {
+  PRODUCT_CARD_COMPACT_GRID_PROPS,
+} from '../../../shared/components/ProductCard'
+import { getItemStockTotal } from '../../../utils/productStock.js'
+import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
-import thumb1 from '../../../assets/images/special-discount/thumb-1.png'
-import thumb2 from '../../../assets/images/special-discount/thumb-2.png'
-import thumb3 from '../../../assets/images/special-discount/thumb-3.png'
-import thumb4 from '../../../assets/images/special-discount/thumb-4.png'
-import { getSectionOfferHeadline } from '../../../utils/bindOffer.js'
+import productImage from '../../../assets/temporary/productimage.png'
+import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 
-const BADGE_GOLD = '#D4AF37'
-const PRODUCT_CARD_LIMIT = 4
-
-const GALLERY_IMAGES = [
-    { src: thumb1, alt: 'Woman in tan coat and sunglasses' },
-    { src: thumb2, alt: 'Models in vibrant suits against blue sky' },
-    { src: thumb3, alt: 'Woman in red tomato soup sweatshirt' },
-    { src: thumb4, alt: 'Models in streetwear against orange background' },
-]
-
-function formatDiscountPercent(section) {
-    const value = section?.discount?.value
-    if (value == null || Number.isNaN(Number(value))) return 60
-    return Math.round(Number(value))
-}
+const PRODUCT_CARD_LIMIT = 8
 
 function resolveBannerSrc(section) {
-    const desktopRaw = section?.desktopBanner?.[0]?.imageUrl
-    return desktopRaw ? getPublicImageUrl(desktopRaw) : bgHero
+  const desktopRaw = section?.desktopBanner?.[0]?.imageUrl
+  return desktopRaw ? getPublicImageUrl(desktopRaw) : bgHero
 }
 
-function resolveSectionProductThumbs(section, limit = PRODUCT_CARD_LIMIT) {
-    const fromProducts =
-        section?.products
-            ?.filter((p) => p?.item)
-            ?.slice(0, limit)
-            ?.map((p) => {
-                const item = p.item
-                const id = item._id ?? p.itemId
-                const imageUrl = item.thumbnail || ''
-                return {
-                    id,
-                    src: imageUrl ? getPublicImageUrl(imageUrl) : GALLERY_IMAGES[0].src,
-                    alt: item.name || 'Product',
-                    name: item.name || '',
-                    shortDescription: item.shortDescription || '',
-                }
-            })
-            .filter((thumb) => thumb.id) ?? []
+function itemToCardProps(item, index, section = null) {
+  const id = item._id ?? item.id ?? index
+  const variants = item.variants ?? []
+  const images = variants[0]?.images ?? []
+  const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  const imageUrl = sorted[0]?.url ?? item.thumbnail ?? productImage
+  const hoverUrl = sorted[1]?.url ?? imageUrl ?? hoverProductImage
+  const price =
+    item.discountedPrice != null
+      ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : '₹0.00'
+  const originalPrice =
+    item.discountedPrice != null &&
+    item.price != null &&
+    Number(item.price) > Number(item.discountedPrice)
+      ? `₹${Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : undefined
+  const delivery =
+    item.deliveryType === '90_MIN'
+      ? '90 min'
+      : item.deliveryType === 'ONE_DAY'
+        ? '1 day'
+        : item.deliveryType
+          ? String(item.deliveryType)
+          : section?.deliveryType
+            ? `GET IN ${section.deliveryType}`
+            : '—'
 
-    return fromProducts
+  return {
+    id,
+    image: imageUrl,
+    hoverImage: hoverUrl,
+    title: item.name ?? 'Product',
+    shortDescription: item.shortDescription ?? '',
+    stock: getItemStockTotal(item),
+    price,
+    originalPrice,
+    delivery,
+    rating: item.avgRating ?? 4.5,
+    outOfStock: item.inStock === false,
+    ...listingBindOfferProps(item, section),
+  }
 }
 
-function DiscountBlock({ percent, className = '' }) {
-    return (
-        <div className={`flex shrink-0 items-end gap-1 sm:gap-2 md:gap-3 ${className}`}>
-            <div className="flex flex-col items-start leading-none">
-                <span className="font-inter text-[8px] font-medium uppercase tracking-[0.2em] text-black sm:text-[10px] md:text-xs lg:text-sm">
-                    {/* Up to */}
-                </span>
-                <span
-                    className="-mt-0.5 font-refer-display text-[1.5rem] italic leading-none text-black sm:text-[2rem] md:text-[clamp(2.25rem,4vw,3rem)] lg:text-[clamp(2.75rem,3.5vw,3.75rem)] xl:text-[4rem]"
-                    style={{ fontWeight: 700, lineHeight: 0.9 }}
-                >
-                    {/* {percent}% */}
-                </span>
-            </div>
-            <span
-                className="mb-0.5 rounded-[4px] px-1.5 py-0.5 font-inter text-[6px] font-semibold uppercase tracking-wider text-white sm:mb-1 sm:rounded-[5px] sm:px-2 sm:text-[8px] md:text-[10px] lg:text-[11px]"
-                style={{ backgroundColor: BADGE_GOLD }}
-            >
-                {/* Off */}
-            </span>
-        </div>
-    )
+function resolveEmbeddedProducts(section) {
+  return (
+    section?.products
+      ?.filter((p) => p?.item)
+      ?.map((p, i) => {
+        const item = {
+          ...p.item,
+          bindOffer: p.item.bindOffer ?? p.bindOffer ?? null,
+        }
+        return itemToCardProps(item, i, section)
+      })
+      ?.filter((p) => p.id) ?? []
+  )
 }
 
-function SpecialOfferHeader({ title, subtitle, className = '' }) {
-    const lines = (title || 'Special Offer').trim().split(/\s+/)
-    const first = lines[0] || 'Special'
-    const rest = lines.slice(1).join(' ') || 'Offer'
+function buildSectionSearchParams(section, pincode) {
+  if (!section?._id) return null
+  const params = { limit: PRODUCT_CARD_LIMIT, page: 1 }
+  if (pincode) params.pinCode = String(pincode)
 
-    return (
-        <header className={`min-w-0 max-w-[58%] shrink text-right sm:max-w-[52%] md:max-w-[48%] lg:max-w-none ${className}`}>
-            <h2 className="font-inter font-bold uppercase leading-[0.92] tracking-tight text-black">
-                <span className="block text-[10px] sm:text-sm md:text-base lg:text-xl xl:text-[1.75rem] 2xl:text-[2rem]">
-                    {first}
-                </span>
-                {rest ? (
-                    <span className="block text-[10px] sm:text-sm md:text-base lg:text-xl xl:text-[1.75rem] 2xl:text-[2rem]">
-                        {rest}
-                    </span>
-                ) : null}
-            </h2>
-            <p className="mt-0.5 font-inter text-[7px] font-semibold leading-tight text-black sm:mt-1 sm:text-[10px] md:text-xs lg:text-base">
-                {subtitle || 'Grab Your Discounts!'}
-            </p>
-        </header>
-    )
-}
-
-function SectionProductThumbs({ thumbs, variant = 'row' }) {
-    if (!thumbs?.length) return null
-
-    const containerClass =
-        variant === 'grid'
-            ? 'grid grid-cols-2 gap-2.5 sm:gap-3'
-            : variant === 'tablet'
-              ? 'grid grid-cols-4 gap-2.5 md:gap-3'
-              : 'flex flex-row items-stretch justify-end gap-2.5 sm:gap-3 md:gap-3.5 lg:gap-4'
-
-    const cellClass =
-        variant === 'row'
-            ? 'aspect-[3/4] w-[5.5rem] shrink-0 overflow-hidden rounded-xl shadow-[0_6px_18px_rgba(0,0,0,0.2)] sm:w-[6.25rem] sm:rounded-2xl md:w-[7.25rem] lg:w-[8.5rem] xl:w-[9.25rem] 2xl:w-[10rem]'
-            : 'aspect-[3/4] w-full max-w-[9.5rem] mx-auto overflow-hidden rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.12)] sm:rounded-2xl md:max-w-none'
-
-    return (
-        <div className={containerClass} role="list">
-            {thumbs.map((thumb) => (
-                <Link
-                    key={String(thumb.id)}
-                    to={getProductPath(thumb.id, thumb.name, thumb.shortDescription)}
-                    role="listitem"
-                    className={`${cellClass} block transition-opacity hover:opacity-90`}
-                    aria-label={thumb.alt}
-                >
-                    <img
-                        src={thumb.src}
-                        alt={thumb.alt}
-                        className="h-full w-full object-cover object-top"
-                        loading="lazy"
-                        decoding="async"
-                    />
-                </Link>
-            ))}
-        </div>
-    )
-}
-
-function ExploreButton({ to, variant = 'desktop' }) {
-    const isDesktop = variant === 'desktop'
-
-    return (
-        <Link
-            to={to}
-            className={
-                isDesktop
-                    ? 'relative z-30 inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-full bg-white px-5 py-2 font-inter text-[10px] font-bold uppercase tracking-[0.18em] text-black shadow-[0_4px_14px_rgba(0,0,0,0.12)] transition-colors hover:bg-neutral-50 sm:min-h-[40px] sm:gap-2 sm:px-6 sm:py-2.5 sm:text-xs md:min-h-[44px] md:px-7 md:text-sm'
-                    : 'relative z-30 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-black px-6 py-3 font-inter text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-neutral-900 sm:min-h-[48px] sm:rounded-2xl sm:text-sm md:min-h-[52px]'
-            }
-            aria-label="Explore special offers"
-        >
-            Buy Now
-            <span className="text-sm leading-none sm:text-base" aria-hidden>
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                >
-                    <path
-                        d="M9 5L15.9632 11.9632L9 18.9263"
-                        stroke={isDesktop ? 'black' : 'white'}
-                        strokeWidth="2"
-                    />
-                </svg>
-            </span>
-        </Link>
-    )
-}
-
-function BannerHero({ bannerSrc, alt, children }) {
-    return (
-        <div
-            className="special-discount-hero  relative w-full overflow-hidden bg-neutral-50"
-            role="img"
-            aria-label={alt}
-        >
-            <img
-                src={bannerSrc}
-                alt=""
-                className="special-discount-hero-img block h-auto w-full max-w-full"
-                loading="eager"
-                decoding="async"
-                draggable={false}
-            />
-            {children ? (
-                <div className="pointer-events-none absolute inset-0 flex flex-col">
-                    <div className="pointer-events-auto flex h-full flex-col">{children}</div>
-                </div>
-            ) : null}
-        </div>
-    )
+  const subId = section.subcategoryId?.[0]
+  const catId = section.categoryId?.[0]
+  if (subId) {
+    params.subcategoryId = subId
+    if (catId) params.categoryId = catId
+  } else if (catId) {
+    params.categoryId = catId
+  } else {
+    params.sectionId = section._id
+  }
+  return params
 }
 
 function SpecialDiscount({ section }) {
-    const bannerSrc = resolveBannerSrc(section)
-    const productThumbs = resolveSectionProductThumbs(section)
-    const offerHeadline = getSectionOfferHeadline(section)
-    const exploreTo = section?._id ? getSectionExplorePath(section._id) : ROUTES.SEARCH
+  const pincode = useSelector((s) => s?.location?.pincode) ?? null
+  const bannerSrc = resolveBannerSrc(section)
+  const exploreTo = section?._id ? getSectionExplorePath(section._id) : ROUTES.SEARCH
+  const embeddedProducts = resolveEmbeddedProducts(section)
+  const [fetchedProducts, setFetchedProducts] = useState([])
+  const [loading, setLoading] = useState(false)
+  const products =
+    embeddedProducts.length > 0 ? embeddedProducts : fetchedProducts
 
-    useEffect(() => {
-        const rawProducts = section?.products ?? []
-        const withItem = rawProducts.filter((p) => p?.item)
-        const withoutItem = rawProducts.filter((p) => !p?.item)
-        const thumbs = resolveSectionProductThumbs(section)
-        const headline = getSectionOfferHeadline(section)
-        const banner = resolveBannerSrc(section)
-        const explore = section?._id ? getSectionExplorePath(section._id) : ROUTES.SEARCH
+  useEffect(() => {
+    if (!section?._id || embeddedProducts.length > 0) {
+      setFetchedProducts([])
+      setLoading(false)
+      return undefined
+    }
 
-        debugLog('[SpecialDiscount] section prop:', section)
-        debugLog('[SpecialDiscount] section meta:', {
-            _id: section?._id,
-            title: section?.title,
-            type: section?.type,
-            webOrder: section?.webOrder ?? section?.webinfo?.webOrder,
-            bindOffer: section?.bindOffer,
-        })
-        debugLog('[SpecialDiscount] products:', {
-            total: rawProducts.length,
-            withItem: withItem.length,
-            withoutItem: withoutItem.length,
-            withoutItemSample: withoutItem.slice(0, 3),
-            itemIds: withItem.map((p) => p?.item?._id ?? p?.itemId),
-        })
-        debugLog('[SpecialDiscount] derived:', {
-            bannerSrc: banner,
-            offerHeadline: headline,
-            exploreTo: explore,
-            productThumbCount: thumbs.length,
-            productThumbs: thumbs,
-        })
-    }, [section])
+    let cancelled = false
+    const params = buildSectionSearchParams(section, pincode)
+    if (!params) return undefined
 
-    return (
-        <section className="w-full overflow-x-hidden bg-black  py-5 sm:py-8 md:py-10 lg:bg-transparent lg:py-12">
-            <div className="mx-auto w-full max-w-[1920px] px-3 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
-                <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_2px_16px_rgba(0,0,0,0.06)] sm:max-w-[640px] md:max-w-[768px] lg:max-w-none lg:rounded-[1.75rem] lg:border-0 lg:bg-transparent lg:shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
-                    <BannerHero bannerSrc={bannerSrc} alt={section?.title || 'Special offer'}>
-                        <div className="absolute inset-0 z-10 flex flex-col justify-between p-3 pb-2 sm:p-4 sm:pb-3 md:p-5 md:pb-4 lg:px-9 lg:pt-9 lg:pb-6 xl:px-10 xl:pt-10 xl:pb-7">
-                            <div className="flex w-full min-w-0 items-start justify-between gap-2 sm:gap-3 md:gap-4 lg:ml-auto lg:w-auto lg:max-w-[68%] lg:justify-end lg:gap-10">
-                                {offerHeadline ? (
-                                    <p className="rounded-sm bg-violet-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white sm:text-xs">
-                                        {offerHeadline}
-                                    </p>
-                                ) : null}
-                            </div>
+    setLoading(true)
+    debugLog('[SpecialDiscount] fetch products', params)
+    itemsService
+      .search(params)
+      .then((res) => {
+        if (cancelled) return
+        const items = res?.data?.data?.items ?? res?.data?.items ?? []
+        const mapped = items
+          .map((item, i) => itemToCardProps(item, i, section))
+          .slice(0, PRODUCT_CARD_LIMIT)
+        setFetchedProducts(mapped)
+        debugLog('[SpecialDiscount] products loaded', { count: mapped.length })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        debugError('[SpecialDiscount] products failed', err)
+        setFetchedProducts([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
-                            {/* Desktop: products + CTA over banner */}
-                            <div className="hidden flex-col items-end gap-2.5 lg:flex lg:-translate-y-2 xl:-translate-y-3">
-                                <SectionProductThumbs thumbs={productThumbs} variant="row" />
-                                <ExploreButton to={exploreTo} variant="desktop" />
-                            </div>
-                        </div>
-                    </BannerHero>
+    return () => {
+      cancelled = true
+    }
+  }, [
+    section?._id,
+    section?.categoryId,
+    section?.subcategoryId,
+    pincode,
+    embeddedProducts.length,
+  ])
 
-                    {/* Phone & tablet: products below banner */}
-                    <div className="relative z-20 rounded-b-2xl text-white px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5 md:px-5 md:pb-5 md:pt-2 lg:hidden">
-                        <div className="md:-mt-10">
-                            <div className="md:hidden">
-                                <SectionProductThumbs thumbs={productThumbs} variant="grid" />
-                            </div>
-                            <div className="hidden md:block">
-                                <SectionProductThumbs thumbs={productThumbs} variant="tablet" />
-                            </div>
-                        </div>
-                        <div className="mt-3 sm:mt-4 md:mt-5">
-                            <ExploreButton to={exploreTo} variant="mobile" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    )
+  return (
+    <section className="w-full overflow-x-hidden bg-white">
+      {/* Full-bleed square banner — no rounded corners; click → section explore */}
+      <Link
+        to={exploreTo}
+        className="relative block w-full overflow-hidden bg-neutral-100 transition-opacity hover:opacity-95"
+        aria-label={`Open ${section?.title || 'special offer'}`}
+      >
+        <img
+          src={bannerSrc}
+          alt={section?.title || 'Special offer'}
+          className="block h-auto w-full max-w-full"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+        />
+      </Link>
+
+      {/* Full product cards below banner */}
+      <div className="mx-auto w-full max-w-[1920px] px-3 pb-8 pt-6 sm:px-6 sm:pb-10 sm:pt-8 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
+        {loading && products.length === 0 ? (
+          <div className="py-10 text-center font-inter text-sm text-neutral-500">
+            Loading…
+          </div>
+        ) : null}
+
+        {products.length > 0 ? (
+          <div className="grid grid-cols-2 items-stretch gap-x-1.5 gap-y-2.5 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 md:gap-3 lg:grid-cols-4">
+            {products.map((product, idx) => (
+              <div key={product.id ?? idx} className="flex h-full min-w-0 flex-col">
+                <ProductCard {...product} {...PRODUCT_CARD_COMPACT_GRID_PROPS} />
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {!loading && products.length === 0 ? (
+          <p className="py-8 text-center font-inter text-sm text-neutral-500">
+            No products in this sale yet.
+          </p>
+        ) : null}
+
+        <div className="mt-8 flex justify-center sm:mt-10">
+          <Link
+            to={exploreTo}
+            className="inline-flex items-center gap-1 border-b border-black pb-1 font-inter text-xs uppercase tracking-widest text-black transition-opacity hover:opacity-70 sm:text-sm"
+          >
+            <span>Explore More</span>
+            <IoChevronForward className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 export default SpecialDiscount
