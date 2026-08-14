@@ -8,6 +8,13 @@ import { communityService } from '../../../services/community.service.js'
 import { mapSocialProfile } from '../../../services/communityContent.mappers.js'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 
+export const COMMUNITY_PROFILE_REFRESH_EVENT = 'khush:community-profile-refresh'
+
+export function requestCommunityProfileRefresh() {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(COMMUNITY_PROFILE_REFRESH_EVENT))
+}
+
 /**
  * @param {{ userId?: string|null, enabled?: boolean }} options
  * omit userId / null → own profile via /profile/me
@@ -31,6 +38,7 @@ export function useCommunitySocialProfile(options = {}) {
         userId: mapped?.id,
         own: mapped?.isOwnProfile,
         stats: mapped?.statsRaw,
+        posts: mapped?.mediaByTab?.Posts?.length,
       })
       setProfile(mapped)
       return mapped
@@ -72,6 +80,17 @@ export function useCommunitySocialProfile(options = {}) {
       cancelled = true
     }
   }, [userId, enabled])
+
+  useEffect(() => {
+    if (!enabled || userId) return undefined
+    const onRefresh = () => {
+      refresh()
+    }
+    window.addEventListener(COMMUNITY_PROFILE_REFRESH_EVENT, onRefresh)
+    return () => {
+      window.removeEventListener(COMMUNITY_PROFILE_REFRESH_EVENT, onRefresh)
+    }
+  }, [enabled, userId, refresh])
 
   return { profile, loading, error, refresh, setProfile }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCommunityRole } from '../hooks/useCommunityRole'
 import { useCommunityProfile } from '../context/CommunityProfileContext'
 import { can, COMMUNITY_ROLES } from '../capabilities'
@@ -11,16 +11,17 @@ import { debugLog } from '../../../utils/debugLog'
 
 /**
  * Profile entry — joins for normal users; creator / designer dashboards by role.
- * Incomplete onboarding resumes the matching wizard once.
+ * Incomplete onboarding resumes the matching wizard once per visit.
  */
 export default function CommunityProfilePage() {
   const role = useCommunityRole()
   const { profile } = useCommunityProfile()
   const [resumeCreator, setResumeCreator] = useState(false)
   const [resumeDesigner, setResumeDesigner] = useState(false)
+  const autoResumeDoneRef = useRef(false)
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile || autoResumeDoneRef.current) return
 
     const designerIncomplete =
       profile.isDesigner &&
@@ -39,6 +40,7 @@ export default function CommunityProfilePage() {
       debugLog('[CommunityProfile] resume designer onboarding', {
         step: profile.designerOnboardingStep,
       })
+      autoResumeDoneRef.current = true
       setResumeDesigner(true)
       return
     }
@@ -47,6 +49,7 @@ export default function CommunityProfilePage() {
       debugLog('[CommunityProfile] resume creator onboarding', {
         step: profile.creatorOnboardingStep,
       })
+      autoResumeDoneRef.current = true
       setResumeCreator(true)
     }
   }, [profile])

@@ -1,10 +1,14 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../app/context/AuthContext'
-import { ROUTES } from '../../../utils/constants'
+import { getCommunityReelsPath, ROUTES } from '../../../utils/constants'
 import girlImg from '../../../assets/images/community/communitygirl.jpg'
 import { can } from '../capabilities'
 import { useCommunityRole } from '../hooks/useCommunityRole'
+import {
+  requestCommunityProfileRefresh,
+  useCommunitySocialProfile,
+} from '../hooks/useCommunitySocialProfile'
 import CommunitySidebar from '../components/CommunitySidebar'
 import SuggestedCreators from '../components/SuggestedCreators'
 import TrendingHashtags from '../components/TrendingHashtags'
@@ -55,7 +59,30 @@ export default function CommunityFeedLayout({
   const isProfileShell = isProfile
 
   const role = useCommunityRole()
-  const { user } = useAuth()
+  const { user, isAuthenticated, authChecked, openAuthModal } = useAuth()
+  const askedLoginRef = useRef(false)
+
+  // Community feed needs a session — open login when access token is missing
+  useEffect(() => {
+    if (!authChecked) return
+    if (isAuthenticated) {
+      askedLoginRef.current = false
+      return
+    }
+    if (askedLoginRef.current) return
+    askedLoginRef.current = true
+    openAuthModal(`${location.pathname}${location.search || ''}`)
+  }, [authChecked, isAuthenticated, openAuthModal, location.pathname, location.search])
+
+  const canPost = can(role, 'canPost')
+  const { profile: socialProfile } = useCommunitySocialProfile({
+    enabled: Boolean(isAuthenticated && canPost),
+  })
+  const hasPosts =
+    (socialProfile?.statsRaw?.posts ?? 0) > 0 ||
+    (socialProfile?.mediaByTab?.Posts?.length ?? 0) > 0 ||
+    (socialProfile?.mediaByTab?.Reels?.length ?? 0) > 0
+
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [selectedPost, setSelectedPost] = useState(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -114,15 +141,6 @@ export default function CommunityFeedLayout({
     setComposerOpen(true)
   }, [createKind])
 
-  const handlePosted = useCallback(() => {
-    closeCreateFlow()
-    if (createKind === 'reel') {
-      navigate(ROUTES.COMMUNITY_REELS)
-    } else {
-      navigate(ROUTES.COMMUNITY_FEED)
-    }
-  }, [closeCreateFlow, createKind, navigate])
-
   const openProfile = useCallback((profile) => {
     setSelectedPost(null)
     setNotificationsOpen(false)
@@ -133,15 +151,32 @@ export default function CommunityFeedLayout({
     setSelectedProfile(profile)
   }, [])
 
-  const openPost = useCallback((post) => {
-    setSelectedProfile(null)
-    setNotificationsOpen(false)
-    setCreateTypeOpen(false)
-    setMediaSheetOpen(false)
-    setComposerOpen(false)
-    setCreateMediaFile(null)
-    setSelectedPost(post)
-  }, [])
+  const openPost = useCallback(
+    (post, options = {}) => {
+      // Reels open fullscreen Shorts feed — not the post modal (unless comments)
+      if (post?.type === 'reel' && !options.forceModal) {
+        const id = post.id || post._id
+        if (id) {
+          setSelectedProfile(null)
+          setSelectedPost(null)
+          navigate(getCommunityReelsPath(id))
+          return
+        }
+      }
+      setSelectedProfile(null)
+      setNotificationsOpen(false)
+      setCreateTypeOpen(false)
+      setMediaSheetOpen(false)
+      setComposerOpen(false)
+      setCreateMediaFile(null)
+      setSelectedPost(post)
+    },
+    [navigate],
+  )
+
+  const openReelComments = useCallback((reel) => {
+    openPost(reel, { forceModal: true })
+  }, [openPost])
 
   const openNotifications = useCallback(() => {
     setSelectedProfile(null)
@@ -158,8 +193,59 @@ export default function CommunityFeedLayout({
     [user?.firstName, user?.lastName].filter(Boolean).join(' ') ??
     'Rhea Kapoor'
   const userAvatar = user?.profileImage ?? user?.avatar ?? girlImg
+
+  const handlePosted = useCallback(
+    (payload) => {
+      closeCreateFlow()
+      requestCommunityProfileRefresh()
+      const content = payload?.content
+      const id = content?._id || content?.id
+      const kind = content?.type || payload?.kind || 'post'
+
+      if (kind === 'reel' && id) {
+        navigate(getCommunityReelsPath(id))
+        return
+      }
+
+      navigate(ROUTES.COMMUNITY_PROFILE)
+      if (id) {
+        window.setTimeout(() => {
+          openPost({
+            id,
+            image:
+              content.media?.[0]?.url ||
+              content.thumbnailUrl ||
+              content.imageUrl ||
+              '',
+            images: (content.media || [])
+              .map((m) => m?.url)
+              .filter(Boolean),
+            videoUrl:
+              content.media?.find((m) => m.kind === 'video')?.url || null,
+            caption: content.caption || payload?.caption || '',
+            hashtags: content.hashtags || payload?.hashtags || [],
+            type: kind,
+            likes: '0',
+            likeCount: 0,
+            comments: '0',
+            commentCount: 0,
+            author: {
+              id: content.authorId,
+              name: content.authorName || userName,
+              handle: content.authorUsername || '',
+              avatar: content.authorAvatar || userAvatar,
+            },
+            status: content.status,
+            raw: content,
+          })
+        }, 400)
+      }
+    },
+    [closeCreateFlow, navigate, openPost, userAvatar, userName],
+  )
+
   const shellRole = role === 'guest' ? 'user' : role
-  const showRightRail = rightRail && !selectedProfile && !isSaved && !isJoinCanvas
+  const showRightRail = rightRail && !selectedProfile && !isSaved && !isJoinCanvas && !isReels
   const sidebarActiveId =
     createTypeOpen || mediaSheetOpen || composerOpen
       ? 'create'
@@ -168,9 +254,17 @@ export default function CommunityFeedLayout({
         : activeNav
 
   return (
-    <div className="flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-white lg:flex-row">
-      <header className="flex shrink-0 items-center justify-between px-4 py-3 lg:hidden">
-        <p className="font-inter text-base font-bold tracking-[0.12em] text-black">
+    <div className={`flex h-dvh min-h-0 w-full flex-col overflow-hidden lg:flex-row ${isReels ? 'bg-black' : 'bg-white'}`}>
+      <header
+        className={`flex shrink-0 items-center justify-between px-4 py-3 lg:hidden ${
+          isReels ? 'bg-black text-white' : 'bg-white text-black'
+        }`}
+      >
+        <p
+          className={`font-inter text-base font-bold tracking-[0.12em] ${
+            isReels ? 'text-white' : 'text-black'
+          }`}
+        >
           COMMUNITY
         </p>
         <div className="flex items-center gap-2">
@@ -178,7 +272,9 @@ export default function CommunityFeedLayout({
             type="button"
             onClick={openNotifications}
             aria-label="Notifications"
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-black transition hover:bg-neutral-100"
+            className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition ${
+              isReels ? 'text-white hover:bg-white/10' : 'text-black hover:bg-neutral-100'
+            }`}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -186,7 +282,11 @@ export default function CommunityFeedLayout({
           </button>
           <Link
             to={ROUTES.COMMUNITY}
-            className="font-inter text-sm font-medium text-neutral-500 transition hover:text-black"
+            className={`font-inter text-sm font-medium transition ${
+              isReels
+                ? 'text-white/70 hover:text-white'
+                : 'text-neutral-500 hover:text-black'
+            }`}
           >
             Back
           </Link>
@@ -199,6 +299,7 @@ export default function CommunityFeedLayout({
           activeId={sidebarActiveId}
           userName={userName}
           userAvatar={userAvatar}
+          hasPosts={hasPosts}
           onCreateClick={openCreate}
           onNotificationsClick={openNotifications}
         />
@@ -209,28 +310,15 @@ export default function CommunityFeedLayout({
           isSaved || isJoinCanvas
             ? ''
             : isReels
-              ? 'items-stretch justify-center px-3 sm:px-4 lg:px-6 xl:px-10'
+              ? 'items-stretch justify-center bg-black px-0 sm:px-2 lg:px-4'
               : 'justify-center px-4 lg:px-8 xl:px-10'
-        } ${isJoinCanvas ? 'bg-[#f5f5f5]' : 'bg-white'}`}
+        } ${isJoinCanvas ? 'bg-[#f5f5f5]' : isReels ? 'bg-black' : 'bg-white'}`}
       >
         {isReels ? (
-          /* Centered reels cluster: large player + actions + right rail */
-          <div className="flex h-full max-w-full shrink-0 items-stretch gap-4 sm:gap-5 lg:gap-8 xl:gap-10">
-            <main className="h-full min-h-0 w-[min(100vw-4rem,600px)] shrink-0 overflow-hidden sm:w-[min(100%,540px)] lg:w-[min(100%,580px)]">
-              <div className="flex h-full min-h-0 w-full flex-col items-center justify-center">
-                <Outlet context={{ openProfile, openPost }} />
-              </div>
-            </main>
-
-            {showRightRail ? (
-              <aside className="scrollbar-hide hidden h-full w-[220px] shrink-0 overflow-y-auto py-6 lg:block xl:w-[240px]">
-                <SuggestedCreators creators={SUGGESTED_CREATORS} />
-                <div className="mt-8">
-                  <TrendingHashtags hashtags={TRENDING_HASHTAGS} />
-                </div>
-              </aside>
-            ) : null}
-          </div>
+          /* Fullscreen Shorts stage — one reel fills the column */
+          <main className="h-full min-h-0 w-full max-w-[640px] overflow-hidden">
+            <Outlet context={{ openProfile, openPost, openReelComments }} />
+          </main>
         ) : (
           <div
             className={`flex h-full min-w-0 ${
@@ -256,7 +344,7 @@ export default function CommunityFeedLayout({
                           : 'mx-auto w-full max-w-[520px] py-6'
                 }
               >
-                <Outlet context={{ openProfile, openPost }} />
+                <Outlet context={{ openProfile, openPost, openReelComments }} />
               </div>
             </main>
 

@@ -1,14 +1,24 @@
-import { FaRegComment } from "react-icons/fa";
-import { MdShare } from "react-icons/md";
-function ActionButton({ label, onClick, children }) {
+import { FaRegComment } from 'react-icons/fa'
+import { MdShare } from 'react-icons/md'
+
+function ActionButton({ label, onClick, tone = 'dark', children }) {
+  const isLight = tone === 'light'
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex cursor-pointer flex-col items-center gap-1 text-black transition hover:opacity-70"
+      className={`flex cursor-pointer flex-col items-center gap-1 transition hover:opacity-80 ${
+        isLight ? 'text-white' : 'text-black'
+      }`}
     >
-      <span className="flex h-10 w-10 items-center justify-center">{children}</span>
-      <span className="font-inter text-xs font-medium text-neutral-700">{label}</span>
+      <span className="flex h-10 w-10 items-center justify-center drop-shadow-sm">{children}</span>
+      <span
+        className={`font-inter text-xs font-medium ${
+          isLight ? 'text-white/90' : 'text-neutral-700'
+        }`}
+      >
+        {label}
+      </span>
     </button>
   )
 }
@@ -18,6 +28,7 @@ export default function ReelActions({
   comments = '0',
   liked = false,
   saved = false,
+  tone = 'light',
   onLike,
   onComment,
   onShare,
@@ -25,7 +36,7 @@ export default function ReelActions({
 }) {
   return (
     <div className="flex flex-col items-center gap-5 py-2">
-      <ActionButton label={likes} onClick={onLike}>
+      <ActionButton label={likes} onClick={onLike} tone={tone}>
         <svg
           className="h-6 w-6"
           fill={liked ? 'currentColor' : 'none'}
@@ -42,15 +53,15 @@ export default function ReelActions({
         </svg>
       </ActionButton>
 
-      <ActionButton label={comments} onClick={onComment}>
-        <FaRegComment  className="h-5 w-5"/>
+      <ActionButton label={comments} onClick={onComment} tone={tone}>
+        <FaRegComment className="h-5 w-5" />
       </ActionButton>
 
-      <ActionButton label="Share" onClick={onShare}>
-        <MdShare  className="h-5 w-5"/>
+      <ActionButton label="Share" onClick={onShare} tone={tone}>
+        <MdShare className="h-5 w-5" />
       </ActionButton>
 
-      <ActionButton label="Save" onClick={onSave}>
+      <ActionButton label="Save" onClick={onSave} tone={tone}>
         <svg
           className="h-6 w-6"
           fill={saved ? 'currentColor' : 'none'}

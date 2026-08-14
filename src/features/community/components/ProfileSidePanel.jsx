@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getCommunityReelsPath } from '../../../utils/constants'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { useCommunitySocialProfile } from '../hooks/useCommunitySocialProfile'
 import { debugError } from '../../../utils/debugLog.js'
@@ -6,6 +8,7 @@ import { debugError } from '../../../utils/debugLog.js'
 const TABS = ['Posts', 'Reels', 'Tagged']
 
 export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost }) {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('Posts')
   const social = useCommunitySocial()
   const userId = seed?.id || seed?.userId || null
@@ -55,10 +58,16 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
   }
 
   const handleOpenMedia = (item) => {
-    if (item?.type === 'reel') {
-      // Parent can navigate; for now open post detail if mapped
+    if (!item) return
+    if (item.type === 'reel') {
+      const id = item.id || item.post?.id
+      if (id) {
+        onClose?.()
+        navigate(getCommunityReelsPath(id))
+      }
+      return
     }
-    if (item?.post) onOpenPost?.(item.post)
+    if (item.post) onOpenPost?.(item.post)
   }
 
   return (

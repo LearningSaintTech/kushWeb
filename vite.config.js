@@ -150,23 +150,34 @@ export default defineConfig(({ mode }) => {
   const pixelId = env.VITE_META_PIXEL_ID || ''
   const metaPixelPlugin = metaPixelHtmlPlugin(pixelId)
   const apiOrigin = resolveApiOrigin(env)
+  
+  
   const exposeDevServerOnLan = env.VITE_DEV_LAN === 'true'
   const isProdApp = resolveBuildAppEnv(env, mode) === 'prod'
   const s3DevProxyOff =
     String(env.VITE_S3_DEV_PROXY ?? 'true').toLowerCase() === 'false'
+  const pinggyBypassHeaders = /pinggy\.(net|link|online|io)/i.test(apiOrigin)
+    ? { 'X-Pinggy-No-Screen': '1' }
+    : undefined
   const devProxy = apiOrigin
     ? {
         '/api': {
           target: apiOrigin,
           changeOrigin: true,
+          ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
         },
         '/socket.io': {
           target: apiOrigin,
           changeOrigin: true,
           ws: true,
+          ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
         },
       }
     : undefined
+
+    console.log("🔥 VITE_API_URL =", env.VITE_API_URL)
+console.log("🔥 apiOrigin =", apiOrigin)
+console.log("🔥 devProxy =", devProxy)
 
   if (mode === 'development' && !apiOrigin) {
     console.warn(

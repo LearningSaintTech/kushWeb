@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
 import { authService } from '../../services/auth.service.js'
-import { setAccessTokenGetter, getCurrentAccessToken } from '../../services/axiosClient.js'
+import { setAccessTokenGetter, getCurrentAccessToken, setOnAuthRequired } from '../../services/axiosClient.js'
 import { getMemoryToken, setMemoryToken, subscribeMemoryToken, clearMemoryToken } from '../../utils/tokenMemory.js'
 import { getValidAccessToken, isTokenExpired } from '../../utils/authToken.js'
 import { refreshUserAccessToken } from '../../utils/authSession.js'
@@ -59,6 +59,17 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     setAccessTokenGetter(() => getMemoryToken())
+    setOnAuthRequired(() => {
+      const path =
+        typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search || ''}`
+          : null
+      openAuthModal(path)
+    })
+    return () => setOnAuthRequired(null)
+  }, [openAuthModal])
+
+  useEffect(() => {
     return subscribeMemoryToken((next) => {
       setTokenState(next)
       if (!next) setUser(null)

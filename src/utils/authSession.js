@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../services/config.js';
+import { API_BASE_URL, getTunnelBypassHeaders } from '../services/config.js';
 import { getOrCreateDeviceId } from './deviceId.js';
 import { clearSessionHint, hasSessionHint } from './sessionHint.js';
 
@@ -10,6 +10,7 @@ const refreshClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'x-client-channel': 'website',
+    ...getTunnelBypassHeaders(),
   },
 });
 

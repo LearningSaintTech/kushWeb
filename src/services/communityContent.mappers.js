@@ -58,19 +58,46 @@ function videoUrl(content) {
 function mapItemChip(item, fallbackName) {
   if (!item && !fallbackName) return null;
   return {
-    id: item?.itemId || item?._id || 'item',
+    id: item?.itemId || item?._id || item?.id || 'item',
     name: item?.name || fallbackName || 'Product',
-    price: formatPrice(item) || '',
+    price: formatPrice(item) || item?.price || '',
     originalPrice:
       item?.discountedPrice != null && item?.originalPrice != null
         ? `₹${Number(item.originalPrice).toLocaleString('en-IN')}`
         : null,
-    image: item?.imageUrl || '',
+    image: item?.imageUrl || item?.image || item?.thumb || '',
     color: item?.color || null,
     colorHex: item?.colorHex || null,
     size: item?.size || null,
     raw: item || null,
   };
+}
+
+function mapTaggedProducts(content) {
+  // API feed returns all tagged products on `items` (itemIds[]); keep legacy fallbacks
+  const sources = [
+    content?.items,
+    content?.taggedProducts,
+    content?.taggedItems,
+  ];
+
+  for (const source of sources) {
+    if (!Array.isArray(source) || !source.length) continue;
+    const mapped = source.map((p) => mapItemChip(p)).filter(Boolean);
+    if (mapped.length) {
+      // De-dupe by itemId
+      const seen = new Set();
+      return mapped.filter((p) => {
+        const key = String(p.id);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+  }
+
+  const chip = mapItemChip(content?.item, content?.itemName);
+  return chip ? [chip] : [];
 }
 
 /**
@@ -83,7 +110,6 @@ export function mapContentToPost(content) {
     .map((m) => m.url)
     .filter(Boolean);
   const image = primaryImageUrl(content) || images[0] || '';
-  const chip = mapItemChip(content.item, content.itemName);
 
   const post = {
     id: content._id || content.id,
@@ -109,10 +135,14 @@ export function mapContentToPost(content) {
     commentCount: Number(content.commentCount) || 0,
     viewCount: Number(content.viewCount) || 0,
     date: formatDate(content.createdAt),
-    designedBy: content.designedBy || content.item?.designedBy || '',
+    designedBy:
+      content.designedBy ||
+      content.item?.designedBy ||
+      content.items?.find((i) => i?.designedBy)?.designedBy ||
+      '',
     caption: content.caption || '',
     hashtags: Array.isArray(content.hashtags) ? content.hashtags : [],
-    taggedProducts: chip ? [chip] : [],
+    taggedProducts: mapTaggedProducts(content),
     isLiked: Boolean(content.isLiked),
     isSaved: Boolean(content.isSaved),
     status: content.status,
@@ -134,22 +164,12 @@ export function mapContentToReel(content) {
   if (!post) return null;
   const video = post.videoUrl || post.image;
   return {
-    id: post.id,
+    ...post,
+    type: 'reel',
     video,
     videoUrl: video,
     poster: post.image,
-    author: post.author,
-    caption: post.caption,
-    likes: post.likes,
-    likeCount: post.likeCount,
-    comments: post.comments,
-    commentCount: post.commentCount,
-    isLiked: post.isLiked,
-    isSaved: post.isSaved,
     isFollowing: Boolean(post.author?.isFollowing),
-    designedBy: post.designedBy,
-    taggedProducts: post.taggedProducts,
-    raw: content,
   };
 }
 
@@ -299,7 +319,10 @@ export function extractCommentsList(data) {
 /** Grid tile for profile Posts / Reels / Tagged tabs */
 function toGridItem(content, typeHint) {
   if (!content) return null;
-  if (typeHint === 'tagged' || content.itemId || content.imageUrl) {
+
+  // Tagged tab only — do not treat post/reel content as products just because
+  // they carry itemId / imageUrl (almost every community post does).
+  if (typeHint === 'tagged') {
     const id = content.itemId || content._id || content.id;
     const image =
       content.imageUrl ||
@@ -314,15 +337,16 @@ function toGridItem(content, typeHint) {
       post: null,
     };
   }
+
   const mapped =
     typeHint === 'reel' || content.type === 'reel'
       ? mapContentToReel(content)
       : mapContentToPost(content);
-  if (!mapped) return null;
+  if (!mapped?.id) return null;
   return {
     id: mapped.id,
-    type: mapped.type === 'reel' ? 'reel' : 'post',
-    image: mapped.image || mapped.poster || '',
+    type: typeHint === 'reel' || mapped.type === 'reel' ? 'reel' : 'post',
+    image: mapped.image || mapped.poster || primaryImageUrl(content) || '',
     post: mapped,
   };
 }

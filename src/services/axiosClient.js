@@ -5,7 +5,7 @@
 import axios from 'axios';
 import { debugLog } from '../utils/debugLog.js';
 import { redactForLog } from '../utils/logRedact.util.js';
-import { API_BASE_URL } from './config.js';
+import { API_BASE_URL, getTunnelBypassHeaders } from './config.js';
 import { refreshUserAccessToken } from '../utils/authSession.js';
 import { performLogout } from '../utils/sessionLogout.js';
 import { getMemoryToken, setMemoryToken } from '../utils/tokenMemory.js';
@@ -34,6 +34,21 @@ export function setOnUnauthorized() {
   /* no-op — kept for API compatibility */
 }
 
+/** Called when session is missing/expired and user should sign in again. */
+let onAuthRequired = null;
+
+export function setOnAuthRequired(fn) {
+  onAuthRequired = typeof fn === 'function' ? fn : null;
+}
+
+function notifyAuthRequired() {
+  try {
+    onAuthRequired?.();
+  } catch {
+    /* ignore */
+  }
+}
+
 let refreshPromise = null;
 
 function isAuthRequestUrl(url = '') {
@@ -45,6 +60,12 @@ function isAuthRequestUrl(url = '') {
 /** Public storefront reads — must not trigger token refresh or logout on 401. */
 function isPublicApiUrl(url = '') {
   return /\/gift-card\/(rules\/active|buy\/preview)/i.test(String(url || ''));
+}
+
+function looksLikeHtmlPayload(data) {
+  if (typeof data !== 'string') return false;
+  const head = data.slice(0, 200).toLowerCase();
+  return head.includes('<!doctype html') || head.includes('<html');
 }
 
 async function runTokenRefresh() {
@@ -68,6 +89,7 @@ const client = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'x-client-channel': 'website',
+    ...getTunnelBypassHeaders(),
   },
   timeout: 30000,
   withCredentials: true,
@@ -84,6 +106,9 @@ client.interceptors.request.use(
       config.headers['x-device-id'] = deviceId;
     }
     config.headers['x-client-channel'] = 'website';
+    Object.entries(getTunnelBypassHeaders()).forEach(([k, v]) => {
+      config.headers[k] = v;
+    });
 
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
       delete config.headers['Content-Type'];
@@ -113,6 +138,16 @@ client.interceptors.response.use(
       status: response.status,
       data: redactForLog(response.data),
     });
+
+    if (looksLikeHtmlPayload(response.data)) {
+      const err = new Error(
+        'API returned an HTML page instead of JSON (often a free Pinggy screening page). Restart the tunnel or keep X-Pinggy-No-Screen enabled.',
+      );
+      err.response = response;
+      err.isHtmlApiResponse = true;
+      return Promise.reject(err);
+    }
+
     return response;
   },
   async (error) => {
@@ -166,6 +201,7 @@ client.interceptors.response.use(
       !isPublicApiUrl(originalConfig.url)
     ) {
       await performLogout({ server: true });
+      notifyAuthRequired();
     }
 
     return Promise.reject(error);

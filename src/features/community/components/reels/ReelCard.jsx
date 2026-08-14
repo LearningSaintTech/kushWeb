@@ -3,16 +3,12 @@ import ReelActions from './ReelActions'
 import TaggedProductsCarousel from './TaggedProductsCarousel'
 
 /**
- * Immersive reel — same 9:16 look; slightly shorter height (via a bit less width on laptop).
- * [ tall 9:16 player ] [ actions ]
- * [ tagged products under player ]
+ * Fullscreen Shorts card — fills the viewport; only one reel visible at a time.
  */
-const REEL_WIDTH =
-  'w-[min(100%,calc(100vw-5rem))] sm:w-[min(360px,calc(100vw-5.5rem))] md:w-[min(380px,calc(100vw-7rem))] lg:w-[360px] xl:w-[460px] 2xl:w-[480px]'
-
 export default function ReelCard({
   reel,
   active = false,
+  warm = false,
   onProfileClick,
   onLike,
   onSave,
@@ -20,40 +16,51 @@ export default function ReelCard({
   onComment,
   onFollow,
 }) {
-  return (
-    <article className="mx-auto w-fit max-w-full">
-      <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
-        <div className={`aspect-[9/16] shrink-0 overflow-hidden ${REEL_WIDTH}`}>
-          <ReelPlayer
-            src={reel.video}
-            poster={reel.poster}
-            active={active}
-            author={reel.author}
-            caption={reel.caption}
-            following={Boolean(reel.isFollowing)}
-            onFollow={onFollow}
-            onProfileClick={() => onProfileClick?.(reel.author)}
-          />
-        </div>
+  const hasProducts = Array.isArray(reel.taggedProducts) && reel.taggedProducts.length > 0
 
-        <div className="shrink-0 self-center pb-2">
-          <ReelActions
-            likes={reel.likes}
-            comments={reel.comments}
-            liked={Boolean(reel.isLiked)}
-            saved={Boolean(reel.isSaved)}
-            onLike={onLike}
-            onSave={onSave}
-            onShare={onShare}
-            onComment={onComment}
-          />
-        </div>
+  return (
+    <article className="relative mx-auto flex h-full w-full max-w-[560px] items-stretch justify-center gap-2 sm:gap-4">
+      <div className="relative h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-black sm:rounded-2xl">
+        <ReelPlayer
+          src={reel.video || reel.videoUrl}
+          poster={reel.poster || reel.image}
+          active={active}
+          warm={warm}
+          author={reel.author}
+          caption={reel.caption}
+          following={Boolean(reel.isFollowing)}
+          metaOffsetClass={hasProducts ? 'bottom-[7.5rem] sm:bottom-[8.25rem]' : ''}
+          onFollow={onFollow}
+          onProfileClick={() => onProfileClick?.(reel.author)}
+        />
+
+        {hasProducts ? (
+          <div
+            data-reel-ui
+            className="absolute inset-x-0 bottom-0 z-30 max-h-[42%] overflow-y-auto px-3 pb-3 pt-2 sm:px-4 sm:pb-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <TaggedProductsCarousel
+              products={reel.taggedProducts}
+              designedBy={reel.designedBy}
+              variant="dark"
+              compact
+            />
+          </div>
+        ) : null}
       </div>
 
-      <div className={`mt-3 sm:mt-4 ${REEL_WIDTH}`}>
-        <TaggedProductsCarousel
-          products={reel.taggedProducts}
-          designedBy={reel.designedBy}
+      <div className="flex shrink-0 flex-col justify-center self-center">
+        <ReelActions
+          likes={reel.likes}
+          comments={reel.comments}
+          liked={Boolean(reel.isLiked)}
+          saved={Boolean(reel.isSaved)}
+          tone="light"
+          onLike={onLike}
+          onSave={onSave}
+          onShare={onShare}
+          onComment={onComment}
         />
       </div>
     </article>

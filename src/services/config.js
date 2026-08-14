@@ -49,6 +49,20 @@ const ASSET_BASE_URL = (envTrim("VITE_ASSET_URL") || API_ORIGIN || "").replace(
   "",
 );
 
+/** Free Pinggy tunnels show a browser screening HTML page unless this header is set. */
+function isPinggyOrigin(origin = API_ORIGIN) {
+  return /pinggy\.(net|link|online|io)/i.test(String(origin || ""));
+}
+
+/**
+ * Extra request headers for free tunnel screening pages (Pinggy).
+ * Safe no-op when not on Pinggy.
+ */
+function getTunnelBypassHeaders() {
+  if (!isPinggyOrigin()) return {};
+  return { "X-Pinggy-No-Screen": "1" };
+}
+
 /**
  * Socket.IO host (no /api suffix).
  * In DEV, use the page origin so Vite proxies `/socket.io` → VITE_API_URL
@@ -122,4 +136,6 @@ export {
   getPublicImageUrl,
   ASSET_BASE_URL,
   warnIfProductionApiUrlMissing,
+  isPinggyOrigin,
+  getTunnelBypassHeaders,
 };

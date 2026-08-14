@@ -62,7 +62,7 @@ export default function CreatorWizard({ open, onClose }) {
     document.body.style.overflow = 'hidden'
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape' && !saving) handleClose()
+      if (event.key === 'Escape') handleClose()
     }
     window.addEventListener('keydown', handleKeyDown)
 
@@ -71,8 +71,10 @@ export default function CreatorWizard({ open, onClose }) {
       document.body.style.overflow = previousBodyOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [handleClose, open, saving])
+  }, [handleClose, open])
 
+  // Bootstrap once when opened — avoid `profile` in deps (refresh updates profile and
+  // would cancel mid-flight, leaving saving stuck and the modal unclosable).
   useEffect(() => {
     if (!open || bootstrapped) return undefined
     let cancelled = false
@@ -98,14 +100,15 @@ export default function CreatorWizard({ open, onClose }) {
           setBootstrapped(true)
         }
       } finally {
-        if (!cancelled) setSaving(false)
+        setSaving(false)
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [bootstrapped, open, profile, refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap once per open
+  }, [open, bootstrapped])
 
   if (!open) return null
 
@@ -221,7 +224,7 @@ export default function CreatorWizard({ open, onClose }) {
         type="button"
         aria-label="Close creator registration"
         className="absolute inset-0 cursor-pointer"
-        onClick={saving ? undefined : handleClose}
+        onClick={handleClose}
       />
       <div className="scrollbar-hide relative z-10 max-h-[min(94vh,700px)] w-full max-w-md overflow-y-auto">
         <CreatorShell

@@ -84,15 +84,17 @@ export default function RegistrationWizard({ open, onClose }) {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (e) => {
-      if (e.key === 'Escape' && !saving) handleClose()
+      if (e.key === 'Escape') handleClose()
     }
     window.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = prev
       window.removeEventListener('keydown', onKey)
     }
-  }, [open, handleClose, saving])
+  }, [open, handleClose])
 
+  // Bootstrap once when opened — do not depend on `profile` (refresh updates it and
+  // would cancel mid-flight, leaving saving stuck true and the modal unclosable).
   useEffect(() => {
     if (!open || bootstrapped) return undefined
     let cancelled = false
@@ -119,14 +121,15 @@ export default function RegistrationWizard({ open, onClose }) {
           setBootstrapped(true)
         }
       } finally {
-        if (!cancelled) setSaving(false)
+        setSaving(false)
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [bootstrapped, open, profile, refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap once per open
+  }, [open, bootstrapped])
 
   if (!open) return null
 
@@ -266,7 +269,7 @@ export default function RegistrationWizard({ open, onClose }) {
         type="button"
         aria-label="Close registration"
         className="absolute inset-0 cursor-pointer bg-black/75"
-        onClick={saving ? undefined : handleClose}
+        onClick={handleClose}
       />
       <div className="scrollbar-hide relative z-10 max-h-[min(92vh,720px)] w-full max-w-md overflow-y-auto">
         <WizardShell

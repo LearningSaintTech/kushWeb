@@ -83,6 +83,7 @@ export default function CommunitySidebar({
   activeId = 'home',
   userName = 'Rhea Kapoor',
   userAvatar = null,
+  hasPosts = false,
   onCreateClick,
   onNotificationsClick,
 }) {
@@ -149,7 +150,7 @@ export default function CommunitySidebar({
           Back to Khush
         </Link>
 
-        {caps.showCreateCard ? (
+        {caps.showCreateCard && !hasPosts ? (
           <div className="relative overflow-hidden rounded-xl">
             <img
               src={createCardBg}

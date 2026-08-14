@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { ROUTES } from '../../../utils/constants'
+import { getCommunityReelsPath } from '../../../utils/constants'
 import { useCommunitySaves } from '../hooks/useCommunityFeed'
 import { logCommunity } from '../../../services/communityApi.js'
 
@@ -21,7 +21,7 @@ export default function CommunitySavedFeed() {
   const handleOpen = (item) => {
     logCommunity('SavedFeed open', { id: item.id, type: item.type })
     if (item.type === 'reel') {
-      navigate(ROUTES.COMMUNITY_REELS)
+      navigate(getCommunityReelsPath(item.id))
       return
     }
     openPost?.(item)

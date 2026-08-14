@@ -47,6 +47,12 @@ export const ROUTES = {
   DELETE_ACCOUNT: '/delete-account',
 }
 
+/** Fullscreen reels feed, optionally deep-linked to one reel */
+export function getCommunityReelsPath(reelId) {
+  if (!reelId) return ROUTES.COMMUNITY_REELS
+  return `${ROUTES.COMMUNITY_REELS}?reelId=${encodeURIComponent(String(reelId))}`
+}
+
 function slugifyPart(value) {
   if (!value) return ''
   return String(value)

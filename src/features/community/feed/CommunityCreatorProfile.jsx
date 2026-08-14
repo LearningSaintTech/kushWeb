@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { ROUTES } from '../../../utils/constants'
+import { getCommunityReelsPath } from '../../../utils/constants'
 import CreatorProfileCard from '../creator/profile/CreatorProfileCard'
 import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
 import DesignerDashboard from '../creator/profile/DesignerDashboard'
 
 /**
  * Creator profile — profile or edit form (left) + dashboard (right).
- * Hugs the sidebar on large screens (matches mock spacing).
  */
 export default function CommunityCreatorProfile() {
   const navigate = useNavigate()
@@ -16,11 +15,28 @@ export default function CommunityCreatorProfile() {
   const [dashMode, setDashMode] = useState('creator')
 
   const handleOpenMedia = (item) => {
-    if (item?.type === 'reel') {
-      navigate(ROUTES.COMMUNITY_REELS)
+    if (!item) return
+    if (item.type === 'reel') {
+      navigate(getCommunityReelsPath(item.id || item.post?.id))
       return
     }
-    if (item?.post) openPost?.(item.post)
+    const detail =
+      item.post ||
+      (item.id
+        ? {
+            id: item.id,
+            image: item.image || '',
+            images: item.image ? [item.image] : [],
+            type: item.type || 'post',
+            likes: '0',
+            likeCount: 0,
+            comments: '0',
+            commentCount: 0,
+            caption: '',
+            author: {},
+          }
+        : null)
+    if (detail) openPost?.(detail)
   }
 
   return (

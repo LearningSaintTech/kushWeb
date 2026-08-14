@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../services/config.js';
+import { API_BASE_URL, getTunnelBypassHeaders } from '../services/config.js';
 import { getOrCreateDeviceId } from './deviceId.js';
 import { clearMemoryToken, getMemoryToken } from './tokenMemory.js';
 import { clearSessionHint, hasSessionHint } from './sessionHint.js';
@@ -13,6 +13,7 @@ const logoutClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'x-client-channel': 'website',
+    ...getTunnelBypassHeaders(),
   },
 });
 

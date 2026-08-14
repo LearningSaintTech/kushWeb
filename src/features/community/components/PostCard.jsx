@@ -1,6 +1,23 @@
+import { useState } from 'react'
+import TaggedProductsCarousel from './reels/TaggedProductsCarousel'
+
 const ROLE_CLASS = {
   CREATOR: 'text-neutral-400',
   DESIGNER: 'text-[#8B5CF6]',
+}
+
+function renderCaption(caption = '', hashtags = []) {
+  const tags =
+    Array.isArray(hashtags) && hashtags.length
+      ? hashtags
+      : Array.from(String(caption).matchAll(/#[\w]+/g)).map((m) => m[0])
+
+  let body = String(caption)
+  tags.forEach((tag) => {
+    body = body.replace(tag, '').replace(/\s{2,}/g, ' ').trim()
+  })
+
+  return { body, tags }
 }
 
 export default function PostCard({
@@ -13,8 +30,26 @@ export default function PostCard({
 }) {
   if (!post) return null
 
-  const { author, image, likes, comments, caption, isLiked, isSaved } = post
+  const {
+    author,
+    image,
+    images,
+    likes,
+    comments,
+    caption,
+    isLiked,
+    isSaved,
+    designedBy,
+    taggedProducts,
+    date,
+  } = post
+  const gallery = images?.length ? images : image ? [image] : []
+  const [imageIndex, setImageIndex] = useState(0)
+  const activeImage = gallery[Math.min(imageIndex, Math.max(0, gallery.length - 1))] || ''
   const roleClass = ROLE_CLASS[author?.role] ?? 'text-neutral-400'
+  const { body, tags } = renderCaption(caption, post.hashtags)
+  const canPrev = imageIndex > 0
+  const canNext = imageIndex < gallery.length - 1
 
   return (
     <article className="border-b border-neutral-100 pb-8 last:border-0">
@@ -50,22 +85,65 @@ export default function PostCard({
         </button>
       </header>
 
-      <button
-        type="button"
-        onClick={onOpenPost}
-        className="mt-4 block w-full cursor-pointer overflow-hidden rounded-lg bg-neutral-100 text-left transition hover:opacity-95"
-        aria-label="Open post"
-      >
-        {image ? (
-          <img
-            src={image}
-            alt=""
-            className="aspect-[4/5] w-full object-cover"
-          />
-        ) : (
-          <div className="aspect-[4/5] w-full bg-neutral-200" />
-        )}
-      </button>
+      <div className="relative mt-4 overflow-hidden rounded-lg bg-neutral-100">
+        <button
+          type="button"
+          onClick={onOpenPost}
+          className="block w-full cursor-pointer text-left transition hover:opacity-95"
+          aria-label="Open post"
+        >
+          {activeImage ? (
+            <img src={activeImage} alt="" className="aspect-[4/5] w-full object-cover" />
+          ) : (
+            <div className="aspect-[4/5] w-full bg-neutral-200" />
+          )}
+        </button>
+
+        {gallery.length > 1 ? (
+          <>
+            {canPrev ? (
+              <button
+                type="button"
+                aria-label="Previous image"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setImageIndex((i) => Math.max(0, i - 1))
+                }}
+                className="absolute left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/45 text-white transition hover:bg-black/60"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+              </button>
+            ) : null}
+            {canNext ? (
+              <button
+                type="button"
+                aria-label="Next image"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setImageIndex((i) => Math.min(gallery.length - 1, i + 1))
+                }}
+                className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/45 text-white transition hover:bg-black/60"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            ) : null}
+            <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+              {gallery.map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    i === imageIndex ? 'bg-white' : 'bg-white/45'
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
 
       <div className="mt-3 flex items-center gap-5">
         <button
@@ -110,9 +188,7 @@ export default function PostCard({
         <button
           type="button"
           onClick={onSave}
-          className={`ml-auto cursor-pointer transition hover:opacity-70 ${
-            isSaved ? 'text-black' : 'text-black'
-          }`}
+          className="ml-auto cursor-pointer text-black transition hover:opacity-70"
           aria-label="Save"
           aria-pressed={Boolean(isSaved)}
         >
@@ -133,16 +209,41 @@ export default function PostCard({
         </button>
       </div>
 
-      <p className="mt-3 font-inter text-sm leading-relaxed text-neutral-800">
+      <div className="mt-3 font-inter text-sm leading-relaxed text-neutral-800">
+        <p>
+          <button
+            type="button"
+            onClick={onProfileClick}
+            className="cursor-pointer font-semibold text-black transition hover:opacity-65"
+          >
+            {author.name}
+          </button>{' '}
+          {body}
+        </p>
+        {tags.length ? (
+          <p className="mt-1">
+            {tags.map((tag) => (
+              <span key={tag} className="mr-1.5 font-medium text-[#2563EB]">
+                {tag.startsWith('#') ? tag : `#${tag}`}
+              </span>
+            ))}
+          </p>
+        ) : null}
         <button
           type="button"
-          onClick={onProfileClick}
-          className="cursor-pointer font-semibold text-black transition hover:opacity-65"
+          onClick={onOpenPost}
+          className="mt-1.5 block cursor-pointer font-inter text-sm text-neutral-400 transition hover:text-neutral-600"
         >
-          {author.name}
-        </button>{' '}
-        {caption}
-      </p>
+          View all {comments} comments
+        </button>
+        {date ? (
+          <p className="mt-1 font-inter text-[10px] font-medium uppercase tracking-[0.12em] text-neutral-400">
+            {date}
+          </p>
+        ) : null}
+      </div>
+
+      <TaggedProductsCarousel products={taggedProducts} designedBy={designedBy} />
     </article>
   )
 }

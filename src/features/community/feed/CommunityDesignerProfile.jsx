@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { ROUTES } from '../../../utils/constants'
+import { getCommunityReelsPath } from '../../../utils/constants'
 import { DESIGNER_PROJECTS } from '../data/mockCreator'
 import DesignerProfileCard from '../creator/profile/DesignerProfileCard'
 import DesignerPortfolio from '../creator/profile/DesignerPortfolio'
@@ -11,7 +11,6 @@ import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
 
 /**
  * Designer profile — portfolio stays; View Projects slides in from the right.
- * Layout hugs the sidebar on large screens (matches mock).
  */
 export default function CommunityDesignerProfile() {
   const navigate = useNavigate()
@@ -24,11 +23,28 @@ export default function CommunityDesignerProfile() {
   const [projects, setProjects] = useState(DESIGNER_PROJECTS)
 
   const handleOpenMedia = (item) => {
-    if (item?.type === 'reel') {
-      navigate(ROUTES.COMMUNITY_REELS)
+    if (!item) return
+    if (item.type === 'reel') {
+      navigate(getCommunityReelsPath(item.id || item.post?.id))
       return
     }
-    if (item?.post) openPost?.(item.post)
+    const detail =
+      item.post ||
+      (item.id
+        ? {
+            id: item.id,
+            image: item.image || '',
+            images: item.image ? [item.image] : [],
+            type: item.type || 'post',
+            likes: '0',
+            likeCount: 0,
+            comments: '0',
+            commentCount: 0,
+            caption: '',
+            author: {},
+          }
+        : null)
+    if (detail) openPost?.(detail)
   }
 
   const handleSaveProject = (payload) => {
