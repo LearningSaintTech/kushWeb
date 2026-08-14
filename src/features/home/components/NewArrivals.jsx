@@ -7,6 +7,11 @@ import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
+import {
+  formatLaunchDate,
+  isItemComingSoon,
+  itemLaunchCardProps,
+} from '../../../utils/productLaunch.js'
 
 const SECTION_PAGE_SIZE = 10
 const DISPLAY_COUNT = 5
@@ -51,6 +56,7 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
     delivery,
     rating: item.avgRating ?? 0,
     outOfStock: item.inStock === false,
+    ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),
   }
 }
@@ -106,6 +112,7 @@ function NewArrivals({ section }) {
                   : '',
           rating: item.avgRating ?? 0,
           outOfStock: p.inStock === false,
+          ...itemLaunchCardProps(item),
           ...listingBindOfferProps(item, section),
         }
       }) || []
@@ -158,7 +165,7 @@ function NewArrivals({ section }) {
   }, [section?._id, pincode, fetchSectionPage])
 
   const openProduct = (item) => {
-    if (!item || item.outOfStock) return
+    if (!item || item.outOfStock || isItemComingSoon(item)) return
     if (item.id == null) return
     navigate(getProductPath(String(item.id), item.title, item.shortDescription))
   }
@@ -180,14 +187,17 @@ function NewArrivals({ section }) {
           {/* Full-bleed flush row — zero gap between images */}
           <div className="scrollbar-hide flex w-full overflow-x-auto md:overflow-visible">
             <div className="flex w-full min-w-0 md:grid md:grid-cols-5 gap-0.25">
-              {displayList.map((item, i) => (
+              {displayList.map((item, i) => {
+                const comingSoon = isItemComingSoon(item)
+                const launchDateLabel = formatLaunchDate(item.launchDate)
+                return (
                 <button
                   key={item.id ?? i}
                   type="button"
                   onClick={() => openProduct(item)}
-                  disabled={item.outOfStock}
+                  disabled={item.outOfStock || comingSoon}
                   className={`group relative flex w-[72vw] shrink-0 flex-col text-left sm:w-[48vw] md:w-auto md:min-w-0 ${
-                    item.outOfStock ? 'cursor-not-allowed' : 'cursor-pointer'
+                    item.outOfStock || comingSoon ? 'cursor-not-allowed' : 'cursor-pointer'
                   }`}
                 >
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-neutral-100">
@@ -198,7 +208,7 @@ function NewArrivals({ section }) {
                         item.hoverImage && item.hoverImage !== item.image
                           ? 'opacity-100 group-hover:opacity-0'
                           : 'opacity-100'
-                      }`}
+                      } ${comingSoon ? 'scale-105 blur-sm' : ''}`}
                       loading={i < 2 ? 'eager' : 'lazy'}
                       decoding="async"
                     />
@@ -212,7 +222,18 @@ function NewArrivals({ section }) {
                         decoding="async"
                       />
                     ) : null}
-                    {item.outOfStock ? (
+                    {comingSoon ? (
+                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/50 px-3 text-center text-white">
+                        <span className="font-inter text-xs font-semibold uppercase tracking-[0.16em]">
+                          Coming Soon
+                        </span>
+                        <span className="mt-2 font-inter text-[10px] uppercase tracking-wider text-white/85">
+                          {launchDateLabel
+                            ? `Launching on ${launchDateLabel}`
+                            : 'Launching soon'}
+                        </span>
+                      </div>
+                    ) : item.outOfStock ? (
                       <div
                         className="absolute inset-0 z-10 flex items-center justify-center bg-black/40"
                         aria-hidden
@@ -224,6 +245,7 @@ function NewArrivals({ section }) {
                     ) : null}
                   </div>
 
+                  {!comingSoon ? (
                   <div className="flex items-baseline justify-between gap-2 bg-white px-2.5 py-2.5 sm:px-3 sm:py-3">
                     <p className="min-w-0 truncate font-inter text-[11px] font-medium leading-tight text-neutral-800 sm:text-xs">
                       {item.title}
@@ -232,8 +254,10 @@ function NewArrivals({ section }) {
                       {item.price}
                     </p>
                   </div>
+                  ) : null}
                 </button>
-              ))}
+                )
+              })}
             </div>
           </div>
 

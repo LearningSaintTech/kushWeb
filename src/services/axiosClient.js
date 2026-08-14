@@ -44,7 +44,9 @@ function isAuthRequestUrl(url = '') {
 
 /** Public storefront reads — must not trigger token refresh or logout on 401. */
 function isPublicApiUrl(url = '') {
-  return /\/gift-card\/(rules\/active|buy\/preview)/i.test(String(url || ''));
+  return /\/gift-card\/(rules\/active|buy\/preview)|\/gift-items\/getActive/i.test(
+    String(url || ''),
+  );
 }
 
 async function runTokenRefresh() {

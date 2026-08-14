@@ -18,6 +18,7 @@ import { filtersService } from '../../services/filters.service.js'
 import Filter from "../../assets/temporary/filtericon.svg"
 import { trackEvent } from '../../analytics'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
+import { itemLaunchCardProps } from '../../utils/productLaunch.js'
 const DEFAULT_LIMIT = 12
 
 /** Same chevron for category dropdowns and styled selects (outline, matches breadcrumb weight). */
@@ -137,6 +138,7 @@ function itemToCardProps(item) {
     delivery,
     ...(rating != null ? { rating } : {}),
     outOfStock,
+    ...itemLaunchCardProps(item),
     ...offerProps,
   }
 }
@@ -646,6 +648,12 @@ function SearchPage() {
   }
 
   const handleCategorySelect = (catId) => {
+    trackEvent({
+      eventType: 'search_filter_applied',
+      filterType: 'category',
+      categoryId: catId || undefined,
+      sectionId: sectionIdFromUrl || undefined,
+    })
     setCategory(catId)
     setSubcategory('')
     setFilterOpen(false)
@@ -662,6 +670,12 @@ function SearchPage() {
   }
 
   const handleSubcategorySelect = (subId) => {
+    trackEvent({
+      eventType: 'search_filter_applied',
+      filterType: 'subcategory',
+      subcategoryId: subId || undefined,
+      sectionId: sectionIdFromUrl || undefined,
+    })
     setSubcategory(subId)
     setFilterOpen(false)
     const next = new URLSearchParams(searchParams)
@@ -678,6 +692,14 @@ function SearchPage() {
   /** For section Our Category: value is "category::id" or "subcategory::id" */
   const handleSectionFilterSelect = (value) => {
     setFilterOpen(false)
+    const [filterType, filterId] = value ? value.split('::') : []
+    trackEvent({
+      eventType: 'search_filter_applied',
+      filterType: filterType || 'section',
+      categoryId: filterType === 'category' ? filterId : undefined,
+      subcategoryId: filterType === 'subcategory' ? filterId : undefined,
+      sectionId: sectionIdFromUrl || undefined,
+    })
     const next = new URLSearchParams(searchParams)
     if (sectionIdFromUrl) next.set('sectionId', sectionIdFromUrl)
     if (collectionFromUrl) next.set('collection', collectionFromUrl)
@@ -762,6 +784,12 @@ function SearchPage() {
     if (Object.keys(nextFilters).length) next.set('filters', JSON.stringify(nextFilters))
     else next.delete('filters')
     next.delete('page')
+    trackEvent({
+      eventType: 'search_filter_applied',
+      filterType: 'filters',
+      filters: nextFilters,
+      sectionId: sectionIdFromUrl || undefined,
+    })
     setSearchParams(next)
     setFiltersPanelOpen(false)
   }
@@ -1428,6 +1456,13 @@ function SearchPage() {
                         {...product}
                         {...PRODUCT_CARD_COMPACT_GRID_PROPS}
                         imageLoading={imageLoading}
+                        onProductNavigate={(productId) => {
+                          trackEvent({
+                            eventType: 'search_click',
+                            itemId: productId != null ? String(productId) : undefined,
+                            searchQuery: qFromUrl.trim() || undefined,
+                          })
+                        }}
                       />
                     </div>
                   )

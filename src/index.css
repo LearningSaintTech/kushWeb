@@ -2,6 +2,9 @@
 @import "./assets/styles/fonts.css";
 @import "tailwindcss";
 
+/* Build output is not a class source; scanning it makes Tailwind emit url()s for stale hashed assets. */
+@source not "../dist";
+
 /* Prevent horizontal scroll across the whole app */
 html,
 body {

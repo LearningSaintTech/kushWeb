@@ -15,6 +15,7 @@ import {
   unwrapApiData,
 } from '../../utils/authProfile.js'
 import AuthSuccessToast from '../../shared/components/AuthSuccessToast.jsx'
+import { trackEvent } from '../../analytics'
 
 const AuthContext = createContext(null)
 
@@ -175,6 +176,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(async () => {
+    trackEvent({ eventType: 'auth_logout' }, { immediate: true })
     await performLogout({ server: true })
     setTokenState(null)
     setUser(null)

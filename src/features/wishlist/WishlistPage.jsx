@@ -189,6 +189,8 @@ function WishlistPage() {
                 delivery={item.delivery}
                 rating={item.rating}
                 outOfStock={item.inStock === false}
+                isComingSoon={Boolean(item.isComingSoon)}
+                launchDate={item.launchDate ?? null}
                 {...PRODUCT_CARD_COMPACT_GRID_PROPS}
                 imageClassName="w-full max-lg:aspect-[3/4] max-lg:h-auto lg:h-[440px] xl:h-[480px] object-cover object-top lg:object-center"
                 infoClassName="px-2 py-2 md:px-2.5 md:py-2.5 lg:px-6 lg:py-5"

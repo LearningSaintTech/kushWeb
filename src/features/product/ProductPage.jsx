@@ -27,6 +27,10 @@ import {
   ProductImageZoomLightbox,
 } from "../../shared/components/ZoomImage.jsx";
 import { getProductCardOfferBadge, getOfferHint } from "../../utils/bindOffer.js";
+import {
+  formatLaunchDate,
+  isItemComingSoon,
+} from "../../utils/productLaunch.js";
 
 function ProductPage() {
   const { id } = useParams();
@@ -479,6 +483,11 @@ function ProductPage() {
       const url = `${window.location.origin}/product/${item._id}`;
       await navigator.clipboard.writeText(url);
 
+      trackEvent({
+        eventType: "share_click",
+        itemId: String(item._id),
+        path: url,
+      });
       setCopyMsg("Link copied");
       setTimeout(() => setCopyMsg(""), 2000);
     } catch (err) {
@@ -601,6 +610,51 @@ function ProductPage() {
           <p className="px-4 text-center text-sm text-gray-600 sm:text-base">
             {error || "Product not found"}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isItemComingSoon(item)) {
+    const launchDateLabel = formatLaunchDate(item.launchDate);
+    return (
+      <div className="min-h-dvh bg-gray-100 px-4 pb-12 pt-28 font-inter sm:pt-32 lg:pt-36">
+        <div className="mx-auto max-w-xl overflow-hidden bg-white shadow-sm">
+          <div className="relative aspect-[4/5] overflow-hidden bg-neutral-200">
+            <img
+              src={firstImageUrl || item.thumbnail || productImage}
+              alt=""
+              className="h-full w-full scale-105 object-cover object-top blur-[8px]"
+              aria-hidden
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 px-6 text-center text-white">
+              <svg
+                className="mb-5 h-16 w-16 text-white/80"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden
+              >
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V8a4 4 0 018 0v3" />
+              </svg>
+              <h1 className="text-2xl font-semibold uppercase tracking-[0.18em]">
+                Coming Soon
+              </h1>
+              <p className="mt-3 text-sm uppercase tracking-widest text-white/85">
+                {launchDateLabel
+                  ? `Launching on ${launchDateLabel}`
+                  : "Launching soon"}
+              </p>
+              <Link
+                to={ROUTES.HOME}
+                className="mt-8 border-b border-white pb-1 text-xs uppercase tracking-widest"
+              >
+                Back to home
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -893,7 +947,14 @@ function ProductPage() {
                         <button
                           key={c.id}
                           type="button"
-                          onClick={() => setSelectedColor(c.id)}
+                          onClick={() => {
+                            setSelectedColor(c.id);
+                            trackEvent({
+                              eventType: "color_select",
+                              itemId: itemIdStr,
+                              meta: { color: c.name || c.id },
+                            });
+                          }}
                           className={`box-border flex h-5 min-h-5 max-h-5 w-5 min-w-5 max-w-5 shrink-0 items-center justify-center rounded-full border-2 p-0 sm:h-6 sm:min-h-6 sm:max-h-6 sm:w-6 sm:min-w-6 sm:max-w-6 md:h-5 md:min-h-5 md:max-h-5 md:w-5 md:min-w-5 md:max-w-5 lg:h-[26px] lg:min-h-[26px] lg:max-h-[26px] lg:w-[26px] lg:min-w-[26px] lg:max-w-[26px] cursor-pointer ${selectedColor === c.id ? "border-[#e53935]" : "border-gray-300"}`}
                           style={{ backgroundColor: c.value }}
                           aria-label={c.name}
@@ -915,7 +976,16 @@ function ProductPage() {
                         <button
                           key={s.sku}
                           type="button"
-                          onClick={() => s.inStock && setSelectedSize(s.size)}
+                          onClick={() => {
+                            if (!s.inStock) return;
+                            setSelectedSize(s.size);
+                            trackEvent({
+                              eventType: "size_select",
+                              itemId: itemIdStr,
+                              sku: selectedSizeObj?.sku,
+                              meta: { size: s.size, color: selectedColor },
+                            });
+                          }}
                           disabled={!s.inStock}
                           className={`flex h-7 w-7 items-center justify-center rounded-full border text-[11px]
         ${

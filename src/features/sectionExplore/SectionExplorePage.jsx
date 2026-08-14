@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { debugLog, debugError } from '../../utils/debugLog.js';
+import { debugLog, debugError } from '../../utils/debugLog.js'
+import { trackEvent } from '../../analytics';
 import { useParams, Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/components/ProductCard'
@@ -9,6 +10,7 @@ import { categoriesService, subcategoriesService } from '../../services/categori
 import { ROUTES } from '../../utils/constants'
 import { getItemStockTotal } from '../../utils/productStock.js'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
+import { itemLaunchCardProps } from '../../utils/productLaunch.js'
 
 const DEFAULT_LIMIT = 12
 
@@ -45,6 +47,7 @@ function itemToCardProps(item, section = null) {
     originalPrice,
     delivery,
     rating: 4,
+    ...itemLaunchCardProps(item),
     ...offerProps,
   }
 }
@@ -98,6 +101,11 @@ export function SectionExplorePage() {
       const data = res?.data?.data ?? res?.data
       debugLog('[SectionExplore] section parsed:', data)
       setSection(data || null)
+      trackEvent({
+        eventType: 'section_view',
+        sectionId: sectionId ? String(sectionId) : undefined,
+        sectionName: data?.name ?? data?.title ?? undefined,
+      })
     } catch (e) {
       debugError('[SectionExplore] section error:', e)
       setError(e?.message ?? 'Section not found')
@@ -304,7 +312,17 @@ export function SectionExplorePage() {
           <div className="grid grid-cols-2 gap-x-1.5 gap-y-2.5 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
             {products.map((item, idx) => (
               <div key={item.id ?? idx} className="min-w-0">
-                <ProductCard {...item} {...PRODUCT_CARD_COMPACT_GRID_PROPS} />
+                <ProductCard
+                  {...item}
+                  {...PRODUCT_CARD_COMPACT_GRID_PROPS}
+                  onProductNavigate={(productId) => {
+                    trackEvent({
+                      eventType: 'recommendation_click',
+                      itemId: productId != null ? String(productId) : undefined,
+                      sectionId: sectionId ? String(sectionId) : undefined,
+                    })
+                  }}
+                />
               </div>
             ))}
           </div>

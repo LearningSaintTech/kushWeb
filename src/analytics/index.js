@@ -1,10 +1,15 @@
+export { ANALYTICS_EVENTS } from "./catalog.js";
 export {
   trackEvent,
   trackPageView,
   trackSessionStart,
   trackRouteChange,
   trackSessionEnd,
+  pushToDataLayer,
+  flushAnalyticsQueue,
 } from "./tracker.js";
+export { setupAnalyticsErrorCapture } from "./setup.js";
+export { captureUtmFromUrl } from "./utm.js";
 
 export {
   parsePrice,
@@ -21,4 +26,3 @@ export {
   trackPixelAddPaymentInfo,
   trackPixelPurchase,
 } from "./pixels.js";
-//ddkmffd

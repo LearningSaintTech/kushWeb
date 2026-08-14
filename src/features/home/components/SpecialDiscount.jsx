@@ -11,6 +11,7 @@ import ProductCard, {
 } from '../../../shared/components/ProductCard'
 import { getItemStockTotal } from '../../../utils/productStock.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
+import { itemLaunchCardProps } from '../../../utils/productLaunch.js'
 import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
 import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
@@ -62,6 +63,7 @@ function itemToCardProps(item, index, section = null) {
     delivery,
     rating: item.avgRating ?? 4.5,
     outOfStock: item.inStock === false,
+    ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),
   }
 }

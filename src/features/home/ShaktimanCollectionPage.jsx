@@ -13,6 +13,7 @@ import { getItemStockTotal } from '../../utils/productStock.js'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { debugLog, debugError } from '../../utils/debugLog.js'
 import { SHAKTIMAN_KEYWORDS } from '../../utils/shaktiman.js'
+import { itemLaunchCardProps } from '../../utils/productLaunch.js'
 import saktimanBanner from '../../assets/images/navbar/Shakbanners.PNG'
 import ShaktimaanFab from './components/ShaktimaanFab.jsx'
 
@@ -66,7 +67,7 @@ function itemToCardProps(item, section = null) {
     delivery,
     rating: 4,
     outOfStock,
-    comingSoonLock: true,
+    ...itemLaunchCardProps(item),
     ...offerProps,
   }
 }

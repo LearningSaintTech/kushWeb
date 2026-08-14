@@ -7,6 +7,7 @@ import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { getItemStockTotal } from '../../../utils/productStock.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
+import { itemLaunchCardProps } from '../../../utils/productLaunch.js'
 
 const GAP = 24
 const SECTION_PAGE_SIZE = 10
@@ -54,6 +55,7 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
     delivery,
     rating: item.avgRating ?? 4.5,
     outOfStock: item.inStock === false,
+    ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),
   }
 }
@@ -81,6 +83,7 @@ function BestSellar({ section }) {
         delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
         rating: item.avgRating ?? 4.5,
         outOfStock: p.inStock === false,
+        ...itemLaunchCardProps(item),
         ...listingBindOfferProps(item, section),
       }
     }) || []

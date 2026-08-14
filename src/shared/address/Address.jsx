@@ -7,6 +7,7 @@ import { setLocation } from '../../app/store/slices/locationSlice'
 import GoogleMapPicker from '../components/GoogleMapPicker'
 import { LocationIcon } from '../ui/icons'
 import { getAddressPhoneInputError, sanitizeAddressPhoneInput, getLoginPhoneForAddress } from '../../utils/validators.js'
+import { trackEvent } from '../../analytics'
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = "+91";
@@ -375,8 +376,17 @@ export default function Address() {
     try {
       if (modalMode === "edit" && editingAddressId) {
         await addressService.update(editingAddressId, payload);
+        trackEvent({
+          eventType: "address_updated",
+          addressId: String(editingAddressId),
+        });
       } else {
-        await addressService.create(payload);
+        const res = await addressService.create(payload);
+        const created = res?.data?.data ?? res?.data;
+        trackEvent({
+          eventType: "address_added",
+          addressId: created?._id ? String(created._id) : undefined,
+        });
       }
       await loadAddresses();
       setModalOpen(false);
