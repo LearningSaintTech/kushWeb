@@ -1,12 +1,12 @@
 import { Outlet } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import MadeInIndiaMarquee from '../components/MadeInIndiaMarquee'
 import ScrollToTop from '../components/ScrollToTop'
 import AuthModal from '../../features/auth/AuthModal'
-import { trackPageView, trackPixelPageView } from '../../analytics'
+import { trackPageView, trackPixelPageView, trackRouteChange, captureUtmFromUrl } from '../../analytics'
 import { useSupportChat } from '../../app/context/SupportChatContext'
 import chatFabImage from '../../assets/images/chat-fab.svg'
 import WhatsAppFab from '../../features/home/components/WhatsAppFab.jsx'
@@ -15,11 +15,28 @@ function MainLayout() {
   const location = useLocation();
   const { openSupportChat } = useSupportChat();
   const isCommunityFeed = location.pathname.startsWith('/community/feed');
+  const isFirstRoute = useRef(true);
+  const prevPath = useRef('');
+
+  useEffect(() => {
+    captureUtmFromUrl(window.location.href);
+  }, []);
 
   useEffect(() => {
     const path = `${location.pathname}${location.search}`;
-    trackPageView({ path });
-    trackPixelPageView(path);
+    if (isFirstRoute.current) {
+      isFirstRoute.current = false;
+      prevPath.current = path;
+      trackPageView({ path });
+      trackPixelPageView(path);
+      return;
+    }
+    if (prevPath.current !== path) {
+      trackRouteChange({ path, fromPath: prevPath.current });
+      trackPageView({ path });
+      trackPixelPageView(path);
+      prevPath.current = path;
+    }
   }, [location.pathname, location.search]);
 
   return (

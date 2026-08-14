@@ -12,7 +12,10 @@ import { getLowStockLabel } from "../../utils/productStock.js";
 import { getProductCardOfferBadge, getOfferHint } from "../../utils/bindOffer.js";
 import { trackPixelAddToCart } from "../../analytics";
 import BindOfferBadge from "./BindOfferBadge.jsx";
-import { isShaktimanComingSoonId } from "../../utils/shaktiman.js";
+import {
+  formatLaunchDate,
+  isItemComingSoon,
+} from "../../utils/productLaunch.js";
 
 const ROUNDED_CLASSES = {
   none: "",
@@ -173,11 +176,13 @@ const ProductCard = React.memo(function ProductCard({
   bindOffer = null,
   /** BOGO / bind-offer chip; overrides `bindOffer` when set. */
   offerBadge = null,
-  /**
-   * Shaktiman coming-soon: show blurred image + lock + Coming Soon tag;
-   * hide price/name/actions (image only). Used only on Shaktiman collection.
-   */
+  /** Blur and lock this product until its configured launch date. */
+  isComingSoon = false,
+  launchDate = null,
+  /** Legacy/manual override for callers without item launch fields. */
   comingSoonLock = false,
+  /** Optional callback before navigating to product (analytics). */
+  onProductNavigate,
 }) {
   const navigate = useNavigate();
   const { cart, addToCart, removeFromCart, toggleWishlist, isInWishlist } =
@@ -343,14 +348,24 @@ const ProductCard = React.memo(function ProductCard({
     `${imageIsNumeric ? "" : roundedTopClass} ${imageIsNumeric ? "" : roundedBottomClass}`.trim();
 
   const showComingSoonLock = Boolean(
-    comingSoonLock || isShaktimanComingSoonId(id),
+    comingSoonLock || isItemComingSoon({ isComingSoon, launchDate }),
   );
+  const launchDateLabel = formatLaunchDate(launchDate);
 
   const CardWrapper = id != null && !showComingSoonLock ? Link : "div";
   const wrapperProps =
     id != null && !showComingSoonLock
-      ? { to: getProductPath(id, title, shortDescription) }
+      ? {
+          to: getProductPath(id, title, shortDescription),
+          onClick: () => onProductNavigate?.(id),
+        }
       : {};
+
+  const goToProduct = () => {
+    if (id == null) return;
+    onProductNavigate?.(id);
+    navigate(getProductPath(id, title, shortDescription));
+  };
 
   const showHoverImage = Boolean(
     hoverImage && hoverImageLoaded && hoverImage !== image && !showComingSoonLock,
@@ -454,7 +469,11 @@ const ProductCard = React.memo(function ProductCard({
           {showComingSoonLock ? (
             <div
               className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/45"
-              aria-label="Coming soon — available by 27th August"
+              aria-label={
+                launchDateLabel
+                  ? `Coming soon — launching on ${launchDateLabel}`
+                  : "Coming soon"
+              }
               role="img"
               onClick={(e) => {
                 e.preventDefault();
@@ -485,7 +504,9 @@ const ProductCard = React.memo(function ProductCard({
                         : "text-[9px] sm:text-[10px]"
                     }`}
                   >
-                    Launching on 27th August
+                    {launchDateLabel
+                      ? `Launching on ${launchDateLabel}`
+                      : "Launching soon"}
                   </span>
                 </div>
               </div>
@@ -530,6 +551,8 @@ const ProductCard = React.memo(function ProductCard({
                     originalPrice,
                     delivery,
                     rating,
+                    isComingSoon,
+                    launchDate,
                   });
                 }}
                 className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out hover:scale-105 cursor-pointer ${wishlistIconClass()}`}
@@ -558,7 +581,7 @@ const ProductCard = React.memo(function ProductCard({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  navigate(getProductPath(id, title, shortDescription));
+                  goToProduct();
                 }}
                 className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-100 hover:scale-105 cursor-pointer ${actionIconClass()}`}
                 aria-label="View product"
@@ -608,6 +631,8 @@ const ProductCard = React.memo(function ProductCard({
                     originalPrice,
                     delivery,
                     rating,
+                    isComingSoon,
+                    launchDate,
                   });
                   if (result?.success === false && result?.message) {
                     setCartError(result.message);
@@ -680,7 +705,7 @@ const ProductCard = React.memo(function ProductCard({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  navigate(getProductPath(id, title, shortDescription));
+                  goToProduct();
                 }}
                 className="pointer-events-auto flex h-10 w-[88%] max-w-[240px] max-md:translate-y-0 max-md:opacity-100 items-center justify-center rounded-full bg-black px-4 text-xs font-medium uppercase tracking-wider text-white opacity-0 transition-all duration-300 ease-out md:translate-y-full md:group-hover:translate-y-0 md:group-hover:opacity-100 sm:h-11 sm:px-6 sm:text-sm md:h-11 md:px-8 lg:h-14 lg:px-10 xl:h-[52px] md:text-sm lg:text-[16px] lg:tracking-[2px] cursor-pointer touch-manipulation hover:bg-neutral-900"
               >
@@ -838,7 +863,7 @@ const ProductCard = React.memo(function ProductCard({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                navigate(getProductPath(id, title, shortDescription));
+                goToProduct();
               }}
               className="flex h-9 sm:h-11 w-full max-w-full items-center justify-center rounded-full bg-black px-3 sm:px-4 text-[10px] sm:text-xs font-medium uppercase tracking-wide sm:tracking-wider text-white cursor-pointer touch-manipulation hover:bg-neutral-900 active:bg-neutral-800"
             >

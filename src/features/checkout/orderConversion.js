@@ -79,11 +79,12 @@ export function trackOrderConversion(conversion) {
     items.reduce((sum, row) => sum + (row.quantity || 1), 0)
 
   trackEvent({
-    eventType: 'order_conversion',
+    eventType: 'order_confirmed',
     orderId: String(orderId),
     cartValue: value,
     currency,
-    meta: { numItems, itemIds: contentIds },
+    referenceId: `order_confirmed:${orderId}`,
+    meta: { numItems, itemIds: contentIds, source: 'thank_you_page' },
   })
 }
 
@@ -133,7 +134,7 @@ function eventStorageKey(prefix, id) {
 export function trackOrderFailedEvent(payload = {}) {
   const orderId = payload?.orderId
   const reason = payload?.reason || 'payment_failed'
-  const key = orderId ? eventStorageKey('order_failed', orderId) : null
+  const key = orderId ? eventStorageKey('payment_failed', orderId) : null
 
   if (key && typeof sessionStorage !== 'undefined') {
     if (sessionStorage.getItem(key)) return
@@ -141,12 +142,14 @@ export function trackOrderFailedEvent(payload = {}) {
   }
 
   trackEvent({
-    eventType: 'order_failed',
+    eventType: 'payment_failed',
     orderId: orderId ? String(orderId) : undefined,
+    referenceId: orderId ? `payment_failed:${orderId}:client` : undefined,
     meta: {
       reason,
       paymentMode: payload?.paymentMode,
       message: payload?.message,
+      source: 'order_failed_page',
     },
   })
 }

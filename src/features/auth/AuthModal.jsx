@@ -200,6 +200,13 @@ export default function AuthModal() {
       meta: { source: "auth_modal" },
     });
   } catch (err) {
+    trackEvent({
+      eventType: 'auth_login_failed',
+      meta: {
+        source: 'auth_modal',
+        reason: err?.response?.data?.message || err?.message || 'verify_failed',
+      },
+    });
     setError(getOtpVerifyErrorMessage(err));
   } finally {
     setLoading(false);

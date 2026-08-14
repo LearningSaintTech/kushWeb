@@ -583,6 +583,12 @@ function CartPage() {
     }
     try {
       await cartService.increaseQty(sku)
+      trackEvent({
+        eventType: 'cart_quantity_increase',
+        sku,
+        itemId: row?.itemId ? String(row.itemId) : undefined,
+        quantity: (row?.quantity ?? 1) + 1,
+      })
       const product = row?.itemId
       trackPixelAddToCart({
         id: product?._id ?? product?.id ?? row?.guestProductId,
@@ -604,6 +610,12 @@ function CartPage() {
     }
     try {
       await cartService.decreaseQty(sku)
+      trackEvent({
+        eventType: 'cart_quantity_decrease',
+        sku,
+        itemId: row?.itemId ? String(row.itemId) : undefined,
+        quantity: Math.max(0, (row?.quantity ?? 1) - 1),
+      })
       pushRemoveFromCartEvent(row, 1)
       refetchCart({ addressId })
       const next = await fetchCart()
@@ -615,12 +627,22 @@ function CartPage() {
     if (row?.isGuest && row.guestProductId != null) {
       try {
         await removeFromCart(row.guestProductId)
+        trackEvent({
+          eventType: 'remove_from_cart',
+          sku,
+          itemId: row?.itemId ? String(row.itemId) : undefined,
+        })
         pushRemoveFromCartEvent(row)
       } catch (_) { }
       return
     }
     try {
       await removeFromCart(sku)
+      trackEvent({
+        eventType: 'remove_from_cart',
+        sku,
+        itemId: row?.itemId ? String(row.itemId) : undefined,
+      })
       pushRemoveFromCartEvent(row)
       refetchCart({ addressId })
       const next = await fetchCart()
@@ -632,6 +654,11 @@ function CartPage() {
   const handleSelectDelivery = async (sku, deliveryId) => {
     try {
       await cartService.selectDelivery({ sku, deliveryId })
+      trackEvent({
+        eventType: 'checkout_delivery_option_selected',
+        sku,
+        meta: { deliveryId },
+      })
       refetchCart({ addressId })
       await fetchCart()
       fetchPriceSummary(appliedCouponCode || null)
@@ -841,6 +868,14 @@ function CartPage() {
       const list = await refetchAddresses()
       if (newAddr?._id) setSelectedAddress(newAddr)
       else if (list?.length) setSelectedAddress(list[list.length - 1])
+      trackEvent({
+        eventType: 'checkout_address_added',
+        addressId: newAddr?._id ? String(newAddr._id) : undefined,
+      })
+      trackEvent({
+        eventType: 'address_added',
+        addressId: newAddr?._id ? String(newAddr._id) : undefined,
+      })
       setAddressFormOpen(false)
       refetchCart(newAddr?._id ? { addressId: newAddr._id } : {})
       if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null)
@@ -1302,6 +1337,10 @@ function CartPage() {
                         const addr = addresses.find((a) => String(a._id ?? '') === id)
                         if (addr) {
                           setSelectedAddress(addr)
+                          trackEvent({
+                            eventType: 'checkout_address_selected',
+                            addressId: addr._id != null ? String(addr._id) : undefined,
+                          })
                           dispatch(setLocation({
                             pincode: addr.pinCode != null ? String(addr.pinCode) : null,
                             addressLabel: formatAddress(addr) || (addr.pinCode ? `Pin ${addr.pinCode}` : null),

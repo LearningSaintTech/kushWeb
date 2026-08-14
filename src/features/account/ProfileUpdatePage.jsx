@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { authService } from '../../services/auth.service.js'
+import { trackEvent } from '../../analytics'
 import { ROUTES } from '../../utils/constants'
 
 const LETTERS_ONLY = /^[A-Za-z\s]+$/
@@ -153,6 +154,7 @@ export default function ProfileUpdatePage() {
 
       const res = await authService.updateProfile(formData)
       const updated = res?.data?.data ?? res?.data
+      trackEvent({ eventType: 'profile_updated' })
       if (refreshUser) await refreshUser()
       setSuccess(true)
       setProfileImageFile(null)

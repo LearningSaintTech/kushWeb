@@ -57,6 +57,7 @@ import {
   BillSummaryItemTotal,
 } from "../../shared/components/BindOfferCartExtras.jsx";
 import CartItemDescription from "../../shared/components/CartItemDescription.jsx";
+import FreeGiftPicker from "../../shared/components/FreeGiftPicker.jsx";
 
 /** Delivery is India-only; API still expects countryCode. */
 const INDIA_PHONE_CODE = "+91";
@@ -233,6 +234,7 @@ function CheckoutPage() {
     useState(couponCodeFromCart);
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [selectedGift, setSelectedGift] = useState(null);
   const [appliedCouponMeta, setAppliedCouponMeta] = useState(null);
   const [loadingCoupons, setLoadingCoupons] = useState(false);
   const [autoCouponReconciling, setAutoCouponReconciling] = useState(false);
@@ -282,6 +284,9 @@ function CheckoutPage() {
   const [lastVerifyPayload, setLastVerifyPayload] = useState(null);
 
   const paymentSuccessHandledRef = useRef(false);
+  const initiateCheckoutTrackedRef = useRef(false);
+  const prevCheckoutAddressIdRef = useRef(null);
+  const prevPaymentModeRef = useRef(null);
   // const nimbleCheckoutActiveRef = useRef(false)
   // const nimbleVerifyingRef = useRef(false)
   const donationInitializedRef = useRef(Boolean(donationFromCartNav));
@@ -955,6 +960,14 @@ function CheckoutPage() {
       const list = await refetchAddresses();
       if (newAddr?._id) setSelectedAddress(newAddr);
       else if (list?.length) setSelectedAddress(list[list.length - 1]);
+      trackEvent({
+        eventType: "checkout_address_added",
+        addressId: newAddr?._id ? String(newAddr._id) : undefined,
+      });
+      trackEvent({
+        eventType: "address_added",
+        addressId: newAddr?._id ? String(newAddr._id) : undefined,
+      });
       setAddressFormOpen(false);
       if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null);
     } catch (err) {
@@ -1024,6 +1037,7 @@ function CheckoutPage() {
           addressId,
           paymentMode: "COD",
           couponCode,
+          giftItemId: selectedGift?._id || undefined,
           ...donationBody,
         };
         debugLog("[Checkout] REQ orderService.create (COD):", createReq);
@@ -1066,6 +1080,7 @@ function CheckoutPage() {
           couponCode,
           useWallet: useWalletForOnline,
           walletAmountToUse: useWalletForOnline ? walletAmountToUse : undefined,
+          giftItemId: selectedGift?._id || undefined,
           ...donationBody,
         };
         debugLog(
@@ -1499,6 +1514,7 @@ function CheckoutPage() {
           addressId,
           paymentMode: PAYMENT_MODES.NIMBLE,
           couponCode,
+          giftItemId: selectedGift?._id || undefined,
           nimbleReturnUrl: getNimbleReturnUrl(),
         }
         debugLog('[Checkout] REQ paymentService.createOrder (NIMBLE):', createReq)
@@ -1894,6 +1910,37 @@ function CheckoutPage() {
     summary.subTotalAfterDiscount,
     fetchPriceSummary,
   ]);
+
+  useEffect(() => {
+    const checkoutItems = cartData?.items ?? [];
+    if (!isAuthenticated || !checkoutItems.length || initiateCheckoutTrackedRef.current) return;
+    initiateCheckoutTrackedRef.current = true;
+    trackEvent({ eventType: "begin_checkout" });
+  }, [isAuthenticated, cartData?.items?.length]);
+
+  useEffect(() => {
+    const id = selectedAddress?._id;
+    if (id == null) return;
+    if (prevCheckoutAddressIdRef.current === id) return;
+    if (prevCheckoutAddressIdRef.current != null) {
+      trackEvent({
+        eventType: "checkout_address_selected",
+        addressId: String(id),
+      });
+    }
+    prevCheckoutAddressIdRef.current = id;
+  }, [selectedAddress?._id]);
+
+  useEffect(() => {
+    if (prevPaymentModeRef.current === paymentMode) return;
+    if (prevPaymentModeRef.current != null) {
+      trackEvent({
+        eventType: "payment_mode_selected",
+        paymentMode,
+      });
+    }
+    prevPaymentModeRef.current = paymentMode;
+  }, [paymentMode]);
 
   if (!isAuthenticated) {
     debugLog("[Checkout] render: not authenticated, show sign-in");
@@ -2897,6 +2944,11 @@ function CheckoutPage() {
                 </div>
               </div>
             )}
+
+            <FreeGiftPicker
+              selectedGift={selectedGift}
+              onChange={setSelectedGift}
+            />
 
             {/* Donation */}
             <DonationPicker

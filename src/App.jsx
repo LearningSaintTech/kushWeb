@@ -8,8 +8,8 @@ import { CommunitySocialProvider } from './features/community/context/CommunityS
 import { usePushSubscribe } from './app/hooks/usePushSubscribe'
 import { useLocationOnLoad } from './app/hooks/useLocationOnLoad'
 import { useEffect, useRef } from 'react'
-import { trackSessionEnd, trackSessionStart } from './analytics'
-//sdfgh
+import { flushAnalyticsQueue, setupAnalyticsErrorCapture, trackSessionEnd, trackSessionStart } from './analytics'
+import axiosClient from './services/axiosClient.js'
 function NotificationSocketConnector() {
   const { token } = useAuth()
   useNotificationSocket(token)
@@ -43,6 +43,7 @@ function AnalyticsSessionConnector() {
     const sendSessionEnd = () => {
       if (sessionEndSentRef.current) return
       sessionEndSentRef.current = true
+      flushAnalyticsQueue()
       trackSessionEnd({ isAuthenticated })
     }
 
@@ -67,8 +68,11 @@ function AnalyticsSessionConnector() {
 
   return null
 }
-//cdcf
 function AppContent() {
+  useEffect(() => {
+    setupAnalyticsErrorCapture(axiosClient)
+  }, [])
+
   return (
     <AuthProvider>
       <CartWishlistProvider>
