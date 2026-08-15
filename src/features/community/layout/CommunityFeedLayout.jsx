@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../app/context/AuthContext'
 import { getCommunityReelsPath, ROUTES } from '../../../utils/constants'
+import { navigateToReel } from '../utils/openReel'
 import girlImg from '../../../assets/images/community/communitygirl.jpg'
 import { can } from '../capabilities'
 import { useCommunityRole } from '../hooks/useCommunityRole'
@@ -159,7 +160,12 @@ export default function CommunityFeedLayout({
         if (id) {
           setSelectedProfile(null)
           setSelectedPost(null)
-          navigate(getCommunityReelsPath(id))
+          navigateToReel(navigate, {
+            reelId: id,
+            seed: { ...post, type: 'reel' },
+            playlist: options.playlist || [{ ...post, type: 'reel' }],
+            source: options.source || 'feed',
+          })
           return
         }
       }

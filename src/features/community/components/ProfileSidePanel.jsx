@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCommunityReelsPath } from '../../../utils/constants'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { useCommunitySocialProfile } from '../hooks/useCommunitySocialProfile'
 import { debugError } from '../../../utils/debugLog.js'
+import { isReelGridItem, navigateToReel, playlistFromGrid } from '../utils/openReel'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -59,12 +59,17 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
 
   const handleOpenMedia = (item) => {
     if (!item) return
-    if (item.type === 'reel') {
-      const id = item.id || item.post?.id
-      if (id) {
-        onClose?.()
-        navigate(getCommunityReelsPath(id))
-      }
+    if (isReelGridItem(item, activeTab)) {
+      const reelSeed = item.post
+        ? { ...item.post, type: 'reel' }
+        : { id: item.id, type: 'reel', image: item.image || '', poster: item.image || '' }
+      onClose?.()
+      navigateToReel(navigate, {
+        reelId: item.id || item.post?.id,
+        seed: reelSeed,
+        playlist: playlistFromGrid(display.mediaByTab?.Reels || []),
+        source: 'profile',
+      })
       return
     }
     if (item.post) onOpenPost?.(item.post)

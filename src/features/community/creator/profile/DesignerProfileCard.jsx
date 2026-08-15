@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import whiteBg from '../../../../assets/images/community/whitebg.png'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import { useCommunitySocialProfile } from '../../hooks/useCommunitySocialProfile'
+import { playlistFromGrid } from '../../utils/openReel'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -207,7 +208,12 @@ export default function DesignerProfileCard({
             <button
               key={item.id}
               type="button"
-              onClick={() => onOpenMedia?.(item)}
+              onClick={() =>
+                onOpenMedia?.(item, {
+                  tab,
+                  playlist: playlistFromGrid(social?.mediaByTab?.Reels || []),
+                })
+              }
               className="aspect-square cursor-pointer overflow-hidden bg-neutral-800"
               aria-label={`Open ${item.type}`}
             >

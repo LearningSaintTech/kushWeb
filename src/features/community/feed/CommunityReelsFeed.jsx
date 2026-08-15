@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useOutletContext, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useOutletContext, useSearchParams } from 'react-router-dom'
 import ReelCard from '../components/reels/ReelCard'
 import {
   useCommunityFeed,
@@ -17,11 +17,34 @@ import { debugError, debugLog } from '../../../utils/debugLog.js'
 /**
  * Fullscreen Shorts / Reels — one reel per viewport, snap scroll.
  * Deep link: /community/feed/reels?reelId=…
+ * Profile open: location.state.playlist = that user's reels
  */
 export default function CommunityReelsFeed() {
   const { openProfile, openReelComments } = useOutletContext() ?? {}
+  const location = useLocation()
   const [searchParams] = useSearchParams()
-  const startReelId = searchParams.get('reelId') || searchParams.get('reel') || ''
+  const startReelId =
+    searchParams.get('reelId') ||
+    searchParams.get('reel') ||
+    location.state?.startReelId ||
+    ''
+
+  const profilePlaylist = useMemo(() => {
+    const list = Array.isArray(location.state?.playlist) ? location.state.playlist : []
+    return list
+      .filter((r) => r?.id)
+      .map((r) => ({
+        ...r,
+        type: 'reel',
+        video: r.video || r.videoUrl || '',
+        videoUrl: r.videoUrl || r.video || '',
+        poster: r.poster || r.image || '',
+      }))
+  }, [location.state])
+
+  const profileSeed = location.state?.seed || null
+  const useProfilePlaylist = profilePlaylist.length > 0 || Boolean(profileSeed?.id)
+
   const social = useCommunitySocial()
   const scrollerRef = useRef(null)
   const itemRefs = useRef([])
@@ -43,12 +66,55 @@ export default function CommunityReelsFeed() {
     scope: 'explore',
     type: 'reel',
     limit: 6,
+    // Skip explore fetch when opening a profile playlist — show user's reels immediately
+    enabled: !useProfilePlaylist,
   })
 
-  // Ensure deep-linked reel is present (prepend if missing)
+  // Seed from navigation state immediately (profile / saved)
   useEffect(() => {
-    if (!startReelId) {
-      setBootReel(null)
+    if (!useProfilePlaylist) return
+    if (profileSeed?.id) {
+      setBootReel({
+        ...profileSeed,
+        type: 'reel',
+        video: profileSeed.video || profileSeed.videoUrl || '',
+        videoUrl: profileSeed.videoUrl || profileSeed.video || '',
+        poster: profileSeed.poster || profileSeed.image || '',
+      })
+    }
+  }, [useProfilePlaylist, profileSeed])
+
+  // Hydrate video URL if playlist seed only has a poster/thumbnail
+  useEffect(() => {
+    if (!useProfilePlaylist || !startReelId) return undefined
+    const existing =
+      profilePlaylist.find((r) => String(r.id) === String(startReelId)) ||
+      (profileSeed && String(profileSeed.id) === String(startReelId) ? profileSeed : null)
+    const hasVideo = Boolean(existing?.video || existing?.videoUrl)
+    if (hasVideo) return undefined
+
+    let cancelled = false
+    communityService
+      .getContent(startReelId)
+      .then((raw) => {
+        if (cancelled) return
+        const mapped = mapContentToReel(raw?.content || raw?.item || raw)
+        if (!mapped) return
+        setBootReel(mapped)
+      })
+      .catch((err) => {
+        debugError('[Community] profile reel hydrate failed', err?.message)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [useProfilePlaylist, startReelId, profilePlaylist, profileSeed])
+
+  // Fetch missing deep-linked reel only for explore mode
+  useEffect(() => {
+    if (useProfilePlaylist || !startReelId) {
+      if (!useProfilePlaylist && !startReelId) setBootReel(null)
       return undefined
     }
     if (feedReels.some((r) => String(r.id) === String(startReelId))) {
@@ -71,25 +137,45 @@ export default function CommunityReelsFeed() {
     return () => {
       cancelled = true
     }
-  }, [startReelId, feedReels])
+  }, [startReelId, feedReels, useProfilePlaylist])
 
-  const reels = (() => {
+  const reels = useMemo(() => {
+    if (useProfilePlaylist) {
+      const byId = new Map()
+      for (const r of profilePlaylist) byId.set(String(r.id), r)
+      if (bootReel?.id) {
+        const prev = byId.get(String(bootReel.id))
+        byId.set(String(bootReel.id), prev ? { ...prev, ...bootReel } : bootReel)
+      }
+      let list = Array.from(byId.values())
+      if (startReelId) {
+        const idx = list.findIndex((r) => String(r.id) === String(startReelId))
+        if (idx > 0) {
+          const [hit] = list.splice(idx, 1)
+          list.unshift(hit)
+        }
+      }
+      return list
+    }
+
     if (!bootReel) return feedReels
     if (feedReels.some((r) => String(r.id) === String(bootReel.id))) return feedReels
     return [bootReel, ...feedReels]
-  })()
+  }, [useProfilePlaylist, profilePlaylist, bootReel, feedReels, startReelId])
 
-  // Scroll to deep-linked reel once
+  // Scroll / activate start reel once
   useEffect(() => {
-    if (!startReelId || scrolledToStartRef.current === startReelId || !reels.length) {
-      return
-    }
-    const index = reels.findIndex((r) => String(r.id) === String(startReelId))
-    if (index < 0) return
-    scrolledToStartRef.current = startReelId
-    setActiveIndex(index)
+    if (!reels.length) return
+    const targetId = startReelId || reels[0]?.id
+    if (!targetId) return
+    if (scrolledToStartRef.current === `${targetId}:${reels.length}`) return
+
+    const index = reels.findIndex((r) => String(r.id) === String(targetId))
+    const nextIndex = index >= 0 ? index : 0
+    scrolledToStartRef.current = `${targetId}:${reels.length}`
+    setActiveIndex(nextIndex)
     requestAnimationFrame(() => {
-      itemRefs.current[index]?.scrollIntoView({ behavior: 'auto', block: 'start' })
+      itemRefs.current[nextIndex]?.scrollIntoView({ behavior: 'auto', block: 'start' })
     })
   }, [startReelId, reels])
 
@@ -121,11 +207,11 @@ export default function CommunityReelsFeed() {
   }, [reels.length])
 
   useEffect(() => {
-    if (!hasMore) return
+    if (useProfilePlaylist || !hasMore) return
     if (activeIndex >= Math.max(0, reels.length - 3)) {
       loadMore()
     }
-  }, [activeIndex, hasMore, loadMore, reels.length])
+  }, [activeIndex, hasMore, loadMore, reels.length, useProfilePlaylist])
 
   useEffect(() => {
     const reel = reels[activeIndex]
@@ -138,6 +224,13 @@ export default function CommunityReelsFeed() {
     }, 1500)
     return () => clearTimeout(t)
   }, [activeIndex, reels])
+
+  const patchLocal = useCallback((id, patch) => {
+    setBootReel((prev) => (prev && String(prev.id) === String(id) ? { ...prev, ...patch } : prev))
+    setItems((prev) =>
+      prev.map((item) => (String(item.id) === String(id) ? { ...item, ...patch } : item)),
+    )
+  }, [setItems])
 
   const patchByAuthorId = useCallback(
     (userId, patch) => {
@@ -166,23 +259,29 @@ export default function CommunityReelsFeed() {
   const handleLike = useCallback(
     async (reel) => {
       try {
-        await toggleCommunityLike(reel, patchItem, social)
+        await toggleCommunityLike(reel, (id, patch) => {
+          patchItem(id, patch)
+          patchLocal(id, patch)
+        }, social)
       } catch (err) {
         debugError('[Community] reel like failed', err?.message)
       }
     },
-    [patchItem, social],
+    [patchItem, patchLocal, social],
   )
 
   const handleSave = useCallback(
     async (reel) => {
       try {
-        await toggleCommunitySave(reel, patchItem, social)
+        await toggleCommunitySave(reel, (id, patch) => {
+          patchItem(id, patch)
+          patchLocal(id, patch)
+        }, social)
       } catch (err) {
         debugError('[Community] reel save failed', err?.message)
       }
     },
-    [patchItem, social],
+    [patchItem, patchLocal, social],
   )
 
   const handleFollow = useCallback(
@@ -247,7 +346,10 @@ export default function CommunityReelsFeed() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [activeIndex, goTo])
 
-  if (loading && reels.length === 0) {
+  const showLoading = !useProfilePlaylist && loading && reels.length === 0
+  const showError = !useProfilePlaylist && error && reels.length === 0
+
+  if (showLoading) {
     return (
       <div className="flex h-full items-center justify-center font-inter text-sm text-neutral-400">
         Loading reels…
@@ -255,7 +357,7 @@ export default function CommunityReelsFeed() {
     )
   }
 
-  if (error && reels.length === 0) {
+  if (showError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 font-inter text-sm text-amber-200">
         <p>{error}</p>
@@ -270,7 +372,7 @@ export default function CommunityReelsFeed() {
     )
   }
 
-  if (!loading && reels.length === 0) {
+  if (!reels.length) {
     return (
       <div className="flex h-full items-center justify-center font-inter text-sm text-neutral-400">
         No reels yet
@@ -287,7 +389,6 @@ export default function CommunityReelsFeed() {
       >
         {reels.map((reel, index) => {
           const dist = Math.abs(index - activeIndex)
-          // Only mount heavy players for active + neighbors (production perf)
           if (dist > 2) {
             return (
               <section

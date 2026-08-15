@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { getCommunityReelsPath } from '../../../utils/constants'
 import { useCommunitySaves } from '../hooks/useCommunityFeed'
 import { logCommunity } from '../../../services/communityApi.js'
+import { navigateToReel } from '../utils/openReel'
 
 const TABS = [
   { id: 'post', label: 'Images' },
@@ -21,7 +21,15 @@ export default function CommunitySavedFeed() {
   const handleOpen = (item) => {
     logCommunity('SavedFeed open', { id: item.id, type: item.type })
     if (item.type === 'reel') {
-      navigate(getCommunityReelsPath(item.id))
+      const playlist = items
+        .filter((row) => row.type === 'reel')
+        .map((row) => ({ ...row, type: 'reel' }))
+      navigateToReel(navigate, {
+        reelId: item.id,
+        seed: { ...item, type: 'reel' },
+        playlist,
+        source: 'saved',
+      })
       return
     }
     openPost?.(item)

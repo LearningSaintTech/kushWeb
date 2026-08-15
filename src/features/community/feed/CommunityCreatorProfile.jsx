@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { getCommunityReelsPath } from '../../../utils/constants'
 import CreatorProfileCard from '../creator/profile/CreatorProfileCard'
 import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
 import DesignerDashboard from '../creator/profile/DesignerDashboard'
+import { isReelGridItem, navigateToReel, playlistFromGrid } from '../utils/openReel'
 
 /**
  * Creator profile — profile or edit form (left) + dashboard (right).
@@ -14,10 +14,27 @@ export default function CommunityCreatorProfile() {
   const [editing, setEditing] = useState(false)
   const [dashMode, setDashMode] = useState('creator')
 
-  const handleOpenMedia = (item) => {
+  const handleOpenMedia = (item, meta = {}) => {
     if (!item) return
-    if (item.type === 'reel') {
-      navigate(getCommunityReelsPath(item.id || item.post?.id))
+    if (isReelGridItem(item, meta.tab)) {
+      const seed = item.post
+        ? { ...item.post, type: 'reel' }
+        : {
+            id: item.id,
+            type: 'reel',
+            image: item.image || '',
+            poster: item.image || '',
+            video: item.post?.video || item.post?.videoUrl || '',
+            videoUrl: item.post?.videoUrl || item.post?.video || '',
+          }
+      navigateToReel(navigate, {
+        reelId: item.id || item.post?.id,
+        seed,
+        playlist: meta.playlist?.length
+          ? meta.playlist
+          : playlistFromGrid([item]),
+        source: 'profile',
+      })
       return
     }
     const detail =

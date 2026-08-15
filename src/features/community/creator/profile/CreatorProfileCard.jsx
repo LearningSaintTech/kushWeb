@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import { useCommunityRole } from '../../hooks/useCommunityRole'
 import { useCommunitySocialProfile } from '../../hooks/useCommunitySocialProfile'
+import { playlistFromGrid } from '../../utils/openReel'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -180,7 +181,12 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onOpenMedia?.(item)}
+                onClick={() =>
+                  onOpenMedia?.(item, {
+                    tab,
+                    playlist: playlistFromGrid(social?.mediaByTab?.Reels || []),
+                  })
+                }
                 className="aspect-square cursor-pointer overflow-hidden bg-neutral-200"
                 aria-label={`Open ${item.type}`}
               >
