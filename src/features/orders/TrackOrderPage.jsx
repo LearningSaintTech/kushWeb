@@ -48,6 +48,7 @@ import { navigateToOrderCancelled } from "../checkout/orderConversion.js";
 import { reviewsService } from "../../services/reviews.service.js";
 import { trackEvent } from "../../analytics";
 import { getOfferBadgeText } from "../../utils/bindOffer.js";
+import OrderGiftNote from "./OrderGiftNote";
 import {
   BindOfferBillRows,
   BindOfferLineNote,
@@ -2038,6 +2039,9 @@ export default function TrackOrderPage() {
                 <p className="text-gray-600 text-sm mt-0.5">
                   Payment : <strong>{formatPaymentLine(data)}</strong>
                 </p>
+              ) : null}
+              {data?.giftItem?.name || data?.giftItem?.image ? (
+                <OrderGiftNote gift={data.giftItem} />
               ) : null}
               <div className="mt-4">
                 <button

@@ -21,6 +21,7 @@ import {
 } from '../../utils/orderTracking.js'
 import { getOfferBadgeText } from '../../utils/bindOffer.js'
 import { BindOfferLineNote } from '../../shared/components/BindOfferCartExtras.jsx'
+import OrderGiftNote from './OrderGiftNote'
 
 function formatPrice(num) {
   if (num == null || Number.isNaN(num)) return 'Rs. 0.00'
@@ -374,6 +375,9 @@ function OrdersPage() {
                       {trackingId && (
                         <p className="text-gray-500 text-[11px] sm:text-xs mt-1">Tracking ID: #{trackingId}</p>
                       )}
+                      {oi.giftItem?.name || oi.giftItem?.image ? (
+                        <OrderGiftNote gift={oi.giftItem} compact />
+                      ) : null}
                     </div>
                   </div>
 
