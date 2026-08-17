@@ -430,7 +430,7 @@ const ProductCard = React.memo(function ProductCard({
               alt={title}
               width={400}
               height={520}
-              className={`${resolvedImageClassName}${showComingSoonLock ? " scale-105 blur-[6px] sm:blur-[8px]" : ""}`}
+              className={`${resolvedImageClassName}${showComingSoonLock ? " scale-110 blur-md sm:blur-lg" : ""}`}
               decoding="async"
               loading={imageLoading}
               fetchPriority={imageLoading === "eager" ? "high" : "auto"}
@@ -468,7 +468,7 @@ const ProductCard = React.memo(function ProductCard({
           {/* Shaktiman coming soon: blur curtain + lock + swiping tag */}
           {showComingSoonLock ? (
             <div
-              className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/45"
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[2px]"
               aria-label={
                 launchDateLabel
                   ? `Coming soon — launching on ${launchDateLabel}`
@@ -511,18 +511,18 @@ const ProductCard = React.memo(function ProductCard({
                 </div>
               </div>
               <svg
-                className="h-[22%] w-auto max-h-20 min-h-11 text-white/70 sm:max-h-24"
+                className="h-8 w-8 text-white/85 sm:h-9 sm:w-9"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.6"
+                strokeWidth="1.75"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 aria-hidden
               >
                 <rect x="5" y="11" width="14" height="10" rx="2" />
                 <path d="M8 11V8a4 4 0 018 0v3" />
-                <circle cx="12" cy="16" r="1.25" fill="currentColor" stroke="none" />
+                <circle cx="12" cy="16" r="1.1" fill="currentColor" stroke="none" />
               </svg>
             </div>
           ) : null}

@@ -205,14 +205,14 @@ function NewArrivals({ section }) {
                       src={item.image}
                       alt={item.title}
                       className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-                        item.hoverImage && item.hoverImage !== item.image
+                        !comingSoon && item.hoverImage && item.hoverImage !== item.image
                           ? 'opacity-100 group-hover:opacity-0'
                           : 'opacity-100'
-                      } ${comingSoon ? 'scale-105 blur-sm' : ''}`}
+                      } ${comingSoon ? 'scale-110 blur-md sm:blur-lg' : ''}`}
                       loading={i < 2 ? 'eager' : 'lazy'}
                       decoding="async"
                     />
-                    {item.hoverImage && item.hoverImage !== item.image ? (
+                    {!comingSoon && item.hoverImage && item.hoverImage !== item.image ? (
                       <img
                         src={item.hoverImage}
                         alt=""
@@ -223,15 +223,41 @@ function NewArrivals({ section }) {
                       />
                     ) : null}
                     {comingSoon ? (
-                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/50 px-3 text-center text-white">
-                        <span className="font-inter text-xs font-semibold uppercase tracking-[0.16em]">
-                          Coming Soon
-                        </span>
-                        <span className="mt-2 font-inter text-[10px] uppercase tracking-wider text-white/85">
-                          {launchDateLabel
-                            ? `Launching on ${launchDateLabel}`
-                            : 'Launching soon'}
-                        </span>
+                      <div
+                        className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[2px]"
+                        aria-label={
+                          launchDateLabel
+                            ? `Coming soon — launching on ${launchDateLabel}`
+                            : 'Coming soon'
+                        }
+                        role="img"
+                      >
+                        <div className="absolute left-2 top-2 h-5 w-[9.5rem] overflow-hidden bg-black/80 font-inter font-semibold uppercase tracking-[0.14em] text-white sm:left-3 sm:top-3 sm:h-6 sm:w-[11.5rem] md:h-7 md:w-[13rem]">
+                          <div className="coming-soon-tag-swipe flex h-[200%] w-full flex-col">
+                            <span className="flex h-1/2 w-full items-center justify-center px-2 text-center text-[8px] sm:text-[10px] md:text-xs">
+                              Coming Soon
+                            </span>
+                            <span className="flex h-1/2 w-full items-center justify-center px-2 text-center text-[7px] sm:text-[9px] md:text-[10px]">
+                              {launchDateLabel
+                                ? `Launching on ${launchDateLabel}`
+                                : 'Launching soon'}
+                            </span>
+                          </div>
+                        </div>
+                        <svg
+                          className="h-8 w-8 text-white/85 sm:h-9 sm:w-9"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <rect x="5" y="11" width="14" height="10" rx="2" />
+                          <path d="M8 11V8a4 4 0 018 0v3" />
+                          <circle cx="12" cy="16" r="1.1" fill="currentColor" stroke="none" />
+                        </svg>
                       </div>
                     ) : item.outOfStock ? (
                       <div
