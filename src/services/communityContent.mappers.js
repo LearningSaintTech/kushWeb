@@ -416,3 +416,103 @@ export function mapSocialProfile(raw) {
   return profile;
 }
 
+const PROJECT_FALLBACK_STYLES = [
+  'bg-[linear-gradient(145deg,#a23eea_0%,#e94cc1_34%,#00c3e8_68%,#086acf_100%)]',
+  'bg-[linear-gradient(155deg,#1b7cc1_0%,#2ad3d1_45%,#7356e8_100%)]',
+  'bg-[linear-gradient(160deg,#0f0f10_0%,#2a2a2e_55%,#6b5cff_100%)]',
+  'bg-[linear-gradient(135deg,#f4d4b8_0%,#e8a87c_50%,#c38d9e_100%)]',
+  'bg-[linear-gradient(145deg,#e8f5e9_0%,#81c784_45%,#2e7d32_100%)]',
+  'bg-[linear-gradient(145deg,#fff3e0_0%,#ffb74d_50%,#ef6c00_100%)]',
+];
+
+function formatProjectViews(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num) || num <= 0) return '0';
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(Math.round(num));
+}
+
+/** API project → DesignerProjects card shape */
+export function mapProject(raw) {
+  if (!raw) return null;
+  const id = raw._id || raw.id || raw.projectId;
+  if (!id) return null;
+  const categories = Array.isArray(raw.categories)
+    ? raw.categories.filter(Boolean)
+    : raw.category
+      ? [raw.category]
+      : [];
+  const cover = raw.cover || raw.hero || null;
+  const image =
+    cover?.url ||
+    cover?.publicUrl ||
+    raw.heroImageUrl ||
+    raw.imageUrl ||
+    raw.publicUrl ||
+    raw.heroImage ||
+    raw.image ||
+    raw.media?.url ||
+    '';
+  const styleIndex = String(id).split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return {
+    id: String(id),
+    title: raw.title || raw.name || 'Untitled Project',
+    category: categories[0] || raw.category || 'Fashion',
+    categories,
+    description: raw.description || '',
+    tools: Array.isArray(raw.tools) ? raw.tools : [],
+    status: raw.status || 'pending',
+    image,
+    heroImageKey: cover?.key || raw.heroImageKey || raw.imageKey || raw.key || null,
+    existingCover: cover?.key
+      ? { key: cover.key, mimeType: cover.mimeType || 'image/jpeg' }
+      : null,
+    views: formatProjectViews(raw.viewCount ?? raw.views ?? 0),
+    viewCount: Number(raw.viewCount ?? raw.views) || 0,
+    style: PROJECT_FALLBACK_STYLES[styleIndex % PROJECT_FALLBACK_STYLES.length],
+    raw,
+  };
+}
+
+/** Normalize GET /projects/categories list → string names */
+export function extractProjectCategoryNames(payload) {
+  if (!payload) return [];
+  const list = Array.isArray(payload)
+    ? payload
+    : payload.items ||
+      payload.categories ||
+      payload.results ||
+      payload.data?.items ||
+      payload.data?.categories ||
+      [];
+  return (Array.isArray(list) ? list : [])
+    .map((item) => (typeof item === 'string' ? item : item?.name || item?.title || ''))
+    .map((name) => String(name).trim())
+    .filter(Boolean);
+}
+
+export function extractProjectsList(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload.map(mapProject).filter(Boolean);
+  const list =
+    payload.items ||
+    payload.projects ||
+    payload.results ||
+    payload.data?.items ||
+    payload.data?.projects ||
+    [];
+  return (Array.isArray(list) ? list : []).map(mapProject).filter(Boolean);
+}
+
+export function unwrapProject(payload) {
+  if (!payload) return null;
+  const raw =
+    payload.project ||
+    payload.item ||
+    payload.data?.project ||
+    payload.data ||
+    payload;
+  return mapProject(raw);
+}
+

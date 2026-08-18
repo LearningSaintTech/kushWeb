@@ -41,6 +41,27 @@ export function getById(itemId, params = {}) {
 }
 
 /**
+ * Related / recommendation suggestions for product detail.
+ * GET /items/recommendation-suggestions?type=item&limit=10&itemIds=
+ * @param {Object} [params]
+ * @param {string} [params.type='item']
+ * @param {number} [params.limit=10]
+ * @param {string|string[]} params.itemIds - Seed item id(s)
+ */
+export function getRecommendationSuggestions(params = {}) {
+  const { itemIds, type = 'item', limit = 10, ...rest } = params;
+  const ids = Array.isArray(itemIds) ? itemIds.filter(Boolean).join(',') : itemIds;
+  return client.get(`${ITEMS}/recommendation-suggestions`, {
+    params: {
+      type,
+      limit,
+      ...(ids ? { itemIds: ids } : {}),
+      ...rest,
+    },
+  });
+}
+
+/**
  * Get all items in random order (v2 endpoint).
  * @param {Object} [params]
  * @param {boolean|string} [params.isActive=true]
@@ -52,5 +73,6 @@ export function getAllVersion2(params = {}) {
 export const itemsService = {
   search,
   getById,
+  getRecommendationSuggestions,
   getAllVersion2,
 };

@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../../app/context/AuthContext'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { useCommunitySocialProfile } from '../hooks/useCommunitySocialProfile'
 import { debugError } from '../../../utils/debugLog.js'
 import { isReelGridItem, navigateToReel, playlistFromGrid } from '../utils/openReel'
+import { isSameCommunityUser } from '../utils/userIds'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
 export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('Posts')
   const social = useCommunitySocial()
   const userId = seed?.id || seed?.userId || null
@@ -17,6 +20,10 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
     enabled: Boolean(userId),
   })
 
+  const isOwn =
+    Boolean(profile?.isOwnProfile) ||
+    isSameCommunityUser(user, profile?.id || userId || seed)
+
   const display = profile || {
     id: userId,
     name: seed?.name || 'Member',
@@ -24,7 +31,7 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
     bio: seed?.bio || '',
     avatar: seed?.avatar || '',
     isFollowing: Boolean(seed?.isFollowing),
-    isOwnProfile: false,
+    isOwnProfile: isOwn,
     stats: { posts: '—', followers: '—', following: '—' },
     mediaByTab: { Posts: [], Reels: [], Tagged: [] },
   }
@@ -49,7 +56,7 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
   const media = display.mediaByTab?.[activeTab] ?? []
 
   const handleFollow = async () => {
-    if (!display.id || display.isOwnProfile) return
+    if (!display.id || isOwn) return
     try {
       await social.toggleFollow(display.id, following)
     } catch (err) {
@@ -140,7 +147,7 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
             >
               Share Profile
             </button>
-            {display.isOwnProfile ? (
+            {isOwn ? (
               <button
                 type="button"
                 className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"

@@ -1,16 +1,19 @@
 import { useMemo, useState } from 'react'
-import {
-  DESIGNER_PROJECTS,
-  PROJECT_CATEGORY_COLORS,
-} from '../../data/mockCreator'
+import { PROJECT_CATEGORY_COLORS } from '../../data/mockCreator'
 
 /**
  * Designer projects gallery — slides in beside the portfolio panel.
  */
 export default function DesignerProjects({
-  projects = DESIGNER_PROJECTS,
+  projects = [],
+  loading = false,
+  error = '',
+  onRetry,
   onBack,
   onAddProject,
+  onEditProject,
+  onOpenProject,
+  onDeleteProject,
 }) {
   const [range] = useState('Last 30 days')
   const [query, setQuery] = useState('')
@@ -21,7 +24,7 @@ export default function DesignerProjects({
     return projects.filter(
       (p) =>
         p.title.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q),
+        (p.category || '').toLowerCase().includes(q),
     )
   }, [projects, query])
 
@@ -80,53 +83,120 @@ export default function DesignerProjects({
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-3.5">
-        {filtered.map((project) => {
-          const catClass =
-            PROJECT_CATEGORY_COLORS[project.category] || 'text-[#7C5CFF]'
-          return (
-            <article
-              key={project.id}
-              className="group relative overflow-hidden rounded-2xl bg-neutral-200 shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+      {error ? (
+        <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-center">
+          <p className="font-inter text-sm text-red-700">{error}</p>
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-2 cursor-pointer font-inter text-xs font-semibold text-red-800 underline"
             >
-              <div className={`aspect-[4/5] ${project.style}`}>
-                {project.image ? (
-                  <img
-                    src={project.image}
-                    alt=""
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                  />
-                ) : null}
-              </div>
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-3 pb-3 pt-10">
-                <div className="flex items-end justify-between gap-2">
-                  <div className="min-w-0">
-                    <h2 className="truncate font-inter text-xs font-bold text-white sm:text-sm">
-                      {project.title}
-                    </h2>
-                    <p
-                      className={`mt-0.5 font-inter text-[9px] font-bold uppercase tracking-[0.12em] ${catClass}`}
-                    >
-                      {project.category}
-                    </p>
-                  </div>
-                  <span className="inline-flex shrink-0 items-center gap-1 font-inter text-[11px] font-medium text-white/90">
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    {project.views}
-                  </span>
-                </div>
-              </div>
-            </article>
-          )
-        })}
-      </div>
+              Try again
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <p className="mt-16 text-center font-inter text-sm text-neutral-500">Loading projects…</p>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-3.5">
+          {filtered.map((project) => {
+            const catClass =
+              PROJECT_CATEGORY_COLORS[project.category] || 'text-[#7C5CFF]'
+            return (
+              <article
+                key={project.id}
+                role={onOpenProject ? 'button' : undefined}
+                tabIndex={onOpenProject ? 0 : undefined}
+                onClick={() => onOpenProject?.(project)}
+                onKeyDown={(e) => {
+                  if (!onOpenProject) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onOpenProject(project)
+                  }
+                }}
+                className={`group relative overflow-hidden rounded-2xl bg-neutral-200 shadow-[0_4px_20px_rgba(0,0,0,0.06)] ${
+                  onOpenProject ? 'cursor-pointer' : ''
+                }`}
+              >
+                <div className={`aspect-[4/5] ${project.style || 'bg-neutral-300'}`}>
+                  {project.image ? (
+                    <img
+                      src={project.image}
+                      alt=""
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    />
+                  ) : null}
+                </div>
+                {project.status ? (
+                  <span className="absolute left-2 top-2 z-10 rounded-lg bg-black/55 px-2 py-1 font-inter text-[10px] font-semibold capitalize text-white backdrop-blur-sm">
+                    {project.status}
+                  </span>
+                ) : null}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-3 pb-3 pt-10">
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="min-w-0">
+                      <h2 className="truncate font-inter text-xs font-bold text-white sm:text-sm">
+                        {project.title}
+                      </h2>
+                      <p
+                        className={`mt-0.5 font-inter text-[9px] font-bold uppercase tracking-[0.12em] ${catClass}`}
+                      >
+                        {project.category}
+                      </p>
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1 font-inter text-[11px] font-medium text-white/90">
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {project.views}
+                    </span>
+                  </div>
+                </div>
+
+                {(onEditProject || onDeleteProject) ? (
+                  <div className="absolute right-2 top-2 z-10 flex gap-1.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                    {onEditProject ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onEditProject(project)
+                        }}
+                        className="cursor-pointer rounded-lg bg-black/55 px-2 py-1 font-inter text-[10px] font-semibold text-white backdrop-blur-sm transition hover:bg-black/75"
+                      >
+                        Edit
+                      </button>
+                    ) : null}
+                    {onDeleteProject ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDeleteProject(project)
+                        }}
+                        className="cursor-pointer rounded-lg bg-black/55 px-2 py-1 font-inter text-[10px] font-semibold text-white backdrop-blur-sm transition hover:bg-red-600/90"
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
+      )}
+
+      {!loading && !error && filtered.length === 0 ? (
         <p className="mt-16 text-center font-inter text-sm text-neutral-500">
-          No projects match your search.
+          {projects.length === 0
+            ? 'No projects yet. Add your first project.'
+            : 'No projects match your search.'}
         </p>
       ) : null}
     </div>

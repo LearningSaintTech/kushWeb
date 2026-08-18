@@ -4,15 +4,17 @@ import { useAuth } from '../../../../app/context/AuthContext'
 import { useCartWishlist } from '../../../../app/context/CartWishlistContext'
 import { ROUTES } from '../../../../utils/constants'
 import { debugError } from '../../../../utils/debugLog.js'
+import CommunityVariantPickerModal from './CommunityVariantPickerModal'
 
 /**
  * Tagged products — horizontal carousel matching the design cards
  * (image left + details/CTA right), with scroll-snap + pagination.
- * Add to Cart adds the item then opens the cart page.
+ * Add to Cart opens color/size picker, then adds with contentId.
  */
 export default function TaggedProductsCarousel({
   products = [],
   designedBy,
+  contentId = null,
   variant = 'light',
   compact = false,
 }) {
@@ -23,6 +25,7 @@ export default function TaggedProductsCarousel({
   const [activeIndex, setActiveIndex] = useState(0)
   const [busyId, setBusyId] = useState(null)
   const [errorById, setErrorById] = useState({})
+  const [pickerProduct, setPickerProduct] = useState(null)
   const isDark = variant === 'dark'
 
   const syncIndex = useCallback(() => {
@@ -58,7 +61,7 @@ export default function TaggedProductsCarousel({
     setActiveIndex(index)
   }
 
-  const handleAddToCart = async (product) => {
+  const openPicker = (product) => {
     const itemId = product?.id || product?.itemId || product?.raw?._id || product?.raw?.itemId
     if (!itemId) {
       setErrorById((prev) => ({ ...prev, [product?.id || 'x']: 'Product unavailable.' }))
@@ -68,38 +71,30 @@ export default function TaggedProductsCarousel({
       openAuthModal(ROUTES.CART)
       return
     }
-
-    setBusyId(itemId)
     setErrorById((prev) => {
       const next = { ...prev }
       delete next[itemId]
       return next
     })
+    setPickerProduct(product)
+  }
 
+  const handleConfirmVariant = async (cartProduct) => {
+    const itemId = cartProduct?.id
+    setBusyId(itemId)
     try {
-      const result = await addToCart({
-        id: itemId,
-        title: product.name,
-        price: product.price,
-        image: product.image,
-        color: product.color,
-        size: product.size,
-        variant:
-          product.color || product.size
-            ? {
-                color: product.color || 'Default',
-                size: product.size || 'One Size',
-                imageUrl: product.image,
-              }
-            : undefined,
+      console.log('[Community] addToCart from variant picker', {
+        itemId: cartProduct.id,
+        contentId: cartProduct.contentId,
+        sku: cartProduct.sku,
+        variant: cartProduct.variant,
+        product: cartProduct,
       })
+      const result = await addToCart(cartProduct)
       if (result?.success === false) {
-        setErrorById((prev) => ({
-          ...prev,
-          [itemId]: result.message || 'Could not add to cart.',
-        }))
-        return
+        throw new Error(result.message || 'Could not add to cart.')
       }
+      setPickerProduct(null)
       navigate(ROUTES.CART)
     } catch (err) {
       debugError('[Community] add to cart failed', err?.message)
@@ -107,6 +102,7 @@ export default function TaggedProductsCarousel({
         ...prev,
         [itemId]: err?.message || 'Could not add to cart.',
       }))
+      throw err
     } finally {
       setBusyId(null)
     }
@@ -173,7 +169,7 @@ export default function TaggedProductsCarousel({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => handleAddToCart(product)}
+                  onClick={() => openPicker(product)}
                   className="mt-2 w-full cursor-pointer rounded-lg bg-black py-2 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60"
                 >
                   {busy ? 'Adding…' : 'Add to Cart'}
@@ -214,6 +210,14 @@ export default function TaggedProductsCarousel({
           ))}
         </div>
       ) : null}
+
+      <CommunityVariantPickerModal
+        open={Boolean(pickerProduct)}
+        product={pickerProduct}
+        contentId={contentId || pickerProduct?.contentId || null}
+        onClose={() => setPickerProduct(null)}
+        onConfirm={handleConfirmVariant}
+      />
     </section>
   )
 }

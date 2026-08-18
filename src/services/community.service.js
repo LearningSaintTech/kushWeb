@@ -298,6 +298,79 @@ export const communityService = {
       }),
       params,
     ),
+
+  // ——— Designer projects ———
+
+  /**
+   * GET /community/projects/categories
+   * Admin catalog of active project categories.
+   * @param {{ q?: string, limit?: number }} params
+   */
+  getProjectCategories: (params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/projects/categories`,
+      client.get(`${BASE}/projects/categories`, {
+        params: qs({
+          q: params.q,
+          limit: params.limit ?? 30,
+        }),
+      }),
+      params,
+    ),
+
+  /** POST /community/projects */
+  createProject: (body) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/projects`,
+      client.post(`${BASE}/projects`, body),
+      body,
+    ),
+
+  /**
+   * GET /community/projects/me
+   * @param {{ status?: string, category?: string, limit?: number, cursor?: string }} params
+   */
+  getMyProjects: (params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/projects/me`,
+      client.get(`${BASE}/projects/me`, {
+        params: qs({
+          status: params.status ?? 'all',
+          category: params.category ?? 'all',
+          limit: params.limit ?? 20,
+          cursor: params.cursor,
+        }),
+      }),
+      params,
+    ),
+
+  /** GET /community/projects/me/:projectId */
+  getMyProject: (projectId) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/projects/me/${projectId}`,
+      client.get(`${BASE}/projects/me/${projectId}`),
+    ),
+
+  /** PATCH /community/projects/me/:projectId */
+  updateMyProject: (projectId, body) =>
+    wrapCommunity(
+      'PATCH',
+      `${BASE}/projects/me/${projectId}`,
+      client.patch(`${BASE}/projects/me/${projectId}`, body),
+      body,
+    ),
+
+  /** DELETE /community/projects/me/:projectId */
+  deleteMyProject: (projectId) =>
+    wrapCommunity(
+      'DELETE',
+      `${BASE}/projects/me/${projectId}`,
+      client.delete(`${BASE}/projects/me/${projectId}`),
+    ),
 };
 
 export { getCommunityErrorMessage, isDesignerNotVerifiedError };
@@ -311,4 +384,8 @@ export {
   mapSocialProfile,
   mapComment,
   extractCommentsList,
+  mapProject,
+  extractProjectsList,
+  unwrapProject,
+  extractProjectCategoryNames,
 } from './communityContent.mappers.js';

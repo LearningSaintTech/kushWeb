@@ -1,9 +1,11 @@
 import ReelPlayer from './ReelPlayer'
 import ReelActions from './ReelActions'
-import TaggedProductsCarousel from './TaggedProductsCarousel'
+import { useAuth } from '../../../../app/context/AuthContext'
+import { isSameCommunityUser } from '../../utils/userIds'
 
 /**
  * Fullscreen Shorts card — fills the viewport; only one reel visible at a time.
+ * Action stack sits outside the card on the bottom-right.
  */
 export default function ReelCard({
   reel,
@@ -16,10 +18,11 @@ export default function ReelCard({
   onComment,
   onFollow,
 }) {
-  const hasProducts = Array.isArray(reel.taggedProducts) && reel.taggedProducts.length > 0
+  const { user } = useAuth()
+  const isOwnReel = isSameCommunityUser(user, reel?.author)
 
   return (
-    <article className="relative mx-auto flex h-full w-full max-w-[560px] items-stretch justify-center gap-2 sm:gap-4">
+    <article className="relative mx-auto flex h-full w-full max-w-[440px] items-stretch justify-center gap-2 sm:max-w-[460px] sm:gap-3">
       <div className="relative h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-black sm:rounded-2xl">
         <ReelPlayer
           src={reel.video || reel.videoUrl}
@@ -29,34 +32,23 @@ export default function ReelCard({
           author={reel.author}
           caption={reel.caption}
           following={Boolean(reel.isFollowing)}
-          metaOffsetClass={hasProducts ? 'bottom-[7.5rem] sm:bottom-[8.25rem]' : ''}
+          showFollow={!isOwnReel}
+          taggedProducts={reel.taggedProducts}
+          designedBy={reel.designedBy}
+          contentId={reel.id}
           onFollow={onFollow}
           onProfileClick={() => onProfileClick?.(reel.author)}
         />
-
-        {hasProducts ? (
-          <div
-            data-reel-ui
-            className="absolute inset-x-0 bottom-0 z-30 max-h-[42%] overflow-y-auto px-3 pb-3 pt-2 sm:px-4 sm:pb-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <TaggedProductsCarousel
-              products={reel.taggedProducts}
-              designedBy={reel.designedBy}
-              variant="dark"
-              compact
-            />
-          </div>
-        ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-col justify-center self-center">
+      <div className="flex shrink-0 flex-col justify-end self-stretch pb-4 sm:pb-5">
         <ReelActions
           likes={reel.likes}
           comments={reel.comments}
           liked={Boolean(reel.isLiked)}
           saved={Boolean(reel.isSaved)}
           tone="light"
+          compact
           onLike={onLike}
           onSave={onSave}
           onShare={onShare}

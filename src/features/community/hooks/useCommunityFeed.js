@@ -13,7 +13,7 @@ import {
   mapSaveItem,
   extractSavesList,
 } from '../../../services/communityContent.mappers.js';
-import { useCommunitySocial } from '../context/CommunitySocialContext.jsx';
+import { useCommunitySocial } from '../context/CommunitySocialContext';
 
 /**
  * Cursor-paginated feed.

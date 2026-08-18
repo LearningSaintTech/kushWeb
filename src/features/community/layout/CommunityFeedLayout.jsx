@@ -19,6 +19,7 @@ import NotificationsPanel from '../components/NotificationsPanel'
 import CreateTypeModal from '../components/create/CreateTypeModal'
 import AddMediaSheet from '../components/create/AddMediaSheet'
 import CreatePostComposer from '../components/create/CreatePostComposer'
+import { CommunitySocialProvider } from '../context/CommunitySocialContext'
 import { SUGGESTED_CREATORS, TRENDING_HASHTAGS } from '../data/mockFeed'
 import { debugLog } from '../../../utils/debugLog'
 
@@ -87,15 +88,35 @@ export default function CommunityFeedLayout({
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [selectedPost, setSelectedPost] = useState(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [reelsSidebarOpen, setReelsSidebarOpen] = useState(false)
   const [createTypeOpen, setCreateTypeOpen] = useState(false)
   const [mediaSheetOpen, setMediaSheetOpen] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
   const [createKind, setCreateKind] = useState('reel')
   const [createMediaFile, setCreateMediaFile] = useState(null)
 
+  useEffect(() => {
+    if (!isReels) setReelsSidebarOpen(false)
+  }, [isReels])
+
+  useEffect(() => {
+    setReelsSidebarOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!reelsSidebarOpen) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setReelsSidebarOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [reelsSidebarOpen])
+
   const closeProfile = useCallback(() => setSelectedProfile(null), [])
   const closePost = useCallback(() => setSelectedPost(null), [])
   const closeNotifications = useCallback(() => setNotificationsOpen(false), [])
+  const openReelsSidebar = useCallback(() => setReelsSidebarOpen(true), [])
+  const closeReelsSidebar = useCallback(() => setReelsSidebarOpen(false), [])
 
   const openCreate = useCallback(() => {
     setSelectedProfile(null)
@@ -260,19 +281,35 @@ export default function CommunityFeedLayout({
         : activeNav
 
   return (
-    <div className={`flex h-dvh min-h-0 w-full flex-col overflow-hidden lg:flex-row ${isReels ? 'bg-black' : 'bg-white'}`}>
+    <CommunitySocialProvider>
+    <div className={`relative flex h-dvh min-h-0 w-full flex-col overflow-hidden lg:flex-row ${isReels ? 'bg-black' : 'bg-white'}`}>
       <header
         className={`flex shrink-0 items-center justify-between px-4 py-3 lg:hidden ${
           isReels ? 'bg-black text-white' : 'bg-white text-black'
         }`}
       >
-        <p
-          className={`font-inter text-base font-bold tracking-[0.12em] ${
-            isReels ? 'text-white' : 'text-black'
-          }`}
-        >
-          COMMUNITY
-        </p>
+        <div className="flex items-center gap-2">
+          {isReels ? (
+            <button
+              type="button"
+              onClick={openReelsSidebar}
+              aria-label="Open menu"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white text-black shadow-sm transition hover:bg-neutral-100"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                <rect x="3.75" y="4.75" width="16.5" height="14.5" rx="2" />
+                <path strokeLinecap="round" d="M9 5v14" />
+              </svg>
+            </button>
+          ) : null}
+          <p
+            className={`font-inter text-base font-bold tracking-[0.12em] ${
+              isReels ? 'text-white' : 'text-black'
+            }`}
+          >
+            COMMUNITY
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -299,17 +336,71 @@ export default function CommunityFeedLayout({
         </div>
       </header>
 
-      <div className="hidden h-full min-h-0 shrink-0 overflow-hidden lg:block">
-        <CommunitySidebar
-          role={shellRole}
-          activeId={sidebarActiveId}
-          userName={userName}
-          userAvatar={userAvatar}
-          hasPosts={hasPosts}
-          onCreateClick={openCreate}
-          onNotificationsClick={openNotifications}
-        />
-      </div>
+      {/* Desktop: always-on sidebar, except Reels (collapsed until opened) */}
+      {!isReels ? (
+        <div className="hidden h-full min-h-0 shrink-0 overflow-hidden lg:block">
+          <CommunitySidebar
+            role={shellRole}
+            activeId={sidebarActiveId}
+            userName={userName}
+            userAvatar={userAvatar}
+            hasPosts={hasPosts}
+            onCreateClick={openCreate}
+            onNotificationsClick={openNotifications}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={openReelsSidebar}
+          aria-label="Open menu"
+          className="absolute left-3 top-3 z-40 hidden h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-white text-black shadow-md transition hover:bg-neutral-100 lg:flex"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+            <rect x="3.75" y="4.75" width="16.5" height="14.5" rx="2" />
+            <path strokeLinecap="round" d="M9 5v14" />
+          </svg>
+        </button>
+      )}
+
+      {/* Reels collapsible sidebar drawer */}
+      {isReels && reelsSidebarOpen ? (
+        <div className="fixed inset-0 z-[80]">
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={closeReelsSidebar}
+            className="absolute inset-0 cursor-default bg-black/50"
+          />
+          <div className="absolute inset-y-0 left-0 z-10 flex animate-[community-notifications-in_280ms_cubic-bezier(0.22,1,0.36,1)] shadow-[16px_0_42px_rgba(0,0,0,0.25)]">
+            <CommunitySidebar
+              role={shellRole}
+              activeId={sidebarActiveId}
+              userName={userName}
+              userAvatar={userAvatar}
+              hasPosts={hasPosts}
+              onCreateClick={() => {
+                closeReelsSidebar()
+                openCreate()
+              }}
+              onNotificationsClick={() => {
+                closeReelsSidebar()
+                openNotifications()
+              }}
+            />
+            <button
+              type="button"
+              onClick={closeReelsSidebar}
+              aria-label="Close sidebar"
+              className="absolute right-2 top-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-black"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div
         className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${
@@ -322,7 +413,7 @@ export default function CommunityFeedLayout({
       >
         {isReels ? (
           /* Fullscreen Shorts stage — one reel fills the column */
-          <main className="h-full min-h-0 w-full max-w-[640px] overflow-hidden">
+          <main className="h-full min-h-0 w-full max-w-[460px] overflow-hidden">
             <Outlet context={{ openProfile, openPost, openReelComments }} />
           </main>
         ) : (
@@ -400,5 +491,6 @@ export default function CommunityFeedLayout({
         onPosted={handlePosted}
       />
     </div>
+    </CommunitySocialProvider>
   )
 }

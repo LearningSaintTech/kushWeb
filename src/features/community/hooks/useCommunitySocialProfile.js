@@ -34,6 +34,7 @@ export function useCommunitySocialProfile(options = {}) {
         ? await communityService.getProfile(userId)
         : await communityService.getMyProfile()
       const mapped = mapSocialProfile(raw)
+      if (!userId && mapped) mapped.isOwnProfile = true
       debugLog('[Community] social profile ok', {
         userId: mapped?.id,
         own: mapped?.isOwnProfile,
@@ -66,7 +67,9 @@ export function useCommunitySocialProfile(options = {}) {
           ? await communityService.getProfile(userId)
           : await communityService.getMyProfile()
         if (cancelled) return
-        setProfile(mapSocialProfile(raw))
+        const mapped = mapSocialProfile(raw)
+        if (!userId && mapped) mapped.isOwnProfile = true
+        setProfile(mapped)
       } catch (err) {
         if (cancelled) return
         debugError('[Community] social profile failed', err?.message)

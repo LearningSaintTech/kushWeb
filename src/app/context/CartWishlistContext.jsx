@@ -210,11 +210,13 @@ export function CartWishlistProvider({ children }) {
   const buildCartPayload = useCallback(async (product, pincode = null) => {
     const itemId = product?.id ?? product?._id
     if (!itemId) return null
+    const contentId = product?.contentId || product?.content_id || null
     if (product?.variant && product?.sku) {
       const rawImg = product.variant.imageUrl ?? product.image ?? ''
       const imageUrl = (rawImg || 'https://placehold.co/400').replace(/ /g, '%20')
       return {
         itemId,
+        ...(contentId ? { contentId: String(contentId) } : {}),
         variant: {
           color: product.variant.color ?? product.color ?? 'Default',
           size: product.variant.size ?? product.size ?? 'One Size',
@@ -256,6 +258,7 @@ export function CartWishlistProvider({ children }) {
       const qty = Math.max(1, Number(product?.quantity) || 1)
       const payload = {
         itemId: item._id ?? itemId,
+        ...(contentId ? { contentId: String(contentId) } : {}),
         variant: {
           color: v?.color?.name ?? 'Default',
           size: s.size ?? 'One Size',
@@ -413,6 +416,15 @@ export function CartWishlistProvider({ children }) {
         const payload = await buildCartPayload(product, pin)
         if (!payload) {
           return { success: false, message: 'Could not add this item to cart.' }
+        }
+        if (payload.contentId) {
+          console.log('[Community cart/add]', {
+            itemId: payload.itemId,
+            contentId: payload.contentId,
+            quantity: payload.quantity,
+            variant: payload.variant,
+            full: payload,
+          })
         }
         try {
           await cartService.add(payload)

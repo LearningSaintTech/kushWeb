@@ -16,8 +16,20 @@ export function unwrapCommunity(res) {
 }
 
 export function getCommunityErrorMessage(err, fallback = 'Something went wrong.') {
-  const msg = err?.response?.data?.message;
+  const data = err?.response?.data;
+  const msg = data?.message;
   if (typeof msg === 'string' && msg.trim()) return msg.trim();
+  const errors = data?.errors;
+  if (Array.isArray(errors) && errors.length) {
+    const first = errors[0];
+    const detail =
+      (typeof first === 'string' && first) ||
+      first?.message ||
+      first?.msg ||
+      (first?.path && first?.message) ||
+      null;
+    if (detail) return String(detail).trim();
+  }
   if (typeof err?.message === 'string' && err.message.trim()) return err.message.trim();
   return fallback;
 }

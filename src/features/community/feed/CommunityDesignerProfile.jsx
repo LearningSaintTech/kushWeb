@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { DESIGNER_PROJECTS } from '../data/mockCreator'
 import DesignerProfileCard from '../creator/profile/DesignerProfileCard'
 import DesignerPortfolio from '../creator/profile/DesignerPortfolio'
 import DesignerDashboard from '../creator/profile/DesignerDashboard'
@@ -8,6 +7,51 @@ import DesignerProjects from '../creator/profile/DesignerProjects'
 import AddProjectModal from '../creator/profile/AddProjectModal'
 import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
 import { isReelGridItem, navigateToReel, playlistFromGrid } from '../utils/openReel'
+import {
+  communityService,
+  extractProjectsList,
+  getCommunityErrorMessage,
+  unwrapProject,
+} from '../../../services/community.service.js'
+import { uploadCommunityFile } from '../../../services/communityUpload.service.js'
+
+/**
+ * Build POST/PATCH body per FRONTEND_INTEGRATION §13:
+ * categories[], tools[], cover { key, mimeType }, optional images[]
+ */
+function buildProjectBody(payload, cover) {
+  const categories = Array.isArray(payload.categories)
+    ? payload.categories.filter(Boolean)
+    : payload.category
+      ? [payload.category]
+      : []
+
+  const body = {
+    title: payload.title,
+    description: payload.description || '',
+    categories: categories.slice(0, 10),
+    tools: (Array.isArray(payload.tools) ? payload.tools : []).slice(0, 20),
+  }
+
+  if (cover?.key) {
+    body.cover = {
+      key: cover.key,
+      mimeType: cover.mimeType || 'image/jpeg',
+    }
+  }
+
+  if (Array.isArray(payload.images) && payload.images.length) {
+    body.images = payload.images
+      .filter((img) => img?.key)
+      .slice(0, 20)
+      .map((img) => ({
+        key: img.key,
+        mimeType: img.mimeType || 'image/jpeg',
+      }))
+  }
+
+  return body
+}
 
 /**
  * Designer profile — portfolio stays; View Projects slides in from the right.
@@ -18,9 +62,32 @@ export default function CommunityDesignerProfile() {
   const [showPortfolio, setShowPortfolio] = useState(false)
   const [showProjects, setShowProjects] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState(null)
   const [editing, setEditing] = useState(false)
   const [dashMode, setDashMode] = useState('designer')
-  const [projects, setProjects] = useState(DESIGNER_PROJECTS)
+  const [projects, setProjects] = useState([])
+  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [projectsError, setProjectsError] = useState('')
+
+  const loadProjects = useCallback(async () => {
+    setProjectsLoading(true)
+    setProjectsError('')
+    try {
+      const data = await communityService.getMyProjects({ status: 'all', limit: 20 })
+      setProjects(extractProjectsList(data))
+    } catch (err) {
+      setProjectsError(getCommunityErrorMessage(err, 'Could not load projects.'))
+      setProjects([])
+    } finally {
+      setProjectsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showPortfolio && showProjects) {
+      loadProjects()
+    }
+  }, [showPortfolio, showProjects, loadProjects])
 
   const handleOpenMedia = (item, meta = {}) => {
     if (!item) return
@@ -64,28 +131,111 @@ export default function CommunityDesignerProfile() {
     if (detail) openPost?.(detail)
   }
 
-  const handleSaveProject = (payload) => {
-    const id = `proj-${Date.now()}`
-    setProjects((prev) => [
-      {
-        id,
+  const handleSaveProject = async (payload, { onProgress } = {}) => {
+    let cover = payload.existingCover || null
+    let uploadedPublicUrl = null
+
+    if (payload.file) {
+      const uploaded = await uploadCommunityFile(payload.file, {
+        purpose: 'project',
+        onProgress,
+      })
+      cover = {
+        key: uploaded.key,
+        mimeType: uploaded.mimeType || payload.file.type || 'image/jpeg',
+      }
+      uploadedPublicUrl = uploaded.publicUrl || null
+    }
+
+    if (!payload.id && !cover?.key) {
+      throw new Error('Add a cover image.')
+    }
+
+    const body = buildProjectBody(payload, cover)
+    let mapped
+
+    if (payload.id) {
+      const data = await communityService.updateMyProject(payload.id, body)
+      mapped = unwrapProject(data)
+    } else {
+      const data = await communityService.createProject(body)
+      mapped = unwrapProject(data)
+    }
+
+    if (!mapped) {
+      const category =
+        (Array.isArray(payload.categories) && payload.categories[0]) ||
+        payload.category ||
+        'Fashion'
+      mapped = {
+        id: payload.id || `proj-${Date.now()}`,
         title: payload.title,
-        category: payload.category,
-        views: '0',
-        image: payload.image,
-        style:
-          'bg-[linear-gradient(145deg,#a23eea_0%,#e94cc1_34%,#00c3e8_68%,#086acf_100%)]',
+        category,
+        categories: body.categories,
         description: payload.description,
         tools: payload.tools,
-        status: payload.status,
-      },
-      ...prev,
-    ])
+        status: 'pending',
+        image: uploadedPublicUrl || payload.imagePreview || payload.existingImage || '',
+        heroImageKey: cover?.key || null,
+        views: '0',
+        viewCount: 0,
+        style:
+          'bg-[linear-gradient(145deg,#a23eea_0%,#e94cc1_34%,#00c3e8_68%,#086acf_100%)]',
+      }
+    } else if (!mapped.image && (uploadedPublicUrl || payload.imagePreview || payload.existingImage)) {
+      mapped = {
+        ...mapped,
+        image: uploadedPublicUrl || payload.imagePreview || payload.existingImage,
+      }
+    }
+
+    setProjects((prev) => {
+      const without = prev.filter((p) => p.id !== mapped.id)
+      return [mapped, ...without]
+    })
+  }
+
+  const handleDeleteProject = async (project) => {
+    if (!project?.id) return
+    const ok = window.confirm(`Delete “${project.title}”? This cannot be undone.`)
+    if (!ok) return
+    try {
+      await communityService.deleteMyProject(project.id)
+      setProjects((prev) => prev.filter((p) => p.id !== project.id))
+    } catch (err) {
+      window.alert(getCommunityErrorMessage(err, 'Could not delete project.'))
+    }
   }
 
   const handleClosePortfolio = () => {
     setShowProjects(false)
     setShowPortfolio(false)
+    setAddOpen(false)
+    setEditingProject(null)
+  }
+
+  const openAdd = () => {
+    setEditingProject(null)
+    setAddOpen(true)
+  }
+
+  /** GET /community/projects/me/:projectId then open edit modal */
+  const openEdit = async (project) => {
+    if (!project?.id) return
+    setEditingProject(project)
+    setAddOpen(true)
+    try {
+      const data = await communityService.getMyProject(project.id)
+      const mapped = unwrapProject(data)
+      if (mapped) {
+        setEditingProject(mapped)
+        setProjects((prev) =>
+          prev.map((p) => (p.id === mapped.id ? { ...p, ...mapped } : p)),
+        )
+      }
+    } catch {
+      // Keep list row data so the modal still works if detail fetch fails
+    }
   }
 
   if (showPortfolio) {
@@ -119,8 +269,14 @@ export default function CommunityDesignerProfile() {
             >
               <DesignerProjects
                 projects={projects}
+                loading={projectsLoading}
+                error={projectsError}
+                onRetry={loadProjects}
                 onBack={() => setShowProjects(false)}
-                onAddProject={() => setAddOpen(true)}
+                onAddProject={openAdd}
+                onEditProject={openEdit}
+                onOpenProject={openEdit}
+                onDeleteProject={handleDeleteProject}
               />
             </div>
           </div>
@@ -128,7 +284,11 @@ export default function CommunityDesignerProfile() {
 
         <AddProjectModal
           open={addOpen}
-          onClose={() => setAddOpen(false)}
+          project={editingProject}
+          onClose={() => {
+            setAddOpen(false)
+            setEditingProject(null)
+          }}
           onSave={handleSaveProject}
         />
       </>

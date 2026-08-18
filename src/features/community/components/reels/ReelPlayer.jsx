@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import TaggedProductsCarousel from './TaggedProductsCarousel'
 
 function PlayIcon({ className }) {
   return (
@@ -16,8 +17,22 @@ function PauseIcon({ className }) {
   )
 }
 
+function PackageIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"
+      />
+    </svg>
+  )
+}
+
 /**
  * Fullscreen reel player — only loads/plays when active (or warm neighbor).
+ * Bottom-left: creator + caption + Follow / tagged toggle
+ * (Like / Comment / Share / Save live outside the card in ReelCard)
  */
 export default function ReelPlayer({
   src,
@@ -27,7 +42,10 @@ export default function ReelPlayer({
   author,
   caption,
   following = false,
-  metaOffsetClass = '',
+  showFollow = true,
+  taggedProducts = [],
+  designedBy = null,
+  contentId = null,
   onFollow,
   onProfileClick,
   onTogglePlay,
@@ -37,7 +55,13 @@ export default function ReelPlayer({
   const playRequestRef = useRef(0)
   const [playing, setPlaying] = useState(false)
   const [showControl, setShowControl] = useState(true)
+  const [showTagged, setShowTagged] = useState(false)
   const shouldMountSrc = Boolean(src) && (active || warm)
+  const hasProducts = Array.isArray(taggedProducts) && taggedProducts.length > 0
+
+  useEffect(() => {
+    if (!active) setShowTagged(false)
+  }, [active])
 
   const flashControl = (isPlaying) => {
     setShowControl(true)
@@ -171,7 +195,7 @@ export default function ReelPlayer({
       />
 
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/60 via-black/25 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/65 via-black/25 to-transparent"
         aria-hidden
       />
 
@@ -197,9 +221,21 @@ export default function ReelPlayer({
 
       <div
         data-reel-ui
-        className={`absolute inset-x-0 z-10 p-4 sm:p-5 ${metaOffsetClass || 'bottom-0'}`}
+        className="absolute inset-x-0 bottom-0 z-10 p-3 sm:p-4"
         onClick={(e) => e.stopPropagation()}
       >
+        {hasProducts && showTagged ? (
+          <div className="mb-3 max-h-[38%] overflow-y-auto">
+            <TaggedProductsCarousel
+              products={taggedProducts}
+              designedBy={designedBy}
+              contentId={contentId}
+              variant="dark"
+              compact
+            />
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-2.5">
           <button
             type="button"
@@ -212,12 +248,12 @@ export default function ReelPlayer({
               <img src={author.avatar} alt="" className="h-full w-full object-cover" />
             ) : null}
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <button
               type="button"
               data-reel-ui
               onClick={onProfileClick}
-              className="block cursor-pointer truncate text-left font-inter text-sm font-semibold text-white"
+              className="block max-w-full cursor-pointer truncate text-left font-inter text-sm font-semibold text-white"
             >
               {author?.name || 'Member'}
             </button>
@@ -225,18 +261,34 @@ export default function ReelPlayer({
               {author?.role || 'CREATOR'}
             </p>
           </div>
-          <button
-            type="button"
-            data-reel-ui
-            onClick={onFollow}
-            className="ml-auto shrink-0 cursor-pointer rounded-full border border-white/70 px-3 py-1 font-inter text-xs font-semibold text-white transition hover:bg-white/15"
-          >
-            {following ? 'Following' : 'Follow'}
-          </button>
+          {showFollow ? (
+            <button
+              type="button"
+              data-reel-ui
+              onClick={onFollow}
+              className="shrink-0 cursor-pointer rounded-full border border-white/70 bg-black/35 px-3 py-1.5 font-inter text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
+            >
+              {following ? 'Following' : 'Follow'}
+            </button>
+          ) : null}
+          {hasProducts ? (
+            <button
+              type="button"
+              data-reel-ui
+              onClick={() => setShowTagged((v) => !v)}
+              aria-label={showTagged ? 'Hide tagged products' : 'Show tagged products'}
+              aria-pressed={showTagged}
+              className={`flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition ${
+                showTagged ? 'bg-white text-black' : 'bg-white/90 text-black hover:bg-white'
+              }`}
+            >
+              <PackageIcon className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
 
         {caption ? (
-          <p className="mt-3 line-clamp-2 font-inter text-sm leading-relaxed text-white/95">
+          <p className="mt-2.5 line-clamp-2 font-inter text-sm leading-relaxed text-white/95">
             {caption}
           </p>
         ) : null}

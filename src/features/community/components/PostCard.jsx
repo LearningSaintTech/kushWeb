@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useAuth } from '../../../app/context/AuthContext'
 import TaggedProductsCarousel from './reels/TaggedProductsCarousel'
+import { isSameCommunityUser } from '../utils/userIds'
 
 const ROLE_CLASS = {
   CREATOR: 'text-neutral-400',
@@ -50,6 +52,8 @@ export default function PostCard({
   const { body, tags } = renderCaption(caption, post.hashtags)
   const canPrev = imageIndex > 0
   const canNext = imageIndex < gallery.length - 1
+  const { user } = useAuth()
+  const isOwnPost = isSameCommunityUser(user, author)
 
   return (
     <article className="border-b border-neutral-100 pb-8 last:border-0">
@@ -76,13 +80,15 @@ export default function PostCard({
             {author.role}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onFollow}
-          className="cursor-pointer font-inter text-sm font-semibold text-[#2563EB] transition hover:opacity-80"
-        >
-          {author?.isFollowing ? 'Following' : 'Follow'}
-        </button>
+        {!isOwnPost ? (
+          <button
+            type="button"
+            onClick={onFollow}
+            className="cursor-pointer font-inter text-sm font-semibold text-[#2563EB] transition hover:opacity-80"
+          >
+            {author?.isFollowing ? 'Following' : 'Follow'}
+          </button>
+        ) : null}
       </header>
 
       <div className="relative mt-4 overflow-hidden rounded-lg bg-neutral-100">
@@ -243,7 +249,11 @@ export default function PostCard({
         ) : null}
       </div>
 
-      <TaggedProductsCarousel products={taggedProducts} designedBy={designedBy} />
+      <TaggedProductsCarousel
+        products={taggedProducts}
+        designedBy={designedBy}
+        contentId={post?.id || null}
+      />
     </article>
   )
 }

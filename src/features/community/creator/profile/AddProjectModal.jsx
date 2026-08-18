@@ -1,43 +1,108 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { PROJECT_CATEGORIES } from '../../data/mockCreator'
-
-const STATUSES = [
-  { id: 'published', label: 'Published' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'draft', label: 'Draft' },
-]
+import {
+  communityService,
+  extractProjectCategoryNames,
+  getCommunityErrorMessage,
+} from '../../../../services/community.service.js'
 
 const DEFAULT_TOOLS = ['Figma', 'After Effects', 'Spline']
 
+const STATUS_LABELS = {
+  pending: 'Pending review',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  hidden: 'Hidden',
+}
+
 /**
- * Add / edit project modal.
+ * Add / edit project modal — cover image via Select File / drag-drop.
+ * Create body matches API: categories[], tools[], cover { key, mimeType }.
  */
-export default function AddProjectModal({ open, onClose, onSave }) {
+export default function AddProjectModal({ open, onClose, onSave, project = null }) {
   const titleId = useId()
   const fileRef = useRef(null)
-  const [title, setTitle] = useState('EcoFlow Dashboard')
-  const [category, setCategory] = useState('UI/UX Design')
-  const [description, setDescription] = useState(
-    'A comprehensive redesign of a renewable energy monitoring platform. Focusing on accessibility and real-time data visualization through intuitive 3D components...',
-  )
+  const [title, setTitle] = useState('')
+  const [category, setCategory] = useState('')
+  const [categoryOptions, setCategoryOptions] = useState(PROJECT_CATEGORIES)
+  const [description, setDescription] = useState('')
   const [tools, setTools] = useState(DEFAULT_TOOLS)
-  const [status, setStatus] = useState('published')
   const [heroPreview, setHeroPreview] = useState(null)
+  const [heroFile, setHeroFile] = useState(null)
   const [toolDraft, setToolDraft] = useState('')
   const [addingTool, setAddingTool] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [uploadPct, setUploadPct] = useState(null)
+
+  const isEdit = Boolean(project?.id)
+  const statusLabel = STATUS_LABELS[project?.status] || STATUS_LABELS.pending
+
+  useEffect(() => {
+    if (!open) return
+    setError('')
+    setSaving(false)
+    setUploadPct(null)
+    setToolDraft('')
+    setAddingTool(false)
+    setHeroFile(null)
+
+    if (project) {
+      setTitle(project.title || '')
+      setCategory(project.category || project.categories?.[0] || '')
+      setDescription(project.description || '')
+      setTools(Array.isArray(project.tools) && project.tools.length ? project.tools : DEFAULT_TOOLS)
+      setHeroPreview(project.image || null)
+    } else {
+      setTitle('')
+      setCategory('')
+      setDescription('')
+      setTools(DEFAULT_TOOLS)
+      setHeroPreview(null)
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await communityService.getProjectCategories({ limit: 30 })
+        if (cancelled) return
+        const names = extractProjectCategoryNames(data)
+        if (names.length) {
+          setCategoryOptions((prev) => {
+            const current = project?.category || project?.categories?.[0]
+            const merged = [...names]
+            if (current && !merged.includes(current)) merged.unshift(current)
+            return merged.length ? merged : prev
+          })
+          setCategory((prev) => prev || names[0])
+        } else {
+          setCategory((prev) => prev || PROJECT_CATEGORIES[0])
+        }
+      } catch {
+        if (!cancelled) {
+          setCategoryOptions(PROJECT_CATEGORIES)
+          setCategory((prev) => prev || PROJECT_CATEGORIES[0])
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, project])
 
   useEffect(() => {
     if (!open) return undefined
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.()
+      if (e.key === 'Escape' && !saving) onClose?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, onClose, saving])
 
   useEffect(() => {
     return () => {
-      if (heroPreview) URL.revokeObjectURL(heroPreview)
+      if (heroPreview?.startsWith?.('blob:')) URL.revokeObjectURL(heroPreview)
     }
   }, [heroPreview])
 
@@ -45,8 +110,10 @@ export default function AddProjectModal({ open, onClose, onSave }) {
 
   const handleFile = (file) => {
     if (!file || !file.type.startsWith('image/')) return
-    if (heroPreview) URL.revokeObjectURL(heroPreview)
+    if (heroPreview?.startsWith?.('blob:')) URL.revokeObjectURL(heroPreview)
+    setHeroFile(file)
     setHeroPreview(URL.createObjectURL(file))
+    setError('')
   }
 
   const handleDrop = (e) => {
@@ -68,16 +135,49 @@ export default function AddProjectModal({ open, onClose, onSave }) {
     setAddingTool(false)
   }
 
-  const handleSave = () => {
-    onSave?.({
-      title: title.trim() || 'Untitled Project',
-      category,
-      description: description.trim(),
-      tools,
-      status,
-      image: heroPreview,
-    })
-    onClose?.()
+  const handleSave = async () => {
+    if (saving) return
+    if (!title.trim()) {
+      setError('Add a project title.')
+      return
+    }
+    if (!category) {
+      setError('Pick a category.')
+      return
+    }
+    if (!isEdit && !heroFile) {
+      setError('Add a cover image.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      await onSave?.(
+        {
+          id: project?.id || null,
+          title: title.trim() || 'Untitled Project',
+          category,
+          categories: [category],
+          description: description.trim(),
+          tools,
+          file: heroFile,
+          imagePreview: heroPreview,
+          existingImage: project?.image || null,
+          existingCover: project?.existingCover || null,
+          existingKey: project?.heroImageKey || null,
+        },
+        {
+          onProgress: (pct) => setUploadPct(pct),
+        },
+      )
+      onClose?.()
+    } catch (err) {
+      setError(getCommunityErrorMessage(err, 'Could not save project.'))
+    } finally {
+      setSaving(false)
+      setUploadPct(null)
+    }
   }
 
   return (
@@ -85,7 +185,7 @@ export default function AddProjectModal({ open, onClose, onSave }) {
       <button
         type="button"
         aria-label="Close"
-        onClick={onClose}
+        onClick={() => !saving && onClose?.()}
         className="absolute inset-0 cursor-default bg-black/40 transition-opacity"
       />
 
@@ -98,23 +198,32 @@ export default function AddProjectModal({ open, onClose, onSave }) {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            disabled={saving}
             onClick={handleSave}
-            className="cursor-pointer rounded-xl bg-[#7C5CFF] px-3.5 py-2 font-inter text-sm font-semibold text-white transition hover:bg-[#6d4ef0]"
+            className="cursor-pointer rounded-xl bg-[#7C5CFF] px-3.5 py-2 font-inter text-sm font-semibold text-white transition hover:bg-[#6d4ef0] disabled:cursor-wait disabled:opacity-60"
           >
-            Save Changes
+            {saving
+              ? uploadPct != null
+                ? `Uploading ${uploadPct}%`
+                : 'Saving…'
+              : isEdit
+                ? 'Save Changes'
+                : 'Create Project'}
           </button>
           <button
             type="button"
+            disabled={saving}
             onClick={onClose}
-            className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3.5 py-2 font-inter text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+            className="cursor-pointer rounded-xl border border-neutral-200 bg-white px-3.5 py-2 font-inter text-sm font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
+            disabled={saving}
             onClick={onClose}
             aria-label="Close"
-            className="ml-auto flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-black"
+            className="ml-auto flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-black disabled:opacity-50"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -123,8 +232,14 @@ export default function AddProjectModal({ open, onClose, onSave }) {
         </div>
 
         <h2 id={titleId} className="sr-only">
-          Add project
+          {isEdit ? 'Edit project' : 'Add project'}
         </h2>
+
+        {error ? (
+          <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 font-inter text-xs text-red-700" role="alert">
+            {error}
+          </p>
+        ) : null}
 
         <div
           onDragOver={(e) => e.preventDefault()}
@@ -142,11 +257,10 @@ export default function AddProjectModal({ open, onClose, onSave }) {
             >
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9" />
               </svg>
             </span>
             <p className={`mt-3 font-inter text-sm font-semibold ${heroPreview ? 'text-white' : 'text-neutral-800'}`}>
-              Drag and drop your hero image
+              Drag and drop your cover image
             </p>
             <p className={`mt-1 font-inter text-xs ${heroPreview ? 'text-white/75' : 'text-neutral-400'}`}>
               High resolution PNG or JPG (min 1200x800)
@@ -177,6 +291,7 @@ export default function AddProjectModal({ open, onClose, onSave }) {
           <input
             type="text"
             value={title}
+            maxLength={120}
             onChange={(e) => setTitle(e.target.value)}
             className="mt-2 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 font-inter text-sm text-black outline-none focus:border-[#7C5CFF] focus:ring-2 focus:ring-[#7C5CFF]/20"
           />
@@ -190,7 +305,7 @@ export default function AddProjectModal({ open, onClose, onSave }) {
               onChange={(e) => setCategory(e.target.value)}
               className="w-full appearance-none rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 pr-9 font-inter text-sm text-black outline-none focus:border-[#7C5CFF] focus:ring-2 focus:ring-[#7C5CFF]/20"
             >
-              {PROJECT_CATEGORIES.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -213,6 +328,7 @@ export default function AddProjectModal({ open, onClose, onSave }) {
           <span className="font-inter text-sm font-semibold text-black">Description</span>
           <textarea
             value={description}
+            maxLength={5000}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             className="mt-2 w-full resize-none rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 font-inter text-sm leading-relaxed text-black outline-none focus:border-[#7C5CFF] focus:ring-2 focus:ring-[#7C5CFF]/20"
@@ -265,26 +381,12 @@ export default function AddProjectModal({ open, onClose, onSave }) {
         </div>
 
         <div className="mt-5">
-          <p className="font-inter text-sm font-semibold text-black">Visibility</p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            {STATUSES.map((item) => {
-              const active = status === item.id
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setStatus(item.id)}
-                  className={`cursor-pointer rounded-xl border px-3.5 py-2 font-inter text-sm font-medium transition ${
-                    active
-                      ? 'border-black bg-black text-white'
-                      : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              )
-            })}
-          </div>
+          <p className="font-inter text-sm font-semibold text-black">Status</p>
+          <p className="mt-2 rounded-xl border border-neutral-200 bg-[#FAFAFA] px-3.5 py-2.5 font-inter text-sm text-neutral-600">
+            {isEdit
+              ? statusLabel
+              : 'Submits for admin review (pending)'}
+          </p>
         </div>
       </div>
     </div>

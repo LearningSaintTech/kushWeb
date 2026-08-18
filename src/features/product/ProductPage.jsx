@@ -14,6 +14,8 @@ import { ROUTES } from "../../utils/constants";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import WriteReviewModal from "./components/WriteReviewModal";
+import RelatedProducts from "./components/RelatedProducts";
+import JustForYouProducts from "./components/JustForYouProducts";
 import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
 import SizeChart from "./components/Sizechart.jsx";
@@ -1382,6 +1384,9 @@ function ProductPage() {
           </div>
           <ReviewRating itemId={item._id} refreshKey={reviewsRefreshKey} />
         </div>
+
+        <RelatedProducts itemId={item._id} limit={10} />
+        <JustForYouProducts />
 
         <WriteReviewModal
           open={reviewModalOpen}

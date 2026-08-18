@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { CREATOR_DASHBOARD, DESIGNER_DASHBOARD } from '../../data/mockCreator'
+import CreatorSettingsDrawer from './CreatorSettingsDrawer'
 
 /**
  * Shared profile dashboard — same layout for creator & designer feed profiles.
@@ -8,6 +10,7 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
   const topPosts = data.topPosts ?? []
   const showBreakdown =
     data.earnings?.creator != null || data.earnings?.royalties != null
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <aside className="scrollbar-hide w-full shrink-0 overflow-y-auto pb-2">
@@ -40,6 +43,18 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
               </button>
             )
           })}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label={`${mode === 'designer' ? 'Designer' : 'Creator'} settings`}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-600"
+          >
+            <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" d="M12 11v5.5" />
+              <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -162,6 +177,12 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
           ))}
         </div>
       </section>
+
+      <CreatorSettingsDrawer
+        open={settingsOpen}
+        mode={mode}
+        onClose={() => setSettingsOpen(false)}
+      />
     </aside>
   )
 }
