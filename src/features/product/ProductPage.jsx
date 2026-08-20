@@ -6,7 +6,7 @@ import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { FaTag } from "react-icons/fa6";
 import { RiFileList2Line, RiRefreshLine, RiTruckLine } from "react-icons/ri";
 import { FaHandHoldingHeart } from "react-icons/fa";
-import { itemsService } from "../../services/items.service.js";
+import { itemsService } from "../../services/items.service.js"
 import { deliveryService } from "../../services/delivery.service.js";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
