@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../../app/context/AuthContext'
+import { communityService } from '../../../services/community.service.js'
+import { debugError } from '../../../utils/debugLog.js'
 import TaggedProductsCarousel from './reels/TaggedProductsCarousel'
 import { isSameCommunityUser } from '../utils/userIds'
+
+/** Session-level dedupe for POST /community/content/:id/view */
+const viewedPostIds = new Set()
 
 const ROLE_CLASS = {
   CREATOR: 'text-neutral-400',
@@ -30,8 +35,6 @@ export default function PostCard({
   onLike,
   onSave,
 }) {
-  if (!post) return null
-
   const {
     author,
     image,
@@ -44,19 +47,57 @@ export default function PostCard({
     designedBy,
     taggedProducts,
     date,
-  } = post
+  } = post || {}
   const gallery = images?.length ? images : image ? [image] : []
   const [imageIndex, setImageIndex] = useState(0)
+  const rootRef = useRef(null)
   const activeImage = gallery[Math.min(imageIndex, Math.max(0, gallery.length - 1))] || ''
   const roleClass = ROLE_CLASS[author?.role] ?? 'text-neutral-400'
-  const { body, tags } = renderCaption(caption, post.hashtags)
+  const { body, tags } = renderCaption(caption, post?.hashtags)
   const canPrev = imageIndex > 0
   const canNext = imageIndex < gallery.length - 1
   const { user } = useAuth()
   const isOwnPost = isSameCommunityUser(user, author)
 
+  // Record a view after 1.5s of being mostly visible (matches Android PostCard).
+  useEffect(() => {
+    const el = rootRef.current
+    const id = post?.id
+    if (!el || !id || viewedPostIds.has(String(id))) return undefined
+
+    let timer = null
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        const visible = entry?.isIntersecting && entry.intersectionRatio >= 0.5
+        if (visible) {
+          if (timer || viewedPostIds.has(String(id))) return
+          timer = window.setTimeout(() => {
+            if (viewedPostIds.has(String(id))) return
+            viewedPostIds.add(String(id))
+            communityService.recordView(id).catch((err) => {
+              debugError('[Community] recordView failed', err?.message)
+            })
+          }, 1500)
+        } else if (timer) {
+          window.clearTimeout(timer)
+          timer = null
+        }
+      },
+      { threshold: [0.5, 0.75] },
+    )
+
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [post?.id])
+
+  if (!post) return null
+
   return (
-    <article className="border-b border-neutral-100 pb-8 last:border-0">
+    <article ref={rootRef} className="border-b border-neutral-100 pb-8 last:border-0">
       <header className="flex items-center gap-3">
         <button
           type="button"

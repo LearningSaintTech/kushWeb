@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { getProductPath, ROUTES } from '../../../utils/constants'
 import { getPublicImageUrl } from '../../../services/config.js'
+import { isHomeVisibleProduct } from '../../../utils/productLaunch.js'
 import studioWide from '../../../assets/images/limited-edition/studio-wide.png'
 import editorial from '../../../assets/images/limited-edition/editorial.png'
 import flatlay from '../../../assets/images/limited-edition/flatlay.png'
@@ -49,6 +50,7 @@ const FALLBACK_LOOKS = [
 function buildLooksFromSection(section) {
   const products = Array.isArray(section?.products) ? section.products : []
   const fromProducts = products
+    .filter((p) => p?.item && isHomeVisibleProduct(p.item))
     .filter((p) => p?.item?.thumbnail || p?.item?.name)
     .slice(0, 8)
     .map((p, i) => {

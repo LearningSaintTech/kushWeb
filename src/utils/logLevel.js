@@ -22,3 +22,8 @@ export function resolveAppEnv() {
 export function isLoggingEnabled() {
   return resolveAppEnv() === "dev";
 }
+
+/** True when VITE_APP_ENV is dev (or unset on Vite dev server). */
+export function isAppEnvDev() {
+  return resolveAppEnv() === "dev";
+}

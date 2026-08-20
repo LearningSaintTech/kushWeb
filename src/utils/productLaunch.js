@@ -6,6 +6,15 @@ export function isItemComingSoon(item, now = Date.now()) {
   return Number.isNaN(launchTime) || launchTime > now;
 }
 
+/** Home / marketing grids — hide locked coming-soon products. */
+export function isHomeVisibleProduct(item) {
+  return Boolean(item) && !isItemComingSoon(item);
+}
+
+export function filterHomeVisibleProducts(items = []) {
+  return (Array.isArray(items) ? items : []).filter(isHomeVisibleProduct);
+}
+
 export function formatLaunchDate(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -21,7 +30,8 @@ export function formatLaunchDate(value) {
 
 export function itemLaunchCardProps(item) {
   return {
-    isComingSoon: Boolean(item?.isComingSoon),
+    // Keep strict boolean so home filters match isItemComingSoon()
+    isComingSoon: item?.isComingSoon === true,
     launchDate: item?.launchDate ?? null,
   };
 }

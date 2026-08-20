@@ -7,7 +7,7 @@ import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { getItemStockTotal } from '../../../utils/productStock.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
-import { itemLaunchCardProps } from '../../../utils/productLaunch.js'
+import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from '../../../utils/productLaunch.js'
 
 const GAP = 24
 const SECTION_PAGE_SIZE = 10
@@ -64,7 +64,7 @@ function BestSellar({ section }) {
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
 
   const listFromSection = section?.products
-    ?.filter((p) => p?.item)
+    ?.filter((p) => p?.item && isHomeVisibleProduct(p.item))
     ?.map((p, i) => {
       const item = p.item
       const price = item.discountedPrice != null ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0'
@@ -131,7 +131,9 @@ function BestSellar({ section }) {
       const data = res?.data?.data ?? res?.data
       const items = data?.items ?? []
       const pag = data?.pagination ?? {}
-      const mapped = items.map((it) => mapItemToCard(it, section.deliveryType, section))
+      const mapped = filterHomeVisibleProducts(
+        items.map((it) => mapItemToCard(it, section.deliveryType, section)),
+      )
       setSectionList((prev) => (page === 1 ? mapped : [...prev, ...mapped]))
       setSectionPage(page)
       const totalPages = Math.max(1, pag.totalPages ?? 1)

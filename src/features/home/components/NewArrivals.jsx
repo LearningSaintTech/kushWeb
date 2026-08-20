@@ -10,11 +10,15 @@ import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import {
   formatLaunchDate,
   isItemComingSoon,
+  isHomeVisibleProduct,
   itemLaunchCardProps,
+  filterHomeVisibleProducts,
 } from '../../../utils/productLaunch.js'
 
-const SECTION_PAGE_SIZE = 10
+/** Pull enough candidates so filtering locked items still fills the row. */
+const SECTION_PAGE_SIZE = 24
 const DISPLAY_COUNT = 5
+const MAX_FETCH_PAGES = 4
 
 /** Map search API item to card shape */
 function mapItemToCard(item, deliveryTypeFallback, section = null) {
@@ -75,7 +79,7 @@ function NewArrivals({ section }) {
 
   const listFromSection =
     section?.products
-      ?.filter((p) => p?.item)
+      ?.filter((p) => p?.item && isHomeVisibleProduct(p.item))
       ?.map((p) => {
         const item = p.item
         const variants = item.variants ?? []
@@ -134,35 +138,55 @@ function NewArrivals({ section }) {
     ? `${ROUTES.SEARCH}?itemsOnly=1&sectionId=${section._id}`
     : `${ROUTES.SEARCH}?itemsOnly=1`
 
-  const fetchSectionPage = useCallback(
-    async (page) => {
-      if (!section?._id) return
-      if (page === 1) setSectionLoading(true)
-      try {
+  const fetchUnlockedSectionProducts = useCallback(async () => {
+    if (!section?._id) return
+    setSectionLoading(true)
+    try {
+      const collected = []
+      const seen = new Set()
+
+      for (let page = 1; page <= MAX_FETCH_PAGES; page += 1) {
         const params = { sectionId: section._id, page, limit: SECTION_PAGE_SIZE }
         if (pincode) params.pinCode = String(pincode)
         const res = await itemsService.search(params)
         const data = res?.data?.data ?? res?.data
-        const items = data?.items ?? []
-        const mapped = items.map((it) => mapItemToCard(it, section.deliveryType, section))
-        setSectionList(mapped)
-      } catch {
-        /* keep fallback */
-      } finally {
-        setSectionLoading(false)
+        const items = Array.isArray(data?.items) ? data.items : []
+        const visible = filterHomeVisibleProducts(
+          items.map((it) => mapItemToCard(it, section.deliveryType, section)),
+        )
+
+        for (const card of visible) {
+          const key = String(card.id ?? '')
+          if (!key || seen.has(key)) continue
+          seen.add(key)
+          collected.push(card)
+          if (collected.length >= DISPLAY_COUNT) break
+        }
+
+        const totalPages = Math.max(1, Number(data?.pagination?.totalPages) || 1)
+        if (collected.length >= DISPLAY_COUNT || items.length === 0 || page >= totalPages) {
+          break
+        }
       }
-    },
-    [section?._id, section?.deliveryType, pincode],
-  )
+
+      // Only replace when we found unlocked products; else keep embedded fallback.
+      if (collected.length > 0) setSectionList(collected)
+      else setSectionList([])
+    } catch {
+      setSectionList([])
+    } finally {
+      setSectionLoading(false)
+    }
+  }, [section?._id, section?.deliveryType, pincode])
 
   useEffect(() => {
     if (section?._id) {
       setSectionList([])
-      fetchSectionPage(1)
+      fetchUnlockedSectionProducts()
     } else {
       setSectionList([])
     }
-  }, [section?._id, pincode, fetchSectionPage])
+  }, [section?._id, pincode, fetchUnlockedSectionProducts])
 
   const openProduct = (item) => {
     if (!item || item.outOfStock || isItemComingSoon(item)) return
@@ -170,7 +194,8 @@ function NewArrivals({ section }) {
     navigate(getProductPath(String(item.id), item.title, item.shortDescription))
   }
 
-  const showLoading = section?._id && sectionLoading && sectionList.length === 0
+  const showLoading =
+    section?._id && sectionLoading && sectionList.length === 0 && listFromSection.length === 0
 
   return (
     <section className="bg-white pt-6 md:pt-8 pb-8 md:pb-12">

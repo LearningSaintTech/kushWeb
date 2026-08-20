@@ -15,6 +15,8 @@ export default function GiftCardCreatedShareModal({
   shareUrl = '',
   onRedeem,
   redeeming = false,
+  /** When false, hide link/share actions (e.g. landing from a shared redeem link). */
+  showShare = true,
 }) {
   const [redeemCode, setRedeemCode] = useState('')
   const [copied, setCopied] = useState(false)
@@ -163,49 +165,53 @@ export default function GiftCardCreatedShareModal({
             {redeeming ? 'Processing…' : 'Redeem'}
           </button>
 
-          <p className="font-inter my-4 text-xs font-bold uppercase text-black sm:my-5 sm:text-sm">Or</p>
+          {showShare ? (
+            <>
+              <p className="font-inter my-4 text-xs font-bold uppercase text-black sm:my-5 sm:text-sm">Or</p>
 
-          <div className="relative w-full min-w-0">
-            <input
-              type="text"
-              readOnly
-              value={shareUrl}
-              className="w-full min-w-0 truncate rounded-md border border-gray-300 bg-white py-2.5 pl-3 pr-11 font-inter text-[10px] text-[#757575] outline-none sm:py-3 sm:pr-12 sm:text-xs"
-              aria-label="Gift card share link"
-            />
-            <button
-              type="button"
-              onClick={handleCopy}
-              disabled={!shareUrl}
-              className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-black transition hover:bg-black/5 disabled:opacity-40 sm:right-2 sm:h-10 sm:w-10"
-              aria-label={copied ? 'Copied' : 'Copy link'}
-            >
-              {copied ? (
-                <Check className="h-4 w-4 sm:h-5 sm:w-5" />
-              ) : (
-                <Copy className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.5} />
-              )}
-            </button>
-          </div>
+              <div className="relative w-full min-w-0">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl}
+                  className="w-full min-w-0 truncate rounded-md border border-gray-300 bg-white py-2.5 pl-3 pr-11 font-inter text-[10px] text-[#757575] outline-none sm:py-3 sm:pr-12 sm:text-xs"
+                  aria-label="Gift card share link"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  disabled={!shareUrl}
+                  className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-black transition hover:bg-black/5 disabled:opacity-40 sm:right-2 sm:h-10 sm:w-10"
+                  aria-label={copied ? 'Copied' : 'Copy link'}
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 sm:h-5 sm:w-5" />
+                  ) : (
+                    <Copy className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.5} />
+                  )}
+                </button>
+              </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 pb-1 sm:mt-5 sm:gap-2.5 md:gap-3">
-            {shareActions.map(({ key, label, className, href }) => (
-              <button
-                key={key}
-                type="button"
-                aria-label={label}
-                disabled={!shareUrl}
-                onClick={() => shareUrl && window.open(href, '_blank', 'noopener,noreferrer')}
-                className={`flex size-9 shrink-0 items-center justify-center rounded-lg text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:size-10 md:size-11 ${className}`}
-              >
-                {key === 'whatsapp' && <FaWhatsapp className="size-3.5 sm:size-4" />}
-                {key === 'facebook' && <FaFacebookF className="size-3 sm:size-3.5" />}
-                {key === 'twitter' && <FaXTwitter className="size-3 sm:size-3.5" />}
-                {key === 'telegram' && <FaTelegramPlane className="size-3.5 sm:size-4" />}
-                {key === 'linkedin' && <FaLinkedinIn className="size-3 sm:size-3.5" />}
-              </button>
-            ))}
-          </div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 pb-1 sm:mt-5 sm:gap-2.5 md:gap-3">
+                {shareActions.map(({ key, label, className, href }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-label={label}
+                    disabled={!shareUrl}
+                    onClick={() => shareUrl && window.open(href, '_blank', 'noopener,noreferrer')}
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-lg text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:size-10 md:size-11 ${className}`}
+                  >
+                    {key === 'whatsapp' && <FaWhatsapp className="size-3.5 sm:size-4" />}
+                    {key === 'facebook' && <FaFacebookF className="size-3 sm:size-3.5" />}
+                    {key === 'twitter' && <FaXTwitter className="size-3 sm:size-3.5" />}
+                    {key === 'telegram' && <FaTelegramPlane className="size-3.5 sm:size-4" />}
+                    {key === 'linkedin' && <FaLinkedinIn className="size-3 sm:size-3.5" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     </div>,
