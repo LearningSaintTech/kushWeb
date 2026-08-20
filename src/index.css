@@ -5,11 +5,24 @@
 /* Build output is not a class source; scanning it makes Tailwind emit url()s for stale hashed assets. */
 @source not "../dist";
 
-/* Prevent horizontal scroll across the whole app */
+/* Prevent horizontal scroll; keep overflow-y explicit for foldables.
+   Soft clip + safe-area so unfold does not crop left/right content. */
 html,
 body {
   overflow-x: hidden;
-  max-width: 100vw;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-x: none;
+  max-width: 100%;
+  min-height: 100%;
+  -webkit-overflow-scrolling: touch;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Box layout to the visible viewport (not 100vw, which can exceed fold layouts). */
+html {
+  width: 100%;
 }
 
 /* Hide scrollbars everywhere, keep scroll behavior */
@@ -31,8 +44,9 @@ body::-webkit-scrollbar,
 }
 
 #root {
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100%;
+  min-height: 100%;
 }
 
 /* Hide scrollbar on specific elements (e.g. header category strip) */

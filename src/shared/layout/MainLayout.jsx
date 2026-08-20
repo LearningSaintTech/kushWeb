@@ -5,6 +5,7 @@ import Header from '../components/Header'
 import Footer from '../components/Footer'
 import MadeInIndiaMarquee from '../components/MadeInIndiaMarquee'
 import ScrollToTop from '../components/ScrollToTop'
+import FoldScrollSafety from '../components/FoldScrollSafety'
 import AuthModal from '../../features/auth/AuthModal'
 import { trackPageView, trackPixelPageView, trackRouteChange, captureUtmFromUrl } from '../../analytics'
 import { useSupportChat } from '../../app/context/SupportChatContext'
@@ -40,10 +41,11 @@ function MainLayout() {
   }, [location.pathname, location.search]);
 
   return (
-    <div className="flex min-h-dvh flex-col overflow-x-hidden  max-w-full">
+    <div className="flex min-h-dvh w-full max-w-full min-w-0 flex-col overflow-x-clip">
       <ScrollToTop />
+      <FoldScrollSafety />
       {!isCommunityFeed ? <Header /> : null}
-      <main className="flex-1">
+      <main className="min-w-0 flex-1 w-full max-w-full">
         <Outlet />
       </main>
       {!isCommunityFeed ? (

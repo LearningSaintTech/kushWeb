@@ -162,14 +162,14 @@ function SubcategoryTile({ item, featured = false, revealed = false, delayMs = 0
     return (
       <Link
         to={item.to && item.to !== '#' ? item.to : getSearchPath({})}
-        className={`absolute inset-0 block overflow-hidden bg-neutral-200 ${tileRevealClass(revealed)}`}
+        className={`absolute inset-0 flex items-center justify-center overflow-hidden bg-neutral-200 ${tileRevealClass(revealed)}`}
         aria-label={item.title}
         style={revealStyle}
       >
         <img
           src={src}
           alt={item.title}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain object-center md:object-cover"
           loading="eager"
           decoding="async"
           onError={() => setSrc(productImage)}
@@ -334,7 +334,7 @@ export default function DropStory() {
 
       <div className="grid w-full grid-cols-1 gap-[2px] bg-white md:grid-cols-2 md:items-stretch">
         {featured ? (
-          <div className="relative min-h-[480px] w-full overflow-hidden sm:min-h-[520px] md:min-h-[560px] lg:min-h-[640px] xl:min-h-[700px]">
+          <div className="relative aspect-[3/4] w-full overflow-hidden md:aspect-auto md:min-h-[560px] lg:min-h-[640px] xl:min-h-[700px]">
             <SubcategoryTile
               item={featured}
               featured

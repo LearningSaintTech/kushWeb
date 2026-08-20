@@ -241,7 +241,6 @@ function ReviewCard({ review, onOpenLightbox }) {
  * Reviews section: title "REVIEWS" + list of reviews from API (by itemId).
  * Matches layout: bold uppercase title; each review with name, rating badge, image, text.
  */
-const SUMMARY_FETCH_LIMIT = 200
 
 /** Format count with commas e.g. 2256896 → "2,256,896" */
 function formatCount(n) {
@@ -269,33 +268,34 @@ function StarDisplay({ avg }) {
   )
 }
 
-function buildRatingsSummary(reviews, fallbackAvg = null) {
-  if (!Array.isArray(reviews) || reviews.length === 0) {
-    const avg = Number(fallbackAvg)
-    return {
-      avg: Number.isFinite(avg) && avg > 0 ? avg : 0,
-      counts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
-    }
+function buildRatingsSummary(summary, fallbackAvg = null) {
+  const counts = {
+    5: Number(summary?.distribution?.[5]) || 0,
+    4: Number(summary?.distribution?.[4]) || 0,
+    3: Number(summary?.distribution?.[3]) || 0,
+    2: Number(summary?.distribution?.[2]) || 0,
+    1: Number(summary?.distribution?.[1]) || 0,
   }
-  let sum = 0
-  const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
-  reviews.forEach((r) => {
-    const star = Math.round(Number(r.rating))
-    if (star >= 1 && star <= 5) counts[star] += 1
-    sum += Number(r.rating) || 0
-  })
-  const computedAvg = sum / reviews.length
-  const avg =
-    Number.isFinite(Number(fallbackAvg)) && Number(fallbackAvg) > 0
-      ? Number(fallbackAvg)
-      : computedAvg
-  return { avg, counts }
+  const fromApi = Number(summary?.averageRating)
+  if (Number.isFinite(fromApi) && fromApi > 0) {
+    return { avg: fromApi, counts }
+  }
+  const fallback = Number(fallbackAvg)
+  return {
+    avg: Number.isFinite(fallback) && fallback > 0 ? fallback : 0,
+    counts,
+  }
 }
 
-export default function ReviewRating({ itemId, refreshKey = 0, avgRating = null }) {
+export default function ReviewRating({
+  itemId,
+  refreshKey = 0,
+  avgRating = null,
+  onSummaryChange,
+}) {
   const [reviews, setReviews] = useState([])
   const [pagination, setPagination] = useState(null)
-  const [summaryReviews, setSummaryReviews] = useState([])
+  const [ratingSummary, setRatingSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [lightbox, setLightbox] = useState(null) // { images: [], currentIndex: 0 } or null
@@ -304,30 +304,9 @@ export default function ReviewRating({ itemId, refreshKey = 0, avgRating = null 
   const [pageLoading, setPageLoading] = useState(false)
 
   useEffect(() => {
-    if (!itemId) {
-      setSummaryReviews([])
-      return
-    }
-    let cancelled = false
-    reviewsService
-      .getByItem(itemId, { page: 1, limit: SUMMARY_FETCH_LIMIT })
-      .then((res) => {
-        if (cancelled) return
-        const payload = res?.data?.data ?? res?.data ?? {}
-        const list = Array.isArray(payload.reviews) ? payload.reviews : []
-        setSummaryReviews(list)
-      })
-      .catch(() => {
-        if (!cancelled) setSummaryReviews([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [itemId, refreshKey])
-
-  useEffect(() => {
     setExpanded(false)
     setPage(1)
+    setRatingSummary(null)
   }, [itemId, refreshKey])
 
   useEffect(() => {
@@ -335,6 +314,7 @@ export default function ReviewRating({ itemId, refreshKey = 0, avgRating = null 
       setLoading(false)
       setReviews([])
       setPagination(null)
+      setRatingSummary(null)
       return
     }
     let cancelled = false
@@ -357,6 +337,12 @@ export default function ReviewRating({ itemId, refreshKey = 0, avgRating = null 
         const list = Array.isArray(payload.reviews) ? payload.reviews : []
         setReviews((prev) => (isReplace ? list : mergeReviewLists(prev, list)))
         setPagination(payload.pagination ?? null)
+        if (payload.summary) {
+          setRatingSummary(payload.summary)
+          if (typeof onSummaryChange === 'function') {
+            onSummaryChange(payload.summary)
+          }
+        }
       })
       .catch((err) => {
         if (cancelled) return
@@ -374,16 +360,20 @@ export default function ReviewRating({ itemId, refreshKey = 0, avgRating = null 
     return () => {
       cancelled = true
     }
-  }, [itemId, refreshKey, expanded, page])
+  }, [itemId, refreshKey, expanded, page, onSummaryChange])
 
-  const totalReviews = pagination?.totalItems ?? reviews.length ?? 0
+  const totalReviews =
+    ratingSummary?.totalReviews ??
+    pagination?.totalItems ??
+    reviews.length ??
+    0
   const showViewAllLink = !expanded && totalReviews > PREVIEW_REVIEWS_LIMIT
   const hasMoreReviews = expanded && reviews.length < totalReviews
   const remainingReviews = Math.max(0, totalReviews - reviews.length)
 
   const ratingsSummary = useMemo(
-    () => buildRatingsSummary(summaryReviews, avgRating),
-    [summaryReviews, avgRating],
+    () => buildRatingsSummary(ratingSummary, avgRating),
+    [ratingSummary, avgRating],
   )
 
   if (!itemId) return null

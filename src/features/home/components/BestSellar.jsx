@@ -242,7 +242,7 @@ function BestSellar({ section }) {
         {/* ========================= */}
         {/* MOBILE / TABLET DESIGN (< lg) — same format */}
         {/* ========================= */}
-        <div className="block md:hidden ">
+        <div className="block lg:hidden min-w-0">
 
           {/* 1. Top row: black strip and BEST — same height, vertically aligned */}
           <div className="flex flex-row items-stretch gap-2 sm:gap-3 w-full h-14 sm:h-16">
@@ -326,7 +326,8 @@ function BestSellar({ section }) {
         {/* ========================= */}
         {/* DESKTOP DESIGN (≥ lg) */}
         {/* ========================= */}
-        <div className="hidden md:block">
+        {/* Desktop design (≥ lg) — not md, so Fold unfold does not get clipped desktop layout */}
+        <div className="hidden lg:block min-w-0 overflow-x-clip">
 
           {/* Your original header layout */}
           <div className="font-raleway">

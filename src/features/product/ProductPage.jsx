@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useLayoutEffect, useCallback } from "react";
 import { debugLog, debugError } from '../../utils/debugLog.js';
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -55,6 +55,7 @@ function ProductPage() {
   const [showSizeChart, setShowSizeChart] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
+  const [displayAvgRating, setDisplayAvgRating] = useState(null);
   const [imageZoomOpen, setImageZoomOpen] = useState(false);
   const [deliveryOptionsFromPincode, setDeliveryOptionsFromPincode] = useState(
     [],
@@ -126,6 +127,11 @@ function ProductPage() {
           return;
         }
         setItemData({ item, deliveries: data?.deliveries ?? [] });
+        setDisplayAvgRating(
+          item?.avgRating != null && Number(item.avgRating) > 0
+            ? Number(item.avgRating)
+            : null,
+        );
         setSelectedImageIndex(0);
         setShortDescExpanded(false);
         setLongDescExpanded(false);
@@ -168,6 +174,16 @@ function ProductPage() {
 
   const item = itemData?.item;
   const deliveries = itemData?.deliveries ?? [];
+  const handleReviewSummaryChange = useCallback((summary) => {
+    const avg = Number(summary?.averageRating);
+    setDisplayAvgRating(Number.isFinite(avg) && avg > 0 ? avg : null);
+  }, []);
+  const shownAvgRating =
+    displayAvgRating != null && Number(displayAvgRating) > 0
+      ? Number(displayAvgRating)
+      : item?.avgRating != null && Number(item.avgRating) > 0
+        ? Number(item.avgRating)
+        : null;
   const bindOfferBadge = useMemo(
     () => getProductCardOfferBadge(item?.bindOffer),
     [item?.bindOffer],
@@ -875,14 +891,14 @@ function ProductPage() {
                   </div>
 
                   {/* RIGHT : RATING - only show when there is a rating > 0 */}
-                  {item.avgRating != null && Number(item.avgRating) > 0 && (
+                  {shownAvgRating != null && (
                     <button
                       type="button"
                       onClick={handleOpenReviews}
                       className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white sm:px-2.5 sm:py-1 sm:text-xs md:text-xs lg:px-[14px] lg:py-[5px] lg:text-[14px] cursor-pointer"
                       aria-label="Open customer ratings and reviews"
                     >
-                      ★ {Number(item.avgRating).toFixed(1)}
+                      ★ {shownAvgRating.toFixed(1)}
                     </button>
                   )}
                 </div>
@@ -1382,7 +1398,12 @@ function ProductPage() {
               Write a review
             </button>
           </div>
-          <ReviewRating itemId={item._id} refreshKey={reviewsRefreshKey} />
+          <ReviewRating
+            itemId={item._id}
+            refreshKey={reviewsRefreshKey}
+            avgRating={shownAvgRating}
+            onSummaryChange={handleReviewSummaryChange}
+          />
         </div>
 
         <RelatedProducts itemId={item._id} limit={10} />
