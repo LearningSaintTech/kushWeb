@@ -76,5 +76,6 @@ export { giftcardService } from './giftcard.service.js';
 export { chatbotService } from './chatbot.service.js';
 export { supportTicketService } from './supportTicket.service.js';
 export { referralService, unwrapReferralResponse } from './referral.service.js';
+export { earningsService, unwrapEarningsResponse } from './earnings.service.js';
 
 export { getCurrentPosition, reverseGeocode, getCurrentLocationPincode } from './geo.service.js';

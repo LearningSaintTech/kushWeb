@@ -1,6 +1,18 @@
 import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../../utils/constants'
+import {
+  earningsService,
+  unwrapEarningsResponse,
+} from '../../../../services/earnings.service.js'
+import { isAppEnvDev } from '../../../../utils/logLevel.js'
+import { debugError, debugLog } from '../../../../utils/debugLog.js'
+import {
+  EMPTY_BANK_FORM,
+  formToPayoutMethodBody,
+  normalizePayoutMethods,
+  payoutMethodToForm,
+} from './earningsMappers'
 
 const VIEWS = {
   MENU: 'menu',
@@ -8,16 +20,10 @@ const VIEWS = {
   DELETE: 'delete',
 }
 
-const EMPTY_PAYMENT = {
-  name: '',
-  accountNo: '',
-  confirmAccountNo: '',
-  ifsc: '',
-}
-
 /**
  * Side drawer — Creator/Designer settings from profile dashboard info icon.
  * Views: menu → payment details | delete confirm
+ * Payout methods API is used only when VITE_APP_ENV=dev.
  */
 export default function CreatorSettingsDrawer({
   open,
@@ -25,9 +31,12 @@ export default function CreatorSettingsDrawer({
   mode = 'creator',
 }) {
   const titleId = useId()
+  const liveEnabled = isAppEnvDev()
   const [view, setView] = useState(VIEWS.MENU)
-  const [payment, setPayment] = useState(EMPTY_PAYMENT)
+  const [payment, setPayment] = useState({ ...EMPTY_BANK_FORM })
   const [paymentError, setPaymentError] = useState('')
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const [paymentSaving, setPaymentSaving] = useState(false)
   const [agreeDelete, setAgreeDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -39,7 +48,39 @@ export default function CreatorSettingsDrawer({
     setPaymentError('')
     setAgreeDelete(false)
     setDeleting(false)
+    setPaymentSaving(false)
   }, [open])
+
+  useEffect(() => {
+    if (!open || view !== VIEWS.PAYMENT || !liveEnabled) return undefined
+    let cancelled = false
+    setPaymentLoading(true)
+    setPaymentError('')
+    ;(async () => {
+      try {
+        const res = await earningsService.getPayoutMethods()
+        if (cancelled) return
+        const data = unwrapEarningsResponse(res)
+        const methods = normalizePayoutMethods(data)
+        const first = methods[0] ?? null
+        setPayment(payoutMethodToForm(first))
+        debugLog('[Earnings] payout-methods', methods)
+      } catch (err) {
+        if (cancelled) return
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          'Could not load payout methods.'
+        setPaymentError(String(msg))
+        debugError('[Earnings] payout-methods failed', msg)
+      } finally {
+        if (!cancelled) setPaymentLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, view, liveEnabled])
 
   useEffect(() => {
     if (!open) return undefined
@@ -65,18 +106,22 @@ export default function CreatorSettingsDrawer({
     onClose?.()
   }
 
-  const handleSavePayment = (e) => {
+  const handleSavePayment = async (e) => {
     e.preventDefault()
     setPaymentError('')
-    if (!payment.name.trim()) {
+    if (!payment.bankName.trim()) {
+      setPaymentError('Enter the bank name.')
+      return
+    }
+    if (!payment.accountHolderName.trim()) {
       setPaymentError('Enter the account holder name.')
       return
     }
-    if (!payment.accountNo.trim()) {
+    if (!payment.accountNumber.trim()) {
       setPaymentError('Enter the account number.')
       return
     }
-    if (payment.accountNo.trim() !== payment.confirmAccountNo.trim()) {
+    if (payment.accountNumber.trim() !== payment.confirmAccountNumber.trim()) {
       setPaymentError('Account numbers do not match.')
       return
     }
@@ -84,8 +129,28 @@ export default function CreatorSettingsDrawer({
       setPaymentError('Enter the IFSC code.')
       return
     }
-    // Persist when payment API is available
-    setView(VIEWS.MENU)
+
+    if (!liveEnabled) {
+      setView(VIEWS.MENU)
+      return
+    }
+
+    setPaymentSaving(true)
+    try {
+      const body = formToPayoutMethodBody(payment)
+      const res = await earningsService.savePayoutMethod(body)
+      debugLog('[Earnings] payout-methods saved', unwrapEarningsResponse(res))
+      setView(VIEWS.MENU)
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Could not save payout method.'
+      setPaymentError(String(msg))
+      debugError('[Earnings] payout-methods save failed', msg)
+    } finally {
+      setPaymentSaving(false)
+    }
   }
 
   const handleDelete = async () => {
@@ -119,7 +184,7 @@ export default function CreatorSettingsDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="absolute inset-y-0 left-0 z-10 flex w-full max-w-[400px] flex-col bg-white shadow-[16px_0_42px_rgba(0,0,0,0.12)] animate-[community-notifications-in_300ms_cubic-bezier(0.22,1,0.36,1)]"
+        className="absolute inset-y-0 right-0 z-10 flex w-full max-w-[400px] flex-col bg-white shadow-[-16px_0_42px_rgba(0,0,0,0.12)] animate-[community-projects-in_300ms_cubic-bezier(0.22,1,0.36,1)]"
       >
         <header className="flex shrink-0 items-center gap-3 border-b border-neutral-100 px-4 py-3.5">
           <button
@@ -188,11 +253,26 @@ export default function CreatorSettingsDrawer({
         {view === VIEWS.PAYMENT ? (
           <form onSubmit={handleSavePayment} className="flex min-h-0 flex-1 flex-col">
             <div className="scrollbar-hide flex-1 space-y-4 overflow-y-auto px-5 py-5">
+              {liveEnabled ? (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 font-inter text-[11px] font-medium text-amber-800">
+                  Dev only — synced with /earnings/payout-methods
+                  {paymentLoading ? ' · Loading…' : ''}
+                </p>
+              ) : null}
               {[
-                { key: 'name', label: 'Name', placeholder: 'Your full name' },
-                { key: 'accountNo', label: 'Account No.', placeholder: 'Account number' },
+                { key: 'bankName', label: 'Bank Name', placeholder: 'e.g. HDFC Bank' },
                 {
-                  key: 'confirmAccountNo',
+                  key: 'accountHolderName',
+                  label: 'Account Holder Name',
+                  placeholder: 'Your full name',
+                },
+                {
+                  key: 'accountNumber',
+                  label: 'Account No.',
+                  placeholder: 'Account number',
+                },
+                {
+                  key: 'confirmAccountNumber',
                   label: 'Confirm Account No.',
                   placeholder: 'Re-enter account number',
                 },
@@ -209,7 +289,8 @@ export default function CreatorSettingsDrawer({
                       setPayment((prev) => ({ ...prev, [field.key]: e.target.value }))
                     }
                     placeholder={field.placeholder}
-                    className="mt-2 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-3 font-inter text-sm text-black outline-none placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
+                    disabled={paymentLoading || paymentSaving}
+                    className="mt-2 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-3 font-inter text-sm text-black outline-none placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 disabled:opacity-60"
                   />
                 </label>
               ))}
@@ -222,9 +303,10 @@ export default function CreatorSettingsDrawer({
             <div className="shrink-0 border-t border-neutral-100 p-4 pb-6">
               <button
                 type="submit"
-                className="w-full cursor-pointer rounded-xl border border-neutral-300 bg-white py-3.5 font-inter text-sm font-bold text-black transition hover:bg-neutral-50"
+                disabled={paymentLoading || paymentSaving}
+                className="w-full cursor-pointer rounded-xl border border-neutral-300 bg-white py-3.5 font-inter text-sm font-bold text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Save Changes
+                {paymentSaving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </form>

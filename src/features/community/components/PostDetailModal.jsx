@@ -3,10 +3,13 @@ import {
   communityService,
   getCommunityErrorMessage,
   mapComment,
+  mapContentToPost,
   extractCommentsList,
 } from '../../../services/community.service.js'
 import { logCommunity } from '../../../services/communityApi.js'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
+
+const TAGGED_PRODUCTS_LIMIT = 10
 
 function CommentRow({ comment }) {
   return (
@@ -68,21 +71,67 @@ function normalizeDetail(post) {
 }
 
 /**
- * Reusable post/reel detail modal — loads & posts comments via community API.
+ * Reusable post/reel detail modal — loads content detail + comments via community API.
  */
 export default function PostDetailModal({
   post: rawPost,
   onClose,
   onProfileClick,
 }) {
-  const post = normalizeDetail(rawPost)
+  const [detailPost, setDetailPost] = useState(() => normalizeDetail(rawPost))
+  const [detailLoading, setDetailLoading] = useState(false)
   const [imageIndex, setImageIndex] = useState(0)
   const [draft, setDraft] = useState('')
   const [comments, setComments] = useState([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [commentError, setCommentError] = useState('')
-  const [commentCountLabel, setCommentCountLabel] = useState(post?.comments ?? '0')
+  const [commentCountLabel, setCommentCountLabel] = useState(rawPost?.comments ?? '0')
+
+  const post = detailPost
+
+  useEffect(() => {
+    setDetailPost(normalizeDetail(rawPost))
+    setImageIndex(0)
+    setDraft('')
+    setCommentError('')
+    setComments([])
+    setCommentCountLabel(rawPost?.comments ?? '0')
+  }, [rawPost?.id, rawPost?.comments])
+
+  // GET /community/content/:id — full detail + tagged products (up to 10)
+  useEffect(() => {
+    const id = rawPost?.id || rawPost?._id
+    if (!id) return undefined
+    let cancelled = false
+    setDetailLoading(true)
+    logCommunity('PostDetail getContent', { id })
+    communityService
+      .getContent(id, { taggedLimit: TAGGED_PRODUCTS_LIMIT, limit: TAGGED_PRODUCTS_LIMIT })
+      .then((data) => {
+        if (cancelled) return
+        const mapped = mapContentToPost(data)
+        if (!mapped) return
+        const tagged = (mapped.taggedProducts || []).slice(0, TAGGED_PRODUCTS_LIMIT)
+        setDetailPost(normalizeDetail({ ...mapped, taggedProducts: tagged }))
+        setCommentCountLabel(mapped.comments ?? String(mapped.commentCount || 0))
+        debugLog('[Community] content detail loaded', {
+          id,
+          taggedCount: tagged.length,
+          status: mapped.status,
+        })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        debugError('[Community] getContent failed', err?.message)
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [rawPost?.id, rawPost?._id])
 
   useEffect(() => {
     if (!post) return undefined
@@ -100,14 +149,6 @@ export default function PostDetailModal({
       window.removeEventListener('keydown', onKey)
     }
   }, [post, onClose])
-
-  useEffect(() => {
-    setImageIndex(0)
-    setDraft('')
-    setCommentError('')
-    setComments([])
-    setCommentCountLabel(rawPost?.comments ?? '0')
-  }, [rawPost?.id, rawPost?.comments])
 
   useEffect(() => {
     if (!post?.id) return undefined
@@ -211,7 +252,6 @@ export default function PostDetailModal({
           </svg>
         </button>
 
-        {/* Media */}
         <div className="relative hidden h-full w-[60%] shrink-0 items-center justify-center bg-white p-8 md:flex lg:p-10">
           <div className="relative h-full max-h-[560px] w-full overflow-hidden bg-neutral-100">
             {post.videoUrl && !mediaSrc ? (
@@ -262,7 +302,6 @@ export default function PostDetailModal({
           ) : null}
         </div>
 
-        {/* Details */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-8 pt-8">
           <div className="flex items-center gap-3 border-b border-neutral-100 pb-3">
             <button
@@ -296,6 +335,9 @@ export default function PostDetailModal({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-0 pb-2 pt-4">
+            {detailLoading && !post.caption ? (
+              <p className="font-inter text-xs text-neutral-400">Loading post…</p>
+            ) : null}
             {post.caption ? (
               <p className="font-inter text-sm leading-relaxed text-neutral-800">{post.caption}</p>
             ) : null}
@@ -303,7 +345,12 @@ export default function PostDetailModal({
             {products.length ? (
               <div className="mt-3 pt-1">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="font-inter text-[11px] font-medium text-neutral-500">Tagged Products</p>
+                  <p className="font-inter text-[11px] font-medium text-neutral-500">
+                    Tagged Products
+                    {products.length > 1 ? (
+                      <span className="text-neutral-400"> · {products.length}</span>
+                    ) : null}
+                  </p>
                   {post.designedBy ? (
                     <p className="font-inter text-[10px] text-neutral-500">
                       Designed by{' '}
@@ -311,12 +358,16 @@ export default function PostDetailModal({
                     </p>
                   ) : null}
                 </div>
-                <div className="flex gap-2">
+                <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
                   {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                    <div key={product.id} className="min-w-[46%] max-w-[52%] shrink-0 sm:min-w-[42%]">
+                      <ProductCard product={product} />
+                    </div>
                   ))}
                 </div>
               </div>
+            ) : detailLoading ? (
+              <p className="mt-3 font-inter text-[11px] text-neutral-400">Loading products…</p>
             ) : null}
 
             <div className="mt-5 border-t border-neutral-100 pt-4">

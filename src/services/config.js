@@ -49,6 +49,51 @@ const ASSET_BASE_URL = (envTrim("VITE_ASSET_URL") || API_ORIGIN || "").replace(
   "",
 );
 
+function isLoopbackOrigin(origin) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(
+    String(origin || "").replace(/\/$/, ""),
+  );
+}
+
+/**
+ * Public storefront origin for shareable links (gift cards, product share, etc.).
+ * Prefer VITE_APP_URL / VITE_PUBLIC_SITE_URL so local Vite (localhost:5173) is never shared.
+ */
+function getPublicSiteOrigin() {
+  const fromEnv = (
+    envTrim("VITE_APP_URL") ||
+    envTrim("VITE_PUBLIC_SITE_URL") ||
+    envTrim("VITE_WEB_URL")
+  ).replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    const pageOrigin = String(window.location.origin).replace(/\/$/, "");
+    if (!isLoopbackOrigin(pageOrigin)) return pageOrigin;
+  }
+
+  // Localhost fallback: map API host → storefront so share links stay public.
+  try {
+    if (API_ORIGIN) {
+      const host = new URL(API_ORIGIN).hostname.toLowerCase();
+      if (
+        host === "api.khushpehno.com" ||
+        host === "api-dev.khushpehno.com" ||
+        host === "apidev.khushpehno.com"
+      ) {
+        return "https://khushpehno.com";
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return String(window.location.origin).replace(/\/$/, "");
+  }
+  return "";
+}
+
 /** Free Pinggy tunnels show a browser screening HTML page unless this header is set. */
 function isPinggyOrigin(origin = API_ORIGIN) {
   return /pinggy\.(net|link|online|io)/i.test(String(origin || ""));
@@ -134,6 +179,7 @@ export {
   getSocketUrl,
   isDebug,
   getPublicImageUrl,
+  getPublicSiteOrigin,
   ASSET_BASE_URL,
   warnIfProductionApiUrlMissing,
   isPinggyOrigin,

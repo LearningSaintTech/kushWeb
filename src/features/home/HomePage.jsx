@@ -56,7 +56,7 @@ function HomePage() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    const params = { isWeb: true, limit: 20, productLimit: 10 }
+    const params = { isWeb: true, limit: 20, productLimit: 24 }
     if (pincode) params.pinCode = String(pincode)
     sectionsService
       .getActive(params)

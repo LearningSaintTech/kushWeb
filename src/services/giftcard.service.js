@@ -4,7 +4,7 @@
 
 import client from './axiosClient.js'
 import publicClient from './publicApiClient.js'
-import { getPublicImageUrl } from './config.js'
+import { getPublicImageUrl, getPublicSiteOrigin } from './config.js'
 import { debugLog } from '../utils/debugLog.js'
 
 const GIFT_CARD = '/gift-card'
@@ -74,11 +74,35 @@ export function splitCodeForDisplay(code) {
   return String(code).replace(/\s+/g, '').split('').join(' ')
 }
 
+/**
+ * Always produce a gift-card redeem link: `{origin}/giftcard?code=...`
+ * Pulls code from API shareUrl when needed; never keeps bare homepage URLs.
+ */
+export function normalizeGiftCardShareUrl(shareUrl, code = '') {
+  let fromUrl = ''
+  const raw = String(shareUrl || '').trim()
+  if (raw) {
+    try {
+      const parsed = new URL(raw)
+      fromUrl = (
+        parsed.searchParams.get('code') ||
+        parsed.searchParams.get('redeem') ||
+        ''
+      )
+        .trim()
+        .toUpperCase()
+    } catch {
+      /* ignore malformed API urls */
+    }
+  }
+  return buildGiftCardShareUrl(code || fromUrl)
+}
+
 export function buildGiftCardShareUrl(code) {
-  const normalized = String(code || '').trim().toUpperCase()
+  const normalized = String(code || '').trim().toUpperCase().replace(/\s+/g, '')
   if (!normalized) return ''
-  const origin =
-    typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
+  const origin = getPublicSiteOrigin()
+  if (!origin) return ''
   const url = new URL(`${origin}/giftcard`)
   url.searchParams.set('code', normalized)
   return url.toString()
@@ -439,7 +463,9 @@ export const giftcardService = {
       let shareUrl = buildGiftCardShareUrl(card?.code)
       try {
         const shared = await this.shareGiftCard(card?.code)
-        if (shared?.shareUrl) shareUrl = shared.shareUrl
+        if (shared?.shareUrl) {
+          shareUrl = normalizeGiftCardShareUrl(shared.shareUrl, card?.code)
+        }
       } catch {
         /* fallback to client-built URL */
       }

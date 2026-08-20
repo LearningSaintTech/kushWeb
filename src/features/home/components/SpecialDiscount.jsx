@@ -11,7 +11,7 @@ import ProductCard, {
 } from '../../../shared/components/ProductCard'
 import { getItemStockTotal } from '../../../utils/productStock.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
-import { itemLaunchCardProps } from '../../../utils/productLaunch.js'
+import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from '../../../utils/productLaunch.js'
 import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
 import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
@@ -71,7 +71,7 @@ function itemToCardProps(item, index, section = null) {
 function resolveEmbeddedProducts(section) {
   return (
     section?.products
-      ?.filter((p) => p?.item)
+      ?.filter((p) => p?.item && isHomeVisibleProduct(p.item))
       ?.map((p, i) => {
         const item = {
           ...p.item,
@@ -129,9 +129,9 @@ function SpecialDiscount({ section }) {
       .then((res) => {
         if (cancelled) return
         const items = res?.data?.data?.items ?? res?.data?.items ?? []
-        const mapped = items
-          .map((item, i) => itemToCardProps(item, i, section))
-          .slice(0, PRODUCT_CARD_LIMIT)
+        const mapped = filterHomeVisibleProducts(
+          items.map((item, i) => itemToCardProps(item, i, section)),
+        ).slice(0, PRODUCT_CARD_LIMIT)
         setFetchedProducts(mapped)
         debugLog('[SpecialDiscount] products loaded', { count: mapped.length })
       })

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { debugLog } from '../../utils/debugLog.js';
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import frameBanner from '../../assets/temporary/Frame 2147225414.png'
 import { useAuth } from '../../app/context/AuthContext'
 import { ROUTES } from '../../utils/constants'
@@ -9,6 +9,7 @@ import {
   giftcardApiMessage,
   splitCodeForDisplay,
   buildGiftCardShareUrl,
+  normalizeGiftCardShareUrl,
   resolveGiftCardValue,
   resolveRulesBonusPercent,
   resolveGiftCardRulesList,
@@ -506,13 +507,17 @@ function GiftCardPurchasePanel({
           ))}
         </ul>
 
-        <div className="rounded-lg  text-center border border-gray-100 px-4 py-4">
+        <div
+          id="giftcard-redeem"
+          className="scroll-mt-28 rounded-lg text-center border border-gray-100 px-4 py-4"
+        >
           <p className="font-inter text-xs font-bold uppercase tracking-wide text-black">Redeem Gift Card</p>
           <input
             type="text"
             placeholder="Enter Unique Gift Number"
             value={redeemCode}
             onChange={(e) => setRedeemCode(e.target.value.toUpperCase().replace(/\s/g, ''))}
+            autoComplete="one-time-code"
             className="mt-3 w-full border-0 border-b border-gray-300 bg-transparent py-2 font-inter text-2xl tracking-[0.35em] text-black text-center placeholder:font-inter placeholder:text-sm placeholder:tracking-normal placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-0"
           />
           <button
@@ -531,6 +536,7 @@ function GiftCardPurchasePanel({
 
 const GiftCardPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const { isAuthenticated, authChecked, openAuthModal } = useAuth()
 
@@ -555,15 +561,22 @@ const GiftCardPage = () => {
   const [createdModalCard, setCreatedModalCard] = useState(null)
   const [createdModalShareUrl, setCreatedModalShareUrl] = useState('')
   const [createdModalRedeeming, setCreatedModalRedeeming] = useState(false)
+  /** True when redeem modal was opened from /giftcard?code= share link. */
+  const [sharedLinkRedeemOpen, setSharedLinkRedeemOpen] = useState(false)
   const [walletSuccessAmount, setWalletSuccessAmount] = useState(null)
   const [alreadyRedeemedOpen, setAlreadyRedeemedOpen] = useState(false)
   const [alreadyRedeemedMessage, setAlreadyRedeemedMessage] = useState('')
   const [redeemInputResetKey, setRedeemInputResetKey] = useState(0)
 
   const urlRedeemCode =
-    searchParams.get('code')?.trim().toUpperCase() ||
-    searchParams.get('redeem')?.trim().toUpperCase() ||
+    searchParams.get('code')?.trim().toUpperCase().replace(/\s+/g, '') ||
+    searchParams.get('redeem')?.trim().toUpperCase().replace(/\s+/g, '') ||
     ''
+
+  /** Keep ?code= through login so share links land on redeem with code filled. */
+  const giftCardAuthRedirect = urlRedeemCode
+    ? `${ROUTES.GIFTCARD}?code=${encodeURIComponent(urlRedeemCode)}`
+    : `${ROUTES.GIFTCARD}${location.search || ''}`
 
   const bonusPercentRef = useRef(bonusPercent)
   const activeRulesRef = useRef(null)
@@ -672,10 +685,17 @@ const GiftCardPage = () => {
   useEffect(() => {
     if (!authChecked) return
     if (!isAuthenticated) {
-      openAuthModal(ROUTES.GIFTCARD)
-      navigate(ROUTES.HOME, { replace: true })
+      // Stay on /giftcard?code=… so share links keep the redeem code after login.
+      openAuthModal(giftCardAuthRedirect)
     }
-  }, [authChecked, isAuthenticated, navigate, openAuthModal])
+  }, [authChecked, isAuthenticated, openAuthModal, giftCardAuthRedirect])
+
+  useEffect(() => {
+    if (!isAuthenticated || !urlRedeemCode) return
+    setSharedLinkRedeemOpen(true)
+    setCreatedModalCard({ code: urlRedeemCode })
+    setCreatedModalShareUrl(buildGiftCardShareUrl(urlRedeemCode))
+  }, [isAuthenticated, urlRedeemCode])
 
   useEffect(() => {
     let cancelled = false
@@ -726,8 +746,7 @@ const GiftCardPage = () => {
 
   const requireAuth = () => {
     if (isAuthenticated) return true
-    openAuthModal?.(ROUTES.GIFTCARD)
-    navigate(ROUTES.HOME, { replace: true })
+    openAuthModal?.(giftCardAuthRedirect)
     return false
   }
 
@@ -751,7 +770,7 @@ const GiftCardPage = () => {
         code: card?.code || '',
         giftValue: card?.giftValue ?? card?.balance ?? theyGet,
         paidAmount: card?.paidAmount ?? payAmount,
-        shareUrl: card?.shareUrl || '',
+        shareUrl: normalizeGiftCardShareUrl(card?.shareUrl || '', card?.code || ''),
       })
       setSuccess('')
       await loadHistory()
@@ -818,18 +837,29 @@ const GiftCardPage = () => {
 
   const closePurchasedModal = () => setPurchasedModal(null)
 
-  const closeCreatedModal = () => setCreatedModalCard(null)
+  const clearSharedRedeemQuery = useCallback(() => {
+    if (!urlRedeemCode) return
+    navigate(ROUTES.GIFTCARD, { replace: true })
+  }, [navigate, urlRedeemCode])
+
+  const closeCreatedModal = () => {
+    setCreatedModalCard(null)
+    setCreatedModalShareUrl('')
+    setSharedLinkRedeemOpen(false)
+    clearSharedRedeemQuery()
+  }
 
   const openCreatedModal = async (card) => {
     if (!card?.code || card.status !== 'AVAILABLE') return
     if (!requireAuth()) return
+    setSharedLinkRedeemOpen(false)
     setCreatedModalCard(card)
     let shareUrl = buildGiftCardShareUrl(card.code)
     setCreatedModalShareUrl(shareUrl)
     try {
       const shared = await giftcardService.shareGiftCard(card.code)
       if (shared?.shareUrl) {
-        shareUrl = shared.shareUrl
+        shareUrl = normalizeGiftCardShareUrl(shared.shareUrl, card.code)
         setCreatedModalShareUrl(shareUrl)
       }
     } catch {
@@ -989,6 +1019,7 @@ const GiftCardPage = () => {
           shareUrl={createdModalShareUrl}
           onRedeem={handleCreatedModalRedeem}
           redeeming={createdModalRedeeming}
+          showShare={!sharedLinkRedeemOpen}
         />
 
         <GiftCardWalletSuccessModal

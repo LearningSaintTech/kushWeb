@@ -31,12 +31,24 @@ function qs(params = {}) {
 export const communityService = {
   // ——— Product picker ———
 
-  /** GET /community/purchased-items */
+  /**
+   * GET /community/purchased-items
+   * Product picker while creating a post/reel.
+   * @param {{ q?: string, page?: number, limit?: number, cursor?: string }} [params]
+   */
   getPurchasedItems: (params = {}) =>
     wrapCommunity(
       'GET',
       `${BASE}/purchased-items`,
-      client.get(`${BASE}/purchased-items`, { params: qs({ limit: 100, ...params }) }),
+      client.get(`${BASE}/purchased-items`, {
+        params: qs({
+          limit: params.limit ?? 10,
+          page: params.page,
+          q: params.q,
+          cursor: params.cursor,
+          ...params,
+        }),
+      }),
       params,
     ),
 
@@ -100,9 +112,34 @@ export const communityService = {
 
   // ——— Content ———
 
-  /** GET /community/content/:id */
-  getContent: (id) =>
-    wrapCommunity('GET', `${BASE}/content/${id}`, client.get(`${BASE}/content/${id}`)),
+  /**
+   * GET /community/content/:id
+   * Full content detail (media, caption, tagged products / items).
+   * @param {string} id
+   * @param {{ taggedLimit?: number, taggedPage?: number, taggedCursor?: string }} [params]
+   */
+  getContent: (id, params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/content/${id}`,
+      client.get(`${BASE}/content/${id}`, {
+        params: qs({
+          taggedLimit: params.taggedLimit ?? params.limit,
+          taggedPage: params.taggedPage ?? params.page,
+          taggedCursor: params.taggedCursor ?? params.cursor,
+          ...params,
+        }),
+      }),
+      { id, ...params },
+    ),
+
+  /**
+   * GET /community/stats
+   * Aggregated metrics for the signed-in creator/designer:
+   * totalLikes, totalViews, totalContent / totalPosts
+   */
+  getStats: () =>
+    wrapCommunity('GET', `${BASE}/stats`, client.get(`${BASE}/stats`)),
 
   /** POST /community/content/:id/view */
   recordView: (id) =>

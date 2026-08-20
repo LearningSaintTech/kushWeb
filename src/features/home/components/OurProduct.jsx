@@ -9,7 +9,7 @@ import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
 import { getItemStockTotal } from "../../../utils/productStock.js";
 import { listingBindOfferProps } from "../../../utils/bindOffer.js";
-import { itemLaunchCardProps } from "../../../utils/productLaunch.js";
+import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from "../../../utils/productLaunch.js";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const ALL_CATEGORY_KEY = "__ALL__";
@@ -143,7 +143,7 @@ function OurProduct({ section }) {
 
   const listFromSection =
     section?.products
-      ?.filter((p) => p?.item)
+      ?.filter((p) => p?.item && isHomeVisibleProduct(p.item))
       ?.map((p, i) => {
         const item = sectionProductItem(p);
         return {
@@ -181,8 +181,10 @@ function OurProduct({ section }) {
         if (pincode) params.pinCode = String(pincode);
         const res = await itemsService.search(params);
         const data = res?.data?.data ?? res?.data;
-        const items = (data?.items ?? []).map((item, i) =>
-          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
+        const items = filterHomeVisibleProducts(
+          (data?.items ?? []).map((item, i) =>
+            itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
+          ),
         );
 
         setCategoryProducts((prev) =>
@@ -216,8 +218,10 @@ function OurProduct({ section }) {
           ...params,
         });
         const data = res?.data?.data ?? res?.data;
-        const items = (data?.items ?? []).map((item, i) =>
-          itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
+        const items = filterHomeVisibleProducts(
+          (data?.items ?? []).map((item, i) =>
+            itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
+          ),
         );
         const totalPages = Number(data?.pagination?.totalPages || 0);
 

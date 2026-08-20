@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { debugLog, debugError } from '../../../../utils/debugLog'
 import {
   communityService,
@@ -17,6 +17,8 @@ import {
 import topSvg from '../../../../assets/images/community/top.svg'
 
 const SUGGESTED_TAGS = ['#Minimalist', '#LinenLove', '#SummerLook', '#KhushStyle']
+const PURCHASED_PAGE_SIZE = 10
+const SEARCH_DEBOUNCE_MS = 300
 
 function formatDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds <= 0) return '0:30'
@@ -26,8 +28,27 @@ function formatDuration(seconds) {
   return `${m}:${s}`
 }
 
+function extractPurchasedPage(data) {
+  const raw = Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data)
+      ? data
+      : []
+  const mapped = raw.map(mapPurchasedItem).filter(Boolean)
+  const pagination = data?.pagination || {}
+  const nextCursor = data?.nextCursor ?? pagination.nextCursor ?? null
+  const page = Number(pagination.page || data?.page || 1)
+  const totalPages = Number(pagination.totalPages || 0)
+  const hasMore =
+    Boolean(data?.hasMore) ||
+    Boolean(nextCursor) ||
+    (totalPages > 0 ? page < totalPages : mapped.length >= PURCHASED_PAGE_SIZE)
+
+  return { mapped, nextCursor, page, hasMore }
+}
+
 /**
- * Create Post / Reel composer — purchased-items picker + fast upload publish.
+ * Create Post / Reel composer — paginated purchased-items search + fast upload publish.
  */
 export default function CreatePostComposer({
   open,
@@ -37,11 +58,17 @@ export default function CreatePostComposer({
   onPosted,
 }) {
   const replaceInputRef = useRef(null)
+  const searchReqId = useRef(0)
   const [caption, setCaption] = useState('')
   const [productQuery, setProductQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [catalog, setCatalog] = useState([])
   const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogLoadingMore, setCatalogLoadingMore] = useState(false)
   const [catalogError, setCatalogError] = useState(null)
+  const [catalogPage, setCatalogPage] = useState(1)
+  const [catalogCursor, setCatalogCursor] = useState(null)
+  const [catalogHasMore, setCatalogHasMore] = useState(false)
   const [tagged, setTagged] = useState([])
   const [previewUrl, setPreviewUrl] = useState('')
   const [durationLabel, setDurationLabel] = useState('0:30')
@@ -62,10 +89,72 @@ export default function CreatePostComposer({
     selectedItem?.raw?.item?.designedBy ||
     null
 
+  const suggestions = catalog.filter((p) => !tagged.some((t) => t.id === p.id))
+
+  const loadPurchasedItems = useCallback(
+    async ({ q = '', page = 1, cursor = null, append = false } = {}) => {
+      const reqId = ++searchReqId.current
+      if (append) setCatalogLoadingMore(true)
+      else setCatalogLoading(true)
+      setCatalogError(null)
+
+      logCommunity('CreatePostComposer purchased-items', { q, page, cursor, append })
+      try {
+        const data = await communityService.getPurchasedItems({
+          limit: PURCHASED_PAGE_SIZE,
+          page,
+          ...(q ? { q } : {}),
+          ...(cursor ? { cursor } : {}),
+        })
+        if (reqId !== searchReqId.current) return
+
+        const { mapped, nextCursor, page: resPage, hasMore } = extractPurchasedPage(data)
+        setCatalog((prev) => {
+          if (!append) return mapped
+          const seen = new Set(prev.map((p) => String(p.id)))
+          const merged = [...prev]
+          for (const row of mapped) {
+            const key = String(row.id)
+            if (seen.has(key)) continue
+            seen.add(key)
+            merged.push(row)
+          }
+          return merged
+        })
+        setCatalogPage(resPage || page)
+        setCatalogCursor(nextCursor)
+        setCatalogHasMore(hasMore)
+        logCommunity('CreatePostComposer purchased-items ok', {
+          count: mapped.length,
+          hasMore,
+          q,
+        })
+
+        if (!append && !q && mapped.length === 1) {
+          setTagged([mapped[0]])
+        }
+      } catch (err) {
+        if (reqId !== searchReqId.current) return
+        const message = getCommunityErrorMessage(err, 'Could not load purchased products')
+        debugError('[Community] purchased-items failed', message)
+        setCatalogError(message)
+        if (!append) setCatalog([])
+        setCatalogHasMore(false)
+      } finally {
+        if (reqId === searchReqId.current) {
+          setCatalogLoading(false)
+          setCatalogLoadingMore(false)
+        }
+      }
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!open) return undefined
     setCaption('')
     setProductQuery('')
+    setDebouncedQuery('')
     setTagged([])
     setMusicOn(false)
     setPosting(false)
@@ -75,35 +164,24 @@ export default function CreatePostComposer({
     setLocalFile(null)
     setDurationLabel('0:30')
     setCatalogError(null)
-
-    let cancelled = false
-    setCatalogLoading(true)
-    logCommunity('CreatePostComposer load purchased-items')
-    communityService
-      .getPurchasedItems({ limit: 100 })
-      .then((data) => {
-        if (cancelled) return
-        const raw = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
-        const mapped = raw.map(mapPurchasedItem).filter(Boolean)
-        setCatalog(mapped)
-        logCommunity('CreatePostComposer purchased-items ok', { count: mapped.length })
-        if (mapped.length === 1) setTagged([mapped[0]])
-      })
-      .catch((err) => {
-        if (cancelled) return
-        const message = getCommunityErrorMessage(err, 'Could not load purchased products')
-        debugError('[Community] purchased-items failed', message)
-        setCatalogError(message)
-        setCatalog([])
-      })
-      .finally(() => {
-        if (!cancelled) setCatalogLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
+    setCatalog([])
+    setCatalogPage(1)
+    setCatalogCursor(null)
+    setCatalogHasMore(false)
+    return undefined
   }, [open])
+
+  // Debounced server search while composing (limit 10 + pagination).
+  useEffect(() => {
+    if (!open) return undefined
+    const delay = productQuery.trim() ? SEARCH_DEBOUNCE_MS : 0
+    const t = window.setTimeout(() => {
+      const q = productQuery.trim()
+      setDebouncedQuery(q)
+      loadPurchasedItems({ q, page: 1, append: false })
+    }, delay)
+    return () => window.clearTimeout(t)
+  }, [open, productQuery, loadPurchasedItems])
 
   useEffect(() => {
     if (!open || !activeFile) {
@@ -124,14 +202,15 @@ export default function CreatePostComposer({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  const suggestions = useMemo(() => {
-    const q = productQuery.trim().toLowerCase()
-    const pool = catalog.filter((p) => !tagged.some((t) => t.id === p.id))
-    if (!q) return pool.slice(0, 5)
-    return pool
-      .filter((p) => p.name.toLowerCase().includes(q))
-      .slice(0, 5)
-  }, [productQuery, tagged, catalog])
+  const loadMoreProducts = () => {
+    if (!catalogHasMore || catalogLoadingMore || catalogLoading) return
+    loadPurchasedItems({
+      q: debouncedQuery,
+      page: catalogPage + 1,
+      cursor: catalogCursor,
+      append: true,
+    })
+  }
 
   const appendHashtag = (tag) => {
     setCaption((prev) => {
@@ -142,7 +221,6 @@ export default function CreatePostComposer({
   }
 
   const addProduct = (product) => {
-    // API publish takes a single itemId — keep one selection
     setTagged([product])
     setProductQuery('')
     logCommunity('CreatePostComposer product selected', {
@@ -171,7 +249,7 @@ export default function CreatePostComposer({
     const itemId = selectedItem?.itemId || selectedItem?.id
     if (!itemId) {
       setPostError(
-        catalog.length === 0
+        !catalogLoading && catalog.length === 0 && !debouncedQuery
           ? 'Buy & receive a product first — no delivered items to tag'
           : 'Select a purchased product to tag',
       )
@@ -340,18 +418,23 @@ export default function CreatePostComposer({
                 <input
                   value={productQuery}
                   onChange={(e) => setProductQuery(e.target.value)}
-                  placeholder={
-                    catalogLoading
-                      ? 'Loading purchased products…'
-                      : catalog.length === 0
-                        ? 'No delivered products yet'
-                        : 'Search your purchased products...'
-                  }
-                  disabled={catalogLoading || catalog.length === 0}
-                  className="w-full rounded-full border-0 bg-[#f2f2f2] py-3 pl-10 pr-4 font-inter text-sm text-black outline-none transition placeholder:text-neutral-400 focus:ring-2 focus:ring-black/10 disabled:opacity-60"
+                  placeholder="Search your purchased products..."
+                  className="w-full rounded-full border-0 bg-[#f2f2f2] py-3 pl-10 pr-4 font-inter text-sm text-black outline-none transition placeholder:text-neutral-400 focus:ring-2 focus:ring-black/10"
                 />
+                {catalogLoading && suggestions.length === 0 ? (
+                  <p className="mt-2 font-inter text-xs text-neutral-400">
+                    Searching purchased products…
+                  </p>
+                ) : null}
+                {!catalogLoading && suggestions.length === 0 && !catalogError ? (
+                  <p className="mt-2 font-inter text-xs text-neutral-400">
+                    {debouncedQuery
+                      ? 'No purchased products match your search.'
+                      : 'No delivered products yet.'}
+                  </p>
+                ) : null}
                 {suggestions.length > 0 ? (
-                  <ul className="absolute z-10 mt-2 w-full overflow-hidden rounded-2xl bg-white py-1 shadow-[0_12px_32px_rgba(0,0,0,0.12)] ring-1 ring-black/5">
+                  <ul className="absolute z-10 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl bg-white py-1 shadow-[0_12px_32px_rgba(0,0,0,0.12)] ring-1 ring-black/5">
                     {suggestions.map((item) => (
                       <li key={item.id}>
                         <button
@@ -371,6 +454,18 @@ export default function CreatePostComposer({
                         </button>
                       </li>
                     ))}
+                    {catalogHasMore ? (
+                      <li className="border-t border-neutral-100 px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={loadMoreProducts}
+                          disabled={catalogLoadingMore}
+                          className="w-full cursor-pointer rounded-xl py-2 font-inter text-xs font-semibold text-[#2563EB] transition hover:bg-neutral-50 disabled:opacity-50"
+                        >
+                          {catalogLoadingMore ? 'Loading…' : 'Load more products'}
+                        </button>
+                      </li>
+                    ) : null}
                   </ul>
                 ) : null}
               </div>
