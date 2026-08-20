@@ -18,6 +18,7 @@ import { useNotification } from "../../app/context/NotificationContext";
 import LocationPicker from "./LocationPicker";
 import ProfileModal from "./ProfileModal";
 import logoImg from "../../assets/images/navBar/Khush1.png";
+import { lockBodyScroll, unlockBodyScroll } from "../../utils/bodyScrollLock.js";
 
 function ChevronDownIcon({ className }) {
   return (
@@ -523,39 +524,54 @@ export default function Header() {
   // Panel slide-in animation + body scroll lock
   useEffect(() => {
     if (menuOpen) {
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.overflow = "hidden";
+      lockBodyScroll();
       setPanelAnimated(false);
       const id = requestAnimationFrame(() => {
         requestAnimationFrame(() => setPanelAnimated(true));
       });
       return () => {
         cancelAnimationFrame(id);
-        document.documentElement.style.overflow = "";
-        document.body.style.overflow = "";
+        unlockBodyScroll();
       };
-    } else {
-      setPanelAnimated(false);
-      document.documentElement.style.overflow = "";
-      document.body.style.overflow = "";
     }
+    setPanelAnimated(false);
+  }, [menuOpen]);
+
+  // Fold unfold: width jumps a lot — close drawer so overlay/scroll-lock don't stick
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    let lastWidth = window.innerWidth;
+    const onResize = () => {
+      const width = window.innerWidth;
+      if (Math.abs(width - lastWidth) >= 80) {
+        setMenuOpen(false);
+        setSearchModalOpen(false);
+      }
+      lastWidth = width;
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
   }, [menuOpen]);
 
   return (
     <header
       ref={headerRef}
-      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-md:bg-white  ${
+      className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-lg:bg-white pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] ${
         useWhiteStyle ? "bg-white" : "bg-transparent"
       }`}
     >
       {/* Main */}
       <div
-        className={`px-4 md:px-[1.56vw] py-2.5 md:py-2 lg:py-2.5 transition-colors duration-300 ${
+        className={`px-4 lg:px-[1.56vw] py-2.5 lg:py-2 xl:py-2.5 transition-colors duration-300 min-w-0 ${
           useWhiteStyle ? "bg-white" : "bg-transparent"
         }`}
       >
-        {/* Mobile: logo left | icons + menu right; search + location below */}
-        <div className="md:hidden flex flex-col gap-2.5">
+        {/* Phone / fold cover & unfolded < lg: logo left | icons + menu; search + location below */}
+        <div className="lg:hidden flex flex-col gap-2.5 min-w-0">
           <div className="flex min-h-10 items-center justify-between gap-2">
             <NavLink
               to={ROUTES.HOME}
@@ -661,9 +677,10 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Desktop/Tablet: location + categories | centered logo | search + icons */}
+        {/* Desktop (≥ lg): location + categories | centered logo | search + icons
+            lg (not md) so Galaxy Fold unfold (~700–900px) keeps the phone header and is not clipped. */}
         <div
-          className="hidden md:block relative"
+          className="hidden lg:block relative min-w-0"
           onMouseLeave={scheduleCategoryHoverClose}
         >
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 lg:gap-3">
@@ -926,7 +943,7 @@ export default function Header() {
 
             return (
               <div
-                className="absolute left-1/2 top-full z-50 mt-1 w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/45 bg-white/55 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/40"
+                className="absolute left-1/2 top-full z-50 mt-1 w-[min(72rem,calc(100%-1.5rem))] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/45 bg-white/55 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/40"
                 onMouseEnter={() => openCategoryHover(hoveredCategoryId)}
                 role="menu"
                 aria-label={`${categoryName} subcategories`}

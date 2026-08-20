@@ -63,12 +63,21 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
   )
 }
 
-/* Mobile header is fixed + white; keep banner clear of it. */
-const bannerShellClass =
-  'relative w-full overflow-hidden max-md:mt-[7.25rem] max-md:aspect-[9/16] md:mt-0 md:aspect-auto md:h-[70vh] lg:h-screen'
+/* Mobile header is fixed + white.
+   Portrait phones: tall 9:16 hero.
+   Landscape phones (still < lg): do NOT keep 9:16 — that stretches to a huge tall box and looks distorted after rotate.
+   Desktop: dvh heights (vh jumps wrongly on Samsung after orientation change). */
+const bannerShellClass = [
+  'relative w-full overflow-hidden',
+  'max-lg:mt-[7.25rem]',
+  'max-lg:portrait:aspect-[9/16]',
+  'max-lg:landscape:aspect-auto max-lg:landscape:h-[min(70dvh,24rem)]',
+  'lg:mt-0 lg:aspect-auto lg:h-[min(70dvh,52rem)]',
+  'xl:h-dvh',
+].join(' ')
 
 const mediaClassName =
-  'absolute inset-0 h-full w-full object-cover object-top md:object-center'
+  'absolute inset-0 h-full w-full object-cover object-center max-lg:portrait:object-top'
 
 function mediaItems(source) {
   if (!source) return []
@@ -232,11 +241,11 @@ function SlideMedia({ slide, active, preferVideoAutoplay }) {
   return (
     <div className={layerClass} aria-hidden={!active}>
       <picture className="absolute inset-0 block h-full w-full">
-        <source media="(min-width: 768px)" srcSet={slide.desktopUrl} />
+        <source media="(min-width: 1024px)" srcSet={slide.desktopUrl} />
         <img
           src={slide.mobileUrl}
           alt=""
-          className={`${mediaClassName} max-w-none`}
+          className={mediaClassName}
           draggable={false}
         />
       </picture>
@@ -250,6 +259,8 @@ const Banner = () => {
   const [slides, setSlides] = useState([])
   const [slideIndex, setSlideIndex] = useState(0)
   const [loaded, setLoaded] = useState(false)
+  /** Bump after rotate so Samsung browsers recompute aspect/object-fit (avoids sticky distortion). */
+  const [layoutEpoch, setLayoutEpoch] = useState(0)
 
   const handleExploreFashion = () => {
     debugLog('[CommunityProfile] Explore Fashion clicked', {
@@ -337,11 +348,35 @@ const Banner = () => {
     }
   }, [slides.length, slideIndex])
 
+  // Portrait ↔ landscape: force a layout pass after chrome/viewport settles
+  useEffect(() => {
+    let timer = null
+    const bump = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        setLayoutEpoch((n) => n + 1)
+      }, 160)
+    }
+    window.addEventListener('orientationchange', bump)
+    // Some Samsung WebViews only fire resize, not orientationchange
+    const mq = window.matchMedia('(orientation: landscape)')
+    const onMq = () => bump()
+    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMq)
+    else mq.addListener(onMq)
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      window.removeEventListener('orientationchange', bump)
+      if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onMq)
+      else mq.removeListener(onMq)
+    }
+  }, [])
+
   if (USE_LOCAL_BANNER_PREVIEW) {
     return (
-      <div className={bannerShellClass}>
+      <div key={`banner-preview-${layoutEpoch}`} className={bannerShellClass}>
         <picture>
-          <source media="(min-width: 768px)" srcSet={bannerDesktopPreview} />
+          <source media="(min-width: 1024px)" srcSet={bannerDesktopPreview} />
           <img
             src={bannerMobilePreview}
             alt="Fashion for everyday"
@@ -359,12 +394,18 @@ const Banner = () => {
   }
 
   if (!loaded) {
-    return <div className={`${bannerShellClass} bg-neutral-100`} aria-busy="true" />
+    return (
+      <div
+        key={`banner-loading-${layoutEpoch}`}
+        className={`${bannerShellClass} bg-neutral-100`}
+        aria-busy="true"
+      />
+    )
   }
 
   if (!slides.length) {
     return (
-      <div className={`${bannerShellClass} bg-neutral-100`}>
+      <div key={`banner-empty-${layoutEpoch}`} className={`${bannerShellClass} bg-neutral-100`}>
         <FashionWeekOverlay
           slideCount={0}
           slideIndex={0}
@@ -382,6 +423,7 @@ const Banner = () => {
 
   return (
     <div
+      key={`banner-${layoutEpoch}`}
       className={`${bannerShellClass}${clickable ? ' cursor-pointer' : ''}`}
       aria-roledescription={isCarousel ? 'carousel' : undefined}
       role={clickable ? 'link' : undefined}

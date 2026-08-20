@@ -99,10 +99,74 @@ function hasAnyStock(item) {
 }
 
 /** Map backend item to ProductCard props */
-function itemToCardProps(item) {
+function normalizeColorToken(v) {
+  return String(v ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^#/, '')
+}
+
+function hexLuminance(hex6) {
+  const m = String(hex6 || '').match(/^([0-9a-f]{6})$/i)
+  if (!m) return null
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/** Prefer the variant that matches the active color filter (code / name / hex). */
+function pickVariantForColorFilter(variants, preferredColors = [], colorOptions = []) {
+  const list = Array.isArray(variants) ? variants : []
+  if (!list.length) return undefined
+  const prefs = (preferredColors || []).map(normalizeColorToken).filter(Boolean)
+  if (!prefs.length) return list[0]
+
+  const optionByValue = new Map(
+    (colorOptions || []).map((o) => [normalizeColorToken(o?.value), o])
+  )
+
+  const aliasSets = prefs.map((p) => {
+    const aliases = new Set([p])
+    const opt = optionByValue.get(p)
+    if (opt?.label) aliases.add(normalizeColorToken(opt.label))
+    if (opt?.hex) aliases.add(normalizeColorToken(opt.hex))
+    if (opt?.value) aliases.add(normalizeColorToken(opt.value))
+    // White / near-white when filter is wht or #ffffff
+    const hexFromOpt = normalizeColorToken(opt?.hex || '')
+    const looksWhite =
+      p === 'wht' ||
+      p === 'white' ||
+      p === 'ffffff' ||
+      (hexFromOpt && (hexLuminance(hexFromOpt) ?? 0) >= 230)
+    if (looksWhite) {
+      ;['wht', 'white', 'ffffff', 'fffefe', 'fefefe', 'fafafa', 'f5f5f5'].forEach((a) =>
+        aliases.add(a)
+      )
+    }
+    return aliases
+  })
+
+  const match = list.find((v) => {
+    const name = normalizeColorToken(v?.color?.name)
+    const hex = normalizeColorToken(v?.color?.hex)
+    const code = normalizeColorToken(v?.skuCodeInputs?.colour || v?.skuCodeInputs?.color)
+    const lum = hexLuminance(hex)
+    // Skip bogus "WHT" + black hex when filtering white
+    const filteringWhite = aliasSets.some((s) => s.has('wht') || s.has('white') || s.has('ffffff'))
+    if (filteringWhite && lum != null && lum < 40) return false
+    return aliasSets.some(
+      (aliases) => aliases.has(name) || aliases.has(hex) || aliases.has(code)
+    )
+  })
+  return match || list[0]
+}
+
+function itemToCardProps(item, { preferredColors = [], colorOptions = [] } = {}) {
   const id = item._id ?? item.id
   const variants = item.variants ?? []
-  const firstVariant = variants[0]
+  const firstVariant = pickVariantForColorFilter(variants, preferredColors, colorOptions)
   const images = firstVariant?.images ?? []
   const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   const imageUrl = sorted[0]?.url ?? ''
@@ -519,6 +583,17 @@ function SearchPage() {
         params.color = Array.isArray(colorVal) ? colorVal.join(',') : String(colorVal)
       }
 
+      const preferredColors = (() => {
+        if (colorVal == null || colorVal === '') return []
+        const raw = Array.isArray(colorVal) ? colorVal : String(colorVal).split(',')
+        return raw.map((v) => String(v).trim()).filter(Boolean)
+      })()
+      const colorFilterDef = filterList.find((f) => {
+        const k = String(f?.key ?? '').toLowerCase()
+        return k === 'color' || k === 'colour'
+      })
+      const colorOptions = colorFilterDef?.values ?? colorFilterDef?.options ?? []
+
       // Remaining dynamic filters go inside `filters` for backend matching
       const filtersObj = Object.keys(parsed).length ? { ...parsed } : undefined
       if (filtersObj) {
@@ -548,7 +623,9 @@ function SearchPage() {
       debugLog('[SearchPage] products search raw items:', rawItems)
       const pag = data?.pagination ?? null
       debugLog('[SearchPage] products search pagination:', pag)
-      const items = rawItems.map(itemToCardProps)
+      const items = rawItems.map((item) =>
+        itemToCardProps(item, { preferredColors, colorOptions })
+      )
 
       if (sectionIdFromUrl) {
         debugLog('[SearchPage] section-scoped search response', {
@@ -578,7 +655,7 @@ function SearchPage() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [sectionIdFromUrl, qFromUrl, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl, listPage, filtersParam, pincode, buildSearchKey])
+  }, [sectionIdFromUrl, qFromUrl, itemsOnlyFromUrl, categoryFromUrl, subcategoryFromUrl, listPage, filtersParam, pincode, buildSearchKey, filterList])
 
   useEffect(() => {
     runSearch()

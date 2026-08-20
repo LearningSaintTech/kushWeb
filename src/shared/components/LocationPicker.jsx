@@ -8,6 +8,7 @@ import { addressService } from '../../services/address.service'
 import { useAuth } from '../../app/context/AuthContext'
 import { LocationIcon } from '../ui/icons'
 import { ROUTES } from '../../utils/constants'
+import { lockBodyScroll, unlockBodyScroll } from '../../utils/bodyScrollLock.js'
 
 function formatAddressLabel(addr) {
   if (!addr) return ''
@@ -84,15 +85,39 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
 
   useEffect(() => {
     if (!open) return
-    const mq = window.matchMedia('(max-width: 767px)')
-    if (!mq.matches) return
-    const prevHtml = document.documentElement.style.overflow
-    const prevBody = document.body.style.overflow
-    document.documentElement.style.overflow = 'hidden'
-    document.body.style.overflow = 'hidden'
+
+    const mq = window.matchMedia('(max-width: 1023px)')
+    let held = false
+
+    const syncLock = () => {
+      // Only lock scroll on phone / fold cover layout (< lg).
+      // Unfolded Fold is often 700–900px — treat as phone chrome, no desktop lock.
+      if (mq.matches) {
+        if (!held) {
+          lockBodyScroll()
+          held = true
+        }
+      } else if (held) {
+        unlockBodyScroll()
+        held = false
+      }
+    }
+
+    syncLock()
+    const onChange = () => syncLock()
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange)
+    } else {
+      mq.addListener(onChange)
+    }
+
     return () => {
-      document.documentElement.style.overflow = prevHtml
-      document.body.style.overflow = prevBody
+      if (typeof mq.removeEventListener === 'function') {
+        mq.removeEventListener('change', onChange)
+      } else {
+        mq.removeListener(onChange)
+      }
+      if (held) unlockBodyScroll()
     }
   }, [open])
 
@@ -137,8 +162,8 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
         className={
           iconOnly
             ? `flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full ${isLight ? 'bg-[#F2F2F2]' : 'bg-white/20'} ${error ? 'ring-1 ring-amber-400/80' : ''}`
-            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 md:gap-1.5 md:px-3 md:py-2 ${bgClass} ${
-                compact ? 'w-full md:w-auto md:max-w-[12vw]' : ''
+            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 lg:gap-1.5 lg:px-3 lg:py-2 ${bgClass} ${
+                compact ? 'w-full lg:w-auto lg:max-w-[12vw]' : ''
               } ${error ? 'ring-1 ring-amber-400/80' : ''}`
         }
         onClick={() => setOpen((o) => !o)}
@@ -151,16 +176,16 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           <LocationIcon className={`h-5 w-5 ${iconClass}`} />
         ) : (
           <>
-            <LocationIcon className={`h-4 w-4 shrink-0 md:h-[0.95vw] md:w-[0.95vw] ${iconClass}`} />
+            <LocationIcon className={`h-4 w-4 shrink-0 lg:h-[0.95vw] lg:w-[0.95vw] ${iconClass}`} />
             <span
               title={triggerLabel}
-              className={`font-inter min-w-0 flex-1 truncate text-left text-xs md:text-[0.72vw] ${textClass} ${!resolvedLabel ? 'opacity-70' : ''}`}
+              className={`font-inter min-w-0 flex-1 truncate text-left text-xs lg:text-[0.72vw] ${textClass} ${!resolvedLabel ? 'opacity-70' : ''}`}
             >
               {triggerLabel}
             </span>
             {!compact && (
               <span className={`inline-flex shrink-0 ${textClass} transition-transform duration-200 ease-out`}>
-                {open ? <FaChevronUp className="h-3.5 w-3.5 md:h-5 md:w-5" /> : <FaChevronDown className="h-3.5 w-3.5 md:h-5 md:w-5" />}
+                {open ? <FaChevronUp className="h-3.5 w-3.5 lg:h-5 lg:w-5" /> : <FaChevronDown className="h-3.5 w-3.5 lg:h-5 lg:w-5" />}
               </span>
             )}
           </>
@@ -172,7 +197,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           {/* Phone: dim background + bottom sheet (avoids narrow in-row popover) */}
           <button
             type="button"
-            className={`fixed  inset-0 z-55 bg-black/45 backdrop-blur-[3px] transition-opacity  duration-200 md:hidden  ${
+            className={`fixed inset-0 z-55 bg-black/45 backdrop-blur-[3px] transition-opacity duration-200 lg:hidden ${
               panelAnimateOpen ? 'opacity-100' : 'opacity-0'
             }`}
             aria-label="Close delivery location"
@@ -180,15 +205,17 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
           />
           <div
             id="location-listbox"
-            className={`z-60 flex cursor-pointer flex-col overflow-hidden overscroll-contain border border-neutral-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.04)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:duration-200 md:ease-[cubic-bezier(0.16,1,0.3,1)]
+            data-scroll-lock="true"
+            className={`z-60 flex cursor-pointer flex-col overflow-hidden overscroll-contain border border-neutral-200/80 bg-white shadow-[0_24px_48px_-12px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.04)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] lg:duration-200 lg:ease-[cubic-bezier(0.16,1,0.3,1)]
               fixed inset-x-0 bottom-0 max-h-[min(88dvh,calc(100dvh-4.5rem))] rounded-t-3xl pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]
-              md:absolute md:inset-x-auto md:bottom-auto md:left-0 md:top-full md:mt-2 md:max-h-none md:w-[min(100%,18rem)] md:rounded-2xl md:pb-0 md:min-w-[20rem] md:max-w-88
-              ${panelAnimateOpen ? 'translate-y-0 opacity-100 md:translate-y-0 md:scale-100' : 'translate-y-full opacity-100 md:-translate-y-1 md:scale-[0.98] md:opacity-0'}
+              lg:absolute lg:inset-x-auto lg:bottom-auto lg:left-0 lg:top-full lg:mt-2 lg:max-h-none lg:w-[min(100%,18rem)] lg:rounded-2xl lg:pb-0 lg:min-w-[20rem] lg:max-w-88
+              ${panelAnimateOpen ? 'translate-y-0 opacity-100 lg:translate-y-0 lg:scale-100' : 'translate-y-full opacity-100 lg:-translate-y-1 lg:scale-[0.98] lg:opacity-0'}
             `}
             role="listbox"
+            aria-modal="true"
           >
-          <div className="mx-auto  mt-2.5 h-1 w-11 shrink-0 rounded-full bg-neutral-200/90 md:hidden" aria-hidden />
-          <div className="relative shrink-0 px-4 pt-2 pb-3 border-b border-neutral-100 bg-linear-to-b from-neutral-50/90 to-white md:pt-4">
+          <div className="mx-auto  mt-2.5 h-1 w-11 shrink-0 rounded-full bg-neutral-200/90 lg:hidden" aria-hidden />
+          <div className="relative shrink-0 px-4 pt-2 pb-3 border-b border-neutral-100 bg-linear-to-b from-neutral-50/90 to-white lg:pt-4">
             <p className="font-inter text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-neutral-400">
               Delivery location
             </p>
@@ -206,8 +233,8 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
             )}
           </div>
 
-          <div className="min-h-0 flex-1  overflow-y-auto overflow-x-hidden px-0 md:flex-none md:overflow-visible">
-          <div className="p-2 md:p-2">
+          <div className="min-h-0 flex-1  overflow-y-auto overflow-x-hidden px-0 lg:flex-none lg:overflow-visible">
+          <div className="p-2 lg:p-2">
             <button
               type="button"
               onClick={handleUseCurrentLocation}
@@ -240,7 +267,7 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
                   <p className="font-inter px-2 pt-3 pb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-neutral-400">
                     Saved addresses
                   </p>
-                  <ul className="max-h-[40vh]  space-y-0.5 overflow-y-auto overscroll-contain pr-0.5 md:max-h-46">
+                  <ul className="max-h-[40vh]  space-y-0.5 overflow-y-auto overscroll-contain pr-0.5 lg:max-h-46">
                     {savedAddresses.slice(0, 5).map((addr) => {
                       const label = formatAddressLabel(addr)
                       const pinStr = addr.pinCode != null ? String(addr.pinCode) : ''
