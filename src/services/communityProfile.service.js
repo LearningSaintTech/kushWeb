@@ -49,9 +49,29 @@ function wrap(method, path, promise, body) {
     });
 }
 
-/** Prefer API message for UI alerts. */
+/** Prefer API message (+ express-validator errors) for UI alerts. */
 export function getCommunityProfileErrorMessage(err, fallback = 'Something went wrong.') {
-  const msg = err?.response?.data?.message;
+  const data = err?.response?.data;
+  const errors = data?.errors;
+  if (Array.isArray(errors) && errors.length) {
+    const parts = errors
+      .map((e) => {
+        if (typeof e === 'string') return e.trim();
+        if (e?.msg) return String(e.msg).trim();
+        if (e?.message) return String(e.message).trim();
+        return '';
+      })
+      .filter(Boolean);
+    if (parts.length) return parts.join(' · ');
+  }
+  if (errors && typeof errors === 'object' && !Array.isArray(errors)) {
+    const parts = Object.values(errors)
+      .flat()
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+    if (parts.length) return parts.join(' · ');
+  }
+  const msg = data?.message;
   if (typeof msg === 'string' && msg.trim()) return msg.trim();
   if (typeof err?.message === 'string' && err.message.trim()) return err.message.trim();
   return fallback;
@@ -93,14 +113,29 @@ export const communityProfileService = {
       body,
     ),
 
-  /** multipart: profileImage?, coverImage? */
-  patchDesignerScene: (formData) =>
-    wrap(
+  /** multipart: profileImage?, coverImage? — reject empty FormData (avoids 400 validation). */
+  patchDesignerScene: (formData) => {
+    if (typeof FormData !== 'undefined' && formData instanceof FormData) {
+      let hasEntry = false;
+      for (const _ of formData.keys()) {
+        hasEntry = true;
+        break;
+      }
+      if (!hasEntry) {
+        return Promise.reject(
+          Object.assign(new Error('Add a profile or cover image to continue.'), {
+            response: { data: { message: 'Add a profile or cover image to continue.' } },
+          }),
+        );
+      }
+    }
+    return wrap(
       'PATCH',
       `${BASE}/designer/scene`,
       client.patch(`${BASE}/designer/scene`, formData),
       formData,
-    ),
+    );
+  },
 
   patchDesignerSkills: (skills) =>
     wrap(
@@ -154,13 +189,25 @@ export const communityProfileService = {
   // ——— Creator ———
 
   /** multipart: profileImage (required) */
-  patchCreatorPhoto: (formData) =>
-    wrap(
+  patchCreatorPhoto: (formData) => {
+    const file =
+      typeof FormData !== 'undefined' && formData instanceof FormData
+        ? formData.get('profileImage')
+        : null;
+    if (!(file instanceof File)) {
+      return Promise.reject(
+        Object.assign(new Error('Profile photo is required.'), {
+          response: { data: { message: 'Profile photo is required.' } },
+        }),
+      );
+    }
+    return wrap(
       'PATCH',
       `${BASE}/creator/photo`,
       client.patch(`${BASE}/creator/photo`, formData),
       formData,
-    ),
+    );
+  },
 
   patchCreatorBasic: (body) =>
     wrap(

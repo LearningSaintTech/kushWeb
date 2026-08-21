@@ -145,6 +145,10 @@ export function mapContentToPost(content) {
     taggedProducts: mapTaggedProducts(content),
     isLiked: Boolean(content.isLiked),
     isSaved: Boolean(content.isSaved),
+    isBlocked: Boolean(content.isBlocked),
+    isReported: Boolean(content.isReported),
+    canBlock: content.canBlock !== false && content.isOwn !== true,
+    canReport: content.canReport !== false && content.isOwn !== true,
     status: content.status,
     type: content.type || 'post',
     itemId: content.itemId,
@@ -285,8 +289,15 @@ function formatCommentTime(iso) {
 export function mapComment(row) {
   if (!row) return null;
   const author = row.author || {};
+  const authorId =
+    row.authorId ||
+    author._id ||
+    author.id ||
+    author.userId ||
+    null;
   return {
     id: row._id || row.id || `${row.createdAt}-${row.text}`,
+    authorId,
     name:
       row.authorName ||
       author.name ||
@@ -301,6 +312,10 @@ export function mapComment(row) {
       '',
     text: row.text || row.body || row.comment || '',
     time: formatCommentTime(row.createdAt || row.updatedAt),
+    isBlocked: Boolean(row.isBlocked),
+    isReported: Boolean(row.isReported),
+    canBlock: row.canBlock !== false,
+    canReport: row.canReport !== false,
     raw: row,
   };
 }
@@ -380,6 +395,10 @@ export function mapSocialProfile(raw) {
     designerVerificationStatus: raw.designerVerificationStatus || null,
     isFollowing: Boolean(raw.isFollowing),
     isOwnProfile: Boolean(raw.isOwnProfile),
+    isBlocked: Boolean(raw.isBlocked),
+    isReported: Boolean(raw.isReported),
+    canBlock: raw.canBlock !== false && !raw.isOwnProfile,
+    canReport: raw.canReport !== false && !raw.isOwnProfile,
     stats: {
       posts: formatCount(counts.posts),
       followers: formatCount(counts.followers),

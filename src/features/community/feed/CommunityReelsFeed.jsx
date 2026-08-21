@@ -225,6 +225,21 @@ export default function CommunityReelsFeed() {
     return () => clearTimeout(t)
   }, [activeIndex, reels])
 
+  useEffect(() => {
+    const onBlocked = (e) => {
+      const userId = e?.detail?.userId
+      if (!userId) return
+      setBootReel((prev) =>
+        prev && String(prev.author?.id) === String(userId) ? null : prev,
+      )
+      setItems((prev) =>
+        prev.filter((item) => String(item.author?.id) !== String(userId)),
+      )
+    }
+    window.addEventListener('khush:community-user-blocked', onBlocked)
+    return () => window.removeEventListener('khush:community-user-blocked', onBlocked)
+  }, [setItems])
+
   const patchLocal = useCallback((id, patch) => {
     setBootReel((prev) => (prev && String(prev.id) === String(id) ? { ...prev, ...patch } : prev))
     setItems((prev) =>

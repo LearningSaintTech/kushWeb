@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import CameraCapture from './CameraCapture'
 
+const MAX_POST_IMAGES = 10
+
 /**
  * Second create step — pick Camera or Gallery source.
- * Camera opens a live getUserMedia view; Gallery uses the file picker.
+ * Posts: gallery allows multiple images. Reels: single video.
  */
 export default function AddMediaSheet({
   open,
@@ -30,14 +32,23 @@ export default function AddMediaSheet({
   if (!open) return null
 
   const isReel = type === 'reel'
-  const accept = isReel ? 'video/*' : 'image/*,video/*'
-  const title = isReel ? 'Add Video' : 'Add Photo'
+  const accept = isReel ? 'video/*' : 'image/*'
+  const title = isReel ? 'Add Video' : 'Add Photos'
+  const galleryLabel = isReel ? 'Gallery' : 'Gallery (up to 10)'
 
   const handleGallery = (event) => {
-    const file = event.target.files?.[0]
+    const list = Array.from(event.target.files || [])
     event.target.value = ''
-    if (!file) return
-    onGallery?.(file)
+    if (!list.length) return
+    if (isReel) {
+      onGallery?.(list[0])
+      return
+    }
+    const images = list
+      .filter((f) => f.type?.startsWith('image/'))
+      .slice(0, MAX_POST_IMAGES)
+    if (!images.length) return
+    onGallery?.(images.length === 1 ? images[0] : images)
   }
 
   const handleCameraCapture = (file) => {
@@ -61,11 +72,27 @@ export default function AddMediaSheet({
           aria-label={title}
           className="relative z-10 w-full max-w-[420px] rounded-t-[28px] border-[6px] border-white bg-[#f2f2f2] shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:rounded-[28px]"
         >
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-black text-white transition hover:bg-neutral-800"
+          >
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.75" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
           <div className="flex flex-col items-center px-5 pb-2 pt-3">
             <div className="h-1 w-10 rounded-full bg-neutral-300" aria-hidden />
             <p className="mt-4 font-inter text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
               {title}
             </p>
+            {!isReel ? (
+              <p className="mt-1.5 text-center font-inter text-xs text-neutral-400">
+                Select multiple photos for a carousel post
+              </p>
+            ) : null}
           </div>
 
           <div className="px-2 pb-4 pt-1">
@@ -109,7 +136,7 @@ export default function AddMediaSheet({
                 />
               </svg>
               <span className="min-w-0 flex-1 font-inter text-base font-medium text-black">
-                Gallery
+                {galleryLabel}
               </span>
               <svg className="h-4 w-4 shrink-0 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -121,6 +148,7 @@ export default function AddMediaSheet({
             ref={galleryInputRef}
             type="file"
             accept={accept}
+            multiple={!isReel}
             className="hidden"
             onChange={handleGallery}
           />

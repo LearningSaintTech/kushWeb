@@ -19,6 +19,21 @@ export default function CreateTypeModal({ open, onClose, onSelect }) {
         aria-label="Create"
         className="relative z-10 w-full max-w-[420px] rounded-[28px] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6"
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-black text-white transition hover:bg-neutral-800"
+        >
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.75" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <p className="mb-4 pr-10 font-inter text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
+          Create
+        </p>
+
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <button
             type="button"

@@ -57,11 +57,32 @@ function isAuthRequestUrl(url = '') {
   );
 }
 
-/** Public storefront reads — must not trigger token refresh or logout on 401. */
+/** Public storefront reads — must not trigger token refresh, logout, or login modal on 401. */
 function isPublicApiUrl(url = '') {
-  return /\/gift-card\/(rules\/active|buy\/preview)|\/gift-items\/getActive/i.test(
-    String(url || ''),
+  const u = String(url || '');
+  return (
+    /\/gift-card\/(rules\/active|buy\/preview)|\/gift-items\/getActive/i.test(u) ||
+    /\/items\/(search|single|recommendation-suggestions|getAllVersion2|cross-sell)\b/i.test(
+      u,
+    ) ||
+    /\/(sections|banner|featuredImages|categories|subcategories|filters)\//i.test(u) ||
+    /\/servicablePincode\//i.test(u) ||
+    /\/delivery\/(getAll|check|getSingle)\b/i.test(u) ||
+    /\/cart-charges\/getAll-active/i.test(u) ||
+    /\/reviews\/(getAll|images|getSingle|guest\/create)\b/i.test(u)
   );
+}
+
+function requestHadAuth(config) {
+  if (!config) return false;
+  const headers = config.headers || {};
+  const auth =
+    headers.Authorization ||
+    headers.authorization ||
+    (typeof headers.get === 'function'
+      ? headers.get('Authorization') || headers.get('authorization')
+      : null);
+  return Boolean(auth);
 }
 
 function looksLikeHtmlPayload(data) {
@@ -202,8 +223,13 @@ client.interceptors.response.use(
       !isAuthRequestUrl(originalConfig.url) &&
       !isPublicApiUrl(originalConfig.url)
     ) {
+      // Only prompt login when this request expected a session (Bearer present).
+      // Guests browsing search/PDP must not see the auth modal on incidental 401s.
+      const shouldPromptLogin = requestHadAuth(originalConfig);
       await performLogout({ server: true });
-      notifyAuthRequired();
+      if (shouldPromptLogin) {
+        notifyAuthRequired();
+      }
     }
 
     return Promise.reject(error);

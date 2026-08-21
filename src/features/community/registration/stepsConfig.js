@@ -89,10 +89,22 @@ export const STEPS = [
 
 export function validateStep(step, data) {
   switch (step) {
-    case 1:
-      if (!data.fullName.trim()) return 'Full name is required.'
-      if (!data.username.trim()) return 'Username is required.'
+    case 1: {
+      const name = String(data.fullName || '').trim()
+      const username = String(data.username || '')
+        .replace(/^@/, '')
+        .trim()
+        .toLowerCase()
+      if (!name) return 'Full name is required.'
+      if (!/^[A-Za-z][A-Za-z ]+$/.test(name) || name.length < 2) {
+        return 'Name must be at least 2 letters (A–Z and spaces only).'
+      }
+      if (!username) return 'Username is required.'
+      if (!/^[a-z][a-z0-9_]{2,19}$/.test(username)) {
+        return 'Username must be 3–20 chars, start with a letter, and use only a–z, 0–9, _.'
+      }
       return null
+    }
     case 8:
       return null
     default:

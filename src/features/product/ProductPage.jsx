@@ -15,6 +15,7 @@ import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import WriteReviewModal from "./components/WriteReviewModal";
 import RelatedProducts from "./components/RelatedProducts";
+import PairItWithProducts from "./components/PairItWithProducts";
 import JustForYouProducts from "./components/JustForYouProducts";
 import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
@@ -1377,6 +1378,8 @@ function ProductPage() {
             </div>
           </div>
         </div>
+
+        <PairItWithProducts itemId={item._id} limit={8} />
 
         <div ref={reviewsSectionRef} className="mt-6 sm:mt-8">
           <div className="flex flex-col gap-4 border-t border-gray-200 pt-8 sm:flex-row sm:items-start sm:justify-between sm:gap-8">

@@ -375,26 +375,44 @@ export async function waitUntilPublished(contentId, {
   throw new Error('Timed out waiting for content to publish');
 }
 
+/** Normalize primary + multi tags (API: itemId and/or itemIds, 1–10). */
+function normalizeItemIds(itemId, itemIds) {
+  const list = [];
+  const push = (value) => {
+    const id = value != null ? String(value).trim() : '';
+    if (!id || list.includes(id)) return;
+    list.push(id);
+  };
+  if (Array.isArray(itemIds)) itemIds.forEach(push);
+  push(itemId);
+  return list.slice(0, 10);
+}
+
 /**
  * Full fast create post flow — FAST_UPLOAD_E2E Steps A–E.
- * @param {{ itemId: string, caption?: string, hashtags?: string[], imageFiles: File[], onProgress?: (pct: number, phase: string) => void }} opts
+ * @param {{ itemId?: string, itemIds?: string[], caption?: string, hashtags?: string[], imageFiles: File[], onProgress?: (pct: number, phase: string) => void }} opts
  */
 export async function createPostFast({
   itemId,
+  itemIds,
   caption = '',
   hashtags = [],
   imageFiles = [],
   onProgress,
 } = {}) {
+  const ids = normalizeItemIds(itemId, itemIds);
+  const primaryId = ids[0];
+
   logUpload('createPostFast start', {
-    itemId,
+    itemId: primaryId,
+    itemIds: ids,
     captionLen: caption?.length,
     hashtags,
     files: imageFiles?.length,
     devS3Proxy: useDevS3Proxy(),
   });
 
-  if (!itemId) throw new Error('Pick a purchased product before posting');
+  if (!primaryId) throw new Error('Pick a purchased product before posting');
   if (!imageFiles?.length) throw new Error('Add at least one image');
 
   const media = [];
@@ -411,9 +429,14 @@ export async function createPostFast({
   }
 
   onProgress?.(92, 'publish');
-  logUpload('POST /posts/publish', { itemId, mediaKeys: media.map((m) => m.key) });
+  logUpload('POST /posts/publish', {
+    itemId: primaryId,
+    itemIds: ids,
+    mediaKeys: media.map((m) => m.key),
+  });
   const created = await communityService.publishPost({
-    itemId,
+    itemId: primaryId,
+    ...(ids.length > 1 ? { itemIds: ids } : {}),
     caption,
     hashtags,
     media,
@@ -442,18 +465,23 @@ export async function createPostFast({
 
 /**
  * Full fast create reel flow (FAST_UPLOAD_E2E §4).
- * @param {{ itemId: string, caption?: string, hashtags?: string[], videoFile: File, thumbnailFile?: File, onProgress?: Function }} opts
+ * @param {{ itemId?: string, itemIds?: string[], caption?: string, hashtags?: string[], videoFile: File, thumbnailFile?: File, onProgress?: Function }} opts
  */
 export async function createReelFast({
   itemId,
+  itemIds,
   caption = '',
   hashtags = [],
   videoFile,
   thumbnailFile,
   onProgress,
 } = {}) {
+  const ids = normalizeItemIds(itemId, itemIds);
+  const primaryId = ids[0];
+
   logUpload('createReelFast start', {
-    itemId,
+    itemId: primaryId,
+    itemIds: ids,
     captionLen: caption?.length,
     hashtags,
     video: videoFile?.name,
@@ -461,7 +489,7 @@ export async function createReelFast({
     devS3Proxy: useDevS3Proxy(),
   });
 
-  if (!itemId) throw new Error('Pick a purchased product before posting');
+  if (!primaryId) throw new Error('Pick a purchased product before posting');
   if (!videoFile) throw new Error('Add a video');
 
   onProgress?.(5, 'upload-video');
@@ -484,7 +512,8 @@ export async function createReelFast({
 
   onProgress?.(90, 'publish');
   const body = {
-    itemId,
+    itemId: primaryId,
+    ...(ids.length > 1 ? { itemIds: ids } : {}),
     caption,
     hashtags,
     video: { key: video.key, mimeType: video.mimeType },
@@ -493,7 +522,8 @@ export async function createReelFast({
       : {}),
   };
   logUpload('POST /reels/publish', {
-    itemId,
+    itemId: primaryId,
+    itemIds: ids,
     videoKey: video.key,
     hasThumb: Boolean(thumbnail),
   });

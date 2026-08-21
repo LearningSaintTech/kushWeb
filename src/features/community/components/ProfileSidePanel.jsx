@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../app/context/AuthContext'
+import {
+  communityService,
+  getCommunityErrorMessage,
+} from '../../../services/community.service.js'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { useCommunitySocialProfile } from '../hooks/useCommunitySocialProfile'
-import { debugError } from '../../../utils/debugLog.js'
+import { debugError, debugLog } from '../../../utils/debugLog.js'
 import { isReelGridItem, navigateToReel, playlistFromGrid } from '../utils/openReel'
 import { isSameCommunityUser } from '../utils/userIds'
+import ReportReasonModal from './ReportReasonModal'
+import BlockedUsersModal from './BlockedUsersModal'
+import {
+  dispatchContentReported,
+  dispatchUserBlocked,
+  dispatchUserUnblocked,
+  resolveCanBlock,
+  resolveCanReport,
+} from '../utils/moderation'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -13,6 +26,14 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
   const navigate = useNavigate()
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('Posts')
+  const [moderationBusy, setModerationBusy] = useState(false)
+  const [moderationError, setModerationError] = useState('')
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [reportError, setReportError] = useState('')
+  const [blockedListOpen, setBlockedListOpen] = useState(false)
+  const [localBlocked, setLocalBlocked] = useState(null)
+  const [localReported, setLocalReported] = useState(null)
   const social = useCommunitySocial()
   const userId = seed?.id || seed?.userId || null
   const { profile, loading } = useCommunitySocialProfile({
@@ -32,12 +53,32 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
     avatar: seed?.avatar || '',
     isFollowing: Boolean(seed?.isFollowing),
     isOwnProfile: isOwn,
+    isBlocked: Boolean(seed?.isBlocked),
+    isReported: Boolean(seed?.isReported),
+    canBlock: seed?.canBlock,
+    canReport: seed?.canReport,
     stats: { posts: '—', followers: '—', following: '—' },
     mediaByTab: { Posts: [], Reels: [], Tagged: [] },
   }
 
+  const isBlocked =
+    localBlocked != null ? localBlocked : Boolean(display.isBlocked)
+  const isReported =
+    localReported != null ? localReported : Boolean(display.isReported)
+  const canBlock = resolveCanBlock(
+    { canBlock: display.canBlock, isBlocked },
+    isOwn,
+  )
+  const canReport = resolveCanReport(
+    { canReport: display.canReport, isReported },
+    isOwn,
+  )
+
   useEffect(() => {
     if (!seed) return undefined
+    setLocalBlocked(null)
+    setLocalReported(null)
+    setModerationError('')
 
     const onKeyDown = (event) => {
       if (event.key === 'Escape') onClose?.()
@@ -56,11 +97,71 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
   const media = display.mediaByTab?.[activeTab] ?? []
 
   const handleFollow = async () => {
-    if (!display.id || isOwn) return
+    if (!display.id || isOwn || isBlocked) return
     try {
       await social.toggleFollow(display.id, following)
     } catch (err) {
       debugError('[Community] side panel follow failed', err?.message)
+    }
+  }
+
+  const handleBlockToggle = async () => {
+    if (!display.id || moderationBusy || isOwn) return
+    if (!isBlocked) {
+      const ok = window.confirm(
+        `Block ${display.name || 'this user'}? Their posts will leave your feed.`,
+      )
+      if (!ok) return
+    }
+    setModerationBusy(true)
+    setModerationError('')
+    try {
+      if (isBlocked) {
+        await communityService.unblockUser(display.id)
+        setLocalBlocked(false)
+        dispatchUserUnblocked({ userId: display.id })
+        debugLog('[Community] profile unblocked', { userId: display.id })
+      } else {
+        await communityService.blockUser(display.id)
+        setLocalBlocked(true)
+        dispatchUserBlocked({ userId: display.id })
+        debugLog('[Community] profile blocked', { userId: display.id })
+        window.setTimeout(() => onClose?.(), 400)
+      }
+    } catch (err) {
+      setModerationError(
+        getCommunityErrorMessage(
+          err,
+          isBlocked ? 'Could not unblock user.' : 'Could not block user.',
+        ),
+      )
+    } finally {
+      setModerationBusy(false)
+    }
+  }
+
+  const handleReportSubmit = async ({ reason, details }) => {
+    if (!display.id || reportSubmitting) return
+    setReportSubmitting(true)
+    setReportError('')
+    try {
+      const result = await communityService.report({
+        targetType: 'user',
+        targetId: display.id,
+        reason,
+        details,
+      })
+      setLocalReported(true)
+      setReportOpen(false)
+      dispatchContentReported({ userId: display.id })
+      debugLog('[Community] user reported', {
+        userId: display.id,
+        already: result?.alreadyReported,
+      })
+    } catch (err) {
+      setReportError(getCommunityErrorMessage(err, 'Could not submit report.'))
+    } finally {
+      setReportSubmitting(false)
     }
   }
 
@@ -90,7 +191,7 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
       aria-label={`${display.name} profile`}
     >
       <div className="flex min-h-full flex-col overflow-hidden rounded-2xl bg-white">
-        <div className="px-4 pt-4">
+        <div className="flex items-center justify-between px-4 pt-4">
           <button
             type="button"
             onClick={onClose}
@@ -101,6 +202,15 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
           </button>
+          {isOwn ? (
+            <button
+              type="button"
+              onClick={() => setBlockedListOpen(true)}
+              className="cursor-pointer font-inter text-xs font-semibold text-neutral-500 transition hover:text-black"
+            >
+              Blocked
+            </button>
+          ) : null}
         </div>
 
         <div className="px-5 pb-5 text-center sm:px-6">
@@ -158,12 +268,45 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
               <button
                 type="button"
                 onClick={handleFollow}
-                className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"
+                disabled={isBlocked}
+                className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {following ? 'Following' : 'Follow'}
               </button>
             )}
           </div>
+
+          {!isOwn && (canBlock || canReport) ? (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {canBlock ? (
+                <button
+                  type="button"
+                  disabled={moderationBusy}
+                  onClick={handleBlockToggle}
+                  className="cursor-pointer rounded-xl border border-neutral-200 py-2.5 font-inter text-xs font-semibold text-black transition hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  {moderationBusy ? '…' : isBlocked ? 'Unblock' : 'Block'}
+                </button>
+              ) : null}
+              {canReport ? (
+                <button
+                  type="button"
+                  disabled={isReported || moderationBusy}
+                  onClick={() => {
+                    setReportError('')
+                    setReportOpen(true)
+                  }}
+                  className="cursor-pointer rounded-xl border border-neutral-200 py-2.5 font-inter text-xs font-semibold text-black transition hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  {isReported ? 'Reported' : 'Report'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {moderationError ? (
+            <p className="mt-2 font-inter text-xs text-red-600">{moderationError}</p>
+          ) : null}
         </div>
 
         <div className="mt-1 grid grid-cols-3 border-b border-neutral-200 px-3">
@@ -210,6 +353,19 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
           )}
         </div>
       </div>
+
+      <ReportReasonModal
+        open={reportOpen}
+        title="Report user"
+        submitting={reportSubmitting}
+        error={reportError}
+        onClose={() => !reportSubmitting && setReportOpen(false)}
+        onSubmit={handleReportSubmit}
+      />
+      <BlockedUsersModal
+        open={blockedListOpen}
+        onClose={() => setBlockedListOpen(false)}
+      />
     </aside>
   )
 }

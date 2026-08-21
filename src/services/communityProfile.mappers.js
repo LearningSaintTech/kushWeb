@@ -41,8 +41,14 @@ export function mapGenderToApi(value) {
   const v = String(value || '').toLowerCase();
   if (v === 'f' || v === 'female') return 'f';
   if (v === 'm' || v === 'male') return 'm';
-  if (v === 'trans' || v === 'tran') return 'trans';
-  if (v === 'prefer_not_to_say' || v === 'prefer-not' || v === 'non-binary') {
+  // API only allows f | m | prefer_not_to_say (not "trans")
+  if (
+    v === 'trans' ||
+    v === 'tran' ||
+    v === 'prefer_not_to_say' ||
+    v === 'prefer-not' ||
+    v === 'non-binary'
+  ) {
     return 'prefer_not_to_say';
   }
   return undefined;
@@ -63,13 +69,42 @@ export function normalizePhoneForApi(phone) {
   return digits || undefined;
 }
 
+/** Designer username: 3–20, must start with a letter. */
+export const DESIGNER_USERNAME_RE = /^[a-z][a-z0-9_]{2,19}$/;
+/** Creator username: 3–30, start with a letter (same charset). */
+export const CREATOR_USERNAME_RE = /^[a-z][a-z0-9_]{2,29}$/;
+/** Display name: letters + spaces only, min 2. */
+export const DISPLAY_NAME_RE = /^[A-Za-z][A-Za-z ]{1,}$/;
+/** Indian mobile when provided. */
+export const INDIA_MOBILE_RE = /^[6-9]\d{9}$/;
+
+export function normalizeUsername(value) {
+  return String(value || '')
+    .replace(/^@/, '')
+    .trim()
+    .toLowerCase();
+}
+
+export function normalizeLinkUrl(url) {
+  const u = String(url || '').trim();
+  if (!u) return '';
+  if (/^https?:\/\//i.test(u)) return u;
+  return `https://${u}`;
+}
+
+/** YYYY or YYYY-MM → prefer YYYY-MM for experience API. */
+export function normalizeExperienceDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw || /^present$/i.test(raw)) return '';
+  if (/^\d{4}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}$/.test(raw)) return `${raw}-01`;
+  return raw.slice(0, 7);
+}
+
 export function buildDesignerEssentialsBody(form) {
   return {
     name: form.fullName?.trim() || undefined,
-    username: String(form.username || '')
-      .replace(/^@/, '')
-      .trim()
-      .toLowerCase() || undefined,
+    username: normalizeUsername(form.username) || undefined,
     location: form.location?.trim() || undefined,
   };
 }
@@ -98,8 +133,8 @@ export function buildDesignerExperienceBody(form) {
       return {
         title: r.jobTitle?.trim() || '',
         company: r.company?.trim() || '',
-        startDate: r.startYear ? String(r.startYear) : '',
-        endDate: isPresent ? '' : String(r.endYear || ''),
+        startDate: normalizeExperienceDate(r.startYear),
+        endDate: isPresent ? '' : normalizeExperienceDate(r.endYear),
         isPresent,
         description: r.description?.trim() || '',
       };
@@ -144,18 +179,19 @@ export function buildDesignerLinksBody(form) {
   for (const platform of ['dribbble', 'behance', 'twitter', 'website']) {
     const hub = hubs[platform];
     if (!hub) continue;
+    const url = normalizeLinkUrl(hub.url);
     links.push({
       platform,
-      url: String(hub.url || '').trim(),
+      url,
       label: '',
-      enabled: Boolean(hub.enabled),
+      enabled: Boolean(hub.enabled) && Boolean(url),
     });
   }
   for (const custom of form.customLinks || []) {
     if (!custom?.url?.trim()) continue;
     links.push({
       platform: 'custom',
-      url: String(custom.url).trim(),
+      url: normalizeLinkUrl(custom.url),
       label: String(custom.title || '').trim(),
       enabled: true,
     });
@@ -172,10 +208,7 @@ export function buildCreatorPhotoFormData(form) {
 export function buildCreatorBasicBody(form) {
   return {
     name: form.fullName?.trim() || undefined,
-    username: String(form.username || '')
-      .replace(/^@/, '')
-      .trim()
-      .toLowerCase() || undefined,
+    username: normalizeUsername(form.username) || undefined,
   };
 }
 

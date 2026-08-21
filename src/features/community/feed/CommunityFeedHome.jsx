@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import FeedFilters from '../components/FeedFilters'
 import PostCard from '../components/PostCard'
@@ -40,6 +40,35 @@ export default function CommunityFeedHome() {
     type: 'post',
     enabled: activeFilter !== 'Notifications' && activeFilter !== 'Profile',
   })
+
+  useEffect(() => {
+    const onDeleted = (e) => {
+      const id = e?.detail?.id
+      if (!id) return
+      setItems((prev) => prev.filter((p) => String(p.id) !== String(id)))
+    }
+    const onBlocked = (e) => {
+      const userId = e?.detail?.userId
+      if (!userId) return
+      setItems((prev) =>
+        prev.filter((p) => String(p.author?.id) !== String(userId)),
+      )
+      refresh?.()
+    }
+    const onReported = (e) => {
+      const contentId = e?.detail?.contentId
+      if (!contentId) return
+      patchItem?.(contentId, { isReported: true })
+    }
+    window.addEventListener('khush:community-content-deleted', onDeleted)
+    window.addEventListener('khush:community-user-blocked', onBlocked)
+    window.addEventListener('khush:community-content-reported', onReported)
+    return () => {
+      window.removeEventListener('khush:community-content-deleted', onDeleted)
+      window.removeEventListener('khush:community-user-blocked', onBlocked)
+      window.removeEventListener('khush:community-content-reported', onReported)
+    }
+  }, [setItems, refresh, patchItem])
 
   const posts = useMemo(() => {
     if (activeFilter === 'Creators') {
