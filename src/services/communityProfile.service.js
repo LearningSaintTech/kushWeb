@@ -261,4 +261,6 @@ export {
   buildCreatorPrivateBody,
   hydrateDesignerForm,
   hydrateCreatorForm,
+  isCommunityProfileDeleted,
+  mapDeletedCommunityProfileResponse,
 } from './communityProfile.mappers.js';

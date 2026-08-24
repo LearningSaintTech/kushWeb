@@ -17,7 +17,11 @@ import {
 import AuthSuccessToast from '../../shared/components/AuthSuccessToast.jsx'
 import { trackEvent } from '../../analytics'
 
-const AuthContext = createContext(null)
+/** Persist context across Vite HMR so Provider/consumer stay in sync after hot updates. */
+const AuthContext = import.meta.hot?.data?.AuthContext ?? createContext(null)
+if (import.meta.hot) {
+  import.meta.hot.data.AuthContext = AuthContext
+}
 
 /** Routes where guests can browse freely — never force the login modal from 401s. */
 function isPublicBrowsePath(pathname = '') {

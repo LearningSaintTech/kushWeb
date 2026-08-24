@@ -22,6 +22,7 @@ import {
   buildCreatorPrivateBody,
   creatorStepIndex,
   hydrateCreatorForm,
+  isCommunityProfileDeleted,
 } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
@@ -33,7 +34,7 @@ const STEP_COMPONENTS = {
   5: StepSuccess,
 }
 
-export default function CreatorWizard({ open, onClose }) {
+export default function CreatorWizard({ open, onClose, forceFresh = false }) {
   const { profile, refresh, applyProfile } = useCommunityProfile()
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState(INITIAL_FORM_DATA)
@@ -82,21 +83,47 @@ export default function CreatorWizard({ open, onClose }) {
     ;(async () => {
       setSaving(true)
       setError(null)
+      setFormData(INITIAL_FORM_DATA)
+      setStep(1)
       try {
-        const latest = (await refresh()) || profile
+        const refreshed = await refresh()
         if (cancelled) return
-        const nextForm = hydrateCreatorForm(latest, INITIAL_FORM_DATA)
-        const nextStep = creatorStepIndex(latest)
+        const latest = {
+          ...(refreshed || profile || {}),
+          ...(isCommunityProfileDeleted(profile)
+            ? {
+                communityProfileStatus: 'deleted',
+                requiresOnboarding: true,
+                deleted: true,
+                isDesigner: false,
+                isCreator: false,
+                designerOnboardingStep: 'not_started',
+                creatorOnboardingStep: 'not_started',
+              }
+            : {}),
+        }
+        const nextForm =
+          forceFresh || isCommunityProfileDeleted(latest)
+            ? INITIAL_FORM_DATA
+            : hydrateCreatorForm(latest, INITIAL_FORM_DATA)
+        const nextStep =
+          forceFresh || isCommunityProfileDeleted(latest)
+            ? 1
+            : creatorStepIndex(latest)
         setFormData(nextForm)
         setStep(nextStep >= SUCCESS_STEP ? SUCCESS_STEP : nextStep)
         debugLog('[CommunityProfile] creator wizard resume', {
           step: nextStep,
+          prefilled: Boolean(nextForm?.username || nextForm?.fullName),
           creatorOnboardingStep: latest?.creatorOnboardingStep,
+          communityProfileStatus: latest?.communityProfileStatus,
         })
         setBootstrapped(true)
       } catch (err) {
         if (!cancelled) {
           setError(getCommunityProfileErrorMessage(err))
+          setFormData(INITIAL_FORM_DATA)
+          setStep(1)
           setBootstrapped(true)
         }
       } finally {

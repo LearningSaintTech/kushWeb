@@ -8,10 +8,7 @@ export const INITIAL_FORM_DATA = {
   coverPreview: '',
   profilePhoto: null,
   profilePreview: '',
-  skills: [
-    { id: '1', name: 'UI Design', level: 95 },
-    { id: '2', name: 'Brand Identity', level: 80 },
-  ],
+  skills: [{ id: '1', name: '', level: 50 }],
   experience: [
     {
       id: '1',
@@ -35,10 +32,10 @@ export const INITIAL_FORM_DATA = {
   bio: '',
   tags: '',
   hubs: {
-    dribbble: { enabled: true, title: 'Dribbble', url: 'dribbble.com/ariverton' },
-    behance: { enabled: true, title: 'Behance', url: 'behance.net/ariverton' },
-    twitter: { enabled: false, title: 'Twitter', url: 'twitter.com/ariverton' },
-    website: { enabled: true, title: 'Website', url: 'ariverton.design' },
+    dribbble: { enabled: false, title: 'Dribbble', url: '' },
+    behance: { enabled: false, title: 'Behance', url: '' },
+    twitter: { enabled: false, title: 'Twitter', url: '' },
+    website: { enabled: false, title: 'Website', url: '' },
   },
   customLinks: [],
 }

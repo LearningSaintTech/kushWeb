@@ -85,6 +85,41 @@ export function normalizeUsername(value) {
     .toLowerCase();
 }
 
+/** True after DELETE /community/profile/me (or equivalent flags on profile). */
+export function isCommunityProfileDeleted(profile) {
+  if (!profile || typeof profile !== 'object') return false;
+  const status = String(profile.communityProfileStatus || '').toLowerCase();
+  return (
+    profile.deleted === true ||
+    profile.requiresOnboarding === true ||
+    status === 'deleted'
+  );
+}
+
+/**
+ * Normalize DELETE /community/profile/me envelope into onboarding profile shape.
+ * API: { userId, communityProfileStatus, requiresOnboarding, alreadyDeleted, profile }
+ */
+export function mapDeletedCommunityProfileResponse(data) {
+  if (!data || typeof data !== 'object') return null;
+  const nested = data.profile && typeof data.profile === 'object' ? data.profile : {};
+  return {
+    ...nested,
+    userId: data.userId ?? nested._id ?? nested.userId,
+    communityProfileStatus:
+      data.communityProfileStatus ?? nested.communityProfileStatus ?? 'deleted',
+    requiresOnboarding: data.requiresOnboarding ?? true,
+    alreadyDeleted: Boolean(data.alreadyDeleted ?? nested.alreadyDeleted),
+    isCreator: false,
+    isDesigner: false,
+    creatorOnboardingStep: 'not_started',
+    designerOnboardingStep: 'not_started',
+    creatorProfileCompleted: false,
+    designerProfileCompleted: false,
+    deleted: true,
+  };
+}
+
 export function normalizeLinkUrl(url) {
   const u = String(url || '').trim();
   if (!u) return '';
@@ -233,6 +268,20 @@ export function buildCreatorPrivateBody(form) {
 /** Prefill designer wizard from API profile. */
 export function hydrateDesignerForm(profile, base) {
   if (!profile) return base;
+  const empty = typeof base === 'object' ? { ...base } : base;
+
+  // Deleted / re-onboard / never progressed past essentials → never prefill leftovers
+  // (GET /user/community-profile often still returns old name/username after soft-delete)
+  if (isCommunityProfileDeleted(profile)) return empty;
+  const step = String(profile.designerOnboardingStep || 'not_started');
+  if (
+    profile.isDesigner !== true ||
+    step === 'not_started' ||
+    step === 'essentials'
+  ) {
+    return empty;
+  }
+
   const skills =
     Array.isArray(profile.designerSkills) && profile.designerSkills.length
       ? profile.designerSkills.map((s) => ({
@@ -291,7 +340,7 @@ export function hydrateDesignerForm(profile, base) {
   return {
     ...base,
     fullName: profile.name || base.fullName,
-    username: profile.username || base.username,
+    username: normalizeUsername(profile.username) || base.username,
     location: profile.designerLocation || base.location,
     coverPreview: profile.designerCoverImage || base.coverPreview,
     profilePreview: profile.profileImage || base.profilePreview,
@@ -308,11 +357,24 @@ export function hydrateDesignerForm(profile, base) {
 /** Prefill creator wizard from API profile. */
 export function hydrateCreatorForm(profile, base) {
   if (!profile) return base;
+  const empty = typeof base === 'object' ? { ...base } : base;
+
+  if (isCommunityProfileDeleted(profile)) return empty;
+  const step = String(profile.creatorOnboardingStep || 'not_started');
+  if (
+    profile.isCreator !== true ||
+    step === 'not_started' ||
+    step === 'photo' ||
+    step === 'basic'
+  ) {
+    return empty;
+  }
+
   return {
     ...base,
     photoPreview: profile.profileImage || base.photoPreview,
     fullName: profile.name || base.fullName,
-    username: profile.username || base.username,
+    username: normalizeUsername(profile.username) || base.username,
     bio: profile.creatorBio || base.bio,
     website: profile.creatorWebsite || base.website,
     email: profile.email || base.email,

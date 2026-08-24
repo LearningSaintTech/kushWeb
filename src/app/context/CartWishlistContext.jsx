@@ -9,7 +9,12 @@ import { trackEvent } from '../../analytics'
 const STORAGE_KEY_CART = 'khush_cart'
 const STORAGE_KEY_WISHLIST = 'khush_wishlist'
 
-const CartWishlistContext = createContext(null)
+/** Persist context across Vite HMR so Provider/consumer stay in sync after hot updates. */
+const CartWishlistContext =
+  import.meta.hot?.data?.CartWishlistContext ?? createContext(null)
+if (import.meta.hot) {
+  import.meta.hot.data.CartWishlistContext = CartWishlistContext
+}
 
 function loadCart() {
   try {

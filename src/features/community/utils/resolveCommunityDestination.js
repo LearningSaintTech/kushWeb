@@ -1,5 +1,6 @@
 import { ROUTES } from '../../../utils/constants'
 import { COMMUNITY_ROLES } from '../capabilities'
+import { isCommunityProfileDeleted } from '../../../services/communityProfile.mappers.js'
 
 function isIncompleteStep(step) {
   return Boolean(step && step !== 'completed' && step !== 'not_started')
@@ -19,11 +20,16 @@ function roleFromProfile(profile, fallbackRole) {
 
 /**
  * Pick the community destination from auth + community-profile flags.
+ * - Deleted / requires onboarding → create/join (re-onboard)
  * - Incomplete onboarding → profile (wizard resumes)
  * - Creator / designer → profile dashboard
  * - Normal user → feed home
  */
 export function resolveCommunityDestination(profile, fallbackRole) {
+  if (isCommunityProfileDeleted(profile)) {
+    return ROUTES.COMMUNITY_CREATE_JOIN
+  }
+
   if (
     profile?.isDesigner &&
     isIncompleteStep(profile.designerOnboardingStep)
