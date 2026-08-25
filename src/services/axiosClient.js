@@ -10,6 +10,7 @@ import { refreshUserAccessToken } from '../utils/authSession.js';
 import { performLogout } from '../utils/sessionLogout.js';
 import { getMemoryToken, setMemoryToken } from '../utils/tokenMemory.js';
 import { getOrCreateDeviceId } from '../utils/deviceId.js';
+import { hasSessionHint } from '../utils/sessionHint.js';
 import {
   isRateLimitedStatus,
   normalizeRateLimitMessage,
@@ -212,8 +213,14 @@ client.interceptors.response.use(
           originalConfig.headers.Authorization = `Bearer ${newToken}`;
           return client(originalConfig);
         }
+        // Refresh soft-failed (429 / network) but session hint still set — keep local session.
+        if (hasSessionHint()) {
+          return Promise.reject(error);
+        }
       } catch {
-        /* fall through */
+        if (hasSessionHint()) {
+          return Promise.reject(error);
+        }
       }
     }
 
@@ -221,15 +228,11 @@ client.interceptors.response.use(
       status === 401 &&
       originalConfig &&
       !isAuthRequestUrl(originalConfig.url) &&
-      !isPublicApiUrl(originalConfig.url)
+      !isPublicApiUrl(originalConfig.url) &&
+      requestHadAuth(originalConfig)
     ) {
-      // Only prompt login when this request expected a session (Bearer present).
-      // Guests browsing search/PDP must not see the auth modal on incidental 401s.
-      const shouldPromptLogin = requestHadAuth(originalConfig);
-      await performLogout({ server: true });
-      if (shouldPromptLogin) {
-        notifyAuthRequired();
-      }
+      await performLogout({ server: false });
+      notifyAuthRequired();
     }
 
     return Promise.reject(error);

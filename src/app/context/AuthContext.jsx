@@ -3,7 +3,7 @@ import { authService } from '../../services/auth.service.js'
 import { setAccessTokenGetter, getCurrentAccessToken, setOnAuthRequired } from '../../services/axiosClient.js'
 import { getMemoryToken, setMemoryToken, subscribeMemoryToken, clearMemoryToken } from '../../utils/tokenMemory.js'
 import { getValidAccessToken, isTokenExpired } from '../../utils/authToken.js'
-import { refreshUserAccessToken } from '../../utils/authSession.js'
+import { refreshUserAccessToken, rememberRefreshTokenFromAuthPayload } from '../../utils/authSession.js'
 import { performLogout, clearLegacyAuthStorage } from '../../utils/sessionLogout.js'
 import { setSessionHint } from '../../utils/sessionHint.js'
 import { getOrCreateDeviceId } from '../../utils/deviceId.js'
@@ -146,9 +146,19 @@ export function AuthProvider({ children }) {
             const minimal = buildMinimalUser(currentToken)
             if (minimal) setUser(minimal)
           } else {
-            await performLogout({ server: true })
-            setTokenState(null)
-            setUser(null)
+            // Keep session on transient profile failures (5xx/network) and on
+            // 403 (eligibility / permission — not "session dead").
+            // Only clear client session when the token itself is rejected (401).
+            // Never call server logout here — that wipes Redis and kicks devices.
+            const status = err?.response?.status
+            if (status === 401) {
+              await performLogout({ server: false })
+              setTokenState(null)
+              setUser(null)
+            } else {
+              const minimal = buildMinimalUser(currentToken)
+              if (minimal) setUser(minimal)
+            }
           }
         }
       } finally {
@@ -178,6 +188,7 @@ export function AuthProvider({ children }) {
     const accessToken = data?.accessToken ?? data?.access_token
     if (accessToken) {
       setSessionHint()
+      rememberRefreshTokenFromAuthPayload(data)
       setToken(accessToken)
       const userFromVerify = extractAuthUser(data)
       if (userFromVerify) {
