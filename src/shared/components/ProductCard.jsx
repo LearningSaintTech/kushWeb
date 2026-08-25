@@ -172,6 +172,14 @@ const ProductCard = React.memo(function ProductCard({
   compactImageOverlaysOnMobile = false,
   /** Phone 2-col listing: portrait image, tight text, no mobile Buy Now bar. */
   compactGrid = false,
+  /** Always-visible “ADD” under price (e.g. Pair it with). */
+  showAddButton = false,
+  /** Place Add on the image (bottom overlay) instead of under price. */
+  addButtonOnImage = false,
+  /** Hide delivery / “get in …” column entirely. */
+  hideDelivery = false,
+  /** Hide wishlist / quick-view / cart icon stack on the image. */
+  hideImageActions = false,
   /** Section bind-offer payload from API (`item.bindOffer`). */
   bindOffer = null,
   /** BOGO / bind-offer chip; overrides `bindOffer` when set. */
@@ -367,6 +375,55 @@ const ProductCard = React.memo(function ProductCard({
     navigate(getProductPath(id, title, shortDescription));
   };
 
+  const handleAddToCart = async (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (id == null || showComingSoonLock || outOfStock) return;
+    setCartError(null);
+    setAddedToCartToast(false);
+    if (cartErrorTimeoutRef.current) {
+      clearTimeout(cartErrorTimeoutRef.current);
+      cartErrorTimeoutRef.current = null;
+    }
+    if (addedToCartToastTimeoutRef.current) {
+      clearTimeout(addedToCartToastTimeoutRef.current);
+      addedToCartToastTimeoutRef.current = null;
+    }
+    if (inCart) {
+      await removeFromCart(id);
+      return;
+    }
+    const result = await addToCart({
+      id,
+      image,
+      hoverImage,
+      title,
+      shortDescription,
+      price,
+      originalPrice,
+      delivery,
+      rating,
+      isComingSoon,
+      launchDate,
+    });
+    if (result?.success === false && result?.message) {
+      setCartError(result.message);
+      cartErrorTimeoutRef.current = setTimeout(() => setCartError(null), 4000);
+      return;
+    }
+    trackPixelAddToCart({
+      id,
+      name: title,
+      price,
+      quantity: 1,
+    });
+    setAddedToCartToast(true);
+    addedToCartToastTimeoutRef.current = setTimeout(
+      () => setAddedToCartToast(false),
+      2000,
+    );
+  };
+
   const showHoverImage = Boolean(
     hoverImage && hoverImageLoaded && hoverImage !== image && !showComingSoonLock,
   );
@@ -528,7 +585,7 @@ const ProductCard = React.memo(function ProductCard({
           ) : null}
 
           {/* ACTION ICONS */}
-          {id != null && !showComingSoonLock && (
+          {id != null && !showComingSoonLock && !hideImageActions && (
             <div
               className={`absolute flex flex-col z-10 ${imageActionsWrapClass}`}
               onClick={(e) => e.stopPropagation()}
@@ -604,56 +661,7 @@ const ProductCard = React.memo(function ProductCard({
               {/* Cart */}
               <button
                 type="button"
-                onClick={async (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setCartError(null);
-                  setAddedToCartToast(false);
-                  if (cartErrorTimeoutRef.current) {
-                    clearTimeout(cartErrorTimeoutRef.current);
-                    cartErrorTimeoutRef.current = null;
-                  }
-                  if (addedToCartToastTimeoutRef.current) {
-                    clearTimeout(addedToCartToastTimeoutRef.current);
-                    addedToCartToastTimeoutRef.current = null;
-                  }
-                  if (inCart) {
-                    await removeFromCart(id);
-                    return;
-                  }
-                  const result = await addToCart({
-                    id,
-                    image,
-                    hoverImage,
-                    title,
-                    shortDescription,
-                    price,
-                    originalPrice,
-                    delivery,
-                    rating,
-                    isComingSoon,
-                    launchDate,
-                  });
-                  if (result?.success === false && result?.message) {
-                    setCartError(result.message);
-                    cartErrorTimeoutRef.current = setTimeout(
-                      () => setCartError(null),
-                      4000,
-                    );
-                    return;
-                  }
-                  trackPixelAddToCart({
-                    id,
-                    name: title,
-                    price,
-                    quantity: 1,
-                  });
-                  setAddedToCartToast(true);
-                  addedToCartToastTimeoutRef.current = setTimeout(
-                    () => setAddedToCartToast(false),
-                    2000,
-                  );
-                }}
+                onClick={handleAddToCart}
                 className={`${imageActionBtnClass} rounded-full bg-white flex items-center justify-center shadow-sm transition-all duration-500 ease-in-out delay-200 hover:scale-105 cursor-pointer ${actionIconClass()}`}
                 aria-label={inCart ? "Remove from cart" : "Add to cart"}
               >
@@ -713,6 +721,47 @@ const ProductCard = React.memo(function ProductCard({
               </button>
             </div>
           )}
+
+          {showAddButton &&
+          addButtonOnImage &&
+          id != null &&
+          !showComingSoonLock ? (
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-3 pb-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                disabled={outOfStock}
+                onClick={handleAddToCart}
+                className={`pointer-events-auto inline-flex h-9 w-[88%] max-w-[200px] items-center justify-center gap-1.5 rounded-md font-inter text-[11px] font-bold uppercase tracking-[0.12em] transition active:scale-[0.98] touch-manipulation sm:h-10 sm:text-xs ${
+                  outOfStock
+                    ? "cursor-not-allowed bg-neutral-400/90 text-white"
+                    : inCart
+                      ? "bg-black text-white"
+                      : "bg-black text-white hover:bg-neutral-900"
+                }`}
+              >
+                {!outOfStock && !inCart ? (
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4.5v15m7.5-7.5h-15"
+                    />
+                  </svg>
+                ) : null}
+                {outOfStock ? "Out of stock" : inCart ? "Added" : "Add"}
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {/* INFO STRIP — hidden for Shaktiman coming-soon (image only) */}
@@ -775,9 +824,11 @@ const ProductCard = React.memo(function ProductCard({
           {/* Price row; optional stacked rating below on phone portrait (wishlist). */}
           <div
             className={`mt-1.5 flex w-full min-w-0 gap-x-2 text-[11px] sm:mt-2 lg:items-center lg:text-sm ${
-              resolvedStackRatingOnMobile
-                ? "max-lg:flex-col max-lg:items-start max-lg:gap-y-1"
-                : "items-center"
+              hideDelivery
+                ? "items-center justify-between"
+                : resolvedStackRatingOnMobile
+                  ? "max-lg:flex-col max-lg:items-start max-lg:gap-y-1"
+                  : "items-center"
             } ${resolvedPriceRowClassName}`}
           >
             <div
@@ -798,44 +849,28 @@ const ProductCard = React.memo(function ProductCard({
               )}
             </div>
 
-            {delivery ? (
+            {!hideDelivery && delivery ? (
               <div
                 className={`flex min-h-[1.25rem] min-w-0 flex-1 items-center justify-center gap-1 px-0.5 text-black ${
                   resolvedStackRatingOnMobile ? "max-lg:hidden" : ""
                 }`}
                 style={{ fontFamily: "'Baloo 2', sans-serif" }}
-              >
-                {/* <svg
-                  className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg> */}
-                {/* <span className="truncate text-center text-[10px] font-bold uppercase leading-tight tracking-wide sm:text-xs">
-                  {delivery}
-                </span> */}
-              </div>
-            ) : (
+              />
+            ) : !hideDelivery ? (
               <div
                 className={`min-w-0 flex-1 ${
                   resolvedStackRatingOnMobile ? "max-lg:hidden" : ""
                 }`}
                 aria-hidden
               />
-            )}
+            ) : null}
 
             {rating != null && rating !== "" && Number(rating) > 0 && (
               <div
                 className={`shrink-0 ${
-                  resolvedStackRatingOnMobile ? "max-lg:w-full" : ""
+                  !hideDelivery && resolvedStackRatingOnMobile
+                    ? "max-lg:w-full"
+                    : ""
                 }`}
               >
                 <ProductCardStarRating value={rating} compact={isCompactGrid} />
@@ -847,6 +882,26 @@ const ProductCard = React.memo(function ProductCard({
             <p className="mt-1 line-clamp-2 font-inter text-[9px] font-medium leading-snug text-violet-700 sm:text-[10px]">
               {offerHint}
             </p>
+          ) : null}
+
+          {showAddButton &&
+          !addButtonOnImage &&
+          id != null &&
+          !showComingSoonLock ? (
+            <button
+              type="button"
+              disabled={outOfStock}
+              onClick={handleAddToCart}
+              className={`mt-2.5 w-full rounded-md border border-black py-2 font-inter text-[10px] font-bold uppercase tracking-[0.14em] transition active:scale-[0.98] touch-manipulation sm:text-[11px] ${
+                outOfStock
+                  ? "cursor-not-allowed border-neutral-300 bg-neutral-100 text-neutral-400"
+                  : inCart
+                    ? "bg-black text-white hover:bg-neutral-900"
+                    : "bg-white text-black hover:bg-black hover:text-white"
+              }`}
+            >
+              {outOfStock ? "Out of stock" : inCart ? "Added" : "Add"}
+            </button>
           ) : null}
         </div>
 

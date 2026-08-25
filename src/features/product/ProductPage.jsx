@@ -6,7 +6,7 @@ import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { FaTag } from "react-icons/fa6";
 import { RiFileList2Line, RiRefreshLine, RiTruckLine } from "react-icons/ri";
 import { FaHandHoldingHeart } from "react-icons/fa";
-import { itemsService } from "../../services/items.service.js";
+import { itemsService } from "../../services/items.service.js"
 import { deliveryService } from "../../services/delivery.service.js";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
@@ -15,6 +15,7 @@ import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import WriteReviewModal from "./components/WriteReviewModal";
 import RelatedProducts from "./components/RelatedProducts";
+import PairItWithProducts from "./components/PairItWithProducts";
 import JustForYouProducts from "./components/JustForYouProducts";
 import { FaShareSquare } from "react-icons/fa";
 import { RiTShirtAirLine } from "react-icons/ri";
@@ -94,6 +95,12 @@ function ProductPage() {
     }
     setLoading(true);
     setError(null);
+    setExpandedSection("details");
+    setSelectedImageIndex(0);
+    setShortDescExpanded(false);
+    setLongDescExpanded(false);
+    setShowSizeChart(false);
+    setImageZoomOpen(false);
     const params = pincode ? { pincode: String(pincode) } : {};
     itemsService
       .getById(id, params)
@@ -132,6 +139,7 @@ function ProductPage() {
             ? Number(item.avgRating)
             : null,
         );
+        setExpandedSection("details");
         setSelectedImageIndex(0);
         setShortDescExpanded(false);
         setLongDescExpanded(false);
@@ -436,6 +444,14 @@ function ProductPage() {
             ? "selectedSizeObj.inStock is false"
             : "ok",
   });
+
+  useEffect(() => {
+    if (!item?._id) return;
+    console.log("[ProductPage] RelatedProducts will receive itemId", {
+      itemId: item._id,
+      itemName: item.name,
+    });
+  }, [item?._id, item?.name]);
 
   const itemIdStr = item?._id != null ? String(item._id) : null;
   const inWishlist = itemIdStr != null && isInWishlist(itemIdStr);
@@ -1156,19 +1172,19 @@ function ProductPage() {
                   <div className="pt-0 pb-3">
                     {" "}
                     <div className="shrink-0 text-gray-500">
-                      {/* <RiTruckLine
+                       {/* <RiTruckLine
                         className="h-4 w-4 sm:h-5 sm:w-5 md:h-4 md:w-4 lg:h-6 lg:w-6"
                         aria-hidden
-                      /> */}
+                      />  */}
                     </div>
                     <div className="min-w-0">
-                      {/* <p className="text-xs sm:text-sm md:text-sm lg:text-base xl:text-[16px] text-gray-800">
+                       {/* <p className="text-xs sm:text-sm md:text-sm lg:text-base xl:text-[16px] text-gray-800">
                         {item.shipping?.title || "Free Flat Rate Shipping"}
-                      </p> */}
-                      {/* <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs md:text-xs lg:text-sm xl:text-[15px] text-gray-500">
+                      </p>  */}
+                       {/* <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs md:text-xs lg:text-sm xl:text-[15px] text-gray-500">
                         {item.shipping?.estimatedDelivery ||
                           "Estimated delivery based on your pincode."}
-                      </p> */}
+                      </p>  */}
                       {careBulletPoints.length > 0 && (
                         <ul
                           className="mt-2 list-disc space-y-1 pl-5 text-lg
@@ -1286,7 +1302,7 @@ function ProductPage() {
             </div> */}
 
             {/* RETURN POLICY */}
-            {/* <div className="border-b border-gray-300">
+            <div className="border-b border-gray-300">
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
@@ -1308,22 +1324,34 @@ function ProductPage() {
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
                 style={{
                   gridTemplateRows:
-                    expandedSection === "return" && item.returnPolicy?.text
+                    expandedSection === "return"
                       ? "1fr"
                       : "0fr",
                 }}
               >
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 sm:pb-4 md:pb-3 pt-0 lg:pb-4">
-                    <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-600 wrap-break-word">
-                      {item.returnPolicy?.text || ""}
-                    </p>
+                    {item.returnPolicy?.text ? (
+                      <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-600 wrap-break-word mb-2">
+                        {item.returnPolicy.text}
+                      </p>
+                    ) : null}
+                    <ul className="list-disc space-y-1.5 pl-4 sm:pl-5 text-xs sm:text-sm md:text-sm lg:text-base text-gray-700">
+                      <li>Return requests must be raised within 7 days of delivery.</li>
+                      <li>Items must be unused, unwashed, undamaged, and have their original tags attached.</li>
+                      <li>Once the return is approved, the refund amount will be credited to your Khush Cash Wallet.</li>
+                      <li>Khush Cash Wallet refunds will be processed within the specified timeline after return approval.</li>
+                    </ul>
                   </div>
                 </div>
               </div>
-            </div> */}
+            </div> 
 
-            <div className="mt-4 sm:mt-6  md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-10 lg:gap-4 xl:mt-[50px] xl:gap-[25px]">
+            {item._id ? (
+              <PairItWithProducts itemId={item._id} limit={8} compact />
+            ) : null}
+
+            <div className="mt-4 sm:mt-6  md:mt-6 px-3 sm:px-4 md:px-4 lg:px-0 flex flex-col gap-2.5 sm:gap-3 md:gap-3 lg:mt-6 lg:gap-4 xl:mt-8 xl:gap-[25px]">
               {inCart || addedToCart ? (
                 <>
                   <p className="h-10 w-full  flex items-center justify-center border border-black text-xs font-medium uppercase tracking-wider text-black sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px]">
@@ -1406,7 +1434,12 @@ function ProductPage() {
           />
         </div>
 
-        <RelatedProducts itemId={item._id} limit={10} />
+        <RelatedProducts
+          itemId={item._id}
+          subcategoryId={item.subcategoryId?._id ?? item.subcategoryId}
+          categoryId={item.categoryId?._id ?? item.categoryId}
+          limit={10}
+        />
         <JustForYouProducts />
 
         <WriteReviewModal

@@ -6,11 +6,22 @@ import ProductCard, {
 import { itemLaunchCardProps } from '../../../utils/productLaunch.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import { trackEvent } from '../../../analytics'
+import { useAuth } from '../../../app/context/AuthContext'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 import productImage from '../../../assets/temporary/productimage.png'
 
 function formatInr(n) {
   return `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+}
+
+function extractItems(payload) {
+  const raw = payload?.data ?? payload
+  const nested = raw?.data ?? raw
+  if (Array.isArray(nested?.items)) return nested.items
+  if (Array.isArray(raw?.items)) return raw.items
+  if (Array.isArray(nested)) return nested
+  if (Array.isArray(raw)) return raw
+  return []
 }
 
 function mapSuggestionToCard(item) {
@@ -43,14 +54,31 @@ function mapSuggestionToCard(item) {
 
 /**
  * Related products — API recommendation list in a horizontal carousel.
+ * Backend requires auth for recommendation-suggestions; wait for authChecked,
+ * then fall back to public subcategory search for guests.
  */
-export default function RelatedProducts({ itemId, limit = 10 }) {
+export default function RelatedProducts({
+  itemId,
+  subcategoryId = null,
+  categoryId = null,
+  limit = 10,
+}) {
   const trackRef = useRef(null)
+  const { token, authChecked } = useAuth()
   const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(() => Boolean(itemId))
   const [activeIndex, setActiveIndex] = useState(0)
   const [canPrev, setCanPrev] = useState(false)
   const [canNext, setCanNext] = useState(false)
+
+  console.log('[RelatedProducts] render', {
+    itemId,
+    authChecked,
+    hasToken: Boolean(token),
+    loading,
+    productsCount: products.length,
+    willHide: !itemId || (!loading && products.length === 0),
+  })
 
   const syncArrows = useCallback(() => {
     const el = trackRef.current
@@ -73,40 +101,140 @@ export default function RelatedProducts({ itemId, limit = 10 }) {
   }, [products.length])
 
   useEffect(() => {
+    console.log('[RelatedProducts] effect run', {
+      itemId,
+      limit,
+      authChecked,
+      hasToken: Boolean(token),
+    })
     if (!itemId) {
+      console.warn('[RelatedProducts] skipped — no itemId')
       setProducts([])
+      setLoading(false)
       return undefined
     }
+    if (!authChecked) {
+      console.log('[RelatedProducts] waiting for authChecked…')
+      setLoading(true)
+      return undefined
+    }
+
     let cancelled = false
     setLoading(true)
     setActiveIndex(0)
+
+    const applyList = (list, source) => {
+      const mapped = (Array.isArray(list) ? list : [])
+        .filter((it) => it && String(it._id || it.id) !== String(itemId))
+        .map(mapSuggestionToCard)
+      console.log('[RelatedProducts] mapped', {
+        source,
+        rawCount: list?.length ?? 0,
+        mappedCount: mapped.length,
+        firstIds: mapped.slice(0, 5).map((p) => p.id),
+      })
+      setProducts(mapped)
+      debugLog('[Product] related products', {
+        itemId,
+        source,
+        count: mapped.length,
+      })
+      return mapped.length
+    }
+
+    const fetchViaSearchFallback = async () => {
+      if (!subcategoryId && !categoryId) {
+        console.warn('[RelatedProducts] no subcategory/category for guest fallback')
+        return 0
+      }
+      console.log('[RelatedProducts] guest fallback → items/search', {
+        subcategoryId,
+        categoryId,
+      })
+      const res = await itemsService.search({
+        ...(subcategoryId ? { subcategoryId } : { categoryId }),
+        limit,
+        page: 1,
+      })
+      if (cancelled) return 0
+      return applyList(extractItems(res), 'search-fallback')
+    }
+
     ;(async () => {
       try {
+        // Backend requires Bearer — skip for guests and use public search instead
+        if (!token) {
+          console.warn(
+            '[RelatedProducts] no auth token — using search fallback (recommendation-suggestions requires login)',
+          )
+          await fetchViaSearchFallback()
+          return
+        }
+
+        console.log('[RelatedProducts] fetching recommendation-suggestions…', {
+          itemIds: itemId,
+          limit,
+          hasToken: true,
+        })
         const res = await itemsService.getRecommendationSuggestions({
           type: 'item',
           limit,
           itemIds: itemId,
         })
-        if (cancelled) return
-        const data = res?.data?.data ?? res?.data
-        const list = Array.isArray(data?.items) ? data.items : []
-        const mapped = list
-          .filter((it) => it && String(it._id || it.id) !== String(itemId))
-          .map(mapSuggestionToCard)
-        setProducts(mapped)
-        debugLog('[Product] related products', { itemId, count: mapped.length })
+        if (cancelled) {
+          console.warn('[RelatedProducts] response ignored — effect cancelled')
+          return
+        }
+        const raw = res?.data
+        if (raw && raw.success === false) {
+          console.warn('[RelatedProducts] API success:false', {
+            message: raw.message,
+            raw,
+          })
+          await fetchViaSearchFallback()
+          return
+        }
+        const list = extractItems(res)
+        console.log('[RelatedProducts] API response', {
+          status: res?.status,
+          rawItemsLength: list.length,
+          raw,
+        })
+        if (list.length === 0) {
+          await fetchViaSearchFallback()
+          return
+        }
+        applyList(list, 'recommendation-suggestions')
       } catch (err) {
-        if (cancelled) return
+        if (cancelled) {
+          console.warn('[RelatedProducts] error ignored — effect cancelled')
+          return
+        }
+        console.error('[RelatedProducts] fetch failed', {
+          message: err?.message,
+          status: err?.response?.status,
+          responseData: err?.response?.data,
+        })
         debugError('[Product] related products failed', err?.message)
-        setProducts([])
+        try {
+          await fetchViaSearchFallback()
+        } catch (fallbackErr) {
+          console.error('[RelatedProducts] search fallback failed', {
+            message: fallbackErr?.message,
+            status: fallbackErr?.response?.status,
+          })
+          setProducts([])
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
     })()
+
     return () => {
+      console.log('[RelatedProducts] effect cleanup', { itemId })
       cancelled = true
     }
-  }, [itemId, limit])
+  }, [itemId, limit, authChecked, token, subcategoryId, categoryId])
 
   useEffect(() => {
     const el = trackRef.current
@@ -139,7 +267,6 @@ export default function RelatedProducts({ itemId, limit = 10 }) {
   const scrollByCard = (dir) => {
     const next = Math.max(0, Math.min(products.length - 1, activeIndex + dir))
     if (next === activeIndex) {
-      // Fallback pixel scroll if index stuck
       const el = trackRef.current
       const card = el?.querySelector('[data-related-card]')
       const step = card ? card.getBoundingClientRect().width + 16 : 280
@@ -150,8 +277,24 @@ export default function RelatedProducts({ itemId, limit = 10 }) {
     scrollToIndex(next)
   }
 
-  if (!itemId) return null
-  if (!loading && products.length === 0) return null
+  if (!itemId) {
+    console.warn('[RelatedProducts] return null — missing itemId')
+    return null
+  }
+  if (!loading && products.length === 0) {
+    console.warn('[RelatedProducts] return null — no products (hidden)', {
+      itemId,
+      authChecked,
+      hasToken: Boolean(token),
+    })
+    return null
+  }
+
+  console.log('[RelatedProducts] showing section', {
+    itemId,
+    loading,
+    productsCount: products.length,
+  })
 
   return (
     <section

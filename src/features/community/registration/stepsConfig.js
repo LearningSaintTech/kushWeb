@@ -8,10 +8,7 @@ export const INITIAL_FORM_DATA = {
   coverPreview: '',
   profilePhoto: null,
   profilePreview: '',
-  skills: [
-    { id: '1', name: 'UI Design', level: 95 },
-    { id: '2', name: 'Brand Identity', level: 80 },
-  ],
+  skills: [{ id: '1', name: '', level: 50 }],
   experience: [
     {
       id: '1',
@@ -35,10 +32,10 @@ export const INITIAL_FORM_DATA = {
   bio: '',
   tags: '',
   hubs: {
-    dribbble: { enabled: true, title: 'Dribbble', url: 'dribbble.com/ariverton' },
-    behance: { enabled: true, title: 'Behance', url: 'behance.net/ariverton' },
-    twitter: { enabled: false, title: 'Twitter', url: 'twitter.com/ariverton' },
-    website: { enabled: true, title: 'Website', url: 'ariverton.design' },
+    dribbble: { enabled: false, title: 'Dribbble', url: '' },
+    behance: { enabled: false, title: 'Behance', url: '' },
+    twitter: { enabled: false, title: 'Twitter', url: '' },
+    website: { enabled: false, title: 'Website', url: '' },
   },
   customLinks: [],
 }
@@ -89,10 +86,22 @@ export const STEPS = [
 
 export function validateStep(step, data) {
   switch (step) {
-    case 1:
-      if (!data.fullName.trim()) return 'Full name is required.'
-      if (!data.username.trim()) return 'Username is required.'
+    case 1: {
+      const name = String(data.fullName || '').trim()
+      const username = String(data.username || '')
+        .replace(/^@/, '')
+        .trim()
+        .toLowerCase()
+      if (!name) return 'Full name is required.'
+      if (!/^[A-Za-z][A-Za-z ]+$/.test(name) || name.length < 2) {
+        return 'Name must be at least 2 letters (A–Z and spaces only).'
+      }
+      if (!username) return 'Username is required.'
+      if (!/^[a-z][a-z0-9_]{2,19}$/.test(username)) {
+        return 'Username must be 3–20 chars, start with a letter, and use only a–z, 0–9, _.'
+      }
       return null
+    }
     case 8:
       return null
     default:

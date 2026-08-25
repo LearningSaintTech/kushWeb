@@ -14,6 +14,9 @@ import {
   normalizePayoutItems,
   normalizePayoutMethods,
   payoutStatusMeta,
+  resolveRoleAvailableBalance,
+  resolveRoleDisplayedPending,
+  resolveRolePaidOut,
 } from './earningsMappers'
 
 /**
@@ -43,11 +46,17 @@ export default function EarningsPayoutDrawer({
   const [amount, setAmount] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
 
-  const availableBalance = Number(summary?.availableBalance ?? 0) || 0
-  const pendingBalance = Number(summary?.pendingBalance ?? 0) || 0
-  const minPayout = Number(summary?.minPayoutAmount ?? 500) || 500
+  const role = mode === 'designer' ? 'designer' : 'creator'
+  const pendingBalance = summary
+    ? resolveRoleDisplayedPending(summary, role, 0)
+    : 0
+  const availableBalance = summary
+    ? resolveRoleAvailableBalance(summary, role, 0)
+    : 0
+  const paidOutBalance = summary ? resolveRolePaidOut(summary, role) : 0
+  const minPayout = Number(summary?.minPayoutAmount ?? 5) || 5
   const ratePct =
-    mode === 'designer'
+    role === 'designer'
       ? summary?.rates?.designerCommissionRatePct ?? 1
       : summary?.rates?.creatorCommissionRatePct ?? 2.5
 
@@ -67,9 +76,9 @@ export default function EarningsPayoutDrawer({
     setError('')
     try {
       const [summaryRes, methodsRes, payoutsRes] = await Promise.all([
-        earningsService.getSummary(),
+        earningsService.getSummary({ role }),
         earningsService.getPayoutMethods(),
-        earningsService.getPayouts({ page: 1, limit: 20 }),
+        earningsService.getPayouts({ page: 1, limit: 20, role }),
       ])
       const nextSummary = unwrapEarningsResponse(summaryRes)
       const nextMethods = normalizePayoutMethods(unwrapEarningsResponse(methodsRes))
@@ -83,7 +92,11 @@ export default function EarningsPayoutDrawer({
       setSelectedMethodId(preferred ? preferred._id ?? preferred.id : null)
 
       debugLog('[Earnings] payout screen loaded', {
-        available: nextSummary?.availableBalance,
+        role,
+        available: resolveRoleAvailableBalance(nextSummary, role, 0),
+        pending: resolveRoleDisplayedPending(nextSummary, role, 0),
+        paidOut: resolveRolePaidOut(nextSummary, role),
+        earned: nextSummary?.byRole?.[role]?.earned ?? nextSummary?.lifetimeEarned,
         methods: nextMethods.length,
         payouts: nextPayouts.length,
       })
@@ -94,7 +107,7 @@ export default function EarningsPayoutDrawer({
     } finally {
       if (showSpinner) setLoading(false)
     }
-  }, [])
+  }, [role])
 
   useEffect(() => {
     if (!open) return
@@ -103,7 +116,7 @@ export default function EarningsPayoutDrawer({
     setAmount('')
     setBankForm({ ...EMPTY_BANK_FORM })
     fetchPayoutDetails(true)
-  }, [open, fetchPayoutDetails])
+  }, [open, fetchPayoutDetails, role])
 
   useEffect(() => {
     if (!open) return undefined
@@ -283,25 +296,36 @@ export default function EarningsPayoutDrawer({
             <>
               <div className="rounded-2xl bg-[#EFEFEF] p-4">
                 <p className="font-inter text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-                  Available balance
+                  {mode === 'designer' ? 'Designer' : 'Creator'} wallet
                 </p>
-                <p className="mt-1 font-inter text-2xl font-bold text-black">
-                  {formatEarningsInr(availableBalance)}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-3 font-inter text-[11px] text-neutral-500">
-                  <span>
-                    Pending{' '}
-                    <span className="font-semibold text-black">
-                      {formatEarningsInr(pendingBalance)}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3.5 py-1.5 font-inter text-xs font-semibold text-emerald-800">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                      Available
                     </span>
+                    <span>{formatEarningsInr(availableBalance)}</span>
                   </span>
-                  <span>
-                    Min payout{' '}
-                    <span className="font-semibold text-black">
-                      {formatEarningsInr(minPayout)}
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1.5 font-inter text-xs font-semibold text-amber-800">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                      Pending
                     </span>
+                    <span>{formatEarningsInr(pendingBalance)}</span>
                   </span>
+                  {paidOutBalance > 0 ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-200/90 px-3.5 py-1.5 font-inter text-xs font-semibold text-neutral-700">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+                        Paid
+                      </span>
+                      <span>{formatEarningsInr(paidOutBalance)}</span>
+                    </span>
+                  ) : null}
                 </div>
+                <p className="mt-3 font-inter text-[11px] text-neutral-500">
+                  Min payout{' '}
+                  <span className="font-semibold text-black">
+                    {formatEarningsInr(minPayout)}
+                  </span>
+                </p>
               </div>
 
               {error ? (

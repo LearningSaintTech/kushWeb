@@ -108,6 +108,26 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
     setSaving(true)
     setError(null)
     try {
+      const nameOk = /^[A-Za-z][A-Za-z ]+$/.test(name.trim()) && name.trim().length >= 2
+      if (!nameOk) {
+        setError('Name must be at least 2 letters (A–Z and spaces only).')
+        setSaving(false)
+        return
+      }
+      const usernameRe =
+        category === 'designer'
+          ? /^[a-z][a-z0-9_]{2,19}$/
+          : /^[a-z][a-z0-9_]{2,29}$/
+      if (!usernameRe.test(cleanUsername)) {
+        setError(
+          category === 'designer'
+            ? 'Username must be 3–20 chars, start with a letter, and use only a–z, 0–9, _.'
+            : 'Username must be 3–30 chars, start with a letter, and use only a–z, 0–9, _.',
+        )
+        setSaving(false)
+        return
+      }
+
       debugLog('[CommunityProfile] edit profile save', {
         name: name.trim(),
         username: cleanUsername,
@@ -124,32 +144,51 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
       if (photoFile instanceof File) {
         const fd = new FormData()
         fd.append('profileImage', photoFile)
-        applyProfile(await communityProfileService.patchCreatorPhoto(fd))
+        // Designers upload via /designer/scene; creators via /creator/photo
+        if (category === 'designer' || profile?.isDesigner) {
+          applyProfile(await communityProfileService.patchDesignerScene(fd))
+        } else {
+          applyProfile(await communityProfileService.patchCreatorPhoto(fd))
+        }
       }
 
-      applyProfile(
-        await communityProfileService.patchCreatorBasic({
-          name: name.trim(),
-          username: cleanUsername,
-        }),
-      )
+      if (category === 'designer' || profile?.isDesigner) {
+        applyProfile(
+          await communityProfileService.patchDesignerEssentials({
+            name: name.trim(),
+            username: cleanUsername,
+          }),
+        )
+      } else {
+        applyProfile(
+          await communityProfileService.patchCreatorBasic({
+            name: name.trim(),
+            username: cleanUsername,
+          }),
+        )
 
-      applyProfile(
-        await communityProfileService.patchCreatorAbout({
-          bio: bio.trim().slice(0, 160) || undefined,
-          website: website.trim() || undefined,
-        }),
-      )
+        applyProfile(
+          await communityProfileService.patchCreatorAbout({
+            bio: bio.trim().slice(0, 160) || undefined,
+            website: website.trim() || undefined,
+          }),
+        )
 
-      const phoneNumber = normalizePhoneForApi(phone)
-      applyProfile(
-        await communityProfileService.patchCreatorPrivate({
-          email: email.trim() || undefined,
-          phoneNumber,
-          countryCode: phoneNumber ? '+91' : undefined,
-          gender: mapGenderToApi(gender),
-        }),
-      )
+        const phoneNumber = normalizePhoneForApi(phone)
+        if (phoneNumber && !/^[6-9]\d{9}$/.test(phoneNumber)) {
+          setError('Enter a valid 10-digit Indian mobile number.')
+          setSaving(false)
+          return
+        }
+        applyProfile(
+          await communityProfileService.patchCreatorPrivate({
+            email: email.trim() || undefined,
+            phoneNumber,
+            countryCode: phoneNumber ? '+91' : undefined,
+            gender: mapGenderToApi(gender),
+          }),
+        )
+      }
 
       await refresh()
       onSaved?.()
@@ -234,15 +273,23 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
 
         <label className="block">
           <span className={labelClass}>Username</span>
-          <input
-            value={username ? `@${username.replace(/^@/, '')}` : ''}
-            onChange={(e) =>
-              setUsername(e.target.value.replace(/^@/, '').replace(/\s/g, '').slice(0, 30))
-            }
-            className={fieldClass}
-            autoComplete="username"
-            maxLength={31}
-          />
+          <div className={`flex items-center overflow-hidden ${fieldClass} !px-0`}>
+            <span className="select-none pl-4 font-inter text-sm text-neutral-400" aria-hidden>
+              @
+            </span>
+            <input
+              value={String(username || '').replace(/^@/, '')}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value.replace(/^@/, '').replace(/\s/g, '').slice(0, 30),
+                )
+              }
+              className="min-w-0 flex-1 border-0 bg-transparent py-0 pl-1 pr-4 font-inter text-sm text-black outline-none"
+              autoComplete="username"
+              maxLength={30}
+              placeholder="username"
+            />
+          </div>
         </label>
 
         <label className="block">

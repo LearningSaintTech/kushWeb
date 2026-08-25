@@ -114,6 +114,16 @@ export default function CommunityFeedLayout({
 
   const closeProfile = useCallback(() => setSelectedProfile(null), [])
   const closePost = useCallback(() => setSelectedPost(null), [])
+  const handlePostDeleted = useCallback((contentId) => {
+    if (!contentId) return
+    window.dispatchEvent(
+      new CustomEvent('khush:community-content-deleted', {
+        detail: { id: String(contentId) },
+      }),
+    )
+    requestCommunityProfileRefresh()
+    setSelectedPost(null)
+  }, [])
   const closeNotifications = useCallback(() => setNotificationsOpen(false), [])
   const openReelsSidebar = useCallback(() => setReelsSidebarOpen(true), [])
   const closeReelsSidebar = useCallback(() => setReelsSidebarOpen(false), [])
@@ -151,13 +161,18 @@ export default function CommunityFeedLayout({
     setMediaSheetOpen(true)
   }, [])
 
-  const handleMediaPicked = useCallback((file) => {
+  const handleMediaPicked = useCallback((fileOrFiles) => {
+    const files = Array.isArray(fileOrFiles)
+      ? fileOrFiles.filter(Boolean)
+      : fileOrFiles
+        ? [fileOrFiles]
+        : []
     debugLog('[Community] media picked for create', {
       kind: createKind,
-      name: file?.name,
-      type: file?.type,
+      count: files.length,
+      names: files.map((f) => f?.name),
     })
-    setCreateMediaFile(file || null)
+    setCreateMediaFile(files.length <= 1 ? files[0] || null : files)
     setMediaSheetOpen(false)
     setCreateTypeOpen(false)
     setComposerOpen(true)
@@ -465,6 +480,7 @@ export default function CommunityFeedLayout({
       <PostDetailModal
         post={selectedPost}
         onClose={closePost}
+        onDeleted={handlePostDeleted}
         onProfileClick={(author) => {
           closePost()
           openProfile(author)

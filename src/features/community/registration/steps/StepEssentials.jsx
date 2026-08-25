@@ -14,8 +14,7 @@ const LOCATIONS = [
 const USERNAME_MAX = 20
 
 export default function StepEssentials({ data, onChange }) {
-  const username = data.username.replace(/^@/, '')
-  const displayUsername = username ? `@${username}` : ''
+  const username = String(data.username || '').replace(/^@/, '')
 
   return (
     <div className="flex flex-col gap-4">
@@ -36,16 +35,28 @@ export default function StepEssentials({ data, onChange }) {
           </span>
         }
       >
-        <TextInput
-          value={displayUsername}
-          onChange={(e) => {
-            const raw = e.target.value.replace(/^@/, '').slice(0, USERNAME_MAX)
-            onChange({ username: raw })
-          }}
-          placeholder="@ariverton_ui"
-          autoComplete="username"
-          maxLength={USERNAME_MAX + 1}
-        />
+        <div className="flex items-center overflow-hidden rounded-xl border border-transparent bg-[#2a2a2a] transition focus-within:border-[#8B5CF6]">
+          <span
+            className="select-none pl-3.5 font-inter text-sm text-white/35"
+            aria-hidden
+          >
+            @
+          </span>
+          <TextInput
+            value={username}
+            onChange={(e) => {
+              const raw = e.target.value
+                .replace(/^@/, '')
+                .replace(/\s/g, '')
+                .slice(0, USERNAME_MAX)
+              onChange({ username: raw })
+            }}
+            placeholder="username"
+            autoComplete="username"
+            maxLength={USERNAME_MAX}
+            className="rounded-none border-0 bg-transparent pl-0.5 focus:border-transparent"
+          />
+        </div>
       </Field>
 
       <Field label="Location">

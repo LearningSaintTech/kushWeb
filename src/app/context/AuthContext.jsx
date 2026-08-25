@@ -17,7 +17,35 @@ import {
 import AuthSuccessToast from '../../shared/components/AuthSuccessToast.jsx'
 import { trackEvent } from '../../analytics'
 
-const AuthContext = createContext(null)
+/** Persist context across Vite HMR so Provider/consumer stay in sync after hot updates. */
+const AuthContext = import.meta.hot?.data?.AuthContext ?? createContext(null)
+if (import.meta.hot) {
+  import.meta.hot.data.AuthContext = AuthContext
+}
+
+/** Routes where guests can browse freely — never force the login modal from 401s. */
+function isPublicBrowsePath(pathname = '') {
+  const path = String(pathname || '')
+  if (path === '/' || path === '') return true
+  return (
+    path.startsWith('/search') ||
+    path.startsWith('/product') ||
+    path.startsWith('/section') ||
+    path.startsWith('/shaktiman') ||
+    path.startsWith('/cart') ||
+    path.startsWith('/wishlist') ||
+    path.startsWith('/about-us') ||
+    path.startsWith('/contact-us') ||
+    path.startsWith('/faqs') ||
+    path.startsWith('/privacy-policy') ||
+    path.startsWith('/terms-conditions') ||
+    path.startsWith('/refund-cancel-policy') ||
+    path.startsWith('/return-policy') ||
+    path.startsWith('/shipping-delivery-policy') ||
+    path.startsWith('/payment-policy') ||
+    path.startsWith('/delete-account')
+  )
+}
 
 export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(() => getMemoryToken())
@@ -61,11 +89,12 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     setAccessTokenGetter(() => getMemoryToken())
     setOnAuthRequired(() => {
-      const path =
-        typeof window !== 'undefined'
-          ? `${window.location.pathname}${window.location.search || ''}`
-          : null
-      openAuthModal(path)
+      if (typeof window === 'undefined') return
+      const pathname = window.location.pathname || ''
+      // Guests must browse search, PDP, home, etc. without a forced login modal.
+      // Protected screens (account, community, gift card, …) open the modal themselves.
+      if (isPublicBrowsePath(pathname)) return
+      openAuthModal(`${pathname}${window.location.search || ''}`)
     })
     return () => setOnAuthRequired(null)
   }, [openAuthModal])

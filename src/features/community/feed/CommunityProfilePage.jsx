@@ -7,6 +7,7 @@ import CommunityCreatorProfile from './CommunityCreatorProfile'
 import CommunityDesignerProfile from './CommunityDesignerProfile'
 import CreatorWizard from '../creator/CreatorWizard'
 import RegistrationWizard from '../registration/RegistrationWizard'
+import { isCommunityProfileDeleted } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
 /**
@@ -19,9 +20,10 @@ export default function CommunityProfilePage() {
   const [resumeCreator, setResumeCreator] = useState(false)
   const [resumeDesigner, setResumeDesigner] = useState(false)
   const autoResumeDoneRef = useRef(false)
+  const profileDeleted = isCommunityProfileDeleted(profile)
 
   useEffect(() => {
-    if (!profile || autoResumeDoneRef.current) return
+    if (!profile || autoResumeDoneRef.current || profileDeleted) return
 
     const designerIncomplete =
       profile.isDesigner &&
@@ -52,13 +54,16 @@ export default function CommunityProfilePage() {
       autoResumeDoneRef.current = true
       setResumeCreator(true)
     }
-  }, [profile])
+  }, [profile, profileDeleted])
 
   if (role === COMMUNITY_ROLES.DESIGNER) {
     return (
       <>
         <CommunityDesignerProfile />
-        <RegistrationWizard open={resumeDesigner} onClose={() => setResumeDesigner(false)} />
+        <RegistrationWizard
+          open={resumeDesigner}
+          onClose={() => setResumeDesigner(false)}
+        />
       </>
     )
   }

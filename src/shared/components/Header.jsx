@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { debugLog } from '../../utils/debugLog.js';
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
@@ -455,17 +456,35 @@ export default function Header() {
   );
   const [scrolled, setScrolled] = useState(false);
   const [searchDropdownTop, setSearchDropdownTop] = useState(0);
+  const [megaMenuTop, setMegaMenuTop] = useState(0);
   // On non-home pages always use white header; on home use white only when scrolled
   const useWhiteStyle = !isHome || scrolled;
   const navIconTone = useWhiteStyle ? "text-black hover:opacity-70" : "text-white hover:opacity-70";
 
+  const syncHeaderAnchors = useCallback(() => {
+    if (!headerRef.current) return;
+    const bottom = headerRef.current.getBoundingClientRect().bottom;
+    setSearchDropdownTop(bottom);
+    setMegaMenuTop(bottom);
+  }, []);
+
   // Position search dropdown just below header when it opens
   useEffect(() => {
     if (searchModalOpen && headerRef.current) {
-      const top = headerRef.current.getBoundingClientRect().bottom;
-      setSearchDropdownTop(top);
+      syncHeaderAnchors();
     }
-  }, [searchModalOpen]);
+  }, [searchModalOpen, syncHeaderAnchors]);
+
+  useEffect(() => {
+    if (!hoveredCategoryId) return undefined;
+    syncHeaderAnchors();
+    window.addEventListener("scroll", syncHeaderAnchors, { passive: true });
+    window.addEventListener("resize", syncHeaderAnchors);
+    return () => {
+      window.removeEventListener("scroll", syncHeaderAnchors);
+      window.removeEventListener("resize", syncHeaderAnchors);
+    };
+  }, [hoveredCategoryId, syncHeaderAnchors]);
 
   // When hamburger opens with first category expanded, fetch its subcategories by category
   useEffect(() => {
@@ -561,9 +580,12 @@ export default function Header() {
     <header
       ref={headerRef}
       className={`fixed top-0 left-0 right-0 w-full z-50 transition-colors duration-300 max-lg:bg-white pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] ${
-        useWhiteStyle ? "bg-white" : "bg-transparent"
+        useWhiteStyle ? "bg-black/40" : "navbar-frosted-glass max-lg:bg-white"
       }`}
     >
+      {!useWhiteStyle ? (
+        <div className="navbar-frosted-glass-layer max-lg:hidden" aria-hidden />
+      ) : null}
       {/* Main */}
       <div
         className={`px-4 lg:px-[1.56vw] py-2.5 lg:py-2 xl:py-2.5 transition-colors duration-300 min-w-0 ${
@@ -927,207 +949,214 @@ export default function Header() {
             </div>
           </div>
 
-          {/* Full-width horizontal mega menu */}
-          {hoveredCategoryId && (() => {
-            const hoveredCat = desktopNavCategories.find(
-              (c) => (c._id ?? c.id) === hoveredCategoryId,
-            );
-            const categoryName = hoveredCat?.name ?? "Category";
-            const subs = subcategoriesByCategoryId[hoveredCategoryId] ?? [];
-            const subsLoading = !!subcategoriesLoading?.[hoveredCategoryId];
-            const columnCount = 3;
-            const perCol = Math.max(1, Math.ceil(subs.length / columnCount));
-            const columns = Array.from({ length: columnCount }, (_, colIdx) =>
-              subs.slice(colIdx * perCol, (colIdx + 1) * perCol),
-            );
+          {/* Full-width horizontal mega menu — portaled so frosted blur hits the banner */}
+          {hoveredCategoryId &&
+            createPortal(
+              (() => {
+                const hoveredCat = desktopNavCategories.find(
+                  (c) => (c._id ?? c.id) === hoveredCategoryId,
+                );
+                const categoryName = hoveredCat?.name ?? "Category";
+                const subs = subcategoriesByCategoryId[hoveredCategoryId] ?? [];
+                const subsLoading = !!subcategoriesLoading?.[hoveredCategoryId];
+                const columnCount = 3;
+                const perCol = Math.max(1, Math.ceil(subs.length / columnCount));
+                const columns = Array.from({ length: columnCount }, (_, colIdx) =>
+                  subs.slice(colIdx * perCol, (colIdx + 1) * perCol),
+                );
 
-            return (
-              <div
-                className="absolute left-1/2 top-full z-50 mt-1 w-[min(72rem,calc(100%-1.5rem))] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/45 bg-white/55 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/40"
-                onMouseEnter={() => openCategoryHover(hoveredCategoryId)}
-                role="menu"
-                aria-label={`${categoryName} subcategories`}
-              >
-                <div className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 animate-nav-mega-panel">
-                  {subsLoading && subs.length === 0 ? (
-                    <p className="font-inter text-sm text-black/40">Loading…</p>
-                  ) : subs.length === 0 ? (
-                    <NavLink
-                      to={getSearchUrl({
-                        categoryId: hoveredCategoryId,
-                        categoryName,
-                      })}
-                      className="font-inter text-sm font-medium text-black/90 hover:text-black"
-                      onClick={() => setHoveredCategoryId(null)}
-                    >
-                      View all {categoryName}
-                    </NavLink>
-                  ) : (
-                    <div className="space-y-5">
-                      <div className="grid grid-cols-3 gap-x-16 gap-y-2">
-                        {columns.map((col, colIdx) => (
-                          <ul key={`mega-col-${colIdx}`} className="flex flex-col gap-3">
-                            {col.map((sub, subIdx) => {
-                              const subId =
-                                sub._id ?? sub.id ?? `sub-${colIdx}-${subIdx}`;
-                              const subName =
-                                sub.name ?? sub.label ?? "Subcategory";
-                              return (
-                                <li
-                                  key={subId}
-                                  className="animate-nav-mega-item"
-                                  style={{
-                                    animationDelay: `${40 + (colIdx * perCol + subIdx) * 35}ms`,
-                                  }}
-                                >
-                                  <NavLink
-                                    to={getSearchUrl({
-                                      categoryId: hoveredCategoryId,
-                                      subcategoryId: subId,
-                                      categoryName,
-                                      subcategoryName: subName,
-                                    })}
-                                    className="font-inter rounded-md px-1.5 py-0.5 -mx-1.5 text-sm text-black/80 transition-colors hover:bg-black/5 hover:text-black whitespace-nowrap"
-                                    onClick={() => setHoveredCategoryId(null)}
-                                    role="menuitem"
-                                  >
-                                    {subName}
-                                  </NavLink>
-                                </li>
-                              );
+                return (
+                  <div
+                    className="nav-glass-panel fixed left-1/2 z-[60] w-[min(72rem,calc(100%-1.5rem))] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-hidden rounded-2xl"
+                    style={{ top: megaMenuTop + 4 }}
+                    onMouseEnter={() => openCategoryHover(hoveredCategoryId)}
+                    onMouseLeave={scheduleCategoryHoverClose}
+                    role="menu"
+                    aria-label={`${categoryName} subcategories`}
+                  >
+                    <div className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 animate-nav-mega-panel">
+                      {subsLoading && subs.length === 0 ? (
+                        <p className="font-inter text-sm text-black/50">Loading…</p>
+                      ) : subs.length === 0 ? (
+                        <NavLink
+                          to={getSearchUrl({
+                            categoryId: hoveredCategoryId,
+                            categoryName,
+                          })}
+                          className="font-inter text-sm font-medium text-black/90 hover:text-black"
+                          onClick={() => setHoveredCategoryId(null)}
+                        >
+                          View all {categoryName}
+                        </NavLink>
+                      ) : (
+                        <div className="space-y-5">
+                          <div className="grid grid-cols-3 gap-x-16 gap-y-2">
+                            {columns.map((col, colIdx) => (
+                              <ul key={`mega-col-${colIdx}`} className="flex flex-col gap-3">
+                                {col.map((sub, subIdx) => {
+                                  const subId =
+                                    sub._id ?? sub.id ?? `sub-${colIdx}-${subIdx}`;
+                                  const subName =
+                                    sub.name ?? sub.label ?? "Subcategory";
+                                  return (
+                                    <li
+                                      key={subId}
+                                      className="animate-nav-mega-item"
+                                      style={{
+                                        animationDelay: `${40 + (colIdx * perCol + subIdx) * 35}ms`,
+                                      }}
+                                    >
+                                      <NavLink
+                                        to={getSearchUrl({
+                                          categoryId: hoveredCategoryId,
+                                          subcategoryId: subId,
+                                          categoryName,
+                                          subcategoryName: subName,
+                                        })}
+                                        className="font-inter rounded-md px-1.5 py-0.5 -mx-1.5 text-sm font-medium text-black/90 transition-colors hover:bg-black/5 hover:text-black whitespace-nowrap"
+                                        onClick={() => setHoveredCategoryId(null)}
+                                        role="menuitem"
+                                      >
+                                        {subName}
+                                      </NavLink>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ))}
+                          </div>
+                          <NavLink
+                            to={getSearchUrl({
+                              categoryId: hoveredCategoryId,
+                              categoryName,
                             })}
-                          </ul>
-                        ))}
-                      </div>
-                      <NavLink
-                        to={getSearchUrl({
-                          categoryId: hoveredCategoryId,
-                          categoryName,
-                        })}
-                        className="font-inter inline-block rounded-md px-1.5 py-0.5 -mx-1.5 text-sm font-semibold text-black/90 hover:bg-black/5 hover:text-black uppercase tracking-wide transition-colors"
-                        onClick={() => setHoveredCategoryId(null)}
-                        role="menuitem"
-                      >
-                        View all {categoryName}
-                      </NavLink>
+                            className="font-inter inline-block rounded-md px-1.5 py-0.5 -mx-1.5 text-sm font-semibold text-black/90 hover:bg-black/5 hover:text-black uppercase tracking-wide transition-colors"
+                            onClick={() => setHoveredCategoryId(null)}
+                            role="menuitem"
+                          >
+                            View all {categoryName}
+                          </NavLink>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+                  </div>
+                );
+              })(),
+              document.body,
+            )}
         </div>
 
-        {/* Search dropdown: curved panel below header */}
-        {searchModalOpen && (
-          <>
-            <div
-              className="fixed inset-x-0 bottom-0 z-40 cursor-pointer bg-black/20 transition-opacity duration-300"
-              style={{ top: searchDropdownTop }}
-              onClick={closeSearchModal}
-              aria-hidden
-            />
-            <div
-              className="fixed left-4 right-4 z-50 flex flex-col overflow-hidden rounded-2xl border border-white/45 bg-white/50 shadow-[0_16px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out supports-[backdrop-filter]:bg-white/40"
-              style={{
-                top: searchDropdownTop + 8,
-                maxHeight: `calc(100vh - ${searchDropdownTop}px - 1.5rem)`,
-              }}
-              role="dialog"
-              aria-modal="true"
-              aria-label="Search - recent and popular"
-            >
-              {/* Recent & Popular — type only in the navbar search field */}
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
-                {searchModalLoading ? (
-                  <div className="font-inter text-sm text-gray-500 py-6">
-                    Loading…
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-5">
-                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-500 mb-3">
-                        Recent Searches
-                      </h3>
-                      {recentSearches.length === 0 ? (
-                        <p className="font-inter text-sm text-gray-500">
-                          No recent searches
-                        </p>
-                      ) : (
-                        <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
-                          {recentSearches.map((item) => {
-                            const keyword = item?.keyword ?? item;
-                            const text =
-                              typeof keyword === "string"
-                                ? keyword
-                                : (keyword?.keyword ?? "");
-                            if (!text) return null;
-                            return (
-                              <span
-                                key={text}
-                                className="font-inter inline-flex items-center gap-1.5 shrink-0 rounded-full border border-white/50 bg-white/55 pl-3 pr-1.5 py-2 text-sm text-gray-800 shadow-sm"
-                              >
+        {/* Search dropdown: portaled so frosted blur hits the banner */}
+        {searchModalOpen &&
+          createPortal(
+            <>
+              <div
+                className="fixed inset-x-0 bottom-0 z-[55] cursor-pointer bg-black/20 transition-opacity duration-300"
+                style={{ top: searchDropdownTop }}
+                onClick={closeSearchModal}
+                aria-hidden
+              />
+              <div
+                className="nav-glass-panel fixed left-4 right-4 z-[60] flex flex-col overflow-hidden rounded-2xl transition-all duration-300 ease-out"
+                style={{
+                  top: searchDropdownTop + 8,
+                  maxHeight: `calc(100vh - ${searchDropdownTop}px - 1.5rem)`,
+                }}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Search - recent and popular"
+              >
+                <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+                  {searchModalLoading ? (
+                    <div className="font-inter text-sm text-black/70 py-6">
+                      Loading…
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-5">
+                        <h3 className="font-inter text-xs font-semibold uppercase tracking-wider text-black/65 mb-3">
+                          Recent Searches
+                        </h3>
+                        {recentSearches.length === 0 ? (
+                          <p className="font-inter text-sm text-black/50">
+                            No recent searches
+                          </p>
+                        ) : (
+                          <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
+                            {recentSearches.map((item) => {
+                              const keyword = item?.keyword ?? item;
+                              const text =
+                                typeof keyword === "string"
+                                  ? keyword
+                                  : (keyword?.keyword ?? "");
+                              if (!text) return null;
+                              return (
+                                <span
+                                  key={text}
+                                  className="nav-glass-chip font-inter inline-flex items-center gap-1.5 shrink-0 rounded-full pl-3 pr-1.5 py-2 text-sm"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => goToSearch(text)}
+                                    className="cursor-pointer hover:text-black transition-colors"
+                                  >
+                                    {text}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeRecentItem(text);
+                                    }}
+                                    className="cursor-pointer text-black/40 hover:text-black p-1 rounded-full hover:bg-black/5 transition-colors"
+                                    aria-label={`Remove ${text}`}
+                                  >
+                                    <CloseIcon className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-inter text-xs font-semibold uppercase tracking-wider text-black/65 mb-3">
+                          Popular Searches
+                        </h3>
+                        {popularSearches.length === 0 ? (
+                          <p className="font-inter text-sm text-black/50">
+                            No popular searches
+                          </p>
+                        ) : (
+                          <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
+                            {popularSearches.map((item) => {
+                              const keyword = item?.keyword ?? item;
+                              const text =
+                                typeof keyword === "string"
+                                  ? keyword
+                                  : (keyword?.keyword ?? "");
+                              if (!text) return null;
+                              return (
                                 <button
+                                  key={text}
                                   type="button"
                                   onClick={() => goToSearch(text)}
-                                  className="cursor-pointer hover:text-black transition-colors"
+                                  className="nav-glass-chip cursor-pointer font-inter shrink-0 rounded-full px-3 py-2 text-sm transition-colors"
                                 >
                                   {text}
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeRecentItem(text);
-                                  }}
-                                  className="cursor-pointer text-gray-400 hover:text-black p-1 rounded-full hover:bg-black/5 transition-colors"
-                                  aria-label={`Remove ${text}`}
-                                >
-                                  <CloseIcon className="h-3 w-3" />
-                                </button>
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="font-inter text-xs font-medium uppercase tracking-wider text-gray-500 mb-3">
-                        Popular Searches
-                      </h3>
-                      {popularSearches.length === 0 ? (
-                        <p className="font-inter text-sm text-gray-500">
-                          No popular searches
-                        </p>
-                      ) : (
-                        <div className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide pb-1">
-                          {popularSearches.map((item) => {
-                            const keyword = item?.keyword ?? item;
-                            const text =
-                              typeof keyword === "string"
-                                ? keyword
-                                : (keyword?.keyword ?? "");
-                            if (!text) return null;
-                            return (
-                              <button
-                                key={text}
-                                type="button"
-                                onClick={() => goToSearch(text)}
-                                className="cursor-pointer font-inter shrink-0 rounded-full border border-white/50 bg-white/55 px-3 py-2 text-sm text-gray-800 shadow-sm hover:bg-white/80 hover:text-black transition-colors"
-                              >
-                                {text}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>,
+            document.body,
+          )}
 
         {/* Full-screen hamburger menu modal */}
         {menuOpen && (

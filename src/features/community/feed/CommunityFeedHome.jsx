@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import FeedFilters from '../components/FeedFilters'
 import PostCard from '../components/PostCard'
-import { FEED_FILTERS } from '../data/mockFeed'
+// import { FEED_FILTERS } from '../data/mockFeed'
+import { communityService } from '../../../services/community.service.js'
 import {
   useCommunityFeed,
   toggleCommunityLike,
@@ -17,13 +18,64 @@ import { debugError } from '../../../utils/debugLog.js'
  */
 export default function CommunityFeedHome() {
   const [activeFilter, setActiveFilter] = useState('All')
+  const [feedFilters, setFeedFilters] = useState([])
+const [hashtagsLoading, setHashtagsLoading] = useState(true)
   const { openProfile, openPost } = useOutletContext() ?? {}
   const social = useCommunitySocial()
+  useEffect(() => {
+  const fetchHashtags = async () => {
+    try {
+      setHashtagsLoading(true)
+
+      const response = await communityService.getHashtags()
+
+      console.log('[Community] hashtags response:', response)
+
+      const hashtags =
+        response?.data?.items ||
+        response?.items ||
+        []
+
+      console.log('[Community] hashtags:', hashtags)
+
+      const filters = hashtags
+        .filter((item) => item?.isActive)
+        .sort(
+          (a, b) =>
+            (a?.sortOrder ?? 0) -
+            (b?.sortOrder ?? 0),
+        )
+        .map(
+          (item) =>
+            item?.label ||
+            item?.keyword ||
+            item?.tag,
+        )
+        .filter(Boolean)
+
+      console.log('[Community] filters:', filters)
+
+      setFeedFilters([
+        'All',
+        ...filters,
+      ])
+    } catch (error) {
+      debugError(
+        '[Community] hashtags fetch failed',
+        error?.message,
+      )
+
+      setFeedFilters(['All'])
+    } finally {
+      setHashtagsLoading(false)
+    }
+  }
+
+  fetchHashtags()
+}, [])
 
   const scope =
-    activeFilter === 'Discover' || activeFilter === 'Trending'
-      ? 'explore'
-      : 'following'
+    activeFilter === 'My F' ? 'following' : 'explore'
 
   const {
     items,
@@ -40,6 +92,35 @@ export default function CommunityFeedHome() {
     type: 'post',
     enabled: activeFilter !== 'Notifications' && activeFilter !== 'Profile',
   })
+
+  useEffect(() => {
+    const onDeleted = (e) => {
+      const id = e?.detail?.id
+      if (!id) return
+      setItems((prev) => prev.filter((p) => String(p.id) !== String(id)))
+    }
+    const onBlocked = (e) => {
+      const userId = e?.detail?.userId
+      if (!userId) return
+      setItems((prev) =>
+        prev.filter((p) => String(p.author?.id) !== String(userId)),
+      )
+      refresh?.()
+    }
+    const onReported = (e) => {
+      const contentId = e?.detail?.contentId
+      if (!contentId) return
+      patchItem?.(contentId, { isReported: true })
+    }
+    window.addEventListener('khush:community-content-deleted', onDeleted)
+    window.addEventListener('khush:community-user-blocked', onBlocked)
+    window.addEventListener('khush:community-content-reported', onReported)
+    return () => {
+      window.removeEventListener('khush:community-content-deleted', onDeleted)
+      window.removeEventListener('khush:community-user-blocked', onBlocked)
+      window.removeEventListener('khush:community-content-reported', onReported)
+    }
+  }, [setItems, refresh, patchItem])
 
   const posts = useMemo(() => {
     if (activeFilter === 'Creators') {
@@ -75,11 +156,11 @@ export default function CommunityFeedHome() {
 
   return (
     <div>
-      <FeedFilters
-        filters={FEED_FILTERS}
-        active={activeFilter}
-        onChange={setActiveFilter}
-      />
+     <FeedFilters
+  filters={feedFilters}
+  active={activeFilter}
+  onChange={setActiveFilter}
+/>
 
       {loading ? (
         <p className="mt-8 font-inter text-sm text-neutral-500">Loading feed…</p>

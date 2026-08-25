@@ -9,30 +9,14 @@ import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
 import { getItemStockTotal } from "../../../utils/productStock.js";
 import { listingBindOfferProps } from "../../../utils/bindOffer.js";
-import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from "../../../utils/productLaunch.js";
+import { itemLaunchCardProps, filterHomeVisibleProducts } from "../../../utils/productLaunch.js";
 
 const CATEGORIES = ["MEN", "WOMEN", "UNISEX", "COUPLES"];
 const ALL_CATEGORY_KEY = "__ALL__";
 const CATEGORY_PRODUCT_LIMIT = 8;
-
-const PRODUCTS_STATIC = Array.from({ length: 8 }, (_, i) => ({
-  id: i + 1,
-  image: productImage,
-  hoverImage: hoverProductImage,
-  title: "DENIM JACKET",
-  price: "₹1500.00",
-  delivery: "GET IN 6-7 days",
-  rating: 4.5,
-}));
-
-function sectionProductItem(product) {
-  const item = product?.item;
-  if (!item) return null;
-  return {
-    ...item,
-    bindOffer: item.bindOffer ?? product.bindOffer ?? null,
-  };
-}
+/** How many API pages to scan while skipping coming-soon items. */
+const MAX_SCAN_PAGES = 10;
+const SCAN_PAGE_SIZE = 12;
 
 function itemToCardProps(item, index, section = null) {
   const id = item._id ?? item.id ?? index;
@@ -77,9 +61,100 @@ function itemToCardProps(item, index, section = null) {
   };
 }
 
+function isMenLabel(label = "") {
+  const l = String(label).toUpperCase();
+  return (l === "MEN" || l.includes("MEN")) && !l.includes("WOMEN");
+}
+
+function isWomenLabel(label = "") {
+  return String(label).toUpperCase().includes("WOMEN");
+}
+
+function interleave(a = [], b = []) {
+  const out = [];
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i += 1) {
+    if (a[i]) out.push(a[i]);
+    if (b[i]) out.push(b[i]);
+  }
+  return out;
+}
+
 /**
- * Our Products — first batch on load; next batches only via Explore More (same page).
- * No infinite / auto scroll loading.
+ * Walk API pages until we collect enough non–coming-soon products.
+ */
+async function collectVisibleByCategory(
+  categoryId,
+  {
+    targetCount,
+    startPage = 1,
+    pageSize = SCAN_PAGE_SIZE,
+    pincode,
+    section,
+    excludeIds = new Set(),
+    maxPages = MAX_SCAN_PAGES,
+  },
+) {
+  const collected = [];
+  const seen = new Set(excludeIds);
+  let page = Math.max(1, startPage);
+  let totalPages = page;
+
+  for (let i = 0; i < maxPages && collected.length < targetCount; i += 1) {
+    const params = { categoryId, limit: pageSize, page };
+    if (pincode) params.pinCode = String(pincode);
+    const res = await itemsService.search(params);
+    const data = res?.data?.data ?? res?.data;
+    const raw = Array.isArray(data?.items) ? data.items : [];
+    totalPages = Math.max(1, Number(data?.pagination?.totalPages) || page);
+
+    const visible = filterHomeVisibleProducts(
+      raw.map((item, idx) =>
+        itemToCardProps(item, (page - 1) * pageSize + idx, section),
+      ),
+    );
+
+    for (const card of visible) {
+      const key = String(card.id ?? "");
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      collected.push(card);
+      if (collected.length >= targetCount) break;
+    }
+
+    if (collected.length >= targetCount) {
+      return {
+        items: collected,
+        hasMore: page < totalPages,
+        totalPages,
+        nextPage: page < totalPages ? page + 1 : null,
+        lastPage: page,
+      };
+    }
+
+    if (raw.length === 0 || page >= totalPages) {
+      break;
+    }
+    page += 1;
+  }
+
+  return {
+    items: collected,
+    hasMore: false,
+    totalPages,
+    nextPage: null,
+    lastPage: page,
+  };
+}
+
+function nextCursorFromCollect(result) {
+  if (!result?.hasMore || result.nextPage == null) return null;
+  return result.nextPage;
+}
+
+/**
+ * Our Products — first batch on load; next batches only via Explore More.
+ * Category tabs scan past coming-soon items. ALL interleaves Men + Women.
  */
 function OurProduct({ section }) {
   const pincode = useSelector((s) => s?.location?.pincode) ?? null;
@@ -131,133 +206,255 @@ function OurProduct({ section }) {
         }))
       : CATEGORIES.map((label) => ({ id: null, label }));
 
+  const menCategory = categoriesWithId.find(
+    (c) => c.id != null && isMenLabel(c.label),
+  );
+  const womenCategory = categoriesWithId.find(
+    (c) => c.id != null && isWomenLabel(c.label),
+  );
+  const categoriesReady = categoriesWithId.some((c) => c.id != null);
+
   const [activeCategoryId, setActiveCategoryId] = useState(ALL_CATEGORY_KEY);
   const [categoryProducts, setCategoryProducts] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const loadingMoreLockRef = useRef(false);
+  /** Next API page for single-category tab. */
+  const categoryCursorRef = useRef(1);
+  /** Next API pages for ALL (men / women). */
+  const allMenCursorRef = useRef(1);
+  const allWomenCursorRef = useRef(1);
+  const productsRef = useRef([]);
 
   const sectionTitle = section?.title || "OUR PRODUCTS";
 
-  const listFromSection =
-    section?.products
-      ?.filter((p) => p?.item && isHomeVisibleProduct(p.item))
-      ?.map((p, i) => {
-        const item = sectionProductItem(p);
-        return {
-          ...itemToCardProps(item, i, section),
-          outOfStock: p.inStock === false,
-        };
-      }) ?? [];
-
-  /** When a category tab uses section products, Explore More is not used for paging. */
-  const usesSectionList =
-    listFromSection.length > 0 && activeCategoryId !== ALL_CATEGORY_KEY;
+  useEffect(() => {
+    productsRef.current = categoryProducts;
+  }, [categoryProducts]);
 
   useEffect(() => {
     if (import.meta.env.PROD) return;
     debugLog("[OurProduct] section meta:", {
       _id: section?._id,
       title: section?.title,
-      listFromSection: listFromSection.length,
+      menId: menCategory?.id,
+      womenId: womenCategory?.id,
     });
-  }, [section, listFromSection.length]);
+  }, [section, menCategory?.id, womenCategory?.id]);
 
   const fetchByCategory = useCallback(
-    async (categoryId, page = 1) => {
+    async (categoryId, { append = false } = {}) => {
       if (!categoryId) {
         setCategoryProducts([]);
-        setCurrentPage(1);
         setHasMore(false);
         return;
       }
-      if (page === 1) setLoadingInitial(true);
-      else setLoadingMore(true);
+      if (append) setLoadingMore(true);
+      else setLoadingInitial(true);
 
       try {
-        const params = { categoryId, limit: CATEGORY_PRODUCT_LIMIT, page };
-        if (pincode) params.pinCode = String(pincode);
-        const res = await itemsService.search(params);
-        const data = res?.data?.data ?? res?.data;
-        const items = filterHomeVisibleProducts(
-          (data?.items ?? []).map((item, i) =>
-            itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
-          ),
-        );
-
+        const excludeIds = append
+          ? new Set(productsRef.current.map((p) => String(p.id)))
+          : new Set();
+        const startPage = append ? categoryCursorRef.current || 1 : 1;
+        const result = await collectVisibleByCategory(categoryId, {
+          targetCount: CATEGORY_PRODUCT_LIMIT,
+          startPage,
+          pincode,
+          section,
+          excludeIds,
+        });
+        categoryCursorRef.current = nextCursorFromCollect(result) ?? 9999;
+        setHasMore(Boolean(result.hasMore));
         setCategoryProducts((prev) =>
-          page === 1 ? items : [...prev, ...items],
+          append ? [...prev, ...result.items] : result.items,
         );
-        setCurrentPage(page);
-        setHasMore(items.length === CATEGORY_PRODUCT_LIMIT);
       } catch {
-        if (page === 1) setCategoryProducts([]);
+        if (!append) setCategoryProducts([]);
         setHasMore(false);
       } finally {
-        if (page === 1) setLoadingInitial(false);
-        else setLoadingMore(false);
+        if (append) setLoadingMore(false);
+        else setLoadingInitial(false);
       }
     },
     [pincode, section],
   );
 
-  const fetchAllVersion2 = useCallback(
-    async (page = 1) => {
-      if (page === 1) setLoadingInitial(true);
-      else setLoadingMore(true);
-      try {
-        const params = {
-          isActive: true,
-          page,
-          limit: CATEGORY_PRODUCT_LIMIT,
-        };
-        if (pincode) params.pinCode = String(pincode);
-        const res = await itemsService.getAllVersion2({
-          ...params,
-        });
-        const data = res?.data?.data ?? res?.data;
-        const items = filterHomeVisibleProducts(
-          (data?.items ?? []).map((item, i) =>
-            itemToCardProps(item, (page - 1) * CATEGORY_PRODUCT_LIMIT + i, section),
-          ),
-        );
-        const totalPages = Number(data?.pagination?.totalPages || 0);
+  const fetchAllMixed = useCallback(
+    async ({ append = false } = {}) => {
+      if (append) setLoadingMore(true);
+      else setLoadingInitial(true);
 
-        setCategoryProducts((prev) =>
-          page === 1 ? items : [...prev, ...items],
-        );
-        setCurrentPage(page);
-        if (totalPages > 0) {
-          setHasMore(page < totalPages);
-        } else {
-          setHasMore(items.length === CATEGORY_PRODUCT_LIMIT);
+      try {
+        const half = Math.ceil(CATEGORY_PRODUCT_LIMIT / 2);
+        const excludeIds = append
+          ? new Set(productsRef.current.map((p) => String(p.id)))
+          : new Set();
+
+        // Prefer explicit Men + Women so ALL is not women-only.
+        if (menCategory?.id || womenCategory?.id) {
+          const menStart = append ? allMenCursorRef.current || 1 : 1;
+          const womenStart = append ? allWomenCursorRef.current || 1 : 1;
+
+          const [menResult, womenResult] = await Promise.all([
+            menCategory?.id
+              ? collectVisibleByCategory(menCategory.id, {
+                  targetCount: half,
+                  startPage: menStart,
+                  pincode,
+                  section,
+                  excludeIds,
+                })
+              : Promise.resolve({
+                  items: [],
+                  hasMore: false,
+                  lastPage: 1,
+                }),
+            womenCategory?.id
+              ? collectVisibleByCategory(womenCategory.id, {
+                  targetCount: half,
+                  startPage: womenStart,
+                  pincode,
+                  section,
+                  excludeIds,
+                })
+              : Promise.resolve({
+                  items: [],
+                  hasMore: false,
+                  lastPage: 1,
+                }),
+          ]);
+
+          allMenCursorRef.current = nextCursorFromCollect(menResult) ?? 9999;
+          allWomenCursorRef.current =
+            nextCursorFromCollect(womenResult) ?? 9999;
+
+          let mixed = interleave(menResult.items, womenResult.items);
+
+          // If one side was short, top up from the other.
+          if (mixed.length < CATEGORY_PRODUCT_LIMIT) {
+            const need = CATEGORY_PRODUCT_LIMIT - mixed.length;
+            const mixedIds = new Set(mixed.map((p) => String(p.id)));
+            const pool = [...menResult.items, ...womenResult.items].filter(
+              (p) => !mixedIds.has(String(p.id)),
+            );
+            if (pool.length < need) {
+              const useMen =
+                menResult.items.length >= womenResult.items.length;
+              const richerId = useMen
+                ? menCategory?.id
+                : womenCategory?.id;
+              const richerStart = useMen
+                ? allMenCursorRef.current || 1
+                : allWomenCursorRef.current || 1;
+              if (richerId) {
+                const topUp = await collectVisibleByCategory(richerId, {
+                  targetCount: need,
+                  startPage: richerStart,
+                  pincode,
+                  section,
+                  excludeIds: new Set([
+                    ...excludeIds,
+                    ...mixed.map((p) => String(p.id)),
+                  ]),
+                });
+                if (useMen) {
+                  allMenCursorRef.current =
+                    nextCursorFromCollect(topUp) ?? allMenCursorRef.current;
+                } else {
+                  allWomenCursorRef.current =
+                    nextCursorFromCollect(topUp) ?? allWomenCursorRef.current;
+                }
+                mixed = [...mixed, ...topUp.items];
+              }
+            } else {
+              mixed = [...mixed, ...pool.slice(0, need)];
+            }
+          }
+
+          mixed = mixed.slice(0, CATEGORY_PRODUCT_LIMIT);
+          setHasMore(
+            Boolean(menResult.hasMore) || Boolean(womenResult.hasMore),
+          );
+          setCategoryProducts((prev) =>
+            append ? [...prev, ...mixed] : mixed,
+          );
+          return;
         }
+
+        // Fallback: scan getAllVersion2 past coming-soon until we fill the grid.
+        const collected = [];
+        const seen = new Set(excludeIds);
+        let page = append ? categoryCursorRef.current || 1 : 1;
+        let totalPages = 1;
+
+        for (
+          let i = 0;
+          i < MAX_SCAN_PAGES && collected.length < CATEGORY_PRODUCT_LIMIT;
+          i += 1
+        ) {
+          const params = {
+            isActive: true,
+            page,
+            limit: SCAN_PAGE_SIZE,
+          };
+          if (pincode) params.pinCode = String(pincode);
+          const res = await itemsService.getAllVersion2(params);
+          const data = res?.data?.data ?? res?.data;
+          const raw = Array.isArray(data?.items) ? data.items : [];
+          totalPages = Math.max(1, Number(data?.pagination?.totalPages) || page);
+          const visible = filterHomeVisibleProducts(
+            raw.map((item, idx) =>
+              itemToCardProps(item, (page - 1) * SCAN_PAGE_SIZE + idx, section),
+            ),
+          );
+          for (const card of visible) {
+            const key = String(card.id ?? "");
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            collected.push(card);
+            if (collected.length >= CATEGORY_PRODUCT_LIMIT) break;
+          }
+          if (collected.length >= CATEGORY_PRODUCT_LIMIT) {
+            categoryCursorRef.current = page < totalPages ? page + 1 : 9999;
+            setHasMore(page < totalPages);
+            setCategoryProducts((prev) =>
+              append ? [...prev, ...collected] : collected,
+            );
+            return;
+          }
+          if (raw.length === 0 || page >= totalPages) break;
+          page += 1;
+        }
+
+        categoryCursorRef.current = 9999;
+        setHasMore(false);
+        setCategoryProducts((prev) =>
+          append ? [...prev, ...collected] : collected,
+        );
       } catch {
-        if (page === 1) setCategoryProducts([]);
+        if (!append) setCategoryProducts([]);
         setHasMore(false);
       } finally {
-        if (page === 1) setLoadingInitial(false);
-        else setLoadingMore(false);
+        if (append) setLoadingMore(false);
+        else setLoadingInitial(false);
       }
     },
-    [pincode, section],
+    [pincode, section, menCategory?.id, womenCategory?.id],
   );
 
   const handleExploreMore = useCallback(async () => {
     if (!hasMore || loadingMore || loadingInitial || loadingMoreLockRef.current) {
       return;
     }
-    if (usesSectionList) return;
 
     loadingMoreLockRef.current = true;
-    const nextPage = currentPage + 1;
     try {
       if (activeCategoryId === ALL_CATEGORY_KEY) {
-        await fetchAllVersion2(nextPage);
+        await fetchAllMixed({ append: true });
       } else if (activeCategoryId) {
-        await fetchByCategory(activeCategoryId, nextPage);
+        await fetchByCategory(activeCategoryId, { append: true });
       }
     } finally {
       loadingMoreLockRef.current = false;
@@ -266,10 +463,8 @@ function OurProduct({ section }) {
     hasMore,
     loadingMore,
     loadingInitial,
-    usesSectionList,
-    currentPage,
     activeCategoryId,
-    fetchAllVersion2,
+    fetchAllMixed,
     fetchByCategory,
   ]);
 
@@ -278,50 +473,40 @@ function OurProduct({ section }) {
   }, [section]);
 
   useEffect(() => {
-    if (listFromSection.length > 0 && activeCategoryId !== ALL_CATEGORY_KEY) {
-      setCategoryProducts([]);
-      setCurrentPage(1);
-      setHasMore(false);
-      loadingMoreLockRef.current = false;
-      return;
-    }
+    categoryCursorRef.current = 1;
+    allMenCursorRef.current = 1;
+    allWomenCursorRef.current = 1;
+    loadingMoreLockRef.current = false;
+    setHasMore(false);
+
     if (activeCategoryId === ALL_CATEGORY_KEY) {
-      setCurrentPage(1);
-      setHasMore(false);
-      loadingMoreLockRef.current = false;
-      fetchAllVersion2(1);
+      // Wait for category ids when possible so ALL can mix men + women.
+      if (!categoriesReady && (section?.categoryId?.length || section?.categories?.length)) {
+        return;
+      }
+      fetchAllMixed({ append: false });
     } else if (activeCategoryId) {
-      setCurrentPage(1);
-      setHasMore(false);
-      loadingMoreLockRef.current = false;
-      fetchByCategory(activeCategoryId, 1);
+      fetchByCategory(activeCategoryId, { append: false });
     } else {
       setCategoryProducts([]);
-      setCurrentPage(1);
-      setHasMore(false);
-      loadingMoreLockRef.current = false;
     }
   }, [
     activeCategoryId,
-    listFromSection.length,
+    categoriesReady,
+    menCategory?.id,
+    womenCategory?.id,
+    pincode,
+    section?._id,
+    section?.categoryId?.length,
+    section?.categories?.length,
+    fetchAllMixed,
     fetchByCategory,
-    fetchAllVersion2,
   ]);
 
-  const productsToShow =
-    activeCategoryId === ALL_CATEGORY_KEY
-      ? categoryProducts
-      : listFromSection.length > 0
-        ? listFromSection
-        : categoryProducts.length > 0
-          ? categoryProducts
-          : PRODUCTS_STATIC;
+  const productsToShow = categoryProducts;
 
   const showExploreMore =
-    !usesSectionList &&
-    Boolean(activeCategoryId) &&
-    hasMore &&
-    !loadingInitial;
+    Boolean(activeCategoryId) && hasMore && !loadingInitial;
 
   const handleTabClick = (cat) => {
     if (cat.id === ALL_CATEGORY_KEY) {
@@ -379,7 +564,7 @@ function OurProduct({ section }) {
         <div className="grid grid-cols-2 items-stretch gap-x-1.5 gap-y-2.5 sm:gap-x-3 sm:gap-y-4 md:grid-cols-3 md:gap-3 lg:grid-cols-4">
           {!loadingInitial &&
             productsToShow.map((product, idx) => (
-              <div key={product.id ?? idx} className="flex h-full min-w-0 flex-col">
+              <div key={`${product.id ?? "p"}-${idx}`} className="flex h-full min-w-0 flex-col">
                 <ProductCard
                   {...product}
                   {...PRODUCT_CARD_COMPACT_GRID_PROPS}
@@ -387,6 +572,12 @@ function OurProduct({ section }) {
               </div>
             ))}
         </div>
+
+        {!loadingInitial && productsToShow.length === 0 ? (
+          <p className="py-8 text-center font-inter text-sm text-gray-500">
+            No products available in this category yet.
+          </p>
+        ) : null}
 
         {loadingMore ? (
           <div className="py-6 text-center text-sm text-gray-500">

@@ -134,12 +134,18 @@ export const communityService = {
     ),
 
   /**
-   * GET /community/stats
+   * GET /community/stats?role=creator|designer
    * Aggregated metrics for the signed-in creator/designer:
    * totalLikes, totalViews, totalContent / totalPosts
+   * @param {{ role?: 'creator'|'designer', range?: string, dateRange?: string, days?: number }} [params]
    */
-  getStats: () =>
-    wrapCommunity('GET', `${BASE}/stats`, client.get(`${BASE}/stats`)),
+  getStats: (params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/stats`,
+      client.get(`${BASE}/stats`, { params: qs(params) }),
+      params,
+    ),
 
   /** POST /community/content/:id/view */
   recordView: (id) =>
@@ -164,6 +170,124 @@ export const communityService = {
       'DELETE',
       `${BASE}/content/${id}`,
       client.delete(`${BASE}/content/${id}`),
+    ),
+
+  // ——— Block / Unblock ———
+
+  /** POST /community/block/:userId */
+  blockUser: (userId) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/block/${userId}`,
+      client.post(`${BASE}/block/${userId}`),
+    ),
+
+  /** POST /community/unblock/:userId */
+  unblockUser: (userId) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/unblock/${userId}`,
+      client.post(`${BASE}/unblock/${userId}`),
+    ),
+
+  /**
+   * GET /community/block
+   * @param {{ cursor?: string, limit?: number }} [params]
+   */
+  listBlockedUsers: (params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/block`,
+      client.get(`${BASE}/block`, {
+        params: qs({ limit: params.limit ?? 20, cursor: params.cursor }),
+      }),
+      params,
+    ),
+
+  /** POST /community/content/:contentId/block */
+  blockContentAuthor: (contentId) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/content/${contentId}/block`,
+      client.post(`${BASE}/content/${contentId}/block`),
+    ),
+
+  /** POST /community/content/:contentId/unblock */
+  unblockContentAuthor: (contentId) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/content/${contentId}/unblock`,
+      client.post(`${BASE}/content/${contentId}/unblock`),
+    ),
+
+  /** POST /community/comments/:commentId/block */
+  blockCommentAuthor: (commentId) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/comments/${commentId}/block`,
+      client.post(`${BASE}/comments/${commentId}/block`),
+    ),
+
+  /** POST /community/comments/:commentId/unblock */
+  unblockCommentAuthor: (commentId) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/comments/${commentId}/unblock`,
+      client.post(`${BASE}/comments/${commentId}/unblock`),
+    ),
+
+  // ——— Report ———
+
+  /**
+   * POST /community/report
+   * @param {{ targetType: string, targetId: string, reason: string, details?: string }} body
+   */
+  report: (body) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/report`,
+      client.post(`${BASE}/report`, body),
+      body,
+    ),
+
+  /**
+   * POST /community/content/:contentId/report
+   * @param {string} contentId
+   * @param {{ reason: string, details?: string }} body
+   */
+  reportContent: (contentId, body) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/content/${contentId}/report`,
+      client.post(`${BASE}/content/${contentId}/report`, body),
+      body,
+    ),
+
+  /**
+   * POST /community/comments/:commentId/report
+   * @param {string} commentId
+   * @param {{ reason: string, details?: string }} body
+   */
+  reportComment: (commentId, body) =>
+    wrapCommunity(
+      'POST',
+      `${BASE}/comments/${commentId}/report`,
+      client.post(`${BASE}/comments/${commentId}/report`, body),
+      body,
+    ),
+
+  /**
+   * GET /community/report/me
+   * @param {{ cursor?: string, limit?: number }} [params]
+   */
+  listMyReports: (params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/report/me`,
+      client.get(`${BASE}/report/me`, {
+        params: qs({ limit: params.limit ?? 20, cursor: params.cursor }),
+      }),
+      params,
     ),
 
   // ——— Feed ———
@@ -226,6 +350,14 @@ export const communityService = {
         }),
       }),
       params,
+    ),
+
+  /** DELETE /community/profile/me — permanently delete own community profile */
+  deleteMyProfile: () =>
+    wrapCommunity(
+      'DELETE',
+      `${BASE}/profile/me`,
+      client.delete(`${BASE}/profile/me`),
     ),
 
   getProfile: (userId, params = {}) =>

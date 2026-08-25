@@ -62,6 +62,23 @@ export function getRecommendationSuggestions(params = {}) {
 }
 
 /**
+ * Cross-sell / “Pair it with” items for product detail.
+ * GET /items/cross-sell/:itemId
+ * @param {string} itemId
+ * @param {Object} [params]
+ * @param {number} [params.page=1]
+ * @param {number} [params.limit=8]
+ */
+export function getCrossSell(itemId, params = {}) {
+  if (!itemId) {
+    return Promise.reject(new Error('itemId is required'));
+  }
+  return client.get(`${ITEMS}/cross-sell/${encodeURIComponent(itemId)}`, {
+    params,
+  });
+}
+
+/**
  * Get all items in random order (v2 endpoint).
  * @param {Object} [params]
  * @param {boolean|string} [params.isActive=true]
@@ -74,5 +91,6 @@ export const itemsService = {
   search,
   getById,
   getRecommendationSuggestions,
+  getCrossSell,
   getAllVersion2,
 };
