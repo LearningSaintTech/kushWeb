@@ -3,6 +3,7 @@ import { API_BASE_URL, getTunnelBypassHeaders } from '../services/config.js';
 import { getOrCreateDeviceId } from './deviceId.js';
 import { clearMemoryToken, getMemoryToken } from './tokenMemory.js';
 import { clearSessionHint, hasSessionHint } from './sessionHint.js';
+import { clearStoredRefreshToken, getStoredRefreshToken } from './refreshTokenStore.js';
 
 const LOGOUT_PATH = '/user/auth/logout';
 
@@ -24,10 +25,15 @@ export async function clearServerSession() {
   try {
     const headers = { 'x-device-id': getOrCreateDeviceId() };
     if (token) headers.Authorization = `Bearer ${token}`;
-    await logoutClient.post(LOGOUT_PATH, {}, {
-      headers,
-      validateStatus: (status) => status < 500,
-    });
+    const refreshToken = getStoredRefreshToken();
+    await logoutClient.post(
+      LOGOUT_PATH,
+      refreshToken ? { refreshToken } : {},
+      {
+        headers,
+        validateStatus: (status) => status < 500,
+      },
+    );
   } catch {
     /* still clear client state */
   }
@@ -36,6 +42,7 @@ export async function clearServerSession() {
 export async function performLogout({ server = true } = {}) {
   if (server) await clearServerSession();
   clearSessionHint();
+  clearStoredRefreshToken();
   clearMemoryToken();
 }
 

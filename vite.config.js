@@ -159,19 +159,47 @@ export default defineConfig(({ mode }) => {
   const pinggyBypassHeaders = /pinggy\.(net|link|online|io)/i.test(apiOrigin)
     ? { 'X-Pinggy-No-Screen': '1' }
     : undefined
+
+  /**
+   * Prod auth sets refreshToken with Secure (+ maybe Domain). Via Vite → http://localhost
+   * the browser drops Secure cookies, so refresh fails and the user looks "logged out".
+   * Rewrite Set-Cookie for local HTTP only.
+   */
+  function rewriteProxiedAuthCookies(proxyRes) {
+    const raw = proxyRes.headers?.['set-cookie']
+    if (!raw) return
+    const list = Array.isArray(raw) ? raw : [raw]
+    proxyRes.headers['set-cookie'] = list.map((cookie) =>
+      String(cookie)
+        .replace(/;\s*Secure/gi, '')
+        .replace(/;\s*Domain=[^;]*/gi, '')
+        .replace(/;\s*SameSite=None/gi, '; SameSite=Lax'),
+    )
+  }
+
+  function withLocalCookieRewrite(proxyOpts) {
+    return {
+      ...proxyOpts,
+      cookieDomainRewrite: '',
+      configure: (proxy) => {
+        proxy.on('proxyRes', rewriteProxiedAuthCookies)
+      },
+    }
+  }
+
   const devProxy = apiOrigin
     ? {
-        '/api': {
+        '/api': withLocalCookieRewrite({
           target: apiOrigin,
           changeOrigin: true,
           ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
-        },
-        '/socket.io': {
+        }),
+        '/socket.io': withLocalCookieRewrite({
           target: apiOrigin,
           changeOrigin: true,
           ws: true,
           ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
-        },
+        }),
       }
     : undefined
 
