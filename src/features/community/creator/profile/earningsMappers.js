@@ -39,57 +39,345 @@ function rateFromSummary(summary, mode) {
     mode === 'designer'
       ? rates.designerCommissionRatePct ??
         rates.designerRoyaltyRatePct ??
-        summary.designerCommissionRatePct
-      : rates.creatorCommissionRatePct ?? summary.creatorCommissionRatePct
+        summary.designerCommissionRatePct ??
+        1
+      : rates.creatorCommissionRatePct ?? summary.creatorCommissionRatePct ?? 2.5
 
   if (pct == null && summary.commissionRate != null) return summary.commissionRate
   return pct
 }
 
-/**
- * @param {object|null} summary
- * @param {'creator'|'designer'} mode
- */
-export function mapSummaryToDashboardEarnings(summary, mode = 'creator') {
-  if (!summary || typeof summary !== 'object') return null
+function roleFromSummary(summary) {
+  const r = String(summary?.role || '').toLowerCase().trim()
+  if (r === 'creator' || r === 'designer') return r
+  return null
+}
 
-  const total = pickAmount(summary, [
-    'totalEarnings',
-    'total',
-    'lifetimeEarnings',
-    'grossEarnings',
-    'earnedTotal',
-  ])
+/** @param {'creator'|'designer'} mode */
+function roleBucket(summary, mode) {
+  const key = mode === 'designer' ? 'designer' : 'creator'
+  const bucket = summary?.byRole?.[key]
+  return bucket && typeof bucket === 'object' ? bucket : null
+}
 
-  const creator = pickAmount(summary, [
-    'creatorEarnings',
-    'creator',
-    'contentEarnings',
-    'communityEarnings',
-  ])
-
-  const royalties = pickAmount(summary, [
-    'designRoyalties',
-    'designerEarnings',
-    'royalties',
-    'designEarnings',
-  ])
-
-  const available = pickAmount(summary, [
+/** Shared payout wallet (accounts for lifetimePaid). */
+export function resolveWalletAvailableBalance(summary) {
+  return pickAmount(summary, [
     'availableBalance',
     'payableBalance',
     'available',
     'balance',
   ])
+}
 
-  const pending = pickAmount(summary, [
-    'pendingBalance',
-    'pendingEarnings',
-    'pending',
-    'inTransit',
+/**
+ * Withdrawable for the active role.
+ * Prefers byRole[role].available, capped by wallet availableBalance
+ * (wallet already subtracts lifetimePaid; byRole.available may not).
+ *
+ * @param {object} summary
+ * @param {'creator'|'designer'} mode
+ * @param {number} [fallback]
+ */
+export function resolveRoleAvailableBalance(summary, mode, fallback = 0) {
+  const bucket = roleBucket(summary, mode)
+  const wallet = resolveWalletAvailableBalance(summary)
+  const other = roleBucket(
+    summary,
+    mode === 'designer' ? 'creator' : 'designer',
+  )
+  const otherAvailable = other ? num(other.available, 0) : 0
+
+  if (bucket) {
+    const roleAvailable = pickAmount(bucket, [
+      'available',
+      'availableBalance',
+      'payable',
+    ])
+    if (roleAvailable != null) {
+      // Other role has no commission balance → this role owns the wallet cash
+      if (wallet != null && otherAvailable <= 0) {
+        return Math.min(roleAvailable, wallet)
+      }
+      if (wallet != null) return Math.min(roleAvailable, wallet)
+      return roleAvailable
+    }
+  }
+
+  const legacy = pickAmount(summary, [
+    mode === 'designer'
+      ? 'designerAvailableBalance'
+      : 'creatorAvailableBalance',
+    mode === 'designer' ? 'designerAvailable' : 'creatorAvailable',
+  ])
+  if (legacy != null) {
+    if (wallet != null) return Math.min(legacy, wallet)
+    return legacy
+  }
+
+  // Designer must not inherit creator wallet when byRole says 0
+  if (mode === 'designer' && otherAvailable > 0) return fallback
+  if (wallet != null) return wallet
+  return fallback
+}
+
+/**
+ * Role earned total for dashboard hero (byRole.earned / lifetimeEarned).
+ *
+ * @param {object} summary
+ * @param {'creator'|'designer'} mode
+ * @param {number} [commissionsTotal]
+ */
+export function resolveRoleDisplayedEarnings(summary, mode, commissionsTotal = 0) {
+  const bucket = roleBucket(summary, mode)
+  if (bucket) {
+    const earned = pickAmount(bucket, ['earned', 'lifetimeEarned', 'total'])
+    if (earned != null) return earned
+  }
+
+  if (mode === 'creator') {
+    const earned = pickAmount(summary, [
+      'creatorEarned',
+      'creatorEarnings',
+      'lifetimeEarned',
+      'periodEarned',
+      'creator',
+      'contentEarnings',
+      'communityEarnings',
+    ])
+    if (earned != null) return earned
+  } else {
+    const earned = pickAmount(summary, [
+      'designerEarned',
+      'designRoyalties',
+      'designerEarnings',
+      'periodEarned',
+      'royalties',
+      'designEarnings',
+    ])
+    if (earned != null) return earned
+  }
+
+  const summaryRole = roleFromSummary(summary)
+  if (summaryRole === mode) {
+    const period = pickAmount(summary, [
+      'lifetimeEarned',
+      'totalEarnings',
+      'total',
+      'grossEarnings',
+    ])
+    if (period != null) return period
+  }
+
+  return commissionsTotal
+}
+
+/**
+ * Role pending (return window) from byRole[role].pending.
+ *
+ * @param {object} summary
+ * @param {'creator'|'designer'} mode
+ * @param {number} [pendingFromCommissions]
+ */
+export function resolveRoleDisplayedPending(
+  summary,
+  mode,
+  pendingFromCommissions = 0,
+) {
+  const bucket = roleBucket(summary, mode)
+  if (bucket) {
+    const pending = pickAmount(bucket, ['pending', 'pendingBalance'])
+    if (pending != null) return pending
+  }
+
+  const creatorPending = pickAmount(summary, [
+    'creatorPending',
+    'creatorPendingBalance',
+  ])
+  const designerPending = pickAmount(summary, [
+    'designerPending',
+    'designerPendingBalance',
   ])
 
-  const minPayout = pickAmount(summary, ['minPayoutAmount', 'minPayout', 'minimumPayout'])
+  if (mode === 'creator') {
+    if (creatorPending != null) return creatorPending
+    if (designerPending != null) return pendingFromCommissions
+    if (roleFromSummary(summary) === 'creator') {
+      const scoped = pickAmount(summary, [
+        'pendingBalance',
+        'pendingEarnings',
+        'pending',
+      ])
+      if (scoped != null) return scoped
+    }
+    return pendingFromCommissions
+  }
+
+  if (designerPending != null) return designerPending
+  if (creatorPending != null) return pendingFromCommissions
+  if (roleFromSummary(summary) === 'designer') {
+    const scoped = pickAmount(summary, [
+      'pendingBalance',
+      'pendingEarnings',
+      'pending',
+    ])
+    if (scoped != null) return scoped
+  }
+  return pendingFromCommissions
+}
+
+/** Paid-out total for active role (byRole.paidOut) or wallet lifetimePaid. */
+export function resolveRolePaidOut(summary, mode) {
+  const bucket = roleBucket(summary, mode)
+  if (bucket) {
+    const paid = pickAmount(bucket, ['paidOut', 'lifetimePaid', 'paid'])
+    // byRole.paidOut may lag; if other role has 0 earned, wallet lifetimePaid applies
+    const other = roleBucket(
+      summary,
+      mode === 'designer' ? 'creator' : 'designer',
+    )
+    const otherEarned = other ? num(other.earned, 0) : 0
+    const lifetimePaid = pickAmount(summary, ['lifetimePaid', 'totalPaid'])
+    if (paid != null && paid > 0) return paid
+    if (otherEarned <= 0 && lifetimePaid != null) return lifetimePaid
+    if (paid != null) return paid
+  }
+  return pickAmount(summary, ['lifetimePaid', 'totalPaid']) ?? 0
+}
+
+function commissionList(payload) {
+  if (!payload) return []
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload.recentCommissions)) return payload.recentCommissions
+  if (Array.isArray(payload.commissions)) return payload.commissions
+  if (Array.isArray(payload.items)) return payload.items
+  if (Array.isArray(payload.data)) return payload.data
+  return []
+}
+
+function commissionRole(row) {
+  const raw =
+    row?.role ??
+    row?.earningRole ??
+    row?.type ??
+    row?.commissionType ??
+    row?.sourceRole ??
+    ''
+  const r = String(raw).toLowerCase().trim()
+  if (r === 'creator' || r === 'affiliate' || r === 'commission') return 'creator'
+  if (r === 'designer' || r === 'royalty' || r === 'design') return 'designer'
+  return null
+}
+
+/** Keep only rows that match the active role (or untagged rows when API already filtered). */
+export function filterCommissionsByRole(payload, mode) {
+  const list = commissionList(payload)
+  const want = mode === 'designer' ? 'designer' : 'creator'
+  const tagged = list.filter((row) => commissionRole(row) != null)
+  if (!tagged.length) return list
+  return list.filter((row) => {
+    const r = commissionRole(row)
+    return r == null || r === want
+  })
+}
+
+export function sumCommissionAmounts(payload, mode) {
+  const list =
+    mode != null ? filterCommissionsByRole(payload, mode) : commissionList(payload)
+  return list.reduce((sum, row) => {
+    const amount = pickAmount(row, [
+      'amount',
+      'commissionAmount',
+      'earnings',
+      'netAmount',
+      'creatorAmount',
+      'royaltyAmount',
+    ])
+    return sum + (amount ?? 0)
+  }, 0)
+}
+
+export function sumPendingCommissionAmounts(payload, mode) {
+  const list =
+    mode != null ? filterCommissionsByRole(payload, mode) : commissionList(payload)
+  return list.reduce((sum, row) => {
+    const status = String(row?.status || '').toLowerCase()
+    if (status && status !== 'pending' && status !== 'held' && status !== 'processing') {
+      return sum
+    }
+    if (status || row?.isPending || row?.pending) {
+      const amount = pickAmount(row, [
+        'amount',
+        'commissionAmount',
+        'earnings',
+        'netAmount',
+        'pendingAmount',
+      ])
+      return sum + (amount ?? 0)
+    }
+    return sum
+  }, 0)
+}
+
+/**
+ * @param {object|null} summary
+ * @param {'creator'|'designer'} mode
+ * @param {{ commissionsTotal?: number, pendingFromCommissions?: number }} [opts]
+ */
+export function mapSummaryToDashboardEarnings(
+  summary,
+  mode = 'creator',
+  opts = {},
+) {
+  if (!summary || typeof summary !== 'object') return null
+
+  const commissionsTotal = num(opts.commissionsTotal, 0)
+  const pendingFromCommissions = num(opts.pendingFromCommissions, 0)
+
+  const displayedRaw = resolveRoleDisplayedEarnings(
+    summary,
+    mode,
+    commissionsTotal,
+  )
+  const pendingRaw = resolveRoleDisplayedPending(
+    summary,
+    mode,
+    pendingFromCommissions,
+  )
+  let availableRaw = resolveRoleAvailableBalance(summary, mode, NaN)
+  if (!Number.isFinite(availableRaw)) {
+    availableRaw = Math.max(0, num(displayedRaw) - num(pendingRaw))
+  }
+  const paidOutRaw = resolveRolePaidOut(summary, mode)
+
+  const creatorBucket = roleBucket(summary, 'creator')
+  const designerBucket = roleBucket(summary, 'designer')
+  const creator =
+    pickAmount(creatorBucket, ['earned', 'available']) ??
+    pickAmount(summary, [
+      'creatorEarned',
+      'creatorAvailableBalance',
+      'creatorEarnings',
+      'creator',
+      'contentEarnings',
+      'communityEarnings',
+    ])
+  const royalties =
+    pickAmount(designerBucket, ['earned', 'available']) ??
+    pickAmount(summary, [
+      'designerEarned',
+      'designerAvailableBalance',
+      'designRoyalties',
+      'designerEarnings',
+      'royalties',
+      'designEarnings',
+    ])
+
+  const minPayout = pickAmount(summary, [
+    'minPayoutAmount',
+    'minPayout',
+    'minimumPayout',
+  ])
 
   const changeRaw =
     summary.changePercent ??
@@ -99,72 +387,77 @@ export function mapSummaryToDashboardEarnings(summary, mode = 'creator') {
     null
 
   const change = formatChange(changeRaw)
-
-  const resolvedTotal =
-    total ??
-    (creator != null || royalties != null
-      ? num(creator) + num(royalties)
-      : available != null
-        ? available
-        : 0)
-
   const ratePct = rateFromSummary(summary, mode)
+  const isCreator = mode === 'creator'
 
   const earnings = {
-    total: formatEarningsInr(resolvedTotal),
+    total: formatEarningsInr(displayedRaw),
     change: change ?? '—',
     creator:
       creator != null
         ? formatEarningsInr(creator)
-        : mode === 'creator'
-          ? formatEarningsInr(resolvedTotal)
+        : isCreator
+          ? formatEarningsInr(displayedRaw)
           : formatEarningsInr(0),
     royalties:
       royalties != null
         ? formatEarningsInr(royalties)
-        : formatEarningsInr(0),
+        : !isCreator
+          ? formatEarningsInr(displayedRaw)
+          : formatEarningsInr(0),
   }
 
   return {
     earnings,
     summaryChips: null,
     meta: {
-      available: available != null ? formatEarningsInr(available) : null,
-      pending: pending != null ? formatEarningsInr(pending) : null,
-      availableRaw: available,
-      pendingRaw: pending,
-      minPayoutRaw: minPayout ?? 500,
-      minPayout: formatEarningsInr(minPayout ?? 500),
+      available: formatEarningsInr(availableRaw),
+      pending: formatEarningsInr(pendingRaw),
+      paidOut: paidOutRaw > 0 ? formatEarningsInr(paidOutRaw) : null,
+      availableRaw,
+      pendingRaw,
+      paidOutRaw,
+      earnedRaw: displayedRaw,
+      minPayoutRaw: minPayout ?? 5,
+      minPayout: formatEarningsInr(minPayout ?? 5),
       commissionRate: ratePct != null ? `${Number(ratePct)}%` : null,
+      rateLabel: isCreator ? 'Affiliate Commission Rate' : 'Designer Royalty Rate',
+      sourceLabel: isCreator ? 'Tagged Posts & Reels' : 'Design Catalog Sales',
+      earningsLabel: isCreator ? 'Creator Earnings' : 'Designer Earnings',
+      listTitle: isCreator
+        ? 'Recent Creator Commissions'
+        : 'Recent Design Royalties',
+      emptyListText: isCreator
+        ? 'No commissions earned yet from tagged posts.'
+        : 'No royalties earned yet from design sales.',
       currency: summary.currency || 'INR',
       raw: summary,
     },
   }
 }
 
-function commissionList(payload) {
-  if (!payload) return []
-  if (Array.isArray(payload)) return payload
-  if (Array.isArray(payload.items)) return payload.items
-  if (Array.isArray(payload.commissions)) return payload.commissions
-  if (Array.isArray(payload.data)) return payload.data
-  return []
-}
-
-export function mapCommissionsToEarningsPerPost(payload, fallbackImage = '') {
-  return commissionList(payload).map((row, index) => {
+export function mapCommissionsToEarningsPerPost(
+  payload,
+  fallbackImage = '',
+  mode,
+) {
+  return filterCommissionsByRole(payload, mode || 'creator').map((row, index) => {
     const amount = pickAmount(row, [
-      'amount',
       'commissionAmount',
+      'amount',
       'earnings',
       'netAmount',
       'creatorAmount',
+      'royaltyAmount',
     ])
+    const item = row.item && typeof row.item === 'object' ? row.item : null
     const title =
       row.title ||
+      item?.name ||
       row.contentTitle ||
       row.postTitle ||
       row.itemName ||
+      row.sku ||
       row.name ||
       row.description ||
       'Commission'
@@ -173,12 +466,15 @@ export function mapCommissionsToEarningsPerPost(payload, fallbackImage = '') {
       row.views != null
         ? `${row.views} views`
         : status ||
-          (row.createdAt
-            ? new Date(row.createdAt).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-              })
+          (row.availableAt || row.createdAt
+            ? new Date(row.availableAt || row.createdAt).toLocaleDateString(
+                'en-IN',
+                {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                },
+              )
             : '—')
 
     const signed =
@@ -192,7 +488,13 @@ export function mapCommissionsToEarningsPerPost(payload, fallbackImage = '') {
       title: String(title),
       views: viewsLabel,
       earnings: signed,
-      image: row.thumbnail || row.image || row.coverUrl || fallbackImage,
+      image:
+        item?.thumbnail ||
+        item?.imageUrl ||
+        row.thumbnail ||
+        row.image ||
+        row.coverUrl ||
+        fallbackImage,
     }
   })
 }

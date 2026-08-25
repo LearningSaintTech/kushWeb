@@ -22,11 +22,13 @@ function firstNumber(...values) {
 /**
  * @param {object|null} stats - GET /community/stats payload
  * @param {object|null} profile - GET /community/profile/me payload (raw or mapped)
+ * @param {'creator'|'designer'} [mode]
  * @returns {{ chips: Array<{label:string,value:string}>, raw: object } | null}
  */
-export function mapCommunityDashboardMetrics(stats, profile) {
+export function mapCommunityDashboardMetrics(stats, profile, mode = 'creator') {
   const counts = profile?.counts || {}
   const statsRaw = profile?.statsRaw || {}
+  const contentLabel = mode === 'designer' ? 'Designs' : 'Posts & Reels'
 
   const likes = firstNumber(
     stats?.totalLikes,
@@ -45,8 +47,11 @@ export function mapCommunityDashboardMetrics(stats, profile) {
   const posts = firstNumber(
     stats?.totalContent,
     stats?.totalPosts,
+    stats?.totalDesigns,
+    stats?.designs,
     stats?.posts,
     counts.posts,
+    counts.designs,
     profile?.postsCount,
     statsRaw.posts,
   )
@@ -57,7 +62,7 @@ export function mapCommunityDashboardMetrics(stats, profile) {
     chips: [
       { label: 'Likes', value: formatMetricCount(likes ?? 0) },
       { label: 'Views', value: formatMetricCount(views ?? 0) },
-      { label: 'Posts', value: formatMetricCount(posts ?? 0) },
+      { label: contentLabel, value: formatMetricCount(posts ?? 0) },
     ],
     raw: {
       likes: likes ?? 0,

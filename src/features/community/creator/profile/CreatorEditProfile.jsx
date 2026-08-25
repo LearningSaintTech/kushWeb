@@ -273,15 +273,23 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
 
         <label className="block">
           <span className={labelClass}>Username</span>
-          <input
-            value={username ? `@${username.replace(/^@/, '')}` : ''}
-            onChange={(e) =>
-              setUsername(e.target.value.replace(/^@/, '').replace(/\s/g, '').slice(0, 30))
-            }
-            className={fieldClass}
-            autoComplete="username"
-            maxLength={31}
-          />
+          <div className={`flex items-center overflow-hidden ${fieldClass} !px-0`}>
+            <span className="select-none pl-4 font-inter text-sm text-neutral-400" aria-hidden>
+              @
+            </span>
+            <input
+              value={String(username || '').replace(/^@/, '')}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value.replace(/^@/, '').replace(/\s/g, '').slice(0, 30),
+                )
+              }
+              className="min-w-0 flex-1 border-0 bg-transparent py-0 pl-1 pr-4 font-inter text-sm text-black outline-none"
+              autoComplete="username"
+              maxLength={30}
+              placeholder="username"
+            />
+          </div>
         </label>
 
         <label className="block">

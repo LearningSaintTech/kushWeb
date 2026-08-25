@@ -1,12 +1,21 @@
 import { useEffect, useId, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ROUTES } from '../../../../utils/constants'
+import {
+  communityService,
+  getCommunityErrorMessage,
+} from '../../../../services/community.service.js'
+import {
+  mapDeletedCommunityProfileResponse,
+} from '../../../../services/communityProfile.service'
+import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import {
   earningsService,
   unwrapEarningsResponse,
 } from '../../../../services/earnings.service.js'
 import { isAppEnvDev } from '../../../../utils/logLevel.js'
 import { debugError, debugLog } from '../../../../utils/debugLog.js'
+import { requestCommunityProfileRefresh } from '../../hooks/useCommunitySocialProfile'
 import {
   EMPTY_BANK_FORM,
   formToPayoutMethodBody,
@@ -29,8 +38,11 @@ export default function CreatorSettingsDrawer({
   open,
   onClose,
   mode = 'creator',
+  onProfileDeleted,
 }) {
+  const navigate = useNavigate()
   const titleId = useId()
+  const { applyProfile, refresh } = useCommunityProfile()
   const liveEnabled = isAppEnvDev()
   const [view, setView] = useState(VIEWS.MENU)
   const [payment, setPayment] = useState({ ...EMPTY_BANK_FORM })
@@ -39,6 +51,7 @@ export default function CreatorSettingsDrawer({
   const [paymentSaving, setPaymentSaving] = useState(false)
   const [agreeDelete, setAgreeDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const roleLabel = mode === 'designer' ? 'Designer' : 'Creator'
 
@@ -46,6 +59,7 @@ export default function CreatorSettingsDrawer({
     if (!open) return
     setView(VIEWS.MENU)
     setPaymentError('')
+    setDeleteError('')
     setAgreeDelete(false)
     setDeleting(false)
     setPaymentSaving(false)
@@ -156,9 +170,45 @@ export default function CreatorSettingsDrawer({
   const handleDelete = async () => {
     if (!agreeDelete || deleting) return
     setDeleting(true)
+    setDeleteError('')
     try {
-      // Hook up community profile delete API when available
+      const raw = await communityService.deleteMyProfile()
+      const deletedProfile = mapDeletedCommunityProfileResponse(raw)
+      debugLog('[Community] profile/me deleted', {
+        communityProfileStatus: deletedProfile?.communityProfileStatus,
+        requiresOnboarding: deletedProfile?.requiresOnboarding,
+        alreadyDeleted: deletedProfile?.alreadyDeleted,
+        userId: deletedProfile?.userId,
+      })
+      // Prefer delete payload flags; merge any /user/community-profile fields if refresh works
+      let latest = null
+      try {
+        latest = await refresh()
+      } catch {
+        /* keep delete snapshot */
+      }
+      applyProfile({
+        ...(latest && typeof latest === 'object' ? latest : {}),
+        ...(deletedProfile || {}),
+      })
+      requestCommunityProfileRefresh()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('khush:community-profile-deleted', {
+            detail: deletedProfile,
+          }),
+        )
+      }
+      onProfileDeleted?.(deletedProfile)
       onClose?.()
+      navigate(ROUTES.COMMUNITY_CREATE_JOIN, { replace: true })
+    } catch (err) {
+      const msg = getCommunityErrorMessage(
+        err,
+        'Could not delete community profile.',
+      )
+      setDeleteError(msg)
+      debugError('[Community] deleteMyProfile failed', msg)
     } finally {
       setDeleting(false)
     }
@@ -378,6 +428,9 @@ export default function CreatorSettingsDrawer({
             </div>
 
             <div className="shrink-0 space-y-2.5 border-t border-neutral-100 p-4 pb-6">
+              {deleteError ? (
+                <p className="font-inter text-xs text-red-600">{deleteError}</p>
+              ) : null}
               <button
                 type="button"
                 disabled={!agreeDelete || deleting}

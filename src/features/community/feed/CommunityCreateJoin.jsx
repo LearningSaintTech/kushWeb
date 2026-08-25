@@ -188,8 +188,12 @@ export default function CommunityCreateJoin() {
         </div>
       </div>
 
-      <RegistrationWizard open={showDesigner} onClose={() => setShowDesigner(false)} />
-      <CreatorWizard open={showCreator} onClose={() => setShowCreator(false)} />
+      <RegistrationWizard
+        open={showDesigner}
+        onClose={() => setShowDesigner(false)}
+        forceFresh
+      />
+      <CreatorWizard open={showCreator} onClose={() => setShowCreator(false)} forceFresh />
     </>
   )
 }

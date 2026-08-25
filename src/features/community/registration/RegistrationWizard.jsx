@@ -26,6 +26,7 @@ import {
   buildDesignerStoryBody,
   designerStepIndex,
   hydrateDesignerForm,
+  isCommunityProfileDeleted,
 } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
@@ -58,7 +59,7 @@ function cloneInitialForm() {
   }
 }
 
-export default function RegistrationWizard({ open, onClose }) {
+export default function RegistrationWizard({ open, onClose, forceFresh = false }) {
   const { profile, refresh, applyProfile } = useCommunityProfile()
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState(cloneInitialForm)
@@ -102,22 +103,51 @@ export default function RegistrationWizard({ open, onClose }) {
     ;(async () => {
       setSaving(true)
       setError(null)
+      // Always start empty; only resume mid-onboarding after hydrate checks pass
+      setFormData(cloneInitialForm())
+      setStep(1)
       try {
-        const latest = (await refresh()) || profile
+        const refreshed = await refresh()
         if (cancelled) return
-        const nextForm = hydrateDesignerForm(latest, cloneInitialForm())
-        const nextStep = designerStepIndex(latest)
+        // Keep delete / re-onboard flags if GET /user/community-profile dropped them
+        const latest = {
+          ...(refreshed || profile || {}),
+          ...(isCommunityProfileDeleted(profile)
+            ? {
+                communityProfileStatus: 'deleted',
+                requiresOnboarding: true,
+                deleted: true,
+                isDesigner: false,
+                isCreator: false,
+                designerOnboardingStep: 'not_started',
+                creatorOnboardingStep: 'not_started',
+              }
+            : {}),
+        }
+        const nextForm =
+          forceFresh || isCommunityProfileDeleted(latest)
+            ? cloneInitialForm()
+            : hydrateDesignerForm(latest, cloneInitialForm())
+        const nextStep =
+          forceFresh || isCommunityProfileDeleted(latest)
+            ? 1
+            : designerStepIndex(latest)
         setFormData(nextForm)
         setStep(nextStep)
         debugLog('[CommunityProfile] designer wizard resume', {
           step: nextStep,
+          prefilled: Boolean(nextForm?.username || nextForm?.fullName),
+          isDesigner: latest?.isDesigner,
           designerOnboardingStep: latest?.designerOnboardingStep,
-          designerVerificationStatus: latest?.designerVerificationStatus,
+          communityProfileStatus: latest?.communityProfileStatus,
+          requiresOnboarding: latest?.requiresOnboarding,
         })
         setBootstrapped(true)
       } catch (err) {
         if (!cancelled) {
           setError(getCommunityProfileErrorMessage(err))
+          setFormData(cloneInitialForm())
+          setStep(1)
           setBootstrapped(true)
         }
       } finally {

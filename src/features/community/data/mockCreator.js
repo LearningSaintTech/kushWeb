@@ -37,7 +37,7 @@ export const CREATOR_DASHBOARD = {
   summary: [
     { label: 'Likes', value: '1.2M' },
     { label: 'Views', value: '8.4M' },
-    { label: 'Posts', value: '48' },
+    { label: 'Posts & Reels', value: '48' },
   ],
   earningsPerPost: [
     {
@@ -147,7 +147,7 @@ export const DESIGNER_DASHBOARD = {
   summary: [
     { label: 'Likes', value: '1.2M' },
     { label: 'Views', value: '8.4M' },
-    { label: 'Posts', value: '48' },
+    { label: 'Designs', value: '48' },
   ],
   earningsPerPost: [
     {

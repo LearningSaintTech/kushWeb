@@ -150,8 +150,16 @@ export default function CommunityPage() {
         </div>
       </div>
 
-      <RegistrationWizard open={showRegister} onClose={() => setShowRegister(false)} />
-      <CreatorWizard open={showCreatorJoin} onClose={() => setShowCreatorJoin(false)} />
+      <RegistrationWizard
+        open={showRegister}
+        onClose={() => setShowRegister(false)}
+        forceFresh
+      />
+      <CreatorWizard
+        open={showCreatorJoin}
+        onClose={() => setShowCreatorJoin(false)}
+        forceFresh
+      />
     </div>
   )
 }

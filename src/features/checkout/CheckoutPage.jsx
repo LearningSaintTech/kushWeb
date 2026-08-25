@@ -730,11 +730,23 @@ function CheckoutPage() {
     appliedCouponCode,
     autoCouponDismissed,
     paymentMode,
-    cartSubTotalForCoupon,
-    fetchAvailableCoupons,
-    fetchCart,
     fetchPriceSummary,
   ]);
+
+  // Fetch available coupons count on mount for banner and count display
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchAvailableCoupons()
+      .then((list) => {
+        const normalCoupons = (Array.isArray(list) ? list : []).filter((c) => {
+          if (c?.isInfluencer) return false;
+          if (paymentMode === "COD" && c?.isAutoIncluded === true) return false;
+          return true;
+        });
+        setAvailableCoupons(normalCoupons);
+      })
+      .catch(() => {});
+  }, [isAuthenticated, fetchAvailableCoupons, paymentMode]);
 
   // Preload payment scripts when user selects a gateway
   useEffect(() => {
@@ -2716,6 +2728,49 @@ function CheckoutPage() {
                   See all
                 </button>
               </div>
+
+              {/* You have X coupons alert banner */}
+              {availableCoupons.length > 0 && !appliedCouponCode && (
+                <div
+                  onClick={openCouponModal}
+                  className="mb-3 p-2.5 sm:p-3 bg-green-100 border border-green-400 rounded-md flex items-center justify-between cursor-pointer hover:border-amber-300 transition-all group"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && openCouponModal()}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                        />
+                      </svg>
+                    </div> */}
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">
+                        You have {availableCoupons.length}{" "} 
+                        {availableCoupons.length === 1 ? "offer" : "offers"}!
+                      </p>
+                      {/* <p className="text-[11px] sm:text-xs text-gray-600 leading-tight mt-0.5">
+                        Use this to get more discount on your order.
+                      </p> */}
+                    </div>
+                  </div>
+                  <span className="text-[11px] sm:text-xs font-semibold text-green-800 uppercase tracking-wide group-hover:underline whitespace-nowrap ml-2">
+                    View & Apply →
+                  </span>
+                </div>
+              )}
+
               {appliedCouponCode ? (
                 <div className="flex items-center justify-between gap-2 p-3 border border-green-600 bg-green-50/80">
                   <div className="min-w-0">
@@ -2795,9 +2850,18 @@ function CheckoutPage() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gray-50">
-                    <h3 className="text-base font-semibold uppercase tracking-wider text-black">
-                      Available coupons
-                    </h3>
+                    <div>
+                      <h3 className="text-base font-semibold uppercase tracking-wider text-black">
+                        Available coupons
+                      </h3>
+                      {availableCoupons.length > 0 && (
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          You have {availableCoupons.length}{" "}
+                          {availableCoupons.length === 1 ? "coupon" : "coupons"}{" "}
+                          available to get more discount
+                        </p>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => setCouponModalOpen(false)}

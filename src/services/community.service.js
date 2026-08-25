@@ -134,12 +134,18 @@ export const communityService = {
     ),
 
   /**
-   * GET /community/stats
+   * GET /community/stats?role=creator|designer
    * Aggregated metrics for the signed-in creator/designer:
    * totalLikes, totalViews, totalContent / totalPosts
+   * @param {{ role?: 'creator'|'designer', range?: string, dateRange?: string, days?: number }} [params]
    */
-  getStats: () =>
-    wrapCommunity('GET', `${BASE}/stats`, client.get(`${BASE}/stats`)),
+  getStats: (params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/stats`,
+      client.get(`${BASE}/stats`, { params: qs(params) }),
+      params,
+    ),
 
   /** POST /community/content/:id/view */
   recordView: (id) =>
@@ -344,6 +350,14 @@ export const communityService = {
         }),
       }),
       params,
+    ),
+
+  /** DELETE /community/profile/me — permanently delete own community profile */
+  deleteMyProfile: () =>
+    wrapCommunity(
+      'DELETE',
+      `${BASE}/profile/me`,
+      client.delete(`${BASE}/profile/me`),
     ),
 
   getProfile: (userId, params = {}) =>

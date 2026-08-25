@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CREATOR_DASHBOARD, DESIGNER_DASHBOARD } from '../../data/mockCreator'
+import { useAuth } from '../../../../app/context/AuthContext.jsx'
 import { communityService } from '../../../../services/community.service.js'
 import {
   earningsService,
@@ -9,20 +10,43 @@ import { isAppEnvDev } from '../../../../utils/logLevel.js'
 import { debugError, debugLog } from '../../../../utils/debugLog.js'
 import { mapCommunityDashboardMetrics } from './communityMetricsMappers'
 import {
+  formatEarningsInr,
   mapCommissionsToEarningsPerPost,
   mapSummaryToDashboardEarnings,
   normalizePayoutItems,
   payoutStatusMeta,
+  resolveRoleAvailableBalance,
+  resolveRoleDisplayedEarnings,
+  resolveRoleDisplayedPending,
+  resolveRolePaidOut,
+  sumCommissionAmounts,
+  sumPendingCommissionAmounts,
 } from './earningsMappers'
 import CreatorSettingsDrawer from './CreatorSettingsDrawer'
 import EarningsPayoutDrawer from './EarningsPayoutDrawer'
 
+function resolveDashboardUserId(authUser, profile) {
+  return (
+    authUser?._id ||
+    authUser?.id ||
+    authUser?.userId ||
+    profile?.userId ||
+    profile?.user?._id ||
+    profile?.user?.id ||
+    profile?._id ||
+    profile?.id ||
+    null
+  )
+}
+
 /**
  * Shared profile dashboard — same layout for creator & designer feed profiles.
  * Metrics: GET /community/stats (+ /profile/me fallback) for Likes / Views / Posts.
- * Earnings APIs only when VITE_APP_ENV=dev.
+ * Earnings are role-scoped via `role=creator|designer` when VITE_APP_ENV=dev.
  */
 export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
+  const { user: authUser } = useAuth()
+  const role = mode === 'designer' ? 'designer' : 'creator'
   const mock = mode === 'creator' ? CREATOR_DASHBOARD : DESIGNER_DASHBOARD
   const liveEarningsEnabled = isAppEnvDev()
 
@@ -39,12 +63,14 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [payoutOpen, setPayoutOpen] = useState(false)
 
+  const userId = resolveDashboardUserId(authUser, profileMe)
+
   const loadCommunityMetrics = useCallback(async () => {
     setMetricsLoading(true)
     setMetricsError('')
     try {
       const [statsResult, profileResult] = await Promise.allSettled([
-        communityService.getStats(),
+        communityService.getStats({ role }),
         communityService.getMyProfile({ postsLimit: 1, reelsLimit: 1, productsLimit: 1 }),
       ])
 
@@ -64,9 +90,12 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
       }
 
       debugLog('[Community] dashboard metrics', {
+        userId: resolveDashboardUserId(authUser, profile),
+        role,
         statsStatus: statsResult.status,
         profileStatus: profileResult.status,
         stats,
+        profile,
       })
     } catch (err) {
       setCommunityStats(null)
@@ -76,37 +105,42 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
     } finally {
       setMetricsLoading(false)
     }
-  }, [])
+  }, [role, authUser])
 
   const loadLiveEarnings = useCallback(async () => {
     if (!liveEarningsEnabled) return
     setLiveLoading(true)
     setLiveError('')
+    setLiveSummary(null)
+    setLiveCommissions(null)
+    setLivePayouts([])
     try {
       const [summaryResult, commissionsResult, payoutsResult] = await Promise.allSettled([
-        earningsService.getSummary(),
-        earningsService.getCommissions({ page: 1, limit: 20 }),
-        earningsService.getPayouts({ page: 1, limit: 10 }),
+        earningsService.getSummary({ role }),
+        earningsService.getCommissions({ page: 1, limit: 20, role }),
+        earningsService.getPayouts({ page: 1, limit: 10, role }),
       ])
 
-      if (summaryResult.status === 'fulfilled') {
-        setLiveSummary(unwrapEarningsResponse(summaryResult.value))
-      } else {
-        setLiveSummary(null)
-      }
+      const summary =
+        summaryResult.status === 'fulfilled'
+          ? unwrapEarningsResponse(summaryResult.value)
+          : null
+      const commissions =
+        commissionsResult.status === 'fulfilled'
+          ? unwrapEarningsResponse(commissionsResult.value)
+          : null
+      const payoutsPayload =
+        payoutsResult.status === 'fulfilled'
+          ? unwrapEarningsResponse(payoutsResult.value)
+          : null
 
-      if (commissionsResult.status === 'fulfilled') {
-        setLiveCommissions(unwrapEarningsResponse(commissionsResult.value))
-      } else {
-        setLiveCommissions(null)
-      }
-
-      if (payoutsResult.status === 'fulfilled') {
-        const payoutsPayload = unwrapEarningsResponse(payoutsResult.value)
-        setLivePayouts(normalizePayoutItems(payoutsPayload))
-      } else {
-        setLivePayouts([])
-      }
+      setLiveSummary(summary)
+      setLiveCommissions(commissions)
+      setLivePayouts(
+        payoutsResult.status === 'fulfilled'
+          ? normalizePayoutItems(payoutsPayload)
+          : [],
+      )
 
       if (summaryResult.status === 'rejected') {
         const reason = summaryResult.reason
@@ -117,11 +151,45 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
         )
       }
 
-      debugLog('[Earnings] load settled', {
-        summary: summaryResult.status,
-        commissions: commissionsResult.status,
-        payouts: payoutsResult.status,
-      })
+      const byRole = summary?.byRole?.[role] || null
+      const snapshot = {
+        userId: resolveDashboardUserId(authUser, profileMe),
+        role,
+        available: summary
+          ? resolveRoleAvailableBalance(summary, role, 0)
+          : null,
+        pending: summary
+          ? resolveRoleDisplayedPending(summary, role, 0)
+          : null,
+        earned: summary
+          ? resolveRoleDisplayedEarnings(summary, role, 0)
+          : null,
+        paidOut: summary ? resolveRolePaidOut(summary, role) : null,
+        walletAvailable: summary?.availableBalance ?? null,
+        walletPending: summary?.pendingBalance ?? null,
+        lifetimeEarned: summary?.lifetimeEarned ?? null,
+        lifetimePaid: summary?.lifetimePaid ?? null,
+        byRole,
+        byRoleCreator: summary?.byRole?.creator ?? null,
+        byRoleDesigner: summary?.byRole?.designer ?? null,
+        rates: summary?.rates ?? null,
+        counts: summary?.counts ?? null,
+        minPayoutAmount: summary?.minPayoutAmount ?? null,
+        commissionsCount: Array.isArray(commissions)
+          ? commissions.length
+          : commissions?.items?.length ??
+            commissions?.commissions?.length ??
+            summary?.commissions?.length ??
+            summary?.recentCommissions?.length ??
+            0,
+        payoutsStatus: payoutsResult.status,
+        summaryStatus: summaryResult.status,
+        commissionsStatus: commissionsResult.status,
+        rawSummary: summary,
+      }
+
+      console.log('[Dashboard] earnings snapshot', snapshot)
+      debugLog('[Dashboard] earnings snapshot', snapshot)
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || 'Could not load earnings.'
@@ -133,11 +201,11 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
     } finally {
       setLiveLoading(false)
     }
-  }, [liveEarningsEnabled])
+  }, [liveEarningsEnabled, role, authUser, profileMe])
 
   useEffect(() => {
     loadCommunityMetrics()
-  }, [mode, loadCommunityMetrics])
+  }, [loadCommunityMetrics])
 
   useEffect(() => {
     if (!liveEarningsEnabled) {
@@ -150,21 +218,59 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
     }
     loadLiveEarnings()
     return undefined
-  }, [liveEarningsEnabled, mode, loadLiveEarnings])
+  }, [liveEarningsEnabled, loadLiveEarnings])
+
+  useEffect(() => {
+    if (!liveSummary && !profileMe && !userId) return
+    const mapped = liveSummary
+      ? mapSummaryToDashboardEarnings(liveSummary, role)
+      : null
+    const ui = {
+      userId,
+      role,
+      available: mapped?.meta?.availableRaw ?? null,
+      pending: mapped?.meta?.pendingRaw ?? null,
+      paidOut: mapped?.meta?.paidOutRaw ?? null,
+      earned: mapped?.meta?.earnedRaw ?? null,
+      availableLabel: mapped?.meta?.available ?? null,
+      pendingLabel: mapped?.meta?.pending ?? null,
+      paidOutLabel: mapped?.meta?.paidOut ?? null,
+      profileUsername: profileMe?.username ?? profileMe?.userName ?? null,
+      liveLoading,
+      liveError: liveError || null,
+    }
+    console.log('[Dashboard] UI balances', ui)
+    debugLog('[Dashboard] UI balances', ui)
+  }, [liveSummary, profileMe, userId, role, liveLoading, liveError])
 
   const data = useMemo(() => {
-    const metrics = mapCommunityDashboardMetrics(communityStats, profileMe)
+    const metrics = mapCommunityDashboardMetrics(communityStats, profileMe, role)
+    const commissionsSource =
+      sumCommissionAmounts(liveCommissions, role) > 0 ||
+      (Array.isArray(liveCommissions) && liveCommissions.length > 0)
+        ? liveCommissions
+        : liveSummary || liveCommissions
+    const commissionsTotal = sumCommissionAmounts(commissionsSource, role)
+    const pendingFromCommissions = sumPendingCommissionAmounts(
+      commissionsSource,
+      role,
+    )
     const mappedEarnings = liveEarningsEnabled
-      ? mapSummaryToDashboardEarnings(liveSummary, mode)
+      ? mapSummaryToDashboardEarnings(liveSummary, role, {
+          commissionsTotal,
+          pendingFromCommissions,
+        })
       : null
     const commissionRows = liveEarningsEnabled
       ? mapCommissionsToEarningsPerPost(
-          liveCommissions,
+          commissionsSource,
           mock.earningsPerPost?.[0]?.image,
+          role,
         )
       : []
 
-    const defaultRate = mode === 'designer' ? '1%' : '2.5%'
+    const defaultRate = role === 'designer' ? '1%' : '2.5%'
+    const isCreator = role === 'creator'
 
     return {
       range: mock.range,
@@ -176,6 +282,19 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
       hasLiveCommissions: commissionRows.length > 0,
       topPosts: mock.topPosts ?? [],
       meta: {
+        earningsLabel: isCreator ? 'Creator Earnings' : 'Designer Earnings',
+        rateLabel: isCreator
+          ? 'Affiliate Commission Rate'
+          : 'Designer Royalty Rate',
+        sourceLabel: isCreator
+          ? 'Tagged Posts & Reels'
+          : 'Design Catalog Sales',
+        listTitle: isCreator
+          ? 'Recent Creator Commissions'
+          : 'Recent Design Royalties',
+        emptyListText: isCreator
+          ? 'No commissions earned yet from tagged posts.'
+          : 'No royalties earned yet from design sales.',
         ...(mappedEarnings?.meta ?? {}),
         commissionRate:
           mappedEarnings?.meta?.commissionRate ??
@@ -192,12 +311,10 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
     liveCommissions,
     livePayouts,
     mock,
-    mode,
+    role,
   ])
 
   const topPosts = data.topPosts
-  const showBreakdown =
-    data.earnings?.creator != null || data.earnings?.royalties != null
 
   return (
     <aside className="scrollbar-hide w-full shrink-0 overflow-y-auto pb-2">
@@ -291,74 +408,77 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
 
       <div className="mt-5 flex items-stretch gap-3">
         <div className="flex min-w-0 flex-[1.7] flex-col rounded-[1.25rem] bg-[#EFEFEF] p-4 sm:p-5">
-          <p className="font-inter text-xs font-medium text-neutral-500">Total Earnings</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2.5">
-            <p className="font-inter text-[1.75rem] font-bold leading-none tracking-tight text-black">
-              {liveLoading && liveEarningsEnabled && !data.usingLiveEarnings
-                ? '…'
-                : data.earnings.total}
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-inter text-xs font-medium text-neutral-500">
+              {data.meta?.earningsLabel ??
+                (role === 'designer' ? 'Designer Earnings' : 'Creator Earnings')}
             </p>
-            {data.earnings.change && data.earnings.change !== '—' ? (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 font-inter text-[11px] font-semibold text-emerald-600">
-                <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" aria-hidden>
-                  <path
-                    d="M8 12V4M8 4L4.5 7.5M8 4l3.5 3.5"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {data.earnings.change}
-              </span>
+            {liveEarningsEnabled ? (
+              <button
+                type="button"
+                onClick={() => setPayoutOpen(true)}
+                className="cursor-pointer font-inter text-[11px] font-semibold text-[#7C5CFF] transition hover:underline"
+              >
+                Payout Wallet →
+              </button>
             ) : null}
           </div>
-          {data.meta?.available || data.meta?.pending || data.meta?.commissionRate ? (
-            <div className="mt-3 flex flex-wrap gap-3 font-inter text-[11px] text-neutral-500">
-              {data.meta.available ? (
-                <span>
-                  Available{' '}
-                  <span className="font-semibold text-black">{data.meta.available}</span>
-                </span>
-              ) : null}
-              {data.meta.pending ? (
-                <span>
-                  Pending{' '}
-                  <span className="font-semibold text-black">{data.meta.pending}</span>
-                </span>
-              ) : null}
-              {data.meta.commissionRate ? (
-                <span>
-                  Rate{' '}
-                  <span className="font-semibold text-black">{data.meta.commissionRate}</span>
-                  <span className="text-neutral-400">
-                    {mode === 'designer' ? ' royalty' : ' commission'}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {liveLoading && liveEarningsEnabled && !data.usingLiveEarnings ? (
+              <span className="inline-flex items-center rounded-full bg-white/80 px-3.5 py-1.5 font-inter text-xs font-medium text-neutral-400">
+                Loading…
+              </span>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3.5 py-1.5 font-inter text-xs font-semibold text-emerald-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                    Available
+                  </span>
+                  <span>
+                    {data.meta?.available ??
+                      data.earnings?.creator ??
+                      data.earnings?.total ??
+                      formatEarningsInr(0)}
                   </span>
                 </span>
-              ) : null}
-            </div>
-          ) : null}
-          {showBreakdown ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1.5 font-inter text-xs font-semibold text-amber-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                    Pending
+                  </span>
+                  <span>{data.meta?.pending ?? formatEarningsInr(0)}</span>
+                </span>
+                {(data.meta?.paidOutRaw > 0 || data.meta?.paidOut) && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-200/90 px-3.5 py-1.5 font-inter text-xs font-semibold text-neutral-700">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+                      Paid
+                    </span>
+                    <span>{data.meta.paidOut}</span>
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+
+          {(data.meta?.commissionRate || data.meta?.sourceLabel) && (
             <div className="mt-auto grid grid-cols-2 gap-3 border-t border-black/10 pt-3.5 font-inter text-xs text-neutral-500">
               <p>
-                Creator Earnings
+                {data.meta.rateLabel ??
+                  (role === 'designer'
+                    ? 'Designer Royalty Rate'
+                    : 'Affiliate Commission Rate')}
                 <span className="mt-0.5 block font-semibold text-black">
-                  {data.earnings.creator}
+                  {data.meta.commissionRate ??
+                    (role === 'designer' ? '1%' : '2.5%')}
                 </span>
               </p>
-              <p>
-                Design Royalties
-                <span className="mt-0.5 block font-semibold text-black">
-                  {data.earnings.royalties}
-                </span>
-              </p>
-            </div>
-          ) : (
-            <div className="mt-auto border-t border-black/10 pt-3.5 font-inter text-xs text-neutral-500">
-              <p>
-                Creator Earnings
-                <span className="mt-0.5 block font-semibold text-black">
-                  {data.earnings.total}
+              <p className="text-right">
+                Source
+                <span className="mt-0.5 block font-semibold text-[#EAB308]">
+                  {data.meta.sourceLabel ??
+                    (role === 'designer'
+                      ? 'Design Catalog Sales'
+                      : 'Tagged Posts & Reels')}
                 </span>
               </p>
             </div>
@@ -394,7 +514,12 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
       <section className="mt-7">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-inter text-sm font-bold text-black">
-            {data.hasLiveCommissions ? 'Commissions' : 'Earnings Per Post'}
+            {data.meta?.listTitle ??
+              (data.hasLiveCommissions
+                ? role === 'designer'
+                  ? 'Recent Design Royalties'
+                  : 'Recent Creator Commissions'
+                : 'Earnings Per Post')}
           </h3>
           <button
             type="button"
@@ -404,25 +529,34 @@ export default function DesignerDashboard({ mode = 'designer', onModeChange }) {
           </button>
         </div>
         <ul className="mt-3 divide-y divide-neutral-200/80">
-          {data.earningsPerPost.map((row, index) => (
-            <li key={row.id} className="flex items-center gap-3 py-3.5 first:pt-1 last:pb-0">
-              <span className="w-3.5 shrink-0 font-inter text-xs font-semibold text-neutral-400">
-                {row.rank ?? index + 1}
-              </span>
-              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-neutral-200">
-                {row.image ? (
-                  <img src={row.image} alt="" className="h-full w-full object-cover" />
-                ) : null}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-inter text-sm font-semibold text-black">{row.title}</p>
-                <p className="font-inter text-xs text-neutral-400">{row.views}</p>
-              </div>
-              <p className="shrink-0 font-inter text-sm font-semibold text-emerald-600">
-                {row.earnings}
-              </p>
+          {data.earningsPerPost.length > 0 ? (
+            data.earningsPerPost.map((row, index) => (
+              <li key={row.id} className="flex items-center gap-3 py-3.5 first:pt-1 last:pb-0">
+                <span className="w-3.5 shrink-0 font-inter text-xs font-semibold text-neutral-400">
+                  {row.rank ?? index + 1}
+                </span>
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-neutral-200">
+                  {row.image ? (
+                    <img src={row.image} alt="" className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-inter text-sm font-semibold text-black">{row.title}</p>
+                  <p className="font-inter text-xs text-neutral-400">{row.views}</p>
+                </div>
+                <p className="shrink-0 font-inter text-sm font-semibold text-emerald-600">
+                  {row.earnings}
+                </p>
+              </li>
+            ))
+          ) : (
+            <li className="py-4 font-inter text-sm text-neutral-400">
+              {data.meta?.emptyListText ??
+                (role === 'designer'
+                  ? 'No royalties earned yet from design sales.'
+                  : 'No commissions earned yet from tagged posts.')}
             </li>
-          ))}
+          )}
         </ul>
       </section>
 

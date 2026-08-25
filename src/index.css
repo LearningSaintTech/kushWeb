@@ -59,6 +59,71 @@ body::-webkit-scrollbar,
   display: none;
 }
 
+/* Home hero header frost — on a sibling layer so dropdowns can blur the banner */
+/* Home hero header frost */
+.navbar-frosted-glass {
+  background-color: transparent;
+}
+
+.navbar-frosted-glass-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+
+  /* Neutral glass overlay */
+  background: rgba(255, 255, 255, 0.08);
+
+  /* Blur without boosting banner colors */
+  -webkit-backdrop-filter: blur(24px) saturate(100%);
+  backdrop-filter: blur(24px) saturate(100%);
+}
+
+.navbar-frosted-glass > *:not(.navbar-frosted-glass-layer) {
+  position: relative;
+  z-index: 1;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .navbar-frosted-glass-layer {
+    background-color: rgba(0, 0, 0, 0.22);
+  }
+}
+
+/* Women/Men + search dropdown — real frosted glass over the page */
+.nav-glass-panel {
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  backdrop-filter: blur(40px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav-glass-panel {
+    background: rgba(255, 255, 255, 0.88);
+  }
+}
+
+.nav-glass-chip {
+  background-color: rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.nav-glass-chip:hover {
+  background-color: rgba(255, 255, 255, 0.72);
+  color: #000;
+}
+
+@media (max-width: 1023px) {
+  .navbar-frosted-glass-layer {
+    display: none;
+  }
+}
+
 @keyframes community-profile-in {
   from {
     opacity: 0;
