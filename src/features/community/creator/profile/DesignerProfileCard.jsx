@@ -1,7 +1,12 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import whiteBg from '../../../../assets/images/community/whitebg.png'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
-import { useCommunitySocialProfile } from '../../hooks/useCommunitySocialProfile'
+import {
+  useCommunitySocialProfile,
+  requestCommunityProfileRefresh,
+} from '../../hooks/useCommunitySocialProfile'
+import { communityProfileService } from '../../../../services/communityProfile.service'
+import { debugError, debugLog } from '../../../../utils/debugLog'
 import { playlistFromGrid } from '../../utils/openReel'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
@@ -39,23 +44,36 @@ export default function DesignerProfileCard({
   onViewPortfolio,
   onEditProfile,
   onAvatarChange,
+  onCoverChange,
 }) {
   const [tab, setTab] = useState('Posts')
   const avatarInputRef = useRef(null)
-  const { profile: onboarding } = useCommunityProfile()
-  const { profile: social, loading } = useCommunitySocialProfile()
+  const coverInputRef = useRef(null)
+  const [coverUploading, setCoverUploading] = useState(false)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [localCoverPreview, setLocalCoverPreview] = useState('')
+  const [localAvatarPreview, setLocalAvatarPreview] = useState('')
+  const { profile: onboarding, applyProfile, refresh: refreshOnboarding } = useCommunityProfile()
+  const { profile: social, loading, refresh: refreshSocial } = useCommunitySocialProfile()
+
+  useEffect(() => {
+    return () => {
+      if (localCoverPreview?.startsWith('blob:')) URL.revokeObjectURL(localCoverPreview)
+      if (localAvatarPreview?.startsWith('blob:')) URL.revokeObjectURL(localAvatarPreview)
+    }
+  }, [localCoverPreview, localAvatarPreview])
 
   const profile = {
     name: social?.name || onboarding?.name || 'Member',
     handle: social?.handle || onboarding?.username || '',
-    avatar: social?.avatar || onboarding?.profileImage || '',
+    avatar: localAvatarPreview || social?.avatar || onboarding?.profileImage || '',
     tagline:
       social?.bio ||
       onboarding?.designerTagline ||
       onboarding?.designerBio ||
       onboarding?.shortBio ||
       '',
-    cover: onboarding?.designerCoverImage || whiteBg,
+    cover: localCoverPreview || onboarding?.designerCoverImage || whiteBg,
     badge: social?.isDesigner || onboarding?.isDesigner ? 'DESIGNER' : 'CREATOR',
     openToWork: Boolean(onboarding?.openToWork),
     stats: {
@@ -67,22 +85,91 @@ export default function DesignerProfileCard({
 
   const media = social?.mediaByTab?.[tab] ?? []
 
-  const handleAvatarPick = (event) => {
+  const handleAvatarPick = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file) return
+    if (!file || !file.type.startsWith('image/')) return
     if (onAvatarChange) {
       onAvatarChange(file)
       return
     }
-    onEditProfile?.()
+    const previewUrl = URL.createObjectURL(file)
+    setLocalAvatarPreview(previewUrl)
+    setAvatarUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('profileImage', file)
+      const res = await communityProfileService.patchDesignerScene(fd)
+      applyProfile(res)
+      await refreshOnboarding()
+      await refreshSocial()
+      requestCommunityProfileRefresh()
+      debugLog('[DesignerProfileCard] avatar updated')
+    } catch (err) {
+      debugError('[DesignerProfileCard] avatar upload failed', err)
+      onEditProfile?.()
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  const handleCoverPick = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !file.type.startsWith('image/')) return
+    if (onCoverChange) {
+      onCoverChange(file)
+      return
+    }
+    const previewUrl = URL.createObjectURL(file)
+    setLocalCoverPreview(previewUrl)
+    setCoverUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('coverImage', file)
+      const res = await communityProfileService.patchDesignerScene(fd)
+      applyProfile(res)
+      await refreshOnboarding()
+      await refreshSocial()
+      requestCommunityProfileRefresh()
+      debugLog('[DesignerProfileCard] cover photo updated')
+    } catch (err) {
+      debugError('[DesignerProfileCard] cover upload failed', err)
+      onEditProfile?.()
+    } finally {
+      setCoverUploading(false)
+    }
   }
 
   return (
     <div className="w-full max-w-[380px] overflow-hidden rounded-2xl bg-[#111111] text-white shadow-[0_16px_48px_rgba(0,0,0,0.18)]">
-      <div className="relative h-28 w-full sm:h-32">
+      <div className="group relative h-28 w-full sm:h-32">
         <img src={profile.cover} alt="" className="h-full w-full object-cover" />
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#111111] to-transparent" />
+
+        <button
+          type="button"
+          onClick={() => coverInputRef.current?.click()}
+          aria-label="Change cover photo"
+          title="Change cover photo"
+          className="absolute right-3 top-3 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-black/75 text-white shadow-md ring-1 ring-white/20 transition hover:scale-105 hover:bg-black"
+        >
+          {coverUploading ? (
+            <svg className="h-3.5 w-3.5 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          ) : (
+            <CameraIcon className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleCoverPick}
+        />
       </div>
 
       <div className="relative -mt-14 px-5 pb-5 text-center sm:px-6">
@@ -96,9 +183,17 @@ export default function DesignerProfileCard({
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             aria-label="Change profile photo"
+            title="Change profile photo"
             className="absolute bottom-0.5 right-0.5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white text-black shadow-md transition hover:bg-neutral-100"
           >
-            <CameraIcon className="h-3.5 w-3.5" />
+            {avatarUploading ? (
+              <svg className="h-3.5 w-3.5 animate-spin text-black" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <CameraIcon className="h-3.5 w-3.5" />
+            )}
           </button>
           <input
             ref={avatarInputRef}

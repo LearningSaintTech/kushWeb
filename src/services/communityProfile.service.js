@@ -248,6 +248,7 @@ export {
   mapGenderToApi,
   mapGenderFromApi,
   normalizePhoneForApi,
+  normalizeExperienceDate,
   buildDesignerEssentialsBody,
   buildDesignerSceneFormData,
   buildDesignerSkillsBody,
@@ -261,6 +262,7 @@ export {
   buildCreatorPrivateBody,
   hydrateDesignerForm,
   hydrateCreatorForm,
+  hydrateEditProfileForm,
   isCommunityProfileDeleted,
   mapDeletedCommunityProfileResponse,
 } from './communityProfile.mappers.js';

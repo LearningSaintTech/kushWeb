@@ -382,3 +382,125 @@ export function hydrateCreatorForm(profile, base) {
     gender: mapGenderFromApi(profile.gender) || base.gender,
   };
 }
+
+/** Prefill full edit profile form from community profile (designer & creator). */
+export function hydrateEditProfileForm(profile, base = {}) {
+  if (!profile) return base;
+
+  const skills =
+    Array.isArray(profile.designerSkills) && profile.designerSkills.length
+      ? profile.designerSkills.map((s) => ({
+          id: s.id || uid(),
+          name: s.name || '',
+          level: Math.min(100, Math.max(0, Number(s.proficiency ?? s.level) || 0)),
+        }))
+      : base.skills || [{ id: uid(), name: '', level: 50 }];
+
+  const experience =
+    Array.isArray(profile.designerWorkExperience) && profile.designerWorkExperience.length
+      ? profile.designerWorkExperience.map((r) => {
+          const isPresent = Boolean(r.isPresent || r.endYear === 'Present');
+          const startYear = r.startYear || (r.startDate ? String(r.startDate).slice(0, 4) : '');
+          const endYear = isPresent
+            ? 'Present'
+            : r.endYear || (r.endDate ? String(r.endDate).slice(0, 4) : '');
+          return {
+            id: r.id || uid(),
+            jobTitle: r.title || r.jobTitle || '',
+            company: r.company || '',
+            startYear,
+            endYear,
+            isPresent,
+            description: r.description || '',
+          };
+        })
+      : base.experience || [
+          {
+            id: uid(),
+            jobTitle: '',
+            company: '',
+            startYear: '',
+            endYear: '',
+            isPresent: false,
+            description: '',
+          },
+        ];
+
+  const education =
+    Array.isArray(profile.designerEducation) && profile.designerEducation.length
+      ? profile.designerEducation.map((e) => {
+          const isPresent = Boolean(e.isPresent || e.currentlyStudying);
+          const range =
+            e.dateRange ||
+            [e.startDate, isPresent ? 'Present' : e.endDate].filter(Boolean).join(' - ');
+          return {
+            id: e.id || uid(),
+            degree: e.degree || '',
+            institution: e.institution || '',
+            field: e.fieldOfStudy || e.field || '',
+            dateRange: range,
+            currentlyStudying: isPresent,
+          };
+        })
+      : base.education || [
+          {
+            id: uid(),
+            degree: '',
+            institution: '',
+            field: '',
+            dateRange: '',
+            currentlyStudying: false,
+          },
+        ];
+
+  const defaultHubs = {
+    dribbble: { enabled: false, title: 'Dribbble', url: '' },
+    behance: { enabled: false, title: 'Behance', url: '' },
+    twitter: { enabled: false, title: 'Twitter', url: '' },
+    website: { enabled: false, title: 'Website', url: '' },
+  };
+  const hubs = { ...defaultHubs, ...(base.hubs || {}) };
+  const customLinks = [];
+  for (const link of profile.designerSocialLinks || []) {
+    if (!link?.platform) continue;
+    if (link.platform === 'custom') {
+      customLinks.push({
+        id: link.id || uid(),
+        title: link.label || '',
+        url: link.url || '',
+      });
+      continue;
+    }
+    if (hubs[link.platform]) {
+      hubs[link.platform] = {
+        enabled: link.enabled !== false,
+        title: hubs[link.platform].title || link.platform,
+        url: link.url || hubs[link.platform].url,
+      };
+    }
+  }
+
+  return {
+    name: profile.name || base.name || '',
+    username: normalizeUsername(profile.username || base.username || ''),
+    tagline: profile.designerTagline || profile.tagline || base.tagline || '',
+    bio: profile.designerBio || profile.creatorBio || profile.bio || base.bio || '',
+    website: profile.creatorWebsite || profile.website || hubs.website?.url || base.website || '',
+    location: profile.designerLocation || profile.location || base.location || '',
+    category:
+      profile.isDesigner || base.category === 'designer'
+        ? 'designer'
+        : 'creator',
+    email: profile.email || base.email || '',
+    phone: profile.phoneNumber || base.phone || '',
+    gender: mapGenderFromApi(profile.gender) || base.gender || 'prefer-not',
+    photoPreview: profile.profileImage || base.photoPreview || '',
+    coverPreview: profile.designerCoverImage || base.coverPreview || '',
+    skills,
+    experience,
+    education,
+    hubs,
+    customLinks: customLinks.length ? customLinks : base.customLinks || [],
+  };
+}
+

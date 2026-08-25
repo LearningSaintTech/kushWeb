@@ -28,7 +28,7 @@ function firstNumber(...values) {
 export function mapCommunityDashboardMetrics(stats, profile, mode = 'creator') {
   const counts = profile?.counts || {}
   const statsRaw = profile?.statsRaw || {}
-  const contentLabel = mode === 'designer' ? 'Designs' : 'Posts & Reels'
+  const contentLabel = mode === 'designer' ? 'Designs' : 'Posts'
 
   const likes = firstNumber(
     stats?.totalLikes,
