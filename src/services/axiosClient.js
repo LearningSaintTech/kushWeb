@@ -15,6 +15,7 @@ import {
   normalizeRateLimitMessage,
   RATE_LIMIT_MESSAGE,
 } from '../utils/apiErrors.js';
+import { reportClientTimeout } from '../utils/reportClientTimeout.js';
 
 /** @deprecated Legacy key — cleared on boot; do not read or write. */
 export const ACCESS_TOKEN_KEY = 'khush_access_token';
@@ -91,6 +92,7 @@ const client = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'x-client-channel': 'website',
+    'x-source-platform': 'website',
     ...getTunnelBypassHeaders(),
   },
   timeout: 30000,
@@ -99,6 +101,8 @@ const client = axios.create({
 
 client.interceptors.request.use(
   (config) => {
+    config.metadata = { ...(config.metadata || {}), startedAt: Date.now() };
+
     const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -108,6 +112,7 @@ client.interceptors.request.use(
       config.headers['x-device-id'] = deviceId;
     }
     config.headers['x-client-channel'] = 'website';
+    config.headers['x-source-platform'] = 'website';
     Object.entries(getTunnelBypassHeaders()).forEach(([k, v]) => {
       config.headers[k] = v;
     });
@@ -156,6 +161,8 @@ client.interceptors.response.use(
     const response = error.response;
     const status = response?.status;
     const originalConfig = error.config;
+
+    reportClientTimeout(error, { client: 'website' });
 
     debugLog('[API Error]', {
       method: originalConfig?.method?.toUpperCase(),
