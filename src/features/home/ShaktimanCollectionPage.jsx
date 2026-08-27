@@ -14,8 +14,8 @@ import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { debugLog, debugError } from '../../utils/debugLog.js'
 import { SHAKTIMAN_KEYWORDS } from '../../utils/shaktiman.js'
 import { itemLaunchCardProps } from '../../utils/productLaunch.js'
-import saktimanBanner from '../../assets/images/navbar/Shakbanners.PNG'
 import ShaktimaanFab from './components/ShaktimaanFab.jsx'
+import ShaktimanPromoBanner from './components/ShaktimanPromoBanner.jsx'
 
 const PAGE_LIMIT = 24
 const SEARCH_KEYWORDS = SHAKTIMAN_KEYWORDS
@@ -215,14 +215,7 @@ export default function ShaktimanCollectionPage() {
           aria-label="Shaktiman banner"
         >
           <div className="relative mx-auto w-full max-w-[1920px]">
-            <img
-              src={saktimanBanner}
-              alt="Shaktiman limited edition — Unleash Your Inner Hero"
-              className="block h-auto w-full max-w-full object-contain object-center select-none"
-              loading="eager"
-              decoding="async"
-              draggable={false}
-            />
+            <ShaktimanPromoBanner loading="eager" />
           </div>
         </section>
 

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
-import saktimanBanner from '../../../assets/images/navbar/Shakbanners.PNG'
+import ShaktimanPromoBanner from './ShaktimanPromoBanner.jsx'
 
 /**
  * Shaktiman limited-edition promo — full banner visible (no crop).
@@ -15,14 +15,7 @@ export default function ShaktimanCollection() {
       aria-label="Shaktiman limited edition collection"
     >
       <div className="relative mx-auto w-full max-w-[1920px]">
-        <img
-          src={saktimanBanner}
-          alt="Shaktiman limited edition — Unleash Your Inner Hero. Hoodies, t-shirts, joggers and accessories."
-          className="block h-auto w-full max-w-full object-contain object-center select-none"
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-        />
+        <ShaktimanPromoBanner loading="lazy" />
 
         <Link
           to={exploreTo}
