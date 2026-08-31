@@ -19,6 +19,7 @@ import {
   resolveCanBlock,
   resolveCanReport,
 } from '../utils/moderation'
+import { shareCommunityProfile } from '../utils/shareProfile'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -34,6 +35,7 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
   const [blockedListOpen, setBlockedListOpen] = useState(false)
   const [localBlocked, setLocalBlocked] = useState(null)
   const [localReported, setLocalReported] = useState(null)
+  const [copied, setCopied] = useState(false)
   const social = useCommunitySocial()
   const userId = seed?.id || seed?.userId || null
   const { profile, loading } = useCommunitySocialProfile({
@@ -165,6 +167,19 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
     }
   }
 
+  const handleShare = async () => {
+    if (!display.id) return
+    const res = await shareCommunityProfile({
+      id: display.id,
+      name: display.name,
+      handle: display.handle,
+    })
+    if (res?.success) {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   const handleOpenMedia = (item) => {
     if (!item) return
     if (isReelGridItem(item, activeTab)) {
@@ -184,188 +199,197 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
   }
 
   return (
-    <aside
-      className="scrollbar-hide fixed inset-y-0 right-0 z-[70] w-full max-w-[380px] overflow-y-auto bg-[#f4f4f4] p-3 shadow-[-16px_0_42px_rgba(0,0,0,0.12)] animate-[community-profile-in_280ms_cubic-bezier(0.22,1,0.36,1)] sm:p-4 pointer-events-auto"
-      role="dialog"
-      aria-modal="false"
-      aria-label={`${display.name} profile`}
-    >
-      <div className="flex min-h-full flex-col overflow-hidden rounded-2xl bg-white">
-        <div className="flex items-center justify-between px-4 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Back to feed"
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 hover:text-black"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-          </button>
-          {isOwn ? (
+    <div className="fixed inset-0 z-[70] flex justify-end bg-black/60 backdrop-blur-xs transition-opacity duration-200">
+      <button
+        type="button"
+        aria-label="Close profile"
+        className="absolute inset-0 cursor-pointer"
+        onClick={onClose}
+      />
+      <aside
+        className="scrollbar-hide relative z-10 h-full w-full max-w-[390px] overflow-y-auto bg-white p-3 shadow-[-16px_0_42px_rgba(0,0,0,0.25)] animate-[community-profile-in_280ms_cubic-bezier(0.22,1,0.36,1)] sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${display.name} profile`}
+      >
+        <div className="flex min-h-full flex-col overflow-hidden rounded-2xl bg-white">
+          <div className="flex items-center justify-between px-4 pt-4">
             <button
               type="button"
-              onClick={() => setBlockedListOpen(true)}
-              className="cursor-pointer font-inter text-xs font-semibold text-neutral-500 transition hover:text-black"
+              onClick={onClose}
+              aria-label="Back to feed"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 hover:text-black"
             >
-              Blocked
-            </button>
-          ) : null}
-        </div>
-
-        <div className="px-5 pb-5 text-center sm:px-6">
-          <div className="mx-auto mt-2 h-24 w-24 overflow-hidden rounded-full border-[3px] border-[#ff5b67] bg-neutral-100 p-0.5">
-            {display.avatar ? (
-              <img
-                src={display.avatar}
-                alt={`${display.name} profile`}
-                className="h-full w-full rounded-full object-cover"
-              />
-            ) : null}
-          </div>
-
-          <h2 className="mt-4 font-inter text-2xl font-bold tracking-tight text-black">
-            {loading && !profile ? '…' : display.name}
-          </h2>
-          <p className="mt-0.5 font-inter text-sm text-neutral-500">
-            @{display.handle || 'username'}
-          </p>
-
-          {display.bio ? (
-            <p className="mx-auto mt-4 max-w-[18rem] font-inter text-sm leading-relaxed text-neutral-500">
-              {display.bio}
-            </p>
-          ) : null}
-
-          <div className="mt-6 grid grid-cols-3">
-            {[
-              [display.stats?.posts ?? '0', 'Posts'],
-              [display.stats?.followers ?? '0', 'Followers'],
-              [display.stats?.following ?? '0', 'Following'],
-            ].map(([value, label]) => (
-              <div key={label}>
-                <p className="font-inter text-base font-bold text-black">{value}</p>
-                <p className="font-inter text-xs text-neutral-400">{label}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              className="cursor-pointer rounded-xl bg-black py-3 font-inter text-sm font-semibold text-white transition hover:bg-neutral-800"
-            >
-              Share Profile
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
             </button>
             {isOwn ? (
               <button
                 type="button"
-                className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"
+                onClick={() => setBlockedListOpen(true)}
+                className="cursor-pointer font-inter text-xs font-semibold text-neutral-500 transition hover:text-black"
               >
-                Edit Profile
+                Blocked
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleFollow}
-                disabled={isBlocked}
-                className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {following ? 'Following' : 'Follow'}
-              </button>
-            )}
+            ) : null}
           </div>
 
-          {!isOwn && (canBlock || canReport) ? (
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              {canBlock ? (
-                <button
-                  type="button"
-                  disabled={moderationBusy}
-                  onClick={handleBlockToggle}
-                  className="cursor-pointer rounded-xl border border-neutral-200 py-2.5 font-inter text-xs font-semibold text-black transition hover:bg-neutral-50 disabled:opacity-50"
-                >
-                  {moderationBusy ? '…' : isBlocked ? 'Unblock' : 'Block'}
-                </button>
-              ) : null}
-              {canReport ? (
-                <button
-                  type="button"
-                  disabled={isReported || moderationBusy}
-                  onClick={() => {
-                    setReportError('')
-                    setReportOpen(true)
-                  }}
-                  className="cursor-pointer rounded-xl border border-neutral-200 py-2.5 font-inter text-xs font-semibold text-black transition hover:bg-neutral-50 disabled:opacity-50"
-                >
-                  {isReported ? 'Reported' : 'Report'}
-                </button>
+          <div className="px-5 pb-5 text-center sm:px-6">
+            <div className="mx-auto mt-2 h-24 w-24 overflow-hidden rounded-full border-[3px] border-[#ff5b67] bg-neutral-100 p-0.5">
+              {display.avatar ? (
+                <img
+                  src={display.avatar}
+                  alt={`${display.name} profile`}
+                  className="h-full w-full rounded-full object-cover"
+                />
               ) : null}
             </div>
-          ) : null}
 
-          {moderationError ? (
-            <p className="mt-2 font-inter text-xs text-red-600">{moderationError}</p>
-          ) : null}
-        </div>
-
-        <div className="mt-1 grid grid-cols-3 border-b border-neutral-200 px-3">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`relative cursor-pointer py-3 font-inter text-sm font-semibold transition ${
-                activeTab === tab ? 'text-black' : 'text-neutral-400'
-              }`}
-            >
-              {tab}
-              {activeTab === tab ? (
-                <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-black" />
-              ) : null}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-3">
-          {loading && media.length === 0 ? (
-            <p className="col-span-3 py-12 text-center font-inter text-xs text-neutral-400">
-              Loading…
+            <h2 className="mt-4 font-inter text-2xl font-bold tracking-tight text-black">
+              {loading && !profile ? '…' : display.name}
+            </h2>
+            <p className="mt-0.5 font-inter text-sm text-neutral-500">
+              @{display.handle || 'username'}
             </p>
-          ) : media.length === 0 ? (
-            <p className="col-span-3 py-12 text-center font-inter text-xs text-neutral-400">
-              No {activeTab.toLowerCase()} yet
-            </p>
-          ) : (
-            media.map((item) => (
+
+            {display.bio ? (
+              <p className="mx-auto mt-4 max-w-[18rem] font-inter text-sm leading-relaxed text-neutral-500">
+                {display.bio}
+              </p>
+            ) : null}
+
+            <div className="mt-6 grid grid-cols-3">
+              {[
+                [display.stats?.posts ?? '0', 'Posts'],
+                [display.stats?.followers ?? '0', 'Followers'],
+                [display.stats?.following ?? '0', 'Following'],
+              ].map(([value, label]) => (
+                <div key={label}>
+                  <p className="font-inter text-base font-bold text-black">{value}</p>
+                  <p className="font-inter text-xs text-neutral-400">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
               <button
-                key={item.id}
                 type="button"
-                onClick={() => handleOpenMedia(item)}
-                className="aspect-square cursor-pointer overflow-hidden bg-neutral-100"
-                aria-label={`Open ${item.type}`}
+                onClick={handleShare}
+                className="cursor-pointer rounded-xl bg-black py-3 font-inter text-sm font-semibold text-white transition hover:bg-neutral-800"
               >
-                {item.image ? (
-                  <img src={item.image} alt="" className="h-full w-full object-cover" />
+                {copied ? 'Link Copied!' : 'Share Profile'}
+              </button>
+              {isOwn ? (
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50"
+                >
+                  Edit Profile
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleFollow}
+                  disabled={isBlocked}
+                  className="cursor-pointer rounded-xl border-2 border-black bg-white py-3 font-inter text-sm font-semibold text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {following ? 'Following' : 'Follow'}
+                </button>
+              )}
+            </div>
+
+            {!isOwn && (canBlock || canReport) ? (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {canBlock ? (
+                  <button
+                    type="button"
+                    disabled={moderationBusy}
+                    onClick={handleBlockToggle}
+                    className="cursor-pointer rounded-xl border border-neutral-200 py-2.5 font-inter text-xs font-semibold text-black transition hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    {moderationBusy ? '…' : isBlocked ? 'Unblock' : 'Block'}
+                  </button>
+                ) : null}
+                {canReport ? (
+                  <button
+                    type="button"
+                    disabled={isReported || moderationBusy}
+                    onClick={() => {
+                      setReportError('')
+                      setReportOpen(true)
+                    }}
+                    className="cursor-pointer rounded-xl border border-neutral-200 py-2.5 font-inter text-xs font-semibold text-black transition hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    {isReported ? 'Reported' : 'Report'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {moderationError ? (
+              <p className="mt-2 font-inter text-xs text-red-600">{moderationError}</p>
+            ) : null}
+          </div>
+
+          <div className="mt-1 grid grid-cols-3 border-b border-neutral-200 px-3">
+            {TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`relative cursor-pointer py-3 font-inter text-sm font-semibold transition ${
+                  activeTab === tab ? 'text-black' : 'text-neutral-400'
+                }`}
+              >
+                {tab}
+                {activeTab === tab ? (
+                  <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-black" />
                 ) : null}
               </button>
-            ))
-          )}
-        </div>
-      </div>
+            ))}
+          </div>
 
-      <ReportReasonModal
-        open={reportOpen}
-        title="Report user"
-        submitting={reportSubmitting}
-        error={reportError}
-        onClose={() => !reportSubmitting && setReportOpen(false)}
-        onSubmit={handleReportSubmit}
-      />
-      <BlockedUsersModal
-        open={blockedListOpen}
-        onClose={() => setBlockedListOpen(false)}
-      />
-    </aside>
+          <div className="grid grid-cols-3 gap-0.5 bg-neutral-100">
+            {loading && media.length === 0 ? (
+              <p className="col-span-3 py-12 text-center font-inter text-xs text-neutral-400">
+                Loading…
+              </p>
+            ) : media.length === 0 ? (
+              <p className="col-span-3 py-12 text-center font-inter text-xs text-neutral-400">
+                No {activeTab.toLowerCase()} yet
+              </p>
+            ) : (
+              media.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleOpenMedia(item)}
+                  className="aspect-square cursor-pointer overflow-hidden bg-neutral-200"
+                  aria-label={`Open ${item.type}`}
+                >
+                  {item.image ? (
+                    <img src={item.image} alt="" className="h-full w-full object-cover" />
+                  ) : null}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        <ReportReasonModal
+          open={reportOpen}
+          title="Report user"
+          submitting={reportSubmitting}
+          error={reportError}
+          onClose={() => !reportSubmitting && setReportOpen(false)}
+          onSubmit={handleReportSubmit}
+        />
+        <BlockedUsersModal
+          open={blockedListOpen}
+          onClose={() => setBlockedListOpen(false)}
+        />
+      </aside>
+    </div>
   )
 }

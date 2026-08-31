@@ -34,25 +34,28 @@ export function CommunitySocialProvider({ children }) {
 
   const seedFollowing = useCallback((userId, value) => {
     if (!userId) return;
+    const key = String(userId);
     setFollowing((prev) => {
-      if (Object.prototype.hasOwnProperty.call(prev, userId)) return prev;
-      return { ...prev, [userId]: Boolean(value) };
+      if (Object.prototype.hasOwnProperty.call(prev, key)) return prev;
+      return { ...prev, [key]: Boolean(value) };
     });
   }, []);
 
   const seedSaved = useCallback((contentId, value) => {
     if (!contentId) return;
+    const key = String(contentId);
     setSaved((prev) => {
-      if (Object.prototype.hasOwnProperty.call(prev, contentId)) return prev;
-      return { ...prev, [contentId]: Boolean(value) };
+      if (Object.prototype.hasOwnProperty.call(prev, key)) return prev;
+      return { ...prev, [key]: Boolean(value) };
     });
   }, []);
 
   const seedLiked = useCallback((contentId, value) => {
     if (!contentId) return;
+    const key = String(contentId);
     setLiked((prev) => {
-      if (Object.prototype.hasOwnProperty.call(prev, contentId)) return prev;
-      return { ...prev, [contentId]: Boolean(value) };
+      if (Object.prototype.hasOwnProperty.call(prev, key)) return prev;
+      return { ...prev, [key]: Boolean(value) };
     });
   }, []);
 
@@ -63,8 +66,9 @@ export function CommunitySocialProvider({ children }) {
       let next = prev;
       let changed = false;
       for (const item of items) {
-        const userId = item?.author?.id || item?.authorId;
-        if (!userId) continue;
+        const rawUserId = item?.author?.id || item?.author?._id || item?.authorId;
+        if (!rawUserId) continue;
+        const userId = String(rawUserId);
         if (Object.prototype.hasOwnProperty.call(prev, userId)) continue;
         const flag =
           item?.isFollowing ??
@@ -84,8 +88,9 @@ export function CommunitySocialProvider({ children }) {
       let next = prev;
       let changed = false;
       for (const item of items) {
-        const id = item?.id || item?._id;
-        if (!id || item?.isSaved === undefined) continue;
+        const rawId = item?.id || item?._id;
+        if (!rawId || item?.isSaved === undefined) continue;
+        const id = String(rawId);
         if (Object.prototype.hasOwnProperty.call(prev, id)) continue;
         if (!changed) {
           next = { ...prev };
@@ -99,8 +104,9 @@ export function CommunitySocialProvider({ children }) {
       let next = prev;
       let changed = false;
       for (const item of items) {
-        const id = item?.id || item?._id;
-        if (!id || item?.isLiked === undefined) continue;
+        const rawId = item?.id || item?._id;
+        if (!rawId || item?.isLiked === undefined) continue;
+        const id = String(rawId);
         if (Object.prototype.hasOwnProperty.call(prev, id)) continue;
         if (!changed) {
           next = { ...prev };
@@ -115,8 +121,9 @@ export function CommunitySocialProvider({ children }) {
   const isFollowingUser = useCallback(
     (userId, fallback = false) => {
       if (!userId) return Boolean(fallback);
-      if (Object.prototype.hasOwnProperty.call(following, userId)) {
-        return Boolean(following[userId]);
+      const key = String(userId);
+      if (Object.prototype.hasOwnProperty.call(following, key)) {
+        return Boolean(following[key]);
       }
       return Boolean(fallback);
     },
@@ -126,8 +133,9 @@ export function CommunitySocialProvider({ children }) {
   const isSavedContent = useCallback(
     (contentId, fallback = false) => {
       if (!contentId) return Boolean(fallback);
-      if (Object.prototype.hasOwnProperty.call(saved, contentId)) {
-        return Boolean(saved[contentId]);
+      const key = String(contentId);
+      if (Object.prototype.hasOwnProperty.call(saved, key)) {
+        return Boolean(saved[key]);
       }
       return Boolean(fallback);
     },
@@ -137,8 +145,9 @@ export function CommunitySocialProvider({ children }) {
   const isLikedContent = useCallback(
     (contentId, fallback = false) => {
       if (!contentId) return Boolean(fallback);
-      if (Object.prototype.hasOwnProperty.call(liked, contentId)) {
-        return Boolean(liked[contentId]);
+      const key = String(contentId);
+      if (Object.prototype.hasOwnProperty.call(liked, key)) {
+        return Boolean(liked[key]);
       }
       return Boolean(fallback);
     },
@@ -149,8 +158,9 @@ export function CommunitySocialProvider({ children }) {
   const withSocial = useCallback(
     (item) => {
       if (!item) return item;
-      const userId = item.author?.id;
-      const id = item.id;
+      const rawUserId = item.author?.id || item.author?._id || item.authorId;
+      const userId = rawUserId ? String(rawUserId) : null;
+      const id = item.id || item._id ? String(item.id || item._id) : null;
       const nextFollowing = isFollowingUser(userId, item.isFollowing ?? item.author?.isFollowing);
       const nextSaved = isSavedContent(id, item.isSaved);
       const nextLiked = isLikedContent(id, item.isLiked);
@@ -176,16 +186,17 @@ export function CommunitySocialProvider({ children }) {
 
   const toggleFollow = useCallback(async (userId, currentIsFollowing) => {
     if (!userId) return false;
+    const key = String(userId);
     const prev = Boolean(currentIsFollowing);
     const next = !prev;
-    setFollowing((s) => ({ ...s, [userId]: next }));
-    logCommunity('social.toggleFollow', { userId, next });
+    setFollowing((s) => ({ ...s, [key]: next }));
+    logCommunity('social.toggleFollow', { userId: key, next });
     try {
-      if (next) await communityService.follow(userId);
-      else await communityService.unfollow(userId);
+      if (next) await communityService.follow(key);
+      else await communityService.unfollow(key);
       return next;
     } catch (err) {
-      setFollowing((s) => ({ ...s, [userId]: prev }));
+      setFollowing((s) => ({ ...s, [key]: prev }));
       debugError('[Community] toggleFollow failed', err?.message);
       throw err;
     }

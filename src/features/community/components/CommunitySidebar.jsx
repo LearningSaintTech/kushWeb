@@ -84,6 +84,7 @@ export default function CommunitySidebar({
   userName = 'Rhea Kapoor',
   userAvatar = null,
   hasPosts = false,
+  unreadCount = 0,
   onCreateClick,
   onNotificationsClick,
 }) {
@@ -125,7 +126,12 @@ export default function CommunitySidebar({
                 }`}
               >
                 <span className="text-black">{item.icon}</span>
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.id === 'notifications' && unreadCount > 0 ? (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f07a3a] px-1.5 font-inter text-[10px] font-bold text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                ) : null}
               </NavLink>
             )
           })}

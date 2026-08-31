@@ -188,7 +188,7 @@ export default function DesignerDashboard({
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [wizardOpen, setWizardOpen] = useState(false)
 
-  const { profile: communityContextProfile } = useCommunityProfile()
+  const { profile: communityContextProfile, selectRole } = useCommunityProfile()
   const isUserDesigner = Boolean(
     communityContextProfile?.isDesigner ||
     profileMe?.isDesigner ||
@@ -197,8 +197,17 @@ export default function DesignerDashboard({
     authUser?.is_designer
   )
 
-  const handleConfirmBecomeDesigner = () => {
+  const handleConfirmBecomeDesigner = async () => {
     setNoticeOpen(false)
+    try {
+      if (selectRole) {
+        await selectRole('designer')
+      } else {
+        await communityProfileService.selectRole('designer')
+      }
+    } catch (e) {
+      console.error('Failed to select designer role', e)
+    }
     onBecomeDesigner?.()
     onModeChange?.('designer')
     setWizardOpen(true)
@@ -853,6 +862,7 @@ export default function DesignerDashboard({
         </section>
       ) : null}
 
+      {/* Top Performing Posts - commented out for now
       <section className="mt-7">
         <h3 className="font-inter text-sm font-bold text-black">Top Performing Posts</h3>
         <div className="scrollbar-hide mt-3 flex gap-3 overflow-x-auto pb-1">
@@ -884,6 +894,7 @@ export default function DesignerDashboard({
           ))}
         </div>
       </section>
+      */}
 
       <CreatorSettingsDrawer
         open={settingsOpen}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
-import { useNotification } from "../../app/context/NotificationContext";
+import { useNotification, isCommunityNotification } from "../../app/context/NotificationContext";
 import { notificationService } from "../../services/notification.service.js";
 import { ROUTES } from "../../utils/constants";
 import { trackEvent } from "../../analytics";
@@ -31,7 +31,7 @@ function formatNotificationDate(dateVal) {
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const { markRead, markAllRead, unreadCount } = useNotification();
+  const { markRead, markStoreAllRead, storeUnreadCount } = useNotification();
   const [list, setList] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -51,10 +51,11 @@ export default function NotificationsPage() {
           page: pageNum,
           limit: PAGE_SIZE,
         });
-        console.log("Notification list:", data.list);
-        const items = data?.list ?? [];
-        setList(items);
-        setTotal(data?.total != null ? Number(data.total) : 0);
+        const rawItems = data?.list ?? [];
+        // Store/order notifications only — never mix with community!
+        const storeItems = rawItems.filter((n) => !isCommunityNotification(n));
+        setList(storeItems);
+        setTotal(data?.total != null ? Number(data.total) : storeItems.length);
         setPage(Number(data?.page) || pageNum);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch {
@@ -68,7 +69,6 @@ export default function NotificationsPage() {
       }
     },
     [isAuthenticated],
-    // console.log("Notification list:", data.list)
   );
 
   useEffect(() => {
@@ -82,28 +82,33 @@ export default function NotificationsPage() {
   const handleMarkRead = async (id) => {
     await markRead(id);
     setList((prev) =>
-      prev.map((n) => (n._id === id ? { ...n, read: true } : n)),
+      prev.map((n) => ((n._id || n.id) === id ? { ...n, read: true } : n)),
     );
   };
 
   const handleMarkAllRead = async () => {
-    await markAllRead();
+    await markStoreAllRead();
     setList((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const handleNotificationClick = (n) => {
+    const id = n?._id || n?.id;
     trackEvent({
       eventType: "notification_opened",
       meta: {
-        notificationId: n?._id ? String(n._id) : undefined,
+        notificationId: id ? String(id) : undefined,
         module: n?.module || undefined,
         referenceId: n?.referenceId ? String(n.referenceId) : undefined,
       },
     });
-    if (!n.read) handleMarkRead(n._id);
+    if (!n.read && id) handleMarkRead(id);
     if (n.module === "order" && n.referenceId) {
       // Backend sends referenceId = orderId only (no itemId); track URL needs both. Link to orders list.
       navigate(ROUTES.ORDERS, { state: { orderId: n.referenceId } });
+      return;
+    }
+    if (n.module === "offer") {
+      navigate(ROUTES.HOME);
     }
   };
 
@@ -113,11 +118,11 @@ export default function NotificationsPage() {
     <div className="max-w-7xl mx-auto px-4 mt-[20vh] sm:mt-[15vh] md:mt-[10vh] lg:mt-[8vh] py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Notifications</h1>
-        {unreadCount > 0 && (
+        {storeUnreadCount > 0 && (
           <button
             type="button"
             onClick={handleMarkAllRead}
-            className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+            className="text-sm text-gray-600 hover:text-gray-900 font-medium cursor-pointer"
           >
             Mark all as read
           </button>
@@ -133,7 +138,7 @@ export default function NotificationsPage() {
           className={`space-y-4 ${fetching ? "pointer-events-none opacity-60" : ""}`}
         >
           {list.map((n) => (
-            <li key={n._id}>
+            <li key={n._id || n.id}>
               <div
                 onClick={() => handleNotificationClick(n)}
                 className={`relative flex items-start gap-4 p-4 rounded-lg border bg-white transition cursor-pointer

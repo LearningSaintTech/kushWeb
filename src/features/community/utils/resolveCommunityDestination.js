@@ -1,10 +1,10 @@
 import { ROUTES } from '../../../utils/constants'
 import { COMMUNITY_ROLES } from '../capabilities'
-import { isCommunityProfileDeleted } from '../../../services/communityProfile.mappers.js'
-
-function isIncompleteStep(step) {
-  return Boolean(step && step !== 'completed' && step !== 'not_started')
-}
+import {
+  isCommunityProfileDeleted,
+  isDesignerOnboardingIncomplete,
+  isCreatorOnboardingIncomplete,
+} from '../../../services/communityProfile.mappers.js'
 
 function roleFromProfile(profile, fallbackRole) {
   if (profile?.isDesigner) return COMMUNITY_ROLES.DESIGNER
@@ -30,18 +30,11 @@ export function resolveCommunityDestination(profile, fallbackRole) {
     return ROUTES.COMMUNITY_CREATE_JOIN
   }
 
-  if (
-    profile?.isDesigner &&
-    isIncompleteStep(profile.designerOnboardingStep)
-  ) {
+  if (isDesignerOnboardingIncomplete(profile)) {
     return ROUTES.COMMUNITY_PROFILE
   }
 
-  if (
-    profile?.isCreator &&
-    !profile?.isDesigner &&
-    isIncompleteStep(profile.creatorOnboardingStep)
-  ) {
+  if (isCreatorOnboardingIncomplete(profile)) {
     return ROUTES.COMMUNITY_PROFILE
   }
 

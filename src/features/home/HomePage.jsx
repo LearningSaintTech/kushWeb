@@ -18,6 +18,7 @@ import ShaktimanCollection from './components/ShaktimanCollection.jsx'
 import ShaktimaanFab from './components/ShaktimaanFab.jsx'
 import CategorySpotlight from './components/CategorySpotlight.jsx'
 import { sectionsService } from '../../services/content.service.js'
+import { isShaktimanSection } from '../../utils/shaktiman.js'
 
 /** webOrder → home section component (static fallbacks when no API section for that slot). */
 const WEB_ORDER_TO_COMPONENT = {
@@ -49,6 +50,7 @@ function resolveSectionForHomeSlot(order, sectionsByOrder) {
 function HomePage() {
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
   const [sectionsByOrder, setSectionsByOrder] = useState({})
+  const [shaktimanSection, setShaktimanSection] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -77,6 +79,11 @@ function HomePage() {
         })
         debugLog('[HomePage] sections by slot (webOrder):', byOrder)
         setSectionsByOrder(byOrder)
+
+        const matchedShaktiman = raw.find(isShaktimanSection)
+        if (matchedShaktiman) {
+          setShaktimanSection(matchedShaktiman)
+        }
       })
       .catch((err) => {
         debugError('[HomePage] sections API error:', err)
@@ -147,7 +154,7 @@ function HomePage() {
                   {order === 6 ? (
                     <>
                       <FabricCraft />
-                      <ShaktimanCollection />
+                      <ShaktimanCollection section={shaktimanSection} />
                       <OurStory />
                     </>
                   ) : null}

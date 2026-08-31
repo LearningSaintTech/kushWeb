@@ -301,7 +301,7 @@ export default function Header() {
     unreadCount,
     dropdownList,
     markRead,
-    markAllRead,
+    markStoreAllRead: markAllRead,
   } = useNotification();
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const [hoveredCategoryId, setHoveredCategoryId] = useState(null);

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { SEARCH_FILTERS } from '../data/mockFeed'
 import { useCommunityFeed } from '../hooks/useCommunityFeed'
 import { communityService } from '../../../services/community.service.js'
 import { logCommunity } from '../../../services/communityApi.js'
 import { debugError } from '../../../utils/debugLog.js'
+import { SearchCardSkeleton } from '../components/PostCardSkeleton'
 
 function SearchResultCard({ item, onOpen }) {
   return (
@@ -51,6 +52,7 @@ export default function CommunitySearchFeed() {
   const [filter, setFilter] = useState('All')
   const [chips, setChips] = useState([])
   const { openPost } = useOutletContext() ?? {}
+  const sentinelRef = useRef(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(query.trim()), 300)
@@ -81,12 +83,39 @@ export default function CommunitySearchFeed() {
 
   const feedType = filter === 'Reels' ? 'reel' : filter === 'Posts' ? 'post' : 'all'
 
-  const { items, loading, error, refresh } = useCommunityFeed({
+  const {
+    items,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    error,
+    refresh,
+  } = useCommunityFeed({
     scope: 'explore',
     type: feedType === 'all' ? 'all' : feedType,
     q: debouncedQ || undefined,
     hashtag: filter !== 'All' && filter !== 'Reels' && filter !== 'Posts' ? filter.replace(/^#/, '') : undefined,
   })
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !hasMore || loadingMore || loading) return undefined
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (entry?.isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '300px 0px', threshold: 0.1 },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore, loading, loadMore])
 
   const filters = useMemo(() => {
     const base = ['All', 'Posts', 'Reels']
@@ -136,10 +165,6 @@ export default function CommunitySearchFeed() {
         })}
       </div>
 
-      {loading ? (
-        <p className="mt-8 font-inter text-sm text-neutral-500">Searching…</p>
-      ) : null}
-
       {error ? (
         <div className="mt-8 rounded-2xl bg-amber-50 px-4 py-3 font-inter text-sm text-amber-900">
           {error}
@@ -149,20 +174,45 @@ export default function CommunitySearchFeed() {
         </div>
       ) : null}
 
-      <div className="mt-6 columns-2 gap-4 md:columns-3">
-        {results.map((item) => (
-          <SearchResultCard
-            key={item.id}
-            item={item}
-            onOpen={() => openPost?.(item)}
-          />
-        ))}
-      </div>
+      {/* Initial loading skeletons */}
+      {loading ? (
+        <div className="mt-6 columns-2 gap-4 md:columns-3">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <SearchCardSkeleton key={`search-skeleton-${idx}`} />
+          ))}
+        </div>
+      ) : null}
+
+      {!loading && results.length > 0 ? (
+        <div className="mt-6 columns-2 gap-4 md:columns-3">
+          {results.map((item) => (
+            <SearchResultCard
+              key={item.id || item._id}
+              item={item}
+              onOpen={() => openPost?.(item)}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {/* Loading more skeletons */}
+      {loadingMore ? (
+        <div className="mt-2 columns-2 gap-4 md:columns-3">
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <SearchCardSkeleton key={`search-more-${idx}`} />
+          ))}
+        </div>
+      ) : null}
 
       {!loading && !results.length ? (
         <p className="mt-16 text-center font-inter text-sm text-neutral-400">
           No results for this search.
         </p>
+      ) : null}
+
+      {/* Invisible sentinel element for infinite scrolling */}
+      {hasMore && !loading ? (
+        <div ref={sentinelRef} className="h-10 w-full" aria-hidden="true" />
       ) : null}
     </div>
   )

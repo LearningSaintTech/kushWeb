@@ -96,6 +96,48 @@ export function isCommunityProfileDeleted(profile) {
   );
 }
 
+/** Check if designer is already verified or approved */
+export function isDesignerVerified(profile) {
+  if (!profile || typeof profile !== 'object') return false;
+  const status = String(profile.designerVerificationStatus || profile.verificationStatus || '').toLowerCase();
+  return (
+    status === 'verified' ||
+    status === 'approved' ||
+    Boolean(profile.isDesignerVerified) ||
+    Boolean(profile.isVerified) ||
+    Boolean(profile.designerProfileCompleted)
+  );
+}
+
+/** Check if designer onboarding is incomplete and should be resumed */
+export function isDesignerOnboardingIncomplete(profile) {
+  if (!profile || typeof profile !== 'object' || !profile.isDesigner) return false;
+  if (isCommunityProfileDeleted(profile)) return false;
+  if (isDesignerVerified(profile)) return false;
+  if (profile.designerProfileCompleted === true) return false;
+  const status = String(profile.designerVerificationStatus || '').toLowerCase();
+  if (status === 'under_review' || status === 'pending' || status === 'submitted') return false;
+
+  const step = profile.designerOnboardingStep;
+  return Boolean(step && step !== 'completed' && step !== 'not_started');
+}
+
+/** Check if creator onboarding is incomplete and should be resumed */
+export function isCreatorOnboardingIncomplete(profile) {
+  if (!profile || typeof profile !== 'object' || !profile.isCreator || profile.isDesigner) return false;
+  if (isCommunityProfileDeleted(profile)) return false;
+  if (
+    profile.creatorProfileCompleted === true ||
+    profile.isCreatorVerified === true ||
+    profile.isVerified === true
+  ) {
+    return false;
+  }
+
+  const step = profile.creatorOnboardingStep;
+  return Boolean(step && step !== 'completed' && step !== 'not_started');
+}
+
 /**
  * Normalize DELETE /community/profile/me envelope into onboarding profile shape.
  * API: { userId, communityProfileStatus, requiresOnboarding, alreadyDeleted, profile }

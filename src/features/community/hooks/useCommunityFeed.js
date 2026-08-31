@@ -16,8 +16,8 @@ import {
 import { useCommunitySocial } from '../context/CommunitySocialContext';
 
 /**
- * Cursor-paginated feed.
- * @param {{ scope?: string, type?: string, q?: string, hashtag?: string, enabled?: boolean }} options
+ * Cursor-paginated feed with deduplication, in-flight protection, and stable rendering.
+ * @param {{ scope?: string, type?: string, q?: string, hashtag?: string, itemId?: string, limit?: number, enabled?: boolean }} options
  */
 export function useCommunityFeed(options = {}) {
   const {
@@ -37,17 +37,45 @@ export function useCommunityFeed(options = {}) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+
+  // Concurrency & deduplication guards
   const reqId = useRef(0);
+  const inFlightRef = useRef(false);
+  const lastCursorRef = useRef(null);
+
+  // Keep latest seed function in ref to avoid recreating fetchPage callback on social updates
+  const seedRef = useRef(seedFromContentItems);
+  useEffect(() => {
+    seedRef.current = seedFromContentItems;
+  }, [seedFromContentItems]);
 
   const fetchPage = useCallback(
-    async ({ cursor, append } = {}) => {
+    async ({ cursor = null, append = false } = {}) => {
       if (!enabled) return;
-      const id = ++reqId.current;
-      const isMore = Boolean(cursor);
-      if (isMore) setLoadingMore(true);
-      else setLoading(true);
+
+      // Prevent concurrent duplicate requests
+      if (inFlightRef.current) {
+        logCommunity('useCommunityFeed.skip_in_flight', { cursor, append });
+        return;
+      }
+
+      // Prevent requesting the exact same cursor again when paginating
+      if (append && cursor && cursor === lastCursorRef.current) {
+        logCommunity('useCommunityFeed.skip_duplicate_cursor', { cursor });
+        return;
+      }
+
+      inFlightRef.current = true;
+      if (append) {
+        lastCursorRef.current = cursor;
+        setLoadingMore(true);
+      } else {
+        lastCursorRef.current = null;
+        setLoading(true);
+      }
       setError(null);
 
+      const id = ++reqId.current;
       logCommunity('useCommunityFeed.fetch', { scope, type, q, hashtag, cursor, append });
 
       try {
@@ -58,8 +86,9 @@ export function useCommunityFeed(options = {}) {
           hashtag,
           itemId,
           limit,
-          cursor,
+          cursor: cursor || undefined,
         });
+
         if (id !== reqId.current) return;
 
         const rawItems = Array.isArray(data?.items) ? data.items : [];
@@ -68,14 +97,30 @@ export function useCommunityFeed(options = {}) {
             ? rawItems.map(mapContentToReel).filter(Boolean)
             : rawItems.map(mapContentToPost).filter(Boolean);
 
-        seedFromContentItems(mapped);
-        setItems((prev) => (append ? [...prev, ...mapped] : mapped));
-        setNextCursor(data?.nextCursor ?? null);
-        setHasMore(Boolean(data?.hasMore));
+        seedRef.current?.(mapped);
+
+        setItems((prev) => {
+          if (!append) return mapped;
+          // Deduplicate items on append using unique ID
+          const existingIds = new Set(prev.map((it) => String(it.id || it._id)));
+          const uniqueNew = mapped.filter((it) => {
+            const itId = String(it.id || it._id);
+            if (!itId || existingIds.has(itId)) return false;
+            existingIds.add(itId);
+            return true;
+          });
+          return [...prev, ...uniqueNew];
+        });
+
+        const newCursor = data?.nextCursor ?? null;
+        const newHasMore = Boolean(data?.hasMore && newCursor);
+        setNextCursor(newCursor);
+        setHasMore(newHasMore);
+
         logCommunity('useCommunityFeed.ok', {
           count: mapped.length,
-          hasMore: data?.hasMore,
-          nextCursor: data?.nextCursor,
+          hasMore: newHasMore,
+          nextCursor: newCursor,
         });
       } catch (err) {
         if (id !== reqId.current) return;
@@ -87,32 +132,70 @@ export function useCommunityFeed(options = {}) {
         if (id === reqId.current) {
           setLoading(false);
           setLoadingMore(false);
+          inFlightRef.current = false;
         }
       }
     },
-    [enabled, scope, type, q, hashtag, itemId, limit, seedFromContentItems],
+    [enabled, scope, type, q, hashtag, itemId, limit],
   );
 
+  // Initial / filter reset load
   useEffect(() => {
     fetchPage({ append: false });
   }, [fetchPage]);
 
   const refresh = useCallback(() => fetchPage({ append: false }), [fetchPage]);
+
   const loadMore = useCallback(() => {
-    if (!hasMore || !nextCursor || loadingMore || loading) return;
+    if (!hasMore || !nextCursor || loadingMore || loading || inFlightRef.current) return;
     return fetchPage({ cursor: nextCursor, append: true });
   }, [fetchPage, hasMore, nextCursor, loadingMore, loading]);
 
   const patchItem = useCallback((id, patch) => {
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      prev.map((item) => (String(item.id || item._id) === String(id) ? { ...item, ...patch } : item)),
     );
   }, []);
 
-  const socialItems = useMemo(
-    () => items.map((item) => withSocial(item)),
-    [items, withSocial],
-  );
+  // Stabilize socialItems referential equality: preserve unchanged items so PostCards do not re-render
+  const prevSocialItemsRef = useRef([]);
+  const socialItems = useMemo(() => {
+    let hasChanges = false;
+    const prevItems = prevSocialItemsRef.current;
+
+    if (prevItems.length !== items.length) {
+      hasChanges = true;
+    }
+
+    const nextList = items.map((item, idx) => {
+      const socialized = withSocial(item);
+      const prev = prevItems[idx];
+      if (
+        prev &&
+        String(prev.id || prev._id) === String(socialized.id || socialized._id) &&
+        prev.isLiked === socialized.isLiked &&
+        prev.isSaved === socialized.isSaved &&
+        prev.isFollowing === socialized.isFollowing &&
+        prev.author?.isFollowing === socialized.author?.isFollowing &&
+        prev.likeCount === socialized.likeCount &&
+        prev.commentCount === socialized.commentCount &&
+        prev.likes === socialized.likes &&
+        prev.comments === socialized.comments &&
+        prev.isReported === socialized.isReported &&
+        prev.isBlocked === socialized.isBlocked
+      ) {
+        return prev;
+      }
+      hasChanges = true;
+      return socialized;
+    });
+
+    if (!hasChanges && prevItems.length === nextList.length) {
+      return prevItems;
+    }
+    prevSocialItemsRef.current = nextList;
+    return nextList;
+  }, [items, withSocial]);
 
   return {
     items: socialItems,
@@ -128,61 +211,157 @@ export function useCommunityFeed(options = {}) {
   };
 }
 
+/**
+ * Saved / Favourites hook with full pagination and deduplication support.
+ */
 export function useCommunitySaves({ type = 'all', enabled = true } = {}) {
   const { seedFromContentItems, withSocial } = useCommunitySocial();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
 
-  const refresh = useCallback(async () => {
-    if (!enabled) return;
-    setLoading(true);
-    setError(null);
-    logCommunity('useCommunitySaves.fetch', { type });
-    try {
-      const data = await communityService.getSaves({ type, limit: 20 });
-      const raw = extractSavesList(data);
-      const mapped = raw.map(mapSaveItem).filter(Boolean);
-      seedFromContentItems(mapped.map((m) => ({ ...m, isSaved: true })));
-      setItems(mapped);
-      setNextCursor(data?.nextCursor ?? null);
-      setHasMore(Boolean(data?.hasMore));
-      debugLog('[Community] useCommunitySaves.ok', {
-        type,
-        rawCount: raw.length,
-        mappedCount: mapped.length,
-        sample: mapped[0]
-          ? { id: mapped[0].id, type: mapped[0].type, image: Boolean(mapped[0].image) }
-          : null,
-      });
-      logCommunity('useCommunitySaves.ok', { count: mapped.length, rawCount: raw.length });
-    } catch (err) {
-      const message = getCommunityErrorMessage(err, 'Failed to load saves');
-      debugError('[Community] useCommunitySaves error', message);
-      setError(message);
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled, type, seedFromContentItems]);
+  const inFlightRef = useRef(false);
+  const lastCursorRef = useRef(null);
+  const reqId = useRef(0);
 
+  const seedRef = useRef(seedFromContentItems);
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    seedRef.current = seedFromContentItems;
+  }, [seedFromContentItems]);
 
-  const socialItems = useMemo(
-    () => items.map((item) => withSocial({ ...item, isSaved: true })),
-    [items, withSocial],
+  const fetchSaves = useCallback(
+    async ({ cursor = null, append = false } = {}) => {
+      if (!enabled) return;
+      if (inFlightRef.current) return;
+      if (append && cursor && cursor === lastCursorRef.current) return;
+
+      inFlightRef.current = true;
+      if (append) {
+        lastCursorRef.current = cursor;
+        setLoadingMore(true);
+      } else {
+        lastCursorRef.current = null;
+        setLoading(true);
+      }
+      setError(null);
+
+      const id = ++reqId.current;
+      logCommunity('useCommunitySaves.fetch', { type, cursor, append });
+
+      try {
+        const data = await communityService.getSaves({
+          type,
+          limit: 20,
+          cursor: cursor || undefined,
+        });
+
+        if (id !== reqId.current) return;
+
+        const raw = extractSavesList(data);
+        const mapped = raw.map(mapSaveItem).filter(Boolean);
+        seedRef.current?.(mapped.map((m) => ({ ...m, isSaved: true })));
+
+        setItems((prev) => {
+          if (!append) return mapped;
+          const existingIds = new Set(prev.map((it) => String(it.saveId || it.id || it._id)));
+          const uniqueNew = mapped.filter((it) => {
+            const itId = String(it.saveId || it.id || it._id);
+            if (!itId || existingIds.has(itId)) return false;
+            existingIds.add(itId);
+            return true;
+          });
+          return [...prev, ...uniqueNew];
+        });
+
+        const newCursor = data?.nextCursor ?? null;
+        const newHasMore = Boolean(data?.hasMore && newCursor);
+        setNextCursor(newCursor);
+        setHasMore(newHasMore);
+
+        debugLog('[Community] useCommunitySaves.ok', {
+          type,
+          rawCount: raw.length,
+          mappedCount: mapped.length,
+          hasMore: newHasMore,
+          nextCursor: newCursor,
+        });
+      } catch (err) {
+        if (id !== reqId.current) return;
+        const message = getCommunityErrorMessage(err, 'Failed to load saves');
+        debugError('[Community] useCommunitySaves error', message);
+        setError(message);
+        if (!append) setItems([]);
+      } finally {
+        if (id === reqId.current) {
+          setLoading(false);
+          setLoadingMore(false);
+          inFlightRef.current = false;
+        }
+      }
+    },
+    [enabled, type],
   );
 
-  return { items: socialItems, loading, error, hasMore, nextCursor, refresh, setItems };
+  useEffect(() => {
+    fetchSaves({ append: false });
+  }, [fetchSaves]);
+
+  const refresh = useCallback(() => fetchSaves({ append: false }), [fetchSaves]);
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || !nextCursor || loadingMore || loading || inFlightRef.current) return;
+    return fetchSaves({ cursor: nextCursor, append: true });
+  }, [fetchSaves, hasMore, nextCursor, loadingMore, loading]);
+
+  const prevSocialItemsRef = useRef([]);
+  const socialItems = useMemo(() => {
+    let hasChanges = false;
+    const prevItems = prevSocialItemsRef.current;
+
+    if (prevItems.length !== items.length) {
+      hasChanges = true;
+    }
+
+    const nextList = items.map((item, idx) => {
+      const socialized = withSocial({ ...item, isSaved: true });
+      const prev = prevItems[idx];
+      if (
+        prev &&
+        String(prev.saveId || prev.id) === String(socialized.saveId || socialized.id) &&
+        prev.isSaved === socialized.isSaved
+      ) {
+        return prev;
+      }
+      hasChanges = true;
+      return socialized;
+    });
+
+    if (!hasChanges && prevItems.length === nextList.length) {
+      return prevItems;
+    }
+    prevSocialItemsRef.current = nextList;
+    return nextList;
+  }, [items, withSocial]);
+
+  return {
+    items: socialItems,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    nextCursor,
+    refresh,
+    loadMore,
+    setItems,
+  };
 }
 
 /** Optimistic like toggle — updates local patch + global social store */
 export async function toggleCommunityLike(item, patchItem, social) {
-  const id = item?.id;
+  const id = item?.id || item?._id;
   if (!id) return;
   const current = social
     ? social.isLikedContent(id, item.isLiked)
@@ -229,7 +408,7 @@ export async function toggleCommunityLike(item, patchItem, social) {
 
 /** Optimistic save toggle */
 export async function toggleCommunitySave(item, patchItem, social) {
-  const id = item?.id;
+  const id = item?.id || item?._id;
   if (!id) return;
   const current = social
     ? social.isSavedContent(id, item.isSaved)
@@ -259,8 +438,9 @@ export async function toggleCommunitySave(item, patchItem, social) {
 
 /** Optimistic follow / unfollow — always prefer global social store */
 export async function toggleCommunityFollow(author, patchByAuthorId, social) {
-  const userId = author?.id;
-  if (!userId) return;
+  const rawUserId = author?.id || author?._id || (typeof author === 'string' ? author : null);
+  if (!rawUserId) return;
+  const userId = String(rawUserId);
   const current = social
     ? social.isFollowingUser(userId, author?.isFollowing)
     : Boolean(author?.isFollowing);

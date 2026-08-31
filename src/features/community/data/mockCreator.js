@@ -147,7 +147,7 @@ export const DESIGNER_DASHBOARD = {
   summary: [
     { label: 'Likes', value: '1.2M' },
     { label: 'Views', value: '8.4M' },
-    { label: 'Designs', value: '48' },
+    { label: 'Posts', value: '48' },
   ],
   earningsPerPost: [
     {
@@ -164,27 +164,27 @@ export const DESIGNER_DASHBOARD = {
       earnings: '+$620',
       image: girlImg,
     },
-    {
-      id: 'dp3',
-      title: 'Studio Neutrals Pack',
-      views: '142K views',
-      earnings: '+$480',
-      image: girlImg,
-    },
-    {
-      id: 'dp4',
-      title: 'Editorial Grid System',
-      views: '118K views',
-      earnings: '+$410',
-      image: girlImg,
-    },
-    {
-      id: 'dp5',
-      title: 'Brand Identity Kit',
-      views: '96K views',
-      earnings: '+$360',
-      image: girlImg,
-    },
+    // {
+    //   id: 'dp3',
+    //   title: 'Studio Neutrals Pack',
+    //   views: '142K views',
+    //   earnings: '+$480',
+    //   image: girlImg,
+    // },
+    // {
+    //   id: 'dp4',
+    //   title: 'Editorial Grid System',
+    //   views: '118K views',
+    //   earnings: '+$410',
+    //   image: girlImg,
+    // },
+    // {
+    //   id: 'dp5',
+    //   title: 'Brand Identity Kit',
+    //   views: '96K views',
+    //   earnings: '+$360',
+    //   image: girlImg,
+    // },
   ],
   topPosts: [
     { id: 'dt1', views: '1.2M views', image: girlImg, style: GRID_STYLES[0] },

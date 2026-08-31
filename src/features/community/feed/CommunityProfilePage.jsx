@@ -7,7 +7,11 @@ import CommunityCreatorProfile from './CommunityCreatorProfile'
 import CommunityDesignerProfile from './CommunityDesignerProfile'
 import CreatorWizard from '../creator/CreatorWizard'
 import RegistrationWizard from '../registration/RegistrationWizard'
-import { isCommunityProfileDeleted } from '../../../services/communityProfile.service'
+import {
+  isCommunityProfileDeleted,
+  isDesignerOnboardingIncomplete,
+  isCreatorOnboardingIncomplete,
+} from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
 /**
@@ -25,22 +29,13 @@ export default function CommunityProfilePage() {
   useEffect(() => {
     if (!profile || autoResumeDoneRef.current || profileDeleted) return
 
-    const designerIncomplete =
-      profile.isDesigner &&
-      profile.designerOnboardingStep &&
-      profile.designerOnboardingStep !== 'completed' &&
-      profile.designerOnboardingStep !== 'not_started'
-
-    const creatorIncomplete =
-      profile.isCreator &&
-      !profile.isDesigner &&
-      profile.creatorOnboardingStep &&
-      profile.creatorOnboardingStep !== 'completed' &&
-      profile.creatorOnboardingStep !== 'not_started'
+    const designerIncomplete = isDesignerOnboardingIncomplete(profile)
+    const creatorIncomplete = isCreatorOnboardingIncomplete(profile)
 
     if (designerIncomplete) {
       debugLog('[CommunityProfile] resume designer onboarding', {
         step: profile.designerOnboardingStep,
+        status: profile.designerVerificationStatus,
       })
       autoResumeDoneRef.current = true
       setResumeDesigner(true)

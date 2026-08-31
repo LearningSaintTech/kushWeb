@@ -27,6 +27,7 @@ import {
   designerStepIndex,
   hydrateDesignerForm,
   isCommunityProfileDeleted,
+  isDesignerVerified,
 } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
@@ -124,6 +125,27 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
               }
             : {}),
         }
+
+        // If designer is already verified and this is not a fresh forced registration, close or show success
+        if (!forceFresh && isDesignerVerified(latest)) {
+          debugLog('[CommunityProfile] designer already verified, wizard complete')
+          setStep(TOTAL_STEPS)
+          setBootstrapped(true)
+          return
+        }
+
+        if (
+          !latest?.isDesigner ||
+          !latest?.designerOnboardingStep ||
+          latest?.designerOnboardingStep === 'not_started'
+        ) {
+          try {
+            const roleRes = await communityProfileService.selectRole('designer')
+            if (roleRes) Object.assign(latest, roleRes)
+          } catch (roleErr) {
+            debugLog('[CommunityProfile] auto selectRole designer error', roleErr)
+          }
+        }
         const nextForm =
           forceFresh || isCommunityProfileDeleted(latest)
             ? cloneInitialForm()
@@ -170,11 +192,24 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
 
   const saveCurrentStep = async () => {
     if (step === 1) {
-      return applyProfile(
-        await communityProfileService.patchDesignerEssentials(
-          buildDesignerEssentialsBody(formData),
-        ),
-      )
+      try {
+        return applyProfile(
+          await communityProfileService.patchDesignerEssentials(
+            buildDesignerEssentialsBody(formData),
+          ),
+        )
+      } catch (err) {
+        const msg = getCommunityProfileErrorMessage(err)
+        if (msg && msg.toLowerCase().includes('select designer role first')) {
+          await communityProfileService.selectRole('designer')
+          return applyProfile(
+            await communityProfileService.patchDesignerEssentials(
+              buildDesignerEssentialsBody(formData),
+            ),
+          )
+        }
+        throw err
+      }
     }
     if (step === 2) {
       const hasFiles =

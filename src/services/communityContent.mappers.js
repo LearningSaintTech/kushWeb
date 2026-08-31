@@ -111,10 +111,18 @@ export function mapContentToPost(content) {
     .filter(Boolean);
   const image = primaryImageUrl(content) || images[0] || '';
 
+  const authorId = content.authorId || content.author?._id || content.author?.id || (typeof content.author === 'string' ? content.author : '')
+  const isFollowing = Boolean(
+    content.isFollowing ??
+    content.authorIsFollowing ??
+    content.author?.isFollowing ??
+    content.author?.isFollowed
+  )
+
   const post = {
-    id: content._id || content.id,
+    id: content._id || content.id ? String(content._id || content.id) : '',
     author: {
-      id: content.authorId || content.author?._id || content.author?.id,
+      id: authorId ? String(authorId) : '',
       name: content.authorName || content.author?.name || 'Member',
       handle: content.authorUsername || content.author?.username || '',
       role: (content.authorRole || content.author?.role || 'creator').toUpperCase(),
@@ -124,8 +132,9 @@ export function mapContentToPost(content) {
         content.author?.profileImage ||
         content.author?.avatar ||
         image,
-      isFollowing: Boolean(content.isFollowing ?? content.authorIsFollowing),
+      isFollowing,
     },
+    isFollowing,
     image,
     images: images.length ? images : image ? [image] : [],
     videoUrl: videoUrl(content) || null,

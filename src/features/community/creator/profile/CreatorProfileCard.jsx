@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
+import { useAuth } from '../../../../app/context/AuthContext'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import { useCommunityRole } from '../../hooks/useCommunityRole'
 import { useCommunitySocialProfile } from '../../hooks/useCommunitySocialProfile'
 import { playlistFromGrid } from '../../utils/openReel'
+import { shareCommunityProfile } from '../../utils/shareProfile'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -36,12 +38,15 @@ function PencilIcon({ className }) {
  */
 export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
   const [tab, setTab] = useState('Posts')
+  const [copied, setCopied] = useState(false)
   const avatarInputRef = useRef(null)
+  const { user } = useAuth()
   const role = useCommunityRole()
   const { profile: onboarding } = useCommunityProfile()
   const { profile: social, loading } = useCommunitySocialProfile()
 
   const profile = {
+    id: social?.id || onboarding?._id || onboarding?.id || user?._id || user?.id,
     name: social?.name || onboarding?.name || 'Member',
     handle: social?.handle || onboarding?.username || '',
     bio:
@@ -59,6 +64,19 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
   }
   const roleBadge = role === 'designer' ? 'DESIGNER' : 'CREATOR'
   const media = social?.mediaByTab?.[tab] ?? []
+
+  const handleShare = async () => {
+    if (!profile.id) return
+    const res = await shareCommunityProfile({
+      id: profile.id,
+      name: profile.name,
+      handle: profile.handle,
+    })
+    if (res?.success) {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   return (
     <div className="relative w-full max-w-[380px]">
@@ -132,9 +150,10 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button
             type="button"
+            onClick={handleShare}
             className="cursor-pointer rounded-xl bg-black py-3 font-inter text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
-            Share Profile
+            {copied ? 'Link Copied!' : 'Share Profile'}
           </button>
           <button
             type="button"

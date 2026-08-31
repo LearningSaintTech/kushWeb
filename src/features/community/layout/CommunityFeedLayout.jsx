@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../app/context/AuthContext'
+import { useNotification } from '../../../app/context/NotificationContext'
 import { getCommunityReelsPath, ROUTES } from '../../../utils/constants'
 import { navigateToReel } from '../utils/openReel'
 import girlImg from '../../../assets/images/community/communitygirl.jpg'
@@ -46,6 +47,9 @@ export default function CommunityFeedLayout({
 }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const profileIdParam = searchParams.get('profileId') || searchParams.get('userId')
+  
   const activeNav = useMemo(
     () => resolveActiveNav(location.pathname),
     [location.pathname],
@@ -55,6 +59,7 @@ export default function CommunityFeedLayout({
   const isReels = activeNav === 'reels'
   const isProfile = activeNav === 'profile'
   const isCreateJoin = activeNav === 'create'
+
   /** Soft gray canvas: join chooser + own profile (dashboard layout) */
   const isJoinCanvas = isProfile || isCreateJoin
   /** Profile with card+dashboard — hug sidebar, no huge centered gap */
@@ -62,6 +67,7 @@ export default function CommunityFeedLayout({
 
   const role = useCommunityRole()
   const { user, isAuthenticated, authChecked, openAuthModal } = useAuth()
+  const { communityUnreadCount = 0 } = useNotification() ?? {}
   const askedLoginRef = useRef(false)
 
   // Community feed needs a session — open login when access token is missing
@@ -96,6 +102,12 @@ export default function CommunityFeedLayout({
   const [createMediaFile, setCreateMediaFile] = useState(null)
 
   useEffect(() => {
+    if (profileIdParam && !selectedProfile) {
+      setSelectedProfile({ id: profileIdParam, userId: profileIdParam })
+    }
+  }, [profileIdParam, selectedProfile])
+
+  useEffect(() => {
     if (!isReels) setReelsSidebarOpen(false)
   }, [isReels])
 
@@ -112,7 +124,20 @@ export default function CommunityFeedLayout({
     return () => window.removeEventListener('keydown', onKey)
   }, [reelsSidebarOpen])
 
-  const closeProfile = useCallback(() => setSelectedProfile(null), [])
+  const closeProfile = useCallback(() => {
+    setSelectedProfile(null)
+    if (profileIdParam) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('profileId')
+          next.delete('userId')
+          return next
+        },
+        { replace: true },
+      )
+    }
+  }, [profileIdParam, setSearchParams])
   const closePost = useCallback(() => setSelectedPost(null), [])
   const handlePostDeleted = useCallback((contentId) => {
     if (!contentId) return
@@ -287,7 +312,7 @@ export default function CommunityFeedLayout({
   )
 
   const shellRole = role === 'guest' ? 'user' : role
-  const showRightRail = rightRail && !selectedProfile && !isSaved && !isJoinCanvas && !isReels
+  const showRightRail = rightRail && !isSaved && !isJoinCanvas && !isReels
   const sidebarActiveId =
     createTypeOpen || mediaSheetOpen || composerOpen
       ? 'create'
@@ -330,13 +355,18 @@ export default function CommunityFeedLayout({
             type="button"
             onClick={openNotifications}
             aria-label="Notifications"
-            className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition ${
+            className={`relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition ${
               isReels ? 'text-white hover:bg-white/10' : 'text-black hover:bg-neutral-100'
             }`}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
             </svg>
+            {communityUnreadCount > 0 ? (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f07a3a] px-1 font-inter text-[9px] font-bold text-white">
+                {communityUnreadCount > 99 ? '99+' : communityUnreadCount}
+              </span>
+            ) : null}
           </button>
           <Link
             to={ROUTES.COMMUNITY}
@@ -360,6 +390,7 @@ export default function CommunityFeedLayout({
             userName={userName}
             userAvatar={userAvatar}
             hasPosts={hasPosts}
+            unreadCount={communityUnreadCount}
             onCreateClick={openCreate}
             onNotificationsClick={openNotifications}
           />
@@ -394,6 +425,7 @@ export default function CommunityFeedLayout({
               userName={userName}
               userAvatar={userAvatar}
               hasPosts={hasPosts}
+              unreadCount={communityUnreadCount}
               onCreateClick={() => {
                 closeReelsSidebar()
                 openCreate()
@@ -460,6 +492,8 @@ export default function CommunityFeedLayout({
               </div>
             </main>
 
+            {/* Task 2: Suggested Creators and Suggested Hashtags commented out (can be easily restored) */}
+            {/*
             {showRightRail ? (
               <aside className="scrollbar-hide hidden h-full w-[250px] shrink-0 overflow-y-auto py-6 xl:block xl:w-[260px]">
                 <SuggestedCreators creators={SUGGESTED_CREATORS} />
@@ -468,6 +502,7 @@ export default function CommunityFeedLayout({
                 </div>
               </aside>
             ) : null}
+            */}
           </div>
         )}
       </div>
@@ -486,7 +521,13 @@ export default function CommunityFeedLayout({
           openProfile(author)
         }}
       />
-      <NotificationsPanel open={notificationsOpen} onClose={closeNotifications} />
+      <NotificationsPanel
+        open={notificationsOpen}
+        onClose={closeNotifications}
+        onOpenPost={openPost}
+        onOpenProfile={openProfile}
+        onOpenReelComments={openReelComments}
+      />
       <CreateTypeModal
         open={createTypeOpen}
         onClose={closeCreateFlow}

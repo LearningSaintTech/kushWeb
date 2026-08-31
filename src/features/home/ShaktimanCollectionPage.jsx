@@ -12,7 +12,11 @@ import { ROUTES } from '../../utils/constants'
 import { getItemStockTotal } from '../../utils/productStock.js'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { debugLog, debugError } from '../../utils/debugLog.js'
-import { SHAKTIMAN_KEYWORDS } from '../../utils/shaktiman.js'
+import {
+  SHAKTIMAN_KEYWORDS,
+  isShaktimanSection,
+  getSectionBannerUrls,
+} from '../../utils/shaktiman.js'
 import { itemLaunchCardProps } from '../../utils/productLaunch.js'
 import saktimanBanner from '../../assets/images/navbar/Shakbanners.PNG'
 import ShaktimaanFab from './components/ShaktimaanFab.jsx'
@@ -80,19 +84,8 @@ function sectionProductsToCards(section) {
     .map((item) => itemToCardProps(item, section))
 }
 
-function isShaktimanSection(section) {
-  const title = String(section?.title || section?.name || '').toLowerCase()
-  const slug = String(section?.slug || '').toLowerCase()
-  return (
-    title.includes('shaktiman') ||
-    title.includes('shakti') ||
-    slug.includes('shaktiman') ||
-    slug.includes('shakti')
-  )
-}
-
 /**
- * Shaktiman collection landing — same banner as home, products below.
+ * Shaktiman collection landing — dynamic banner from API with static fallback, products below.
  */
 export default function ShaktimanCollectionPage() {
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
@@ -121,6 +114,7 @@ export default function ShaktimanCollectionPage() {
               secRes?.data?.data?.items ?? secRes?.data?.items ?? []
             const match = items.find(isShaktimanSection)
             if (match) {
+              setSectionMeta(match)
               const cards = sectionProductsToCards(match)
               debugLog('[Shaktiman] matched CMS section', {
                 id: match._id,
@@ -128,7 +122,6 @@ export default function ShaktimanCollectionPage() {
                 products: cards.length,
               })
               if (cards.length) {
-                setSectionMeta(match)
                 setProducts(cards)
                 setHasMore(false)
                 setLoading(false)
@@ -198,6 +191,10 @@ export default function ShaktimanCollectionPage() {
     loadProducts(next, true)
   }
 
+  const { desktopUrl, mobileUrl } = getSectionBannerUrls(sectionMeta)
+  const resolvedDesktop = desktopUrl || mobileUrl || saktimanBanner
+  const resolvedMobile = mobileUrl || desktopUrl || saktimanBanner
+
   return (
     <>
       <Helmet>
@@ -215,14 +212,22 @@ export default function ShaktimanCollectionPage() {
           aria-label="Shaktiman banner"
         >
           <div className="relative mx-auto w-full max-w-[1920px]">
-            <img
-              src={saktimanBanner}
-              alt="Shaktiman limited edition — Unleash Your Inner Hero"
-              className="block h-auto w-full max-w-full object-contain object-center select-none"
-              loading="eager"
-              decoding="async"
-              draggable={false}
-            />
+            <picture className="block w-full">
+              {resolvedMobile && resolvedMobile !== resolvedDesktop ? (
+                <source media="(max-width: 767px)" srcSet={resolvedMobile} />
+              ) : null}
+              <img
+                src={resolvedDesktop}
+                alt={
+                  sectionMeta?.title ||
+                  'Shaktiman limited edition — Unleash Your Inner Hero'
+                }
+                className="block h-auto w-full max-w-full object-contain object-center select-none"
+                loading="eager"
+                decoding="async"
+                draggable={false}
+              />
+            </picture>
           </div>
         </section>
 

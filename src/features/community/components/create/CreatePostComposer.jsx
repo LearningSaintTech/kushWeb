@@ -789,7 +789,7 @@ export default function CreatePostComposer({
                 ) : null}
               </div>
 
-              <button
+              {/* <button
                 type="button"
                 onClick={() => setMusicOn((v) => !v)}
                 aria-pressed={musicOn}
@@ -807,7 +807,7 @@ export default function CreatePostComposer({
                     d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z"
                   />
                 </svg>
-              </button>
+              </button> */}
             </div>
 
             {/* Thumbnail strip + add more (posts) */}

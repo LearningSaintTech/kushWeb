@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../../app/context/AuthContext'
 import { communityService } from '../../../services/community.service.js'
 import { debugError } from '../../../utils/debugLog.js'
@@ -27,7 +27,7 @@ function renderCaption(caption = '', hashtags = []) {
   return { body, tags }
 }
 
-export default function PostCard({
+function PostCard({
   post,
   onProfileClick,
   onOpenPost,
@@ -125,14 +125,18 @@ export default function PostCard({
           <button
             type="button"
             onClick={onFollow}
-            className="cursor-pointer font-inter text-sm font-semibold text-[#2563EB] transition hover:opacity-80"
+            className={`cursor-pointer font-inter text-sm font-semibold transition hover:opacity-80 ${
+              author?.isFollowing || post?.isFollowing
+                ? 'text-neutral-500 hover:text-neutral-700'
+                : 'text-[#2563EB] hover:text-[#1d4ed8]'
+            }`}
           >
-            {author?.isFollowing ? 'Following' : 'Follow'}
+            {author?.isFollowing || post?.isFollowing ? 'Following' : 'Follow'}
           </button>
         ) : null}
       </header>
 
-      <div className="relative mt-4 overflow-hidden rounded-lg bg-neutral-100">
+      <div className="relative mt-4 overflow-hidden rounded-lg bg-neutral-900">
         <button
           type="button"
           onClick={onOpenPost}
@@ -142,7 +146,7 @@ export default function PostCard({
           {activeImage ? (
             <img src={activeImage} alt="" className="aspect-[4/5] w-full object-cover" />
           ) : (
-            <div className="aspect-[4/5] w-full bg-neutral-200" />
+            <div className="aspect-[4/5] w-full bg-neutral-800" />
           )}
         </button>
 
@@ -298,3 +302,5 @@ export default function PostCard({
     </article>
   )
 }
+
+export default memo(PostCard)

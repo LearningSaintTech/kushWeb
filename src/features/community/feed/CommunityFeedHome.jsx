@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import FeedFilters from '../components/FeedFilters'
 import PostCard from '../components/PostCard'
-// import { FEED_FILTERS } from '../data/mockFeed'
+import PostCardSkeleton from '../components/PostCardSkeleton'
 import { communityService } from '../../../services/community.service.js'
 import {
   useCommunityFeed,
@@ -19,63 +19,67 @@ import { debugError } from '../../../utils/debugLog.js'
 export default function CommunityFeedHome() {
   const [activeFilter, setActiveFilter] = useState('All')
   const [feedFilters, setFeedFilters] = useState([])
-const [hashtagsLoading, setHashtagsLoading] = useState(true)
+  const [hashtagsLoading, setHashtagsLoading] = useState(true)
   const { openProfile, openPost } = useOutletContext() ?? {}
   const social = useCommunitySocial()
+  const sentinelRef = useRef(null)
+
   useEffect(() => {
-  const fetchHashtags = async () => {
-    try {
-      setHashtagsLoading(true)
+    const fetchHashtags = async () => {
+      try {
+        setHashtagsLoading(true)
 
-      const response = await communityService.getHashtags()
+        const response = await communityService.getHashtags()
 
-      console.log('[Community] hashtags response:', response)
+        const hashtags =
+          response?.data?.items ||
+          response?.items ||
+          []
 
-      const hashtags =
-        response?.data?.items ||
-        response?.items ||
-        []
+        const filters = hashtags
+          .filter((item) => item?.isActive)
+          .sort(
+            (a, b) =>
+              (a?.sortOrder ?? 0) -
+              (b?.sortOrder ?? 0),
+          )
+          .map(
+            (item) =>
+              item?.label ||
+              item?.keyword ||
+              item?.tag,
+          )
+          .filter(Boolean)
 
-      console.log('[Community] hashtags:', hashtags)
-
-      const filters = hashtags
-        .filter((item) => item?.isActive)
-        .sort(
-          (a, b) =>
-            (a?.sortOrder ?? 0) -
-            (b?.sortOrder ?? 0),
+        setFeedFilters([
+          'All',
+          ...filters,
+        ])
+      } catch (error) {
+        debugError(
+          '[Community] hashtags fetch failed',
+          error?.message,
         )
-        .map(
-          (item) =>
-            item?.label ||
-            item?.keyword ||
-            item?.tag,
-        )
-        .filter(Boolean)
 
-      console.log('[Community] filters:', filters)
-
-      setFeedFilters([
-        'All',
-        ...filters,
-      ])
-    } catch (error) {
-      debugError(
-        '[Community] hashtags fetch failed',
-        error?.message,
-      )
-
-      setFeedFilters(['All'])
-    } finally {
-      setHashtagsLoading(false)
+        setFeedFilters(['All'])
+      } finally {
+        setHashtagsLoading(false)
+      }
     }
-  }
 
-  fetchHashtags()
-}, [])
+    fetchHashtags()
+  }, [])
 
   const scope =
     activeFilter === 'My F' ? 'following' : 'explore'
+
+  const activeHashtag =
+    activeFilter !== 'All' &&
+    activeFilter !== 'My F' &&
+    activeFilter !== 'Creators' &&
+    activeFilter !== 'Trending'
+      ? activeFilter.replace(/^#/, '')
+      : undefined
 
   const {
     items,
@@ -90,8 +94,28 @@ const [hashtagsLoading, setHashtagsLoading] = useState(true)
   } = useCommunityFeed({
     scope,
     type: 'post',
+    hashtag: activeHashtag,
     enabled: activeFilter !== 'Notifications' && activeFilter !== 'Profile',
   })
+
+  // Infinite scroll observer: trigger loadMore when sentinel approaches viewport
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !hasMore || loadingMore || loading) return undefined
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (entry?.isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '400px 0px', threshold: 0.1 },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore, loading, loadMore])
 
   useEffect(() => {
     const onDeleted = (e) => {
@@ -132,39 +156,68 @@ const [hashtagsLoading, setHashtagsLoading] = useState(true)
     return items
   }, [activeFilter, items])
 
-  const handleFollow = async (post) => {
-    try {
-      await toggleCommunityFollow(
-        post?.author,
-        (userId, patch) => {
-          setItems((prev) =>
-            prev.map((item) => {
-              if (item.author?.id !== userId) return item
-              return {
-                ...item,
-                author: { ...item.author, ...patch },
-              }
-            }),
-          )
-        },
-        social,
-      )
-    } catch (err) {
-      debugError('[Community] follow failed', err?.message)
-    }
-  }
+  const handleFollow = useCallback(
+    async (post) => {
+      try {
+        await toggleCommunityFollow(
+          post?.author,
+          (userId, patch) => {
+            setItems((prev) =>
+              prev.map((item) => {
+                const itemAuthorId = item.author?.id || item.author?._id || item.authorId
+                if (String(itemAuthorId) !== String(userId)) return item
+                return {
+                  ...item,
+                  isFollowing: patch.isFollowing,
+                  author: { ...item.author, ...patch },
+                }
+              }),
+            )
+          },
+          social,
+        )
+      } catch (err) {
+        debugError('[Community] follow failed', err?.message)
+      }
+    },
+    [setItems, social],
+  )
+
+  const handleProfileClick = useCallback(
+    (author) => {
+      openProfile?.(author)
+    },
+    [openProfile],
+  )
+
+  const handleOpenPost = useCallback(
+    (post) => {
+      openPost?.(post)
+    },
+    [openPost],
+  )
+
+  const handleLike = useCallback(
+    (post) => {
+      toggleCommunityLike(post, patchItem, social)
+    },
+    [patchItem, social],
+  )
+
+  const handleSave = useCallback(
+    (post) => {
+      toggleCommunitySave(post, patchItem, social)
+    },
+    [patchItem, social],
+  )
 
   return (
     <div>
-     <FeedFilters
-  filters={feedFilters}
-  active={activeFilter}
-  onChange={setActiveFilter}
-/>
-
-      {loading ? (
-        <p className="mt-8 font-inter text-sm text-neutral-500">Loading feed…</p>
-      ) : null}
+      <FeedFilters
+        filters={feedFilters}
+        active={activeFilter}
+        onChange={setActiveFilter}
+      />
 
       {error ? (
         <div className="mt-8 rounded-2xl bg-amber-50 px-4 py-3 font-inter text-sm text-amber-900">
@@ -179,37 +232,46 @@ const [hashtagsLoading, setHashtagsLoading] = useState(true)
         </div>
       ) : null}
 
+      {/* Initial Loading Skeleton */}
+      {loading ? (
+        <div className="mt-6 space-y-8">
+          <PostCardSkeleton />
+          <PostCardSkeleton />
+        </div>
+      ) : null}
+
       {!loading && !error && posts.length === 0 ? (
         <p className="mt-8 font-inter text-sm text-neutral-500">
           No posts yet. Follow creators or switch to Discover.
         </p>
       ) : null}
 
-      <div className="mt-6 space-y-8">
-        {posts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            onProfileClick={() => openProfile?.(post.author)}
-            onOpenPost={() => openPost?.(post)}
-            onFollow={() => handleFollow(post)}
-            onLike={() => toggleCommunityLike(post, patchItem, social)}
-            onSave={() => toggleCommunitySave(post, patchItem, social)}
-          />
-        ))}
-      </div>
-
-      {hasMore ? (
-        <div className="mt-8 flex justify-center">
-          <button
-            type="button"
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="cursor-pointer rounded-full bg-neutral-100 px-5 py-2.5 font-inter text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-50"
-          >
-            {loadingMore ? 'Loading…' : 'Load more'}
-          </button>
+      {!loading && posts.length > 0 ? (
+        <div className="mt-6 space-y-8">
+          {posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              onProfileClick={() => handleProfileClick(post.author)}
+              onOpenPost={() => handleOpenPost(post)}
+              onFollow={() => handleFollow(post)}
+              onLike={() => handleLike(post)}
+              onSave={() => handleSave(post)}
+            />
+          ))}
         </div>
+      ) : null}
+
+      {/* Loading more skeleton cards for infinite scrolling */}
+      {loadingMore ? (
+        <div className="mt-8 space-y-8">
+          <PostCardSkeleton />
+        </div>
+      ) : null}
+
+      {/* Invisible sentinel element for infinite scrolling */}
+      {hasMore && !loading ? (
+        <div ref={sentinelRef} className="h-10 w-full" aria-hidden="true" />
       ) : null}
     </div>
   )

@@ -265,4 +265,7 @@ export {
   hydrateEditProfileForm,
   isCommunityProfileDeleted,
   mapDeletedCommunityProfileResponse,
+  isDesignerVerified,
+  isDesignerOnboardingIncomplete,
+  isCreatorOnboardingIncomplete,
 } from './communityProfile.mappers.js';

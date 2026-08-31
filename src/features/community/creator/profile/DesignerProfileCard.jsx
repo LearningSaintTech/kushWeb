@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import whiteBg from '../../../../assets/images/community/whitebg.png'
+import { useAuth } from '../../../../app/context/AuthContext'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import {
   useCommunitySocialProfile,
@@ -8,6 +8,7 @@ import {
 import { communityProfileService } from '../../../../services/communityProfile.service'
 import { debugError, debugLog } from '../../../../utils/debugLog'
 import { playlistFromGrid } from '../../utils/openReel'
+import { shareCommunityProfile } from '../../utils/shareProfile'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -47,12 +48,14 @@ export default function DesignerProfileCard({
   onCoverChange,
 }) {
   const [tab, setTab] = useState('Posts')
+  const [copied, setCopied] = useState(false)
   const avatarInputRef = useRef(null)
   const coverInputRef = useRef(null)
   const [coverUploading, setCoverUploading] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [localCoverPreview, setLocalCoverPreview] = useState('')
   const [localAvatarPreview, setLocalAvatarPreview] = useState('')
+  const { user } = useAuth()
   const { profile: onboarding, applyProfile, refresh: refreshOnboarding } = useCommunityProfile()
   const { profile: social, loading, refresh: refreshSocial } = useCommunitySocialProfile()
 
@@ -64,6 +67,7 @@ export default function DesignerProfileCard({
   }, [localCoverPreview, localAvatarPreview])
 
   const profile = {
+    id: social?.id || onboarding?._id || onboarding?.id || user?._id || user?.id,
     name: social?.name || onboarding?.name || 'Member',
     handle: social?.handle || onboarding?.username || '',
     avatar: localAvatarPreview || social?.avatar || onboarding?.profileImage || '',
@@ -73,7 +77,7 @@ export default function DesignerProfileCard({
       onboarding?.designerBio ||
       onboarding?.shortBio ||
       '',
-    cover: localCoverPreview || onboarding?.designerCoverImage || whiteBg,
+    cover: localCoverPreview || onboarding?.designerCoverImage || '',
     badge: social?.isDesigner || onboarding?.isDesigner ? 'DESIGNER' : 'CREATOR',
     openToWork: Boolean(onboarding?.openToWork),
     stats: {
@@ -81,6 +85,19 @@ export default function DesignerProfileCard({
       following: social?.stats?.following ?? '0',
       posts: social?.stats?.posts ?? '0',
     },
+  }
+
+  const handleShare = async () => {
+    if (!profile.id) return
+    const res = await shareCommunityProfile({
+      id: profile.id,
+      name: profile.name,
+      handle: profile.handle,
+    })
+    if (res?.success) {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const media = social?.mediaByTab?.[tab] ?? []
@@ -143,8 +160,10 @@ export default function DesignerProfileCard({
 
   return (
     <div className="w-full max-w-[380px] overflow-hidden rounded-2xl bg-[#111111] text-white shadow-[0_16px_48px_rgba(0,0,0,0.18)]">
-      <div className="group relative h-28 w-full sm:h-32">
-        <img src={profile.cover} alt="" className="h-full w-full object-cover" />
+      <div className="group relative h-28 w-full sm:h-32 bg-gradient-to-r from-neutral-800 via-neutral-900 to-[#111111]">
+        {profile.cover ? (
+          <img src={profile.cover} alt="" className="h-full w-full object-cover" />
+        ) : null}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#111111] to-transparent" />
 
         <button
@@ -255,9 +274,10 @@ export default function DesignerProfileCard({
         <div className="mt-4 grid grid-cols-2 gap-2.5">
           <button
             type="button"
+            onClick={handleShare}
             className="cursor-pointer rounded-xl bg-[#2a2a2a] py-2.5 font-inter text-sm font-semibold text-white transition hover:bg-[#333]"
           >
-            Share Profile
+            {copied ? 'Link Copied!' : 'Share Profile'}
           </button>
           <button
             type="button"
@@ -289,7 +309,7 @@ export default function DesignerProfileCard({
         })}
       </div>
 
-      <div className="grid grid-cols-3 gap-0.5 bg-white">
+      <div className="grid grid-cols-3 gap-0.5 bg-[#111111]">
         {loading && media.length === 0 ? (
           <p className="col-span-3 py-10 text-center font-inter text-xs text-neutral-400">
             Loading…

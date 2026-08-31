@@ -34,7 +34,7 @@ export default function AddMediaSheet({
   const isReel = type === 'reel'
   const accept = isReel ? 'video/*' : 'image/*'
   const title = isReel ? 'Add Video' : 'Add Photos'
-  const galleryLabel = isReel ? 'Gallery' : 'Gallery (up to 10)'
+  const galleryLabel = isReel ? 'Gallery' : 'Gallery '
 
   const handleGallery = (event) => {
     const list = Array.from(event.target.files || [])
