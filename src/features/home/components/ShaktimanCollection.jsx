@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
-import { sectionsService } from '../../../services/content.service.js'
-import { isShaktimanSection, getSectionBannerUrls } from '../../../utils/shaktiman.js'
-import { debugError } from '../../../utils/debugLog.js'
-import saktimanBanner from '../../../assets/images/navbar/Shakbanners.PNG'
+import ShaktimanPromoBanner from './ShaktimanPromoBanner.jsx'
 
 /**
  * Shaktiman limited-edition promo — dynamic banner from API with static fallback.
@@ -51,22 +48,7 @@ export default function ShaktimanCollection({ section: sectionProp = null }) {
       aria-label="Shaktiman limited edition collection"
     >
       <div className="relative mx-auto w-full max-w-[1920px]">
-        <picture className="block w-full">
-          {resolvedMobile && resolvedMobile !== resolvedDesktop ? (
-            <source media="(max-width: 767px)" srcSet={resolvedMobile} />
-          ) : null}
-          <img
-            src={resolvedDesktop}
-            alt={
-              section?.title ||
-              'Shaktiman limited edition — Unleash Your Inner Hero. Hoodies, t-shirts, joggers and accessories.'
-            }
-            className="block h-auto w-full max-w-full object-contain object-center select-none"
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-          />
-        </picture>
+        <ShaktimanPromoBanner loading="lazy" />
 
         <Link
           to={exploreTo}

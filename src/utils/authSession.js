@@ -15,6 +15,7 @@ const refreshClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'x-client-channel': 'website',
+    'x-source-platform': 'website',
     ...getTunnelBypassHeaders(),
   },
 });

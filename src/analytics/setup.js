@@ -3,6 +3,17 @@ import { ANALYTICS_EVENTS } from "./catalog.js";
 
 let installed = false;
 
+function isTimeoutError(error) {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "");
+  return (
+    code === "ECONNABORTED" ||
+    code === "ETIMEDOUT" ||
+    /timeout of \d+ms exceeded/i.test(message) ||
+    /timeout.*exceeded/i.test(message)
+  );
+}
+
 export function setupAnalyticsErrorCapture(axiosClient) {
   if (installed || typeof window === "undefined") return;
   installed = true;
@@ -13,7 +24,21 @@ export function setupAnalyticsErrorCapture(axiosClient) {
       (error) => {
         const status = error?.response?.status;
         const url = error?.config?.url || "";
-        if (status && status >= 400 && !String(url).includes("/analytics/events")) {
+        if (String(url).includes("/analytics/events") || String(url).includes("/client-errors/timeout")) {
+          return Promise.reject(error);
+        }
+        if (isTimeoutError(error)) {
+          trackEvent({
+            eventType: ANALYTICS_EVENTS.API_TIMEOUT,
+            meta: {
+              url: String(url).slice(0, 200),
+              method: (error?.config?.method || "get").toUpperCase(),
+              timeoutMs: error?.config?.timeout ?? null,
+              code: error?.code || null,
+              message: String(error?.message || "").slice(0, 120),
+            },
+          });
+        } else if (status && status >= 400) {
           trackEvent({
             eventType: ANALYTICS_EVENTS.API_ERROR,
             meta: {

@@ -53,6 +53,7 @@ export const ANALYTICS_EVENTS = Object.freeze({
   NOTIFICATION_OPENED: "notification_opened",
   RECOMMENDATION_CLICK: "recommendation_click",
   API_ERROR: "api_error",
+  API_TIMEOUT: "api_timeout",
   NETWORK_ERROR: "network_error",
   UI_EXCEPTION: "ui_exception",
 });
