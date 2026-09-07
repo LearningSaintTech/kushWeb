@@ -280,10 +280,25 @@ export function CommunitySocialProvider({ children }) {
   );
 }
 
+const FALLBACK_SOCIAL_CONTEXT = {
+  following: {},
+  saved: {},
+  liked: {},
+  seedFollowing: () => {},
+  seedSaved: () => {},
+  seedLiked: () => {},
+  seedFromContentItems: () => {},
+  isFollowingUser: () => false,
+  isSavedContent: () => false,
+  isLikedContent: () => false,
+  withSocial: (item) => item,
+  toggleFollow: async () => false,
+  toggleSave: async () => false,
+  toggleLike: async () => false,
+  formatEngagementCount: (n) => String(n ?? 0),
+};
+
 export function useCommunitySocial() {
   const ctx = useContext(CommunitySocialContext);
-  if (!ctx) {
-    throw new Error('useCommunitySocial must be used within CommunitySocialProvider');
-  }
-  return ctx;
+  return ctx || FALLBACK_SOCIAL_CONTEXT;
 }

@@ -192,8 +192,6 @@ export default function ShaktimanCollectionPage() {
   }
 
   const { desktopUrl, mobileUrl } = getSectionBannerUrls(sectionMeta)
-  const resolvedDesktop = desktopUrl || mobileUrl || saktimanBanner
-  const resolvedMobile = mobileUrl || desktopUrl || saktimanBanner
 
   return (
     <>
@@ -212,7 +210,11 @@ export default function ShaktimanCollectionPage() {
           aria-label="Shaktiman banner"
         >
           <div className="relative mx-auto w-full max-w-[1920px]">
-            <ShaktimanPromoBanner loading="eager" />
+            <ShaktimanPromoBanner
+              desktopUrl={desktopUrl}
+              mobileUrl={mobileUrl}
+              loading="eager"
+            />
           </div>
         </section>
 

@@ -1,5 +1,5 @@
-@import "./assets/styles/variables.css";
 @import "./assets/styles/fonts.css";
+@import "./assets/styles/variables.css";
 @import "tailwindcss";
 
 /* Build output is not a class source; scanning it makes Tailwind emit url()s for stale hashed assets. */
@@ -313,6 +313,32 @@ body::-webkit-scrollbar,
   animation: made-in-india-marquee 50s linear infinite;
   will-change: transform;
 }
+
+/* News / Press logos marquee */
+@keyframes news-press-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+.news-press-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: news-press-marquee 32s linear infinite;
+  will-change: transform;
+}
+.group\/news-marquee:hover .news-press-marquee-track,
+.news-press-marquee-track:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .news-press-marquee-track {
+    animation: none;
+  }
+}
+
 
 /* CTA shine sweep (Explore Fashion / similar pill buttons) */
 @keyframes btn-shine {

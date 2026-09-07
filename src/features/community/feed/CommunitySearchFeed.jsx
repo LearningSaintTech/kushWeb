@@ -30,7 +30,11 @@ function SearchResultCard({ item, onOpen }) {
           ) : null}
         </div>
         <p className="min-w-0 flex-1 truncate font-inter text-sm font-medium text-black">
-          {item.author?.name || 'Member'}
+          {item.author?.name && item.author.name.toLowerCase() !== 'member'
+            ? item.author.name
+            : item.author?.handle
+              ? `@${item.author.handle.replace(/^@/, '')}`
+              : 'Creator'}
         </p>
         <span className="inline-flex shrink-0 items-center gap-1 font-inter text-xs text-neutral-500">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>

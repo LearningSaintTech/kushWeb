@@ -1,4 +1,8 @@
 import girlImg from '../../../assets/images/community/communitygirl.jpg'
+import bannerImg from '../../../assets/images/community/Banners.jpeg'
+import menImg from '../../../assets/images/home/category-men.jpg'
+import womenImg from '../../../assets/images/home/category-women.jpg'
+import unisexImg from '../../../assets/images/home/category-unisex.jpg'
 
 const GRID_STYLES = [
   'bg-[linear-gradient(145deg,#a23eea_0%,#e94cc1_34%,#00c3e8_68%,#086acf_100%)]',
@@ -29,10 +33,10 @@ export const CREATOR_PROFILE = {
 export const CREATOR_DASHBOARD = {
   range: 'Last 30 days',
   earnings: {
-    total: '$2,847.50',
-    change: '+12.4%',
-    creator: '$2,847.50',
-    royalties: '$0',
+    total: '$4,620.00',
+    change: '+19.8%',
+    creator: '$2,840',
+    royalties: '$1,780',
   },
   summary: [
     { label: 'Likes', value: '1.2M' },
@@ -43,48 +47,48 @@ export const CREATOR_DASHBOARD = {
     {
       id: 'ep1',
       rank: 1,
-      title: 'Midnight in Shibuya 🇯🇵',
-      views: '1.2M',
-      earnings: '+$142.50',
-      image: girlImg,
+      title: 'Summer Drip Collection',
+      views: '1.2M views',
+      earnings: '+$840',
+      image: menImg,
     },
     {
       id: 'ep2',
       rank: 2,
-      title: 'Behind the scenes: New series',
-      views: '842K',
-      earnings: '+$98.20',
-      image: girlImg,
+      title: 'Behind the Seams: Making...',
+      views: '542K views',
+      earnings: '+$620',
+      image: bannerImg,
     },
     {
       id: 'ep3',
       rank: 3,
-      title: 'Textures and colors...',
-      views: '650K',
-      earnings: '+$76.00',
-      image: girlImg,
+      title: 'Street Style Lookbook',
+      views: '380K views',
+      earnings: '+$480',
+      image: unisexImg,
     },
     {
       id: 'ep4',
       rank: 4,
-      title: 'Future of digital art',
-      views: '420K',
-      earnings: '+$54.10',
-      image: girlImg,
+      title: 'Fabric & Color Theory',
+      views: '210K views',
+      earnings: '+$540',
+      image: womenImg,
     },
     {
       id: 'ep5',
       rank: 5,
-      title: 'Sunday morning peace',
-      views: '310K',
-      earnings: '+$42.80',
+      title: 'Monday Fit Check',
+      views: '98K views',
+      earnings: '+$360',
       image: girlImg,
     },
   ],
   topPosts: [
-    { id: 'tp1', rank: '1ST', earnings: '$142.50', views: '1.2M', image: girlImg, style: GRID_STYLES[0] },
-    { id: 'tp2', rank: '2ND', earnings: '$98.20', views: '842K', image: girlImg, style: GRID_STYLES[3] },
-    { id: 'tp3', rank: '3RD', earnings: '$76.00', views: '650K', image: girlImg, style: GRID_STYLES[4] },
+    { id: 'tp1', rank: '1ST', views: '1.2M views', image: unisexImg, style: GRID_STYLES[0] },
+    { id: 'tp2', rank: '2ND', views: '842K views', image: menImg, style: GRID_STYLES[3] },
+    { id: 'tp3', rank: '3RD', views: '650K views', image: womenImg, style: GRID_STYLES[4] },
   ],
 }
 
@@ -152,44 +156,49 @@ export const DESIGNER_DASHBOARD = {
   earningsPerPost: [
     {
       id: 'dp1',
+      rank: 1,
       title: 'Summer Drip Collection',
-      views: '214K views',
+      views: '1.2M views',
       earnings: '+$840',
-      image: girlImg,
+      image: menImg,
     },
     {
       id: 'dp2',
-      title: 'Quiet Luxury Lookbook',
-      views: '168K views',
+      rank: 2,
+      title: 'Behind the Seams: Making...',
+      views: '542K views',
       earnings: '+$620',
+      image: bannerImg,
+    },
+    {
+      id: 'dp3',
+      rank: 3,
+      title: 'Street Style Lookbook',
+      views: '380K views',
+      earnings: '+$480',
+      image: unisexImg,
+    },
+    {
+      id: 'dp4',
+      rank: 4,
+      title: 'Fabric & Color Theory',
+      views: '210K views',
+      earnings: '+$540',
+      image: womenImg,
+    },
+    {
+      id: 'dp5',
+      rank: 5,
+      title: 'Monday Fit Check',
+      views: '98K views',
+      earnings: '+$360',
       image: girlImg,
     },
-    // {
-    //   id: 'dp3',
-    //   title: 'Studio Neutrals Pack',
-    //   views: '142K views',
-    //   earnings: '+$480',
-    //   image: girlImg,
-    // },
-    // {
-    //   id: 'dp4',
-    //   title: 'Editorial Grid System',
-    //   views: '118K views',
-    //   earnings: '+$410',
-    //   image: girlImg,
-    // },
-    // {
-    //   id: 'dp5',
-    //   title: 'Brand Identity Kit',
-    //   views: '96K views',
-    //   earnings: '+$360',
-    //   image: girlImg,
-    // },
   ],
   topPosts: [
-    { id: 'dt1', views: '1.2M views', image: girlImg, style: GRID_STYLES[0] },
-    { id: 'dt2', views: '380K views', image: girlImg, style: GRID_STYLES[3] },
-    { id: 'dt3', views: '210K views', image: girlImg, style: GRID_STYLES[5] },
+    { id: 'dt1', views: '1.2M views', image: unisexImg, style: GRID_STYLES[0] },
+    { id: 'dt2', views: '380K views', image: menImg, style: GRID_STYLES[3] },
+    { id: 'dt3', views: '210K views', image: womenImg, style: GRID_STYLES[5] },
   ],
 }
 

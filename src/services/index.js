@@ -68,6 +68,7 @@ export {
 export { searchKeywordsService } from './search.service.js';
 export { reviewsService } from './reviews.service.js';
 export { brandsService } from './brands.service.js';
+export { newsService } from './news.service.js';
 export { filtersService } from './filters.service.js';
 export { contactUsService } from './contactUs.service.js';
 export { faqService, faqApiMessage } from './faq.service.js';

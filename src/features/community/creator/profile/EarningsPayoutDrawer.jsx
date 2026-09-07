@@ -42,7 +42,7 @@ export default function EarningsPayoutDrawer({
   const [bankForm, setBankForm] = useState({ ...EMPTY_BANK_FORM })
   const [linking, setLinking] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
-
+const [payoutType, setPayoutType] = useState('bank')
   const [amount, setAmount] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
 

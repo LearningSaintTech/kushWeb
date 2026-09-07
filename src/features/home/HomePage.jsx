@@ -14,6 +14,7 @@ import HomePageLoader from './components/HomePageLoader'
 import DropStory from './components/DropStory'
 import FabricCraft from './components/FabricCraft.jsx'
 import OurStory from './components/OurStory.jsx'
+import NewsMarquee from './components/NewsMarquee.jsx'
 import ShaktimanCollection from './components/ShaktimanCollection.jsx'
 import ShaktimaanFab from './components/ShaktimaanFab.jsx'
 import CategorySpotlight from './components/CategorySpotlight.jsx'
@@ -156,6 +157,7 @@ function HomePage() {
                       <FabricCraft />
                       <ShaktimanCollection section={shaktimanSection} />
                       <OurStory />
+                      <NewsMarquee />
                     </>
                   ) : null}
                   <SectionComponent section={section} />

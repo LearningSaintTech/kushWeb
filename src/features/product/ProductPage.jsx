@@ -1339,8 +1339,8 @@ function ProductPage() {
                     <ul className="list-disc space-y-1.5 pl-4 sm:pl-5 text-xs sm:text-sm md:text-sm lg:text-base text-gray-700">
                       <li>Return requests must be raised within 7 days of delivery.</li>
                       <li>Items must be unused, unwashed, undamaged, and have their original tags attached.</li>
-                      <li>Once the return is approved, the refund amount will be credited to your Khush Cash Wallet.</li>
-                      <li>Khush Cash Wallet refunds will be processed within the specified timeline after return approval.</li>
+                      <li>Once the return is approved, the refund amount will be credited to your Bank Account.</li>
+                      <li>Refunds will be processed within the specified timeline after return approval.</li>
                     </ul>
                   </div>
                 </div>

@@ -61,3 +61,51 @@ export function adjustSummaryForPaymentModeCharges(summary, paymentMode) {
     finalPayable,
   }
 }
+
+/**
+ * Check and compute applicable COD charges from summary charges array or active cart charge configs.
+ */
+export function getApplicableCodCharge({
+  charges = [],
+  activeCartCharges = [],
+  subTotal = 0,
+} = {}) {
+  // 1. Check if summary already contains an isCODSpecial charge with amount > 0
+  if (Array.isArray(charges)) {
+    const codCharge = charges.find(
+      (c) => Boolean(c?.isCODSpecial) && Number(c?.amount ?? 0) > 0,
+    )
+    if (codCharge) {
+      return Number(codCharge.amount ?? 0)
+    }
+  }
+
+  // 2. Check active cart charge rules (e.g. from /cart-charges/getAll-active)
+  const chargeGroups = Array.isArray(activeCartCharges)
+    ? activeCartCharges
+    : Array.isArray(activeCartCharges?.data)
+      ? activeCartCharges.data
+      : []
+
+  for (const group of chargeGroups) {
+    if (!group || group.isActive === false) continue
+    const items = Array.isArray(group.cartCharge) ? group.cartCharge : []
+    for (const item of items) {
+      if (!item || !item.isCODSpecial) continue
+      const rules = item.rules
+      if (!rules) continue
+      const min = rules.min != null ? Number(rules.min) : 0
+      const max = rules.max != null ? Number(rules.max) : Infinity
+      const val = Number(rules.value ?? 0)
+      if (val > 0 && subTotal >= min && subTotal <= max) {
+        if (rules.type === 'PERCENT') {
+          return (Number(subTotal) * val) / 100
+        }
+        return val
+      }
+    }
+  }
+
+  return 0
+}
+

@@ -171,7 +171,7 @@ export default function DesignerDashboard({
   const { user: authUser } = useAuth()
   const role = mode === 'designer' ? 'designer' : 'creator'
   const mock = mode === 'creator' ? CREATOR_DASHBOARD : DESIGNER_DASHBOARD
-  const liveEarningsEnabled = isAppEnvDev()
+  const liveEarningsEnabled = Boolean(authUser) || isAppEnvDev()
 
   const [communityStats, setCommunityStats] = useState(null)
   const [profileMe, setProfileMe] = useState(null)
@@ -189,13 +189,53 @@ export default function DesignerDashboard({
   const [wizardOpen, setWizardOpen] = useState(false)
 
   const { profile: communityContextProfile, selectRole } = useCommunityProfile()
+  
+  const rawDesignerStatus = String(
+    communityContextProfile?.designerVerificationStatus ||
+    profileMe?.designerVerificationStatus ||
+    profileMe?.verificationStatus ||
+    authUser?.designerVerificationStatus ||
+    ''
+  ).toLowerCase().trim()
+
+  const isDesignerPending =
+    rawDesignerStatus === 'pending' ||
+    rawDesignerStatus === 'under_review' ||
+    rawDesignerStatus === 'in_review' ||
+    rawDesignerStatus === 'submitted'
+
+  const isDesignerRejected =
+    rawDesignerStatus === 'rejected' ||
+    rawDesignerStatus === 'declined'
+
+  const isDesignerApproved =
+    rawDesignerStatus === 'verified' ||
+    rawDesignerStatus === 'approved' ||
+    Boolean(communityContextProfile?.isDesignerVerified || profileMe?.isDesignerVerified)
+
   const isUserDesigner = Boolean(
+    isDesignerApproved ||
+    isDesignerPending ||
+    isDesignerRejected ||
     communityContextProfile?.isDesigner ||
+    (Array.isArray(communityContextProfile?.roles) && communityContextProfile.roles.includes('designer')) ||
     profileMe?.isDesigner ||
+    profileMe?.roles?.includes?.('designer') ||
     profileMe?.user?.isDesigner ||
     authUser?.isDesigner ||
-    authUser?.is_designer
+    authUser?.is_designer ||
+    authUser?.role === 'designer' ||
+    (Array.isArray(authUser?.roles) && authUser.roles.includes('designer'))
   )
+
+  const designerRejectionReason =
+    communityContextProfile?.designerRejectionReason ||
+    profileMe?.designerRejectionReason ||
+    profileMe?.rejectionReason ||
+    profileMe?.rejectReason ||
+    authUser?.designerRejectionReason ||
+    authUser?.rejectionReason ||
+    ''
 
   const handleConfirmBecomeDesigner = async () => {
     setNoticeOpen(false)
@@ -480,8 +520,16 @@ export default function DesignerDashboard({
           </svg>
         </button>
         <div className="flex items-center gap-2">
-          {['creator', 'designer'].map((value) => {
+          {(isUserDesigner ? ['creator', 'designer'] : ['creator']).map((value) => {
             const active = mode === value
+            const label =
+              value === 'designer'
+                ? isDesignerPending
+                  ? 'Designer (Pending)'
+                  : isDesignerRejected
+                    ? 'Designer (Rejected)'
+                    : 'Designer'
+                : 'Creator'
             return (
               <button
                 key={value}
@@ -493,7 +541,7 @@ export default function DesignerDashboard({
                     : 'border-[#D9D9D9] bg-white text-[#7A7A7A] hover:border-neutral-400'
                 }`}
               >
-                {value}
+                {label}
               </button>
             )
           })}
@@ -512,88 +560,137 @@ export default function DesignerDashboard({
         </div>
       </div>
 
-      {metricsError || liveEarningsEnabled || data.hasLiveMetrics ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {data.hasLiveMetrics ? (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-inter text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-              Live stats
-            </span>
-          ) : null}
-          {metricsLoading ? (
-            <span className="font-inter text-[11px] text-neutral-400">Loading metrics…</span>
-          ) : null}
-          {metricsError ? (
+      {/* Designer Application Status Banners */}
+      {mode === 'designer' && isDesignerPending && (
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200/90 bg-gradient-to-r from-[#FFFBEB] via-[#FEF3C7]/60 to-[#FFFBEB] p-4 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-inter text-sm font-bold text-amber-950">
+                  Designer Profile Under Review
+                </h4>
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-200/80 px-2 py-0.5 font-inter text-[10px] font-bold text-amber-900">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse" />
+                  PENDING
+                </span>
+              </div>
+              <p className="mt-0.5 font-inter text-xs text-amber-800/90">
+                Your application has been submitted and is awaiting verification. You can review your submitted details anytime.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWizardOpen(true)}
+            className="shrink-0 self-start sm:self-auto cursor-pointer rounded-xl bg-amber-900 px-3.5 py-1.5 font-inter text-xs font-semibold text-white shadow-2xs transition hover:bg-black"
+          >
+            Review Details
+          </button>
+        </div>
+      )}
+
+      {mode === 'designer' && isDesignerRejected && (
+        <div className="mt-4 rounded-2xl border border-red-200 bg-gradient-to-r from-[#FFF5F5] via-[#FEE2E2]/50 to-[#FFF5F5] p-4 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-inter text-sm font-bold text-red-950">
+                    Designer Application Rejected
+                  </h4>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-200/90 px-2 py-0.5 font-inter text-[10px] font-bold text-red-900">
+                    REJECTED
+                  </span>
+                </div>
+                {designerRejectionReason ? (
+                  <div className="mt-2 rounded-xl border border-red-200/80 bg-white/90 p-2.5">
+                    <p className="font-inter text-xs text-red-900">
+                      <span className="font-bold text-red-950">Reason: </span>
+                      {designerRejectionReason}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-0.5 font-inter text-xs text-red-800/90">
+                    Your designer application did not meet verification criteria. You can update your details and re-apply.
+                  </p>
+                )}
+              </div>
+            </div>
             <button
               type="button"
-              onClick={loadCommunityMetrics}
-              className="cursor-pointer font-inter text-[11px] font-medium text-red-600 underline"
+              onClick={() => setWizardOpen(true)}
+              className="shrink-0 self-start sm:self-auto cursor-pointer rounded-xl bg-red-600 px-4 py-2 font-inter text-xs font-bold text-white shadow-2xs transition hover:bg-red-700"
             >
-              {metricsError} — Retry
+              Re-apply Now
             </button>
-          ) : null}
-          {liveEarningsEnabled ? (
-            <>
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 font-inter text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                Dev earnings API
-              </span>
-              {liveLoading ? (
-                <span className="font-inter text-[11px] text-neutral-400">Loading earnings…</span>
-              ) : null}
-              {liveError ? (
-                <button
-                  type="button"
-                  onClick={loadLiveEarnings}
-                  className="cursor-pointer font-inter text-[11px] font-medium text-red-600 underline"
-                >
-                  {liveError} — Retry
-                </button>
-              ) : null}
-              {data.usingLiveEarnings && !liveLoading && !liveError ? (
-                <span className="font-inter text-[11px] text-emerald-600">Live summary</span>
-              ) : null}
-            </>
-          ) : null}
+          </div>
         </div>
-      ) : null}
+      )}
 
-      {/* Creator Dashboard Hero Grid with Total Earnings (+ Become a DESIGNER Banner if not yet a designer) + Stats */}
-      {role === 'creator' && !isUserDesigner ? (
-        <div className="mt-5 grid grid-cols-[1fr_105px] sm:grid-cols-[1fr_110px] items-stretch gap-3">
-          {/* Left Column: Total Earnings Card + Become a DESIGNER Banner */}
-          <div className="flex min-w-0 flex-col gap-3">
-            {/* Total Earnings Card */}
-            <div className="flex min-h-[105px] flex-col justify-between rounded-[1.25rem] bg-[#EFEFEF] p-4 sm:p-5">
+      {/* 2-Column Dashboard Grid: Left (Hero Total Earnings + Banner) | Right (3 Stacked Metric Cards) */}
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-[1fr_130px] md:grid-cols-[1fr_145px] lg:grid-cols-[1fr_155px] items-stretch gap-3 sm:gap-4 lg:gap-5">
+        {/* Left Column: Total Earnings Hero Card + Banner */}
+        <div className="flex flex-col justify-between gap-3 sm:gap-4">
+          {/* Total Earnings Hero Card */}
+          <div className="flex flex-col justify-between rounded-[1.75rem] bg-[#F5F5F7] p-5 sm:p-6 shadow-xs">
+            <div>
               <div className="flex items-start justify-between gap-2">
                 <p className="font-inter text-xs font-semibold text-neutral-500">
                   Total Earnings
                 </p>
-                <span className="inline-flex items-center gap-1 font-inter text-xs font-bold text-black">
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.314 4.314a.75.75 0 001.06 0l7.376-7.376M21 8.25V3.75h-4.5" />
+                <span className="inline-flex items-center gap-1 font-inter text-xs font-semibold text-black">
+                  <svg className="h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
                   </svg>
                   <span>{data.earnings?.change || '+12.4%'}</span>
                 </span>
               </div>
-              <div className="mt-1.5 flex items-baseline justify-between gap-2">
-                <p className="font-inter text-2xl sm:text-3xl font-black tracking-tight text-black">
-                  {data.meta?.available ??
-                    data.earnings?.creator ??
-                    data.earnings?.total ??
-                    '$2,847.50'}
-                </p>
-                {liveEarningsEnabled ? (
-                  <button
-                    type="button"
-                    onClick={() => setPayoutOpen(true)}
-                    className="cursor-pointer font-inter text-[11px] font-semibold text-[#7C5CFF] transition hover:underline"
-                  >
-                    Payout Wallet →
-                  </button>
-                ) : null}
-              </div>
+              <p className="mt-2 font-inter text-3xl sm:text-4xl font-black tracking-tight text-black">
+                {data.meta?.lifetimeEarned || data.earnings?.total || '₹0.00'}
+              </p>
             </div>
 
-            {/* Become a DESIGNER Banner */}
+            {/* Pill-sized Balances & Request Withdrawal Button */}
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-neutral-200/80 pt-3.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 font-inter text-xs font-semibold text-emerald-800">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Available: {data.meta?.available || '₹0.00'}
+              </span>
+
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/80 bg-amber-50 px-3 py-1 font-inter text-xs font-semibold text-amber-800">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                Pending: {data.meta?.pending || '₹0.00'}
+              </span>
+
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-inter text-xs font-medium text-neutral-600">
+                Paid: {data.meta?.lifetimePaid || data.meta?.paidOut || '₹0.00'}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setPayoutOpen(true)}
+                className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-black px-3.5 py-1.5 font-inter text-xs font-bold text-white shadow-xs transition hover:bg-neutral-800 hover:scale-105 active:scale-95"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                <span>Request Withdrawal</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Become a Designer Banner / Mode Banner */}
+          {role === 'creator' && !isUserDesigner ? (
             <div
               role="button"
               tabIndex={0}
@@ -605,7 +702,7 @@ export default function DesignerDashboard({
                 }
               }}
               aria-label="Become a Designer"
-              className="group relative flex h-[105px] sm:h-[115px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-[1.25rem] bg-black px-5 py-3.5 text-white shadow-md transition-all duration-300 hover:scale-[1.01] hover:shadow-xl active:scale-[0.99]"
+              className="group relative flex h-[110px] sm:h-[120px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-[1.75rem] bg-black px-5 py-4 text-white shadow-md transition-all duration-300 hover:scale-[1.01] hover:shadow-xl active:scale-[0.99]"
             >
               {/* Background designer.png */}
               <img
@@ -643,258 +740,167 @@ export default function DesignerDashboard({
                 </svg>
               </div>
             </div>
-          </div>
-
-          {/* Right Column: 3 Metric Cards (Likes, Views, Posts) */}
-          <div className="flex flex-col gap-2.5">
-            {data.summary.map((item) => (
-              <div
-                key={item.label}
-                className="flex flex-1 flex-col justify-center rounded-[1.15rem] bg-[#EFEFEF] px-3 py-2"
-              >
-                <p className="font-inter text-[9px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
-                  {item.label}
-                </p>
-                <p className="mt-1 font-inter text-lg font-bold leading-none text-black">
-                  {metricsLoading && !data.hasLiveMetrics ? '…' : item.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        /* Designer Mode Layout or Creator Mode when already a designer */
-        <div className="mt-5 flex items-stretch gap-3">
-          <div className="flex min-w-0 flex-[1.7] flex-col rounded-[1.25rem] bg-[#EFEFEF] p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-2">
-              <p className="font-inter text-xs font-medium text-neutral-500">
-                {data.meta?.earningsLabel ??
-                  (role === 'designer' ? 'Designer Earnings' : 'Total Earnings')}
-              </p>
-              {liveEarningsEnabled ? (
-                <button
-                  type="button"
-                  onClick={() => setPayoutOpen(true)}
-                  className="cursor-pointer font-inter text-[11px] font-semibold text-[#7C5CFF] transition hover:underline"
-                >
-                  Payout Wallet →
-                </button>
-              ) : null}
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {liveLoading && liveEarningsEnabled && !data.usingLiveEarnings ? (
-                <span className="inline-flex items-center rounded-full bg-white/80 px-3.5 py-1.5 font-inter text-xs font-medium text-neutral-400">
-                  Loading…
+          ) : (
+            <div className="flex min-h-[110px] flex-col justify-center rounded-[1.75rem] bg-neutral-900 px-6 py-5 text-white">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md border border-[#8B5CF6]/50 bg-[#8B5CF6]/20 px-2 py-0.5 font-inter text-[10px] font-bold uppercase tracking-wider text-[#c4b5fd]">
+                  {mode === 'designer' ? 'Designer Mode' : 'Creator Mode'}
                 </span>
-              ) : (
-                <>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3.5 py-1.5 font-inter text-xs font-semibold text-emerald-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">
-                      Available
-                    </span>
-                    <span>
-                      {data.meta?.available ??
-                        data.earnings?.creator ??
-                        data.earnings?.total ??
-                        formatEarningsInr(0)}
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1.5 font-inter text-xs font-semibold text-amber-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600">
-                      Pending
-                    </span>
-                    <span>{data.meta?.pending ?? formatEarningsInr(0)}</span>
-                  </span>
-                  {(data.meta?.paidOutRaw > 0 || data.meta?.paidOut) && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-200/90 px-3.5 py-1.5 font-inter text-xs font-semibold text-neutral-700">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">
-                        Paid
-                      </span>
-                      <span>{data.meta.paidOut}</span>
-                    </span>
-                  )}
-                </>
-              )}
+              </div>
+              <p className="mt-2 font-inter text-sm text-neutral-300">
+                Earn commissions on every product sold through your tagged posts & reels.
+              </p>
             </div>
-
-            {(data.meta?.commissionRate || data.meta?.sourceLabel) && (
-              <div className="mt-auto grid grid-cols-2 gap-3 border-t border-black/10 pt-3.5 font-inter text-xs text-neutral-500">
-                <p>
-                  {data.meta.rateLabel ?? 'Designer Royalty Rate'}
-                  <span className="mt-0.5 block font-semibold text-black">
-                    {data.meta.commissionRate ?? '1%'}
-                  </span>
-                </p>
-                <p className="text-right">
-                  Source
-                  <span className="mt-0.5 block font-semibold text-[#EAB308]">
-                    {data.meta.sourceLabel ?? 'Design Catalog Sales'}
-                  </span>
-                </p>
-              </div>
-            )}
-            {liveEarningsEnabled ? (
-              <button
-                type="button"
-                onClick={() => setPayoutOpen(true)}
-                className="mt-4 w-full cursor-pointer rounded-xl bg-black py-2.5 font-inter text-xs font-bold text-white transition hover:bg-neutral-800"
-              >
-                Request Withdraw
-              </button>
-            ) : null}
-          </div>
-
-          <div className="flex w-[100px] shrink-0 flex-col gap-2.5 sm:w-[110px]">
-            {data.summary.map((item) => (
-              <div
-                key={item.label}
-                className="flex flex-1 flex-col justify-center rounded-[1.15rem] bg-[#EFEFEF] px-3 py-2.5"
-              >
-                <p className="font-inter text-[9px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
-                  {item.label}
-                </p>
-                <p className="mt-1 font-inter text-lg font-bold leading-none text-black">
-                  {metricsLoading && !data.hasLiveMetrics ? '…' : item.value}
-                </p>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
-      )}
 
-      <section className="mt-7">
+        {/* Right Column: 3 Metric Cards (Likes, Views, Posts) */}
+        <div className="flex shrink-0 flex-row sm:flex-col gap-3">
+          {data.summary.map((item) => (
+            <div
+              key={item.label}
+              className="flex flex-1 flex-col justify-center rounded-[1.25rem] bg-[#F5F5F7] px-4 py-3.5 sm:py-4"
+            >
+              <p className="font-inter text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                {item.label}
+              </p>
+              <p className="mt-1 font-inter text-xl sm:text-2xl font-bold leading-none text-black">
+                {metricsLoading && !data.hasLiveMetrics ? '…' : item.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Commissions / Earnings Per Post Section */}
+      <section className="mt-8">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="font-inter text-sm font-bold text-black">
-            {data.meta?.listTitle ??
-              (data.hasLiveCommissions
-                ? role === 'designer'
-                  ? 'Recent Design Royalties'
-                  : 'Recent Creator Commissions'
-                : 'Earnings Per Post')}
-          </h3>
+          <div>
+            <h3 className="font-inter text-base font-bold text-black">
+              Earnings Per Post
+            </h3>
+            <p className="font-inter text-xs text-neutral-400">
+              Orders and earnings from your tagged community content
+            </p>
+          </div>
           <button
             type="button"
-            className="cursor-pointer font-inter text-xs font-medium text-neutral-400 transition hover:text-black"
+            onClick={() => setPayoutOpen(true)}
+            className="cursor-pointer font-inter text-xs font-semibold text-neutral-600 transition hover:text-black"
           >
-            Details
+            Details →
           </button>
         </div>
-        <ul className="mt-3 divide-y divide-neutral-200/80">
-          {data.earningsPerPost.length > 0 ? (
-            data.earningsPerPost.map((row, index) => (
-              <li key={row.id} className="flex items-center gap-3 py-3.5 first:pt-1 last:pb-0">
-                <span className="w-3.5 shrink-0 font-inter text-xs font-semibold text-neutral-400">
-                  {row.rank ?? index + 1}
-                </span>
-                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-neutral-200">
-                  {row.image ? (
-                    <img src={row.image} alt="" className="h-full w-full object-cover" />
-                  ) : null}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-inter text-sm font-semibold text-black">{row.title}</p>
-                  <p className="flex items-center gap-1 font-inter text-xs text-neutral-400">
-                    <svg className="h-3 w-3 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>{row.views}</span>
-                  </p>
-                </div>
-                <p className="shrink-0 font-inter text-sm font-bold text-black">
-                  {row.earnings}
-                </p>
-              </li>
-            ))
-          ) : (
-            <li className="py-4 font-inter text-sm text-neutral-400">
-              {data.meta?.emptyListText ??
-                (role === 'designer'
-                  ? 'No royalties earned yet from design sales.'
-                  : 'No commissions earned yet from tagged posts.')}
-            </li>
-          )}
-        </ul>
-      </section>
 
-      {liveEarningsEnabled && data.payouts.length > 0 ? (
-        <section className="mt-7">
-          <h3 className="font-inter text-sm font-bold text-black">Payouts</h3>
-          <ul className="mt-3 divide-y divide-neutral-200/80">
-            {data.payouts.slice(0, 5).map((payout, index) => {
-              const amount =
-                payout.amount ?? payout.netAmount ?? payout.payoutAmount ?? 0
-              const meta = payoutStatusMeta(payout.status)
-              const when = payout.createdAt || payout.paidAt || payout.updatedAt
+        {data.earningsPerPost.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 p-8 text-center">
+            <p className="font-inter text-sm font-medium text-neutral-600">
+              {data.meta?.emptyListText || 'No commissions earned yet.'}
+            </p>
+            <p className="mt-1 font-inter text-xs text-neutral-400">
+              Tag products in your posts and reels to start earning affiliate commissions!
+            </p>
+          </div>
+        ) : (
+          <ul className="mt-3.5 divide-y divide-neutral-100 rounded-2xl border border-neutral-100 bg-white p-2 shadow-xs">
+            {data.earningsPerPost.map((row, index) => {
+              const isPending = String(row.rawStatus || row.status).toLowerCase() === 'pending'
+              const isCancelled = String(row.rawStatus || row.status).toLowerCase() === 'cancelled'
               return (
-                <li
-                  key={String(payout._id ?? payout.id ?? `p-${index}`)}
-                  className="flex items-center justify-between gap-3 py-3 first:pt-1 last:pb-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-inter text-sm font-semibold text-black">
-                      ₹
-                      {Number(amount).toLocaleString('en-IN', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </p>
-                    <p className="font-inter text-xs text-neutral-400">
-                      {when
-                        ? new Date(when).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })
-                        : '—'}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 font-inter text-[10px] font-semibold ${meta.className}`}
-                  >
-                    {meta.label}
+                <li key={row.id || index} className="flex items-center gap-3 sm:gap-4 p-3 hover:bg-neutral-50/80 rounded-xl transition">
+                  <span className="w-4 shrink-0 font-inter text-xs font-semibold text-neutral-400 text-center">
+                    {row.rank ?? index + 1}
                   </span>
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-neutral-100 border border-black/5">
+                    {row.image ? (
+                      <img src={row.image} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] text-neutral-400">
+                        Item
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-inter text-sm sm:text-base font-semibold text-black">
+                        {row.title}
+                      </p>
+                      <span
+                        className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 font-inter text-[10px] font-bold ${
+                          isPending
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200/80'
+                            : isCancelled
+                              ? 'bg-red-50 text-red-700 border border-red-200/80'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                        }`}
+                      >
+                        {row.status || 'Available'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 font-inter text-xs text-neutral-400">
+                      {/* {row.orderId ? (
+                        <span>Order: {row.orderId}</span>
+                      ) : null}
+                      {row.sku ? (
+                        <span>SKU: {row.sku}</span>
+                      ) : null} */}
+                      {row.baseAmount ? (
+                        <span>Sale: {row.baseAmount} {row.ratePct ? `(${row.ratePct})` : ''}</span>
+                      ) : null}
+                      {row.date ? (
+                        <span>{row.date}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className={`font-inter text-sm sm:text-base font-bold ${
+                      isCancelled ? 'text-neutral-400 line-through' : 'text-[#10B981]'
+                    }`}>
+                      {row.earnings}
+                    </p>
+                    <span className="font-inter text-[10px] text-neutral-400">
+                      Commission
+                    </span>
+                  </div>
                 </li>
               )
             })}
           </ul>
-        </section>
-      ) : null}
+        )}
+      </section>
 
-      {/* Top Performing Posts - commented out for now
-      <section className="mt-7">
-        <h3 className="font-inter text-sm font-bold text-black">Top Performing Posts</h3>
-        <div className="scrollbar-hide mt-3 flex gap-3 overflow-x-auto pb-1">
+      {/* Top Performing Posts (Commented out) */}
+      {/* <section className="mt-8">
+        <h3 className="font-inter text-base font-bold text-black mb-3.5">Top Performing Posts</h3>
+        <div className="scrollbar-hide flex gap-3.5 overflow-x-auto pb-1">
           {topPosts.map((post) => (
             <article
               key={post.id}
-              className="relative w-[110px] sm:w-[124px] shrink-0 overflow-hidden rounded-2xl bg-neutral-100"
+              className="relative w-[130px] sm:w-[150px] shrink-0 overflow-hidden rounded-2xl bg-neutral-100 shadow-sm"
             >
-              <div className={`aspect-[4/5] ${post.style} overflow-hidden rounded-2xl`}>
+              <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-neutral-200">
                 {post.image ? (
                   <img
                     src={post.image}
                     alt=""
-                    className="h-full w-full object-cover mix-blend-overlay transition-transform duration-300 hover:scale-105"
+                    className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
                   />
                 ) : null}
               </div>
-              <div className="mt-1.5 flex items-center justify-between px-1">
-                {post.rank ? (
-                  <span className="rounded bg-amber-100 px-1.5 py-0.5 font-inter text-[9px] font-bold text-amber-900">
-                    {post.rank}
+              <div className="mt-2 flex items-center justify-between px-1 pb-1">
+                <span className="font-inter text-xs font-semibold text-neutral-500">
+                  {post.views}
+                </span>
+                {post.earnings ? (
+                  <span className="font-inter text-xs font-bold text-[#10B981]">
+                    {post.earnings}
                   </span>
                 ) : null}
-                <span className="font-inter text-[11px] font-bold text-black">
-                  {post.earnings ?? post.views}
-                </span>
               </div>
             </article>
           ))}
         </div>
-      </section>
-      */}
+      </section> */}
 
       <CreatorSettingsDrawer
         open={settingsOpen}

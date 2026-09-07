@@ -7,8 +7,8 @@ import {
 } from '../../hooks/useCommunitySocialProfile'
 import { communityProfileService } from '../../../../services/communityProfile.service'
 import { debugError, debugLog } from '../../../../utils/debugLog'
-import { playlistFromGrid } from '../../utils/openReel'
 import { shareCommunityProfile } from '../../utils/shareProfile'
+import { getPublicImageUrl } from '../../../../services/config'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -66,18 +66,85 @@ export default function DesignerProfileCard({
     }
   }, [localCoverPreview, localAvatarPreview])
 
+  const rawCover =
+    localCoverPreview ||
+    social?.coverImage ||
+    social?.designerCoverImage ||
+    social?.cover ||
+    onboarding?.designerCoverImage ||
+    onboarding?.coverImage ||
+    onboarding?.bannerImage ||
+    onboarding?.bannerUrl ||
+    onboarding?.cover ||
+    user?.coverImage ||
+    '';
+  const rawAvatar =
+    localAvatarPreview ||
+    social?.avatar ||
+    onboarding?.profileImage ||
+    user?.profileImage ||
+    user?.avatar ||
+    '';
+
+  const rawName =
+    social?.name ||
+    onboarding?.name ||
+    user?.fullName ||
+    user?.name ||
+    user?.username ||
+    '';
+  const name =
+    rawName && String(rawName).trim().toLowerCase() !== 'member'
+      ? rawName
+      : social?.handle || onboarding?.username || user?.username
+        ? `@${String(social?.handle || onboarding?.username || user?.username).replace(/^@/, '')}`
+        : 'Designer';
+
+  const rawStatus = String(
+    social?.designerVerificationStatus ||
+    onboarding?.designerVerificationStatus ||
+    onboarding?.verificationStatus ||
+    user?.designerVerificationStatus ||
+    ''
+  ).toLowerCase().trim()
+
+  const isPending =
+    rawStatus === 'pending' ||
+    rawStatus === 'under_review' ||
+    rawStatus === 'in_review' ||
+    rawStatus === 'submitted'
+
+  const isRejected =
+    rawStatus === 'rejected' ||
+    rawStatus === 'declined'
+
+  const isVerified =
+    rawStatus === 'verified' ||
+    rawStatus === 'approved' ||
+    Boolean(onboarding?.isDesignerVerified || social?.isDesignerVerified)
+
+  const rejectionReason =
+    social?.designerRejectionReason ||
+    social?.rejectionReason ||
+    onboarding?.designerRejectionReason ||
+    onboarding?.rejectionReason ||
+    onboarding?.rejectReason ||
+    user?.designerRejectionReason ||
+    user?.rejectionReason ||
+    ''
+
   const profile = {
     id: social?.id || onboarding?._id || onboarding?.id || user?._id || user?.id,
-    name: social?.name || onboarding?.name || 'Member',
-    handle: social?.handle || onboarding?.username || '',
-    avatar: localAvatarPreview || social?.avatar || onboarding?.profileImage || '',
+    name,
+    handle: social?.handle || onboarding?.username || user?.username || '',
+    avatar: getPublicImageUrl(rawAvatar),
     tagline:
       social?.bio ||
       onboarding?.designerTagline ||
       onboarding?.designerBio ||
       onboarding?.shortBio ||
       '',
-    cover: localCoverPreview || onboarding?.designerCoverImage || '',
+    cover: getPublicImageUrl(rawCover),
     badge: social?.isDesigner || onboarding?.isDesigner ? 'DESIGNER' : 'CREATOR',
     openToWork: Boolean(onboarding?.openToWork),
     stats: {
@@ -159,7 +226,7 @@ export default function DesignerProfileCard({
   }
 
   return (
-    <div className="w-full max-w-[380px] overflow-hidden rounded-2xl bg-[#111111] text-white shadow-[0_16px_48px_rgba(0,0,0,0.18)]">
+    <div className="w-full overflow-hidden rounded-2xl bg-[#111111] text-white shadow-[0_16px_48px_rgba(0,0,0,0.18)]">
       <div className="group relative h-28 w-full sm:h-32 bg-gradient-to-r from-neutral-800 via-neutral-900 to-[#111111]">
         {profile.cover ? (
           <img src={profile.cover} alt="" className="h-full w-full object-cover" />
@@ -240,10 +307,71 @@ export default function DesignerProfileCard({
           <p className="font-inter text-sm text-white/50">
             @{profile.handle || 'username'}
           </p>
-          <span className="rounded-md border border-[#8B5CF6]/60 px-2 py-0.5 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-[#c4b5fd]">
-            {profile.badge}
-          </span>
+          {isPending ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 bg-amber-500/20 px-2 py-0.5 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-amber-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              PENDING VERIFICATION
+            </span>
+          ) : isRejected ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-red-500/50 bg-red-500/20 px-2 py-0.5 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-red-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+              REJECTED
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-[#8B5CF6]/60 px-2 py-0.5 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-[#c4b5fd]">
+              {profile.badge}
+            </span>
+          )}
         </div>
+
+        {/* Verification Status Alert Cards */}
+        {isPending ? (
+          <div className="mx-auto mt-3 max-w-[20rem] rounded-xl border border-amber-500/30 bg-amber-950/40 p-3 text-left">
+            <div className="flex items-start gap-2.5">
+              <svg className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="font-inter text-xs font-semibold text-amber-200">Application Under Review</p>
+                <p className="mt-0.5 font-inter text-[11px] text-amber-300/80 leading-relaxed">
+                  Your designer profile is currently pending verification. You can update your portfolio while our team reviews it.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isRejected ? (
+          <div className="mx-auto mt-3 max-w-[20rem] rounded-xl border border-red-500/30 bg-red-950/50 p-3 text-left">
+            <div className="flex items-start gap-2.5">
+              <svg className="h-4 w-4 shrink-0 text-red-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-inter text-xs font-semibold text-red-200">Application Rejected</p>
+                {rejectionReason ? (
+                  <div className="mt-1 rounded-lg border border-red-800/40 bg-red-900/40 p-2">
+                    <p className="font-inter text-[11px] font-medium text-red-100">
+                      <span className="font-bold text-red-300">Reason: </span>
+                      {rejectionReason}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-0.5 font-inter text-[11px] text-red-200/80 leading-relaxed">
+                    Your designer application did not pass verification.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={onEditProfile}
+                  className="mt-2 inline-flex cursor-pointer items-center gap-1 font-inter text-xs font-bold text-white underline hover:text-red-200"
+                >
+                  Edit & Re-apply →
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {profile.tagline ? (
           <p className="mx-auto mt-3 max-w-[18rem] font-inter text-xs leading-relaxed text-white/55">
@@ -258,14 +386,14 @@ export default function DesignerProfileCard({
           </p>
         ) : null}
 
-        <div className="mt-5 grid grid-cols-3 gap-1 rounded-2xl bg-[#1c1c1c] px-2 py-3.5">
+        <div className="mt-5 grid grid-cols-3 gap-1 rounded-2xl bg-[#18181A] px-2 py-4">
           {[
             [profile.stats.followers, 'Followers'],
             [profile.stats.following, 'Following'],
             [profile.stats.posts, 'Post'],
           ].map(([value, label]) => (
             <div key={label}>
-              <p className="font-inter text-base font-bold text-white">{value}</p>
+              <p className="font-inter text-lg font-bold text-white">{value}</p>
               <p className="font-inter text-[11px] text-white/40">{label}</p>
             </div>
           ))}
@@ -275,14 +403,14 @@ export default function DesignerProfileCard({
           <button
             type="button"
             onClick={handleShare}
-            className="cursor-pointer rounded-xl bg-[#2a2a2a] py-2.5 font-inter text-sm font-semibold text-white transition hover:bg-[#333]"
+            className="cursor-pointer rounded-2xl bg-[#1C1C1E] py-3 font-inter text-sm font-semibold text-white transition hover:bg-[#252528]"
           >
             {copied ? 'Link Copied!' : 'Share Profile'}
           </button>
           <button
             type="button"
             onClick={onViewPortfolio}
-            className="cursor-pointer rounded-xl bg-[#8B5CF6] py-2.5 font-inter text-sm font-semibold text-white transition hover:bg-[#7c4feb]"
+            className="cursor-pointer rounded-2xl bg-[#1E1238] border border-[#7C5CFF]/40 py-3 font-inter text-sm font-semibold text-[#C4B5FD] transition hover:bg-[#2A194E]"
           >
             View Portfolio
           </button>

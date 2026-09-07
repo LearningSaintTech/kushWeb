@@ -57,8 +57,8 @@ export default function CommunityCreatorProfile() {
   }
 
   return (
-    <div className="flex w-full flex-col items-stretch gap-5 py-1 lg:flex-row lg:items-start lg:gap-6 xl:gap-7">
-      <div className="w-full min-w-0 max-w-[380px] shrink-0">
+    <div className="flex w-full flex-col items-stretch gap-6 py-1 lg:flex-row lg:items-start lg:gap-8 xl:gap-10">
+      <div className="w-full min-w-0 max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[400px] 2xl:w-[430px] lg:max-w-none shrink-0">
         {editing ? (
           <CreatorEditProfile
             onBack={() => setEditing(false)}
@@ -71,7 +71,7 @@ export default function CommunityCreatorProfile() {
           />
         )}
       </div>
-      <div className="min-w-0 flex-1 lg:sticky lg:top-2 lg:max-w-[520px]">
+      <div className="min-w-0 flex-1 w-full lg:sticky lg:top-2">
         <DesignerDashboard mode={dashMode} onModeChange={setDashMode} />
       </div>
     </div>

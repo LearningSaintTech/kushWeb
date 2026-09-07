@@ -321,7 +321,6 @@ export default function CommunityFeedLayout({
         : activeNav
 
   return (
-    <CommunitySocialProvider>
     <div className={`relative flex h-dvh min-h-0 w-full flex-col overflow-hidden lg:flex-row ${isReels ? 'bg-black' : 'bg-white'}`}>
       <header
         className={`flex shrink-0 items-center justify-between px-4 py-3 lg:hidden ${
@@ -452,11 +451,11 @@ export default function CommunityFeedLayout({
       <div
         className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${
           isSaved || isJoinCanvas
-            ? ''
+            ? 'w-full'
             : isReels
               ? 'items-stretch justify-center bg-black px-0 sm:px-2 lg:px-4'
               : 'justify-center px-4 lg:px-8 xl:px-10'
-        } ${isJoinCanvas ? 'bg-[#f5f5f5]' : isReels ? 'bg-black' : 'bg-white'}`}
+        } ${isProfile ? 'bg-white' : isJoinCanvas ? 'bg-[#f5f5f5]' : isReels ? 'bg-black' : 'bg-white'}`}
       >
         {isReels ? (
           /* Fullscreen Shorts stage — one reel fills the column */
@@ -466,7 +465,7 @@ export default function CommunityFeedLayout({
         ) : (
           <div
             className={`flex h-full min-w-0 ${
-              isSaved || isJoinCanvas
+              isSaved || isJoinCanvas || isProfileShell
                 ? 'w-full'
                 : isSearch
                   ? 'w-full max-w-[1100px] gap-8 xl:gap-10'
@@ -479,8 +478,7 @@ export default function CommunityFeedLayout({
                   isSaved
                     ? 'w-full px-6 py-6 sm:px-8 lg:px-10'
                     : isProfileShell
-                      ? // Profile + dashboard: tight to sidebar (matches mock on lg/xl)
-                        'w-full px-3 py-4 sm:px-4 lg:px-5 lg:py-5 xl:px-6'
+                      ? 'w-full max-w-[1360px] mx-auto px-4 py-4 sm:px-6 lg:px-8 lg:py-6'
                       : isCreateJoin
                         ? 'flex min-h-full w-full items-stretch px-4 py-6 sm:px-8 lg:px-12'
                         : isSearch
@@ -548,6 +546,5 @@ export default function CommunityFeedLayout({
         onPosted={handlePosted}
       />
     </div>
-    </CommunitySocialProvider>
   )
 }

@@ -98,10 +98,17 @@ export function CommunityProfileProvider({ children }) {
   );
 }
 
+const FALLBACK_PROFILE_CONTEXT = {
+  profile: null,
+  loading: false,
+  error: null,
+  refresh: async () => null,
+  selectRole: async () => null,
+  applyProfile: (data) => data,
+  setProfile: () => {},
+};
+
 export function useCommunityProfile() {
   const ctx = useContext(CommunityProfileContext);
-  if (!ctx) {
-    throw new Error('useCommunityProfile must be used within CommunityProfileProvider');
-  }
-  return ctx;
+  return ctx || FALLBACK_PROFILE_CONTEXT;
 }

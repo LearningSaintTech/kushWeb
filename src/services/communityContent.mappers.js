@@ -4,6 +4,7 @@
  */
 
 import { logCommunity } from './communityApi.js';
+import { getPublicImageUrl } from './config.js';
 
 function formatCount(n) {
   const num = Number(n) || 0;
@@ -38,14 +39,14 @@ function mediaList(content) {
 function primaryImageUrl(content) {
   const list = mediaList(content);
   const thumb = list.find((m) => m.kind === 'thumbnail' && m.url);
-  if (thumb?.url) return thumb.url;
+  if (thumb?.url) return getPublicImageUrl(thumb.url);
   const image = list.find((m) => m.kind === 'image' && m.url);
-  if (image?.url) return image.url;
+  if (image?.url) return getPublicImageUrl(image.url);
   const any = list.find((m) => m.url && !String(m.mimeType || '').startsWith('video/'));
-  if (any?.url) return any.url;
+  if (any?.url) return getPublicImageUrl(any.url);
   // Reel / video-only: prefer first url (often used as poster) or product image
-  if (content?.item?.imageUrl) return content.item.imageUrl;
-  return list[0]?.url || '';
+  if (content?.item?.imageUrl) return getPublicImageUrl(content.item.imageUrl);
+  return list[0]?.url ? getPublicImageUrl(list[0].url) : '';
 }
 
 function videoUrl(content) {
@@ -65,7 +66,7 @@ function mapItemChip(item, fallbackName) {
       item?.discountedPrice != null && item?.originalPrice != null
         ? `₹${Number(item.originalPrice).toLocaleString('en-IN')}`
         : null,
-    image: item?.imageUrl || item?.image || item?.thumb || '',
+    image: getPublicImageUrl(item?.imageUrl || item?.image || item?.thumb || ''),
     color: item?.color || null,
     colorHex: item?.colorHex || null,
     size: item?.size || null,
@@ -100,6 +101,113 @@ function mapTaggedProducts(content) {
   return chip ? [chip] : [];
 }
 
+export function resolveAuthorName(content) {
+  if (!content) return 'Creator';
+  const authorObj = typeof content.author === 'object' && content.author !== null ? content.author : null;
+  const userObj = typeof content.user === 'object' && content.user !== null ? content.user : null;
+  const creatorObj = typeof content.creator === 'object' && content.creator !== null ? content.creator : null;
+  const postedByObj = typeof content.postedBy === 'object' && content.postedBy !== null ? content.postedBy : null;
+
+  const rawName =
+    content.authorName ||
+    authorObj?.name ||
+    authorObj?.fullName ||
+    authorObj?.displayName ||
+    userObj?.name ||
+    userObj?.fullName ||
+    userObj?.displayName ||
+    creatorObj?.name ||
+    creatorObj?.fullName ||
+    creatorObj?.displayName ||
+    postedByObj?.name ||
+    postedByObj?.fullName ||
+    postedByObj?.displayName ||
+    content.authorFullName ||
+    content.authorDisplayName ||
+    content.creatorName ||
+    content.userName ||
+    content.fullName ||
+    content.displayName ||
+    content.name ||
+    authorObj?.username ||
+    userObj?.username ||
+    creatorObj?.username ||
+    postedByObj?.username ||
+    content.authorUsername ||
+    content.username ||
+    content.handle ||
+    '';
+
+  const trimmed = String(rawName).trim();
+  if (trimmed && trimmed.toLowerCase() !== 'member') {
+    return trimmed;
+  }
+
+  const rawHandle =
+    authorObj?.username ||
+    userObj?.username ||
+    creatorObj?.username ||
+    postedByObj?.username ||
+    content.authorUsername ||
+    content.username ||
+    content.handle ||
+    '';
+  if (rawHandle && String(rawHandle).trim()) {
+    return `@${String(rawHandle).replace(/^@/, '').trim()}`;
+  }
+
+  return 'Creator';
+}
+
+export function resolveAuthorHandle(content) {
+  if (!content) return '';
+  const authorObj = typeof content.author === 'object' && content.author !== null ? content.author : null;
+  const userObj = typeof content.user === 'object' && content.user !== null ? content.user : null;
+  const creatorObj = typeof content.creator === 'object' && content.creator !== null ? content.creator : null;
+  const postedByObj = typeof content.postedBy === 'object' && content.postedBy !== null ? content.postedBy : null;
+
+  const handle =
+    content.authorUsername ||
+    content.authorHandle ||
+    authorObj?.username ||
+    authorObj?.handle ||
+    userObj?.username ||
+    userObj?.handle ||
+    creatorObj?.username ||
+    creatorObj?.handle ||
+    postedByObj?.username ||
+    postedByObj?.handle ||
+    content.username ||
+    content.handle ||
+    '';
+  return String(handle).replace(/^@/, '').trim();
+}
+
+export function resolveAuthorAvatar(content, fallbackImage = '') {
+  if (!content) return getPublicImageUrl(fallbackImage);
+  const authorObj = typeof content.author === 'object' && content.author !== null ? content.author : null;
+  const userObj = typeof content.user === 'object' && content.user !== null ? content.user : null;
+  const creatorObj = typeof content.creator === 'object' && content.creator !== null ? content.creator : null;
+  const postedByObj = typeof content.postedBy === 'object' && content.postedBy !== null ? content.postedBy : null;
+
+  const raw =
+    content.authorAvatar ||
+    content.authorProfileImage ||
+    authorObj?.profileImage ||
+    authorObj?.avatar ||
+    userObj?.profileImage ||
+    userObj?.avatar ||
+    creatorObj?.profileImage ||
+    creatorObj?.avatar ||
+    postedByObj?.profileImage ||
+    postedByObj?.avatar ||
+    content.profileImage ||
+    content.avatar ||
+    fallbackImage ||
+    '';
+  return getPublicImageUrl(raw);
+}
+
 /**
  * API content → PostCard / detail shape used across community feed UI.
  */
@@ -107,31 +215,40 @@ export function mapContentToPost(content) {
   if (!content) return null;
   const images = mediaList(content)
     .filter((m) => m.kind === 'image' || (m.url && !String(m.mimeType || '').startsWith('video/')))
-    .map((m) => m.url)
+    .map((m) => getPublicImageUrl(m.url))
     .filter(Boolean);
   const image = primaryImageUrl(content) || images[0] || '';
 
-  const authorId = content.authorId || content.author?._id || content.author?.id || (typeof content.author === 'string' ? content.author : '')
+  const authorId =
+    content.authorId ||
+    content.author?._id ||
+    content.author?.id ||
+    content.user?._id ||
+    content.user?.id ||
+    content.creator?._id ||
+    content.creator?.id ||
+    (typeof content.author === 'string' ? content.author : '');
+
   const isFollowing = Boolean(
     content.isFollowing ??
     content.authorIsFollowing ??
     content.author?.isFollowing ??
-    content.author?.isFollowed
-  )
+    content.author?.isFollowed ??
+    content.user?.isFollowing
+  );
+
+  const authorName = resolveAuthorName(content);
+  const authorHandle = resolveAuthorHandle(content);
+  const authorAvatar = resolveAuthorAvatar(content, image);
 
   const post = {
     id: content._id || content.id ? String(content._id || content.id) : '',
     author: {
       id: authorId ? String(authorId) : '',
-      name: content.authorName || content.author?.name || 'Member',
-      handle: content.authorUsername || content.author?.username || '',
-      role: (content.authorRole || content.author?.role || 'creator').toUpperCase(),
-      avatar:
-        content.authorAvatar ||
-        content.authorProfileImage ||
-        content.author?.profileImage ||
-        content.author?.avatar ||
-        image,
+      name: authorName,
+      handle: authorHandle,
+      role: (content.authorRole || content.author?.role || content.role || 'creator').toUpperCase(),
+      avatar: authorAvatar,
       isFollowing,
     },
     isFollowing,
@@ -391,17 +508,56 @@ export function mapSocialProfile(raw) {
   const reelsGrid = reels.map((c) => toGridItem(c, 'reel')).filter(Boolean);
   const taggedGrid = tagged.map((c) => toGridItem(c, 'tagged')).filter(Boolean);
 
+  const rawCover =
+    raw.coverImage ||
+    raw.designerCoverImage ||
+    raw.coverPhoto ||
+    raw.cover ||
+    raw.bannerImage ||
+    raw.bannerUrl ||
+    raw.banner ||
+    '';
+  const coverImage = getPublicImageUrl(rawCover);
+  const avatarImage = getPublicImageUrl(raw.profileImage || raw.avatar || '');
+
+  const rawName =
+    raw.fullName ||
+    raw.name ||
+    raw.displayName ||
+    raw.userName ||
+    raw.username ||
+    '';
+  const trimmedName = String(rawName).trim();
+  const displayName =
+    trimmedName && trimmedName.toLowerCase() !== 'member'
+      ? trimmedName
+      : raw.username
+        ? `@${String(raw.username).replace(/^@/, '').trim()}`
+        : 'Creator';
+
   const profile = {
     id: raw.userId || raw._id || raw.id,
-    name: raw.fullName || raw.name || 'Member',
+    name: displayName,
     handle: String(raw.username || '')
       .replace(/^@/, '')
       .trim(),
-    bio: raw.shortBio || raw.bio || '',
-    avatar: raw.profileImage || '',
+    bio: raw.shortBio || raw.bio || raw.designerBio || raw.creatorBio || '',
+    avatar: avatarImage,
+    coverImage,
+    designerCoverImage: coverImage,
     isCreator: Boolean(raw.isCreator),
     isDesigner: Boolean(raw.isDesigner),
-    designerVerificationStatus: raw.designerVerificationStatus || null,
+    designerVerificationStatus:
+      raw.designerVerificationStatus ||
+      raw.verificationStatus ||
+      raw.designerStatus ||
+      null,
+    designerRejectionReason:
+      raw.designerRejectionReason ||
+      raw.rejectionReason ||
+      raw.rejectReason ||
+      raw.designerRejectReason ||
+      null,
     isFollowing: Boolean(raw.isFollowing),
     isOwnProfile: Boolean(raw.isOwnProfile),
     isBlocked: Boolean(raw.isBlocked),

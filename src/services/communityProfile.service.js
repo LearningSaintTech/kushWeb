@@ -266,6 +266,9 @@ export {
   isCommunityProfileDeleted,
   mapDeletedCommunityProfileResponse,
   isDesignerVerified,
+  isDesignerPending,
+  isDesignerRejected,
   isDesignerOnboardingIncomplete,
   isCreatorOnboardingIncomplete,
 } from './communityProfile.mappers.js';
+

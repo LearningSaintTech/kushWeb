@@ -1,10 +1,16 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../../../app/context/AuthContext'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import { useCommunityRole } from '../../hooks/useCommunityRole'
-import { useCommunitySocialProfile } from '../../hooks/useCommunitySocialProfile'
+import {
+  useCommunitySocialProfile,
+  requestCommunityProfileRefresh,
+} from '../../hooks/useCommunitySocialProfile'
+import { communityProfileService } from '../../../../services/communityProfile.service'
 import { playlistFromGrid } from '../../utils/openReel'
 import { shareCommunityProfile } from '../../utils/shareProfile'
+import { getPublicImageUrl } from '../../../../services/config.js'
+import { debugError, debugLog } from '../../../../utils/debugLog.js'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
 
@@ -39,23 +45,59 @@ function PencilIcon({ className }) {
 export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
   const [tab, setTab] = useState('Posts')
   const [copied, setCopied] = useState(false)
+  const [localAvatarPreview, setLocalAvatarPreview] = useState(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+
   const avatarInputRef = useRef(null)
+
   const { user } = useAuth()
   const role = useCommunityRole()
-  const { profile: onboarding } = useCommunityProfile()
-  const { profile: social, loading } = useCommunitySocialProfile()
+  const {
+    profile: onboarding,
+    applyProfile,
+    refresh: refreshOnboarding,
+  } = useCommunityProfile()
+  const { profile: social, loading, refresh: refreshSocial } = useCommunitySocialProfile()
+
+  useEffect(() => {
+    return () => {
+      if (localAvatarPreview?.startsWith('blob:')) URL.revokeObjectURL(localAvatarPreview)
+    }
+  }, [localAvatarPreview])
+
+  const rawAvatar =
+    localAvatarPreview ||
+    social?.avatar ||
+    onboarding?.profileImage ||
+    user?.profileImage ||
+    user?.avatar ||
+    '';
+
+  const rawName =
+    social?.name ||
+    onboarding?.name ||
+    user?.fullName ||
+    user?.name ||
+    user?.username ||
+    '';
+  const name =
+    rawName && String(rawName).trim().toLowerCase() !== 'member'
+      ? rawName
+      : social?.handle || onboarding?.username || user?.username
+        ? `@${String(social?.handle || onboarding?.username || user?.username).replace(/^@/, '')}`
+        : 'Creator';
 
   const profile = {
     id: social?.id || onboarding?._id || onboarding?.id || user?._id || user?.id,
-    name: social?.name || onboarding?.name || 'Member',
-    handle: social?.handle || onboarding?.username || '',
+    name,
+    handle: social?.handle || onboarding?.username || user?.username || '',
     bio:
       social?.bio ||
       onboarding?.creatorBio ||
       onboarding?.designerBio ||
       onboarding?.shortBio ||
       '',
-    avatar: social?.avatar || onboarding?.profileImage || '',
+    avatar: getPublicImageUrl(rawAvatar),
     stats: {
       posts: social?.stats?.posts ?? '0',
       followers: social?.stats?.followers ?? '0',
@@ -78,27 +120,57 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
     }
   }
 
+  const handleAvatarPick = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !file.type.startsWith('image/')) return
+    const previewUrl = URL.createObjectURL(file)
+    setLocalAvatarPreview(previewUrl)
+    setAvatarUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('profileImage', file)
+      const res = await communityProfileService.patchCreatorBasic(fd)
+      applyProfile(res)
+      await refreshOnboarding()
+      await refreshSocial()
+      requestCommunityProfileRefresh()
+      debugLog('[CreatorProfileCard] avatar updated')
+    } catch (err) {
+      debugError('[CreatorProfileCard] avatar upload failed', err)
+      onEditProfile?.()
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
   return (
-    <div className="relative w-full max-w-[380px]">
+    <div className="relative w-full overflow-hidden rounded-[1.75rem] bg-white shadow-[0_8px_28px_rgba(0,0,0,0.05)]">
+      {/* Top-right Edit Profile Pencil Button */}
       <button
         type="button"
         onClick={onEditProfile}
         aria-label="Edit profile"
-        className="absolute right-3 top-3 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-black text-white shadow-md transition hover:bg-neutral-800"
+        className="absolute right-5 top-5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-neutral-100 text-neutral-600 shadow-xs transition hover:bg-neutral-200 hover:text-black"
       >
         <PencilIcon className="h-4 w-4" />
       </button>
 
-      <section className="rounded-[1.75rem] bg-white px-6 py-8 text-center shadow-[0_8px_28px_rgba(0,0,0,0.05)] sm:px-8">
+      {/* Main Profile Info & Avatar */}
+      <section className="px-6 pb-8 pt-8 text-center sm:px-8">
         <div className="relative mx-auto h-28 w-28 sm:h-32 sm:w-32">
-          <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-[#ff5b67] bg-neutral-100 p-0.5">
+          <div className="h-full w-full overflow-hidden rounded-full border-4 border-white bg-neutral-100 shadow-md">
             {profile.avatar ? (
               <img
                 src={profile.avatar}
-                alt=""
+                alt={profile.name}
                 className="h-full w-full rounded-full object-cover"
               />
-            ) : null}
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-neutral-200 text-neutral-400">
+                <CameraIcon className="h-8 w-8 opacity-50" />
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -106,35 +178,42 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
             aria-label="Change profile photo"
             className="absolute bottom-1 right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white text-black shadow-md ring-1 ring-black/5 transition hover:bg-neutral-100"
           >
-            <CameraIcon className="h-3.5 w-3.5" />
+            {avatarUploading ? (
+              <svg className="h-3.5 w-3.5 animate-spin text-black" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <CameraIcon className="h-3.5 w-3.5" />
+            )}
           </button>
           <input
             ref={avatarInputRef}
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={() => onEditProfile?.()}
+            onChange={handleAvatarPick}
           />
         </div>
 
-        <p className="mt-4 inline-flex rounded-full bg-neutral-100 px-2.5 py-0.5 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">
+        <p className="mt-3 inline-flex rounded-full bg-neutral-100 px-2.5 py-0.5 font-inter text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">
           {roleBadge}
         </p>
 
         <h1 className="mt-2 font-inter text-2xl font-bold tracking-tight text-black sm:text-[1.75rem]">
           {loading && !social ? '…' : profile.name}
         </h1>
-        <p className="mt-1 font-inter text-sm text-neutral-500">
+        <p className="mt-0.5 font-inter text-sm text-neutral-500">
           @{profile.handle || 'username'}
         </p>
 
         {profile.bio ? (
-          <p className="mx-auto mt-4 max-w-[20rem] whitespace-pre-line font-inter text-sm leading-relaxed text-neutral-500">
+          <p className="mx-auto mt-3 max-w-[20rem] whitespace-pre-line font-inter text-sm leading-relaxed text-neutral-500">
             {profile.bio}
           </p>
         ) : null}
 
-        <div className="mt-6 grid grid-cols-3">
+        <div className="mt-5 grid grid-cols-3">
           {[
             [profile.stats.posts, 'Posts'],
             [profile.stats.followers, 'Followers'],

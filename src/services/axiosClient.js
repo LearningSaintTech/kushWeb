@@ -67,7 +67,7 @@ function isPublicApiUrl(url = '') {
     /\/items\/(search|single|recommendation-suggestions|getAllVersion2|cross-sell)\b/i.test(
       u,
     ) ||
-    /\/(sections|banner|featuredImages|categories|subcategories|filters)\//i.test(u) ||
+    /\/(sections|banner|featuredImages|categories|subcategories|filters|news|brands)\//i.test(u) ||
     /\/servicablePincode\//i.test(u) ||
     /\/delivery\/(getAll|check|getSingle)\b/i.test(u) ||
     /\/cart-charges\/getAll-active/i.test(u) ||

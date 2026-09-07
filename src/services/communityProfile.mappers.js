@@ -2,6 +2,8 @@
  * Map between community wizard form state and community-profile API payloads.
  */
 
+import { getPublicImageUrl } from './config.js';
+
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -107,6 +109,35 @@ export function isDesignerVerified(profile) {
     Boolean(profile.isVerified) ||
     Boolean(profile.designerProfileCompleted)
   );
+}
+
+/** Check if designer verification is pending / under review */
+export function isDesignerPending(profile) {
+  if (!profile || typeof profile !== 'object') return false;
+  const status = String(
+    profile.designerVerificationStatus ||
+    profile.verificationStatus ||
+    profile.designerStatus ||
+    ''
+  ).toLowerCase().trim();
+  return (
+    status === 'pending' ||
+    status === 'under_review' ||
+    status === 'in_review' ||
+    status === 'submitted'
+  );
+}
+
+/** Check if designer verification was rejected */
+export function isDesignerRejected(profile) {
+  if (!profile || typeof profile !== 'object') return false;
+  const status = String(
+    profile.designerVerificationStatus ||
+    profile.verificationStatus ||
+    profile.designerStatus ||
+    ''
+  ).toLowerCase().trim();
+  return status === 'rejected' || status === 'declined';
 }
 
 /** Check if designer onboarding is incomplete and should be resumed */
@@ -379,13 +410,25 @@ export function hydrateDesignerForm(profile, base) {
     }
   }
 
+  const coverRaw =
+    profile.coverImage ||
+    profile.designerCoverImage ||
+    profile.coverPhoto ||
+    profile.cover ||
+    profile.bannerImage ||
+    profile.bannerUrl ||
+    profile.banner ||
+    base.coverPreview ||
+    '';
+  const profileRaw = profile.profileImage || profile.avatar || profile.photo || base.profilePreview || '';
+
   return {
     ...base,
     fullName: profile.name || base.fullName,
     username: normalizeUsername(profile.username) || base.username,
     location: profile.designerLocation || base.location,
-    coverPreview: profile.designerCoverImage || base.coverPreview,
-    profilePreview: profile.profileImage || base.profilePreview,
+    coverPreview: coverRaw ? getPublicImageUrl(coverRaw) : '',
+    profilePreview: profileRaw ? getPublicImageUrl(profileRaw) : '',
     skills,
     experience,
     education,
@@ -412,9 +455,11 @@ export function hydrateCreatorForm(profile, base) {
     return empty;
   }
 
+  const photoRaw = profile.profileImage || profile.avatar || base.photoPreview || '';
+
   return {
     ...base,
-    photoPreview: profile.profileImage || base.photoPreview,
+    photoPreview: photoRaw ? getPublicImageUrl(photoRaw) : '',
     fullName: profile.name || base.fullName,
     username: normalizeUsername(profile.username) || base.username,
     bio: profile.creatorBio || base.bio,
@@ -536,8 +581,30 @@ export function hydrateEditProfileForm(profile, base = {}) {
     email: profile.email || base.email || '',
     phone: profile.phoneNumber || base.phone || '',
     gender: mapGenderFromApi(profile.gender) || base.gender || 'prefer-not',
-    photoPreview: profile.profileImage || base.photoPreview || '',
-    coverPreview: profile.designerCoverImage || base.coverPreview || '',
+    photoPreview: (profile.profileImage || profile.avatar || base.photoPreview)
+      ? getPublicImageUrl(profile.profileImage || profile.avatar || base.photoPreview)
+      : '',
+    coverPreview: (
+      profile.coverImage ||
+      profile.designerCoverImage ||
+      profile.coverPhoto ||
+      profile.cover ||
+      profile.bannerImage ||
+      profile.bannerUrl ||
+      profile.banner ||
+      base.coverPreview
+    )
+      ? getPublicImageUrl(
+          profile.coverImage ||
+          profile.designerCoverImage ||
+          profile.coverPhoto ||
+          profile.cover ||
+          profile.bannerImage ||
+          profile.bannerUrl ||
+          profile.banner ||
+          base.coverPreview
+        )
+      : '',
     skills,
     experience,
     education,

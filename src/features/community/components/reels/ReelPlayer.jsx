@@ -177,6 +177,18 @@ export default function ReelPlayer({
     setPlayback(!playing)
   }
 
+  const authorDisplayName =
+    author?.name && String(author.name).trim().toLowerCase() !== 'member'
+      ? author.name
+      : author?.displayName ||
+        author?.fullName ||
+        (author?.handle
+          ? author.handle.startsWith('@')
+            ? author.handle
+            : `@${author.handle}`
+          : '') ||
+        'Creator'
+
   return (
     <div
       className="relative h-full w-full overflow-hidden bg-neutral-950"
@@ -241,8 +253,8 @@ export default function ReelPlayer({
             type="button"
             data-reel-ui
             onClick={onProfileClick}
-            className="h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-full ring-2 ring-white/80"
-            aria-label={`Open ${author?.name || 'creator'} profile`}
+            className="h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-full ring-2 ring-white/80 bg-neutral-800"
+            aria-label={`Open ${authorDisplayName} profile`}
           >
             {author?.avatar ? (
               <img src={author.avatar} alt="" className="h-full w-full object-cover" />
@@ -253,9 +265,9 @@ export default function ReelPlayer({
               type="button"
               data-reel-ui
               onClick={onProfileClick}
-              className="block max-w-full cursor-pointer truncate text-left font-inter text-sm font-semibold text-white"
+              className="block max-w-full cursor-pointer truncate text-left font-inter text-sm font-semibold text-white hover:underline"
             >
-              {author?.name || 'Member'}
+              {authorDisplayName}
             </button>
             <p className="font-inter text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
               {author?.role || 'CREATOR'}

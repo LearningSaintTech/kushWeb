@@ -3,6 +3,8 @@
  * Spec: availableBalance, pendingBalance, minPayoutAmount, rates, payout-methods, payouts.
  */
 
+import { getPublicImageUrl } from '../../../../services/config.js'
+
 function num(value, fallback = 0) {
   const n = Number(value)
   return Number.isFinite(n) ? n : fallback
@@ -350,6 +352,16 @@ export function mapSummaryToDashboardEarnings(
   }
   const paidOutRaw = resolveRolePaidOut(summary, mode)
 
+  const lifetimeEarnedRaw =
+    pickAmount(summary, ['lifetimeEarned', 'totalEarned', 'totalEarnings']) ??
+    displayedRaw
+  const lifetimePaidRaw =
+    pickAmount(summary, ['lifetimePaid', 'totalPaid']) ?? paidOutRaw
+  const walletAvailableRaw =
+    resolveWalletAvailableBalance(summary) ?? availableRaw
+  const walletPendingRaw =
+    pickAmount(summary, ['pendingBalance', 'walletPending']) ?? pendingRaw
+
   const creatorBucket = roleBucket(summary, 'creator')
   const designerBucket = roleBucket(summary, 'designer')
   const creator =
@@ -390,8 +402,19 @@ export function mapSummaryToDashboardEarnings(
   const ratePct = rateFromSummary(summary, mode)
   const isCreator = mode === 'creator'
 
+  const counts = summary.counts || {
+    pendingCommissions: num(summary.pendingCount, 0),
+    availableCommissions: num(summary.availableCount, 0),
+  }
+
+  const rates = summary.rates || {
+    creatorCommissionRatePct: 2.5,
+    designerCommissionRatePct: 1,
+    commissionBase: 'line_net',
+  }
+
   const earnings = {
-    total: formatEarningsInr(displayedRaw),
+    total: formatEarningsInr(lifetimeEarnedRaw ?? displayedRaw),
     change: change ?? '—',
     creator:
       creator != null
@@ -413,14 +436,25 @@ export function mapSummaryToDashboardEarnings(
     meta: {
       available: formatEarningsInr(availableRaw),
       pending: formatEarningsInr(pendingRaw),
-      paidOut: paidOutRaw > 0 ? formatEarningsInr(paidOutRaw) : null,
+      paidOut: formatEarningsInr(paidOutRaw),
+      lifetimeEarned: formatEarningsInr(lifetimeEarnedRaw),
+      lifetimePaid: formatEarningsInr(lifetimePaidRaw),
+      walletAvailable: formatEarningsInr(walletAvailableRaw),
+      walletPending: formatEarningsInr(walletPendingRaw),
       availableRaw,
       pendingRaw,
       paidOutRaw,
+      lifetimeEarnedRaw,
+      lifetimePaidRaw,
+      walletAvailableRaw,
+      walletPendingRaw,
       earnedRaw: displayedRaw,
       minPayoutRaw: minPayout ?? 5,
       minPayout: formatEarningsInr(minPayout ?? 5),
-      commissionRate: ratePct != null ? `${Number(ratePct)}%` : null,
+      commissionRate: ratePct != null ? `${Number(ratePct)}%` : isCreator ? '2.5%' : '1%',
+      rates,
+      counts,
+      byRole: summary.byRole || null,
       rateLabel: isCreator ? 'Affiliate Commission Rate' : 'Designer Royalty Rate',
       sourceLabel: isCreator ? 'Tagged Posts & Reels' : 'Design Catalog Sales',
       earningsLabel: isCreator ? 'Creator Earnings' : 'Designer Earnings',
@@ -450,51 +484,73 @@ export function mapCommissionsToEarningsPerPost(
       'creatorAmount',
       'royaltyAmount',
     ])
+    const baseAmount = pickAmount(row, ['baseAmount', 'orderAmount', 'saleAmount', 'price'])
     const item = row.item && typeof row.item === 'object' ? row.item : null
     const title =
-      row.title ||
       item?.name ||
+      row.title ||
       row.contentTitle ||
       row.postTitle ||
       row.itemName ||
       row.sku ||
       row.name ||
       row.description ||
-      'Commission'
-    const status = row.status ? String(row.status) : null
-    const viewsLabel =
-      row.views != null
-        ? `${row.views} views`
-        : status ||
-          (row.availableAt || row.createdAt
-            ? new Date(row.availableAt || row.createdAt).toLocaleDateString(
-                'en-IN',
-                {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                },
-              )
-            : '—')
+      'Tagged Product Commission'
+    const rawStatus = row.status ? String(row.status).toLowerCase() : 'available'
+    const status =
+      rawStatus === 'available'
+        ? 'Available'
+        : rawStatus === 'pending'
+          ? 'Pending'
+          : rawStatus === 'cancelled'
+            ? 'Cancelled'
+            : rawStatus
 
     const signed =
       amount != null
         ? `${amount >= 0 ? '+' : ''}${formatEarningsInr(amount)}`
         : '—'
 
+    const rawImg =
+      item?.thumbnail ||
+      item?.imageUrl ||
+      (Array.isArray(item?.images) && (item.images[0]?.url || item.images[0]?.imageUrl)) ||
+      row.thumbnail ||
+      row.imageUrl ||
+      row.image ||
+      row.coverUrl ||
+      fallbackImage ||
+      ''
+
+    const orderId = row.orderId || row.orderMongoId || ''
+    const sku = row.sku || item?.productId || ''
+    const ratePct = row.ratePct ?? row.rate ?? null
+    const date = row.availableAt || row.deliveredAt || row.createdAt || ''
+
     return {
       id: String(row._id ?? row.id ?? `c-${index}`),
       rank: index + 1,
       title: String(title),
-      views: viewsLabel,
+      orderId: String(orderId),
+      sku: String(sku),
+      qty: Number(row.qty) || 1,
+      baseAmount: baseAmount != null ? formatEarningsInr(baseAmount) : null,
+      baseAmountRaw: baseAmount,
+      ratePct: ratePct != null ? `${ratePct}%` : null,
+      status,
+      rawStatus,
+      views: orderId ? `Order: ${orderId}` : status,
+      date: date
+        ? new Date(date).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })
+        : '',
       earnings: signed,
-      image:
-        item?.thumbnail ||
-        item?.imageUrl ||
-        row.thumbnail ||
-        row.image ||
-        row.coverUrl ||
-        fallbackImage,
+      amountRaw: amount ?? 0,
+      image: getPublicImageUrl(rawImg),
+      raw: row,
     }
   })
 }

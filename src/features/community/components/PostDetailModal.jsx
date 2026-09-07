@@ -661,7 +661,11 @@ export default function PostDetailModal({
                   onClick={() => onProfileClick?.(post.author)}
                   className="cursor-pointer truncate font-inter text-sm font-semibold text-black"
                 >
-                  {post.author?.name || 'Member'}
+                  {post.author?.name && post.author.name.toLowerCase() !== 'member'
+                    ? post.author.name
+                    : post.author?.handle
+                      ? `@${post.author.handle.replace(/^@/, '')}`
+                      : 'Creator'}
                 </button>
                 {post.author?.role ? (
                   <span className="font-inter text-[10px] font-semibold uppercase tracking-wide text-neutral-400">

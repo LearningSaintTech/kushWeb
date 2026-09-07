@@ -241,8 +241,8 @@ export default function CommunityDesignerProfile() {
   if (showPortfolio) {
     return (
       <>
-        <div className="flex w-full flex-col items-stretch gap-4 lg:min-h-[640px] lg:flex-row lg:gap-5">
-          <div className="w-full shrink-0 overflow-hidden rounded-[1.5rem] bg-black shadow-[0_8px_32px_rgba(0,0,0,0.12)] lg:w-[360px]">
+        <div className="flex w-full flex-col items-stretch gap-5 lg:min-h-[640px] lg:flex-row lg:gap-6 xl:gap-8">
+          <div className="w-full shrink-0 overflow-hidden rounded-[1.5rem] bg-black shadow-[0_8px_32px_rgba(0,0,0,0.12)] max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[400px] 2xl:w-[430px] lg:max-w-none">
             <DesignerPortfolio
               onBack={handleClosePortfolio}
               onViewProjects={() => setShowProjects(true)}
@@ -296,8 +296,8 @@ export default function CommunityDesignerProfile() {
   }
 
   return (
-    <div className="flex w-full flex-col items-stretch gap-5 py-1 lg:flex-row lg:items-start lg:gap-6 xl:gap-7">
-      <div className="w-full min-w-0 max-w-[380px] shrink-0">
+    <div className="flex w-full flex-col items-stretch gap-6 py-1 lg:flex-row lg:items-start lg:gap-8 xl:gap-10">
+      <div className="w-full min-w-0 max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[400px] 2xl:w-[430px] lg:max-w-none shrink-0">
         {editing ? (
           <CreatorEditProfile
             onBack={() => setEditing(false)}
@@ -312,7 +312,7 @@ export default function CommunityDesignerProfile() {
           />
         )}
       </div>
-      <div className="min-w-0 flex-1 lg:sticky lg:top-2 lg:max-w-[520px]">
+      <div className="min-w-0 flex-1 w-full lg:sticky lg:top-2">
         <DesignerDashboard mode={dashMode} onModeChange={setDashMode} />
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { cartService } from "../../services/cart.service.js";
 import { addressService } from "../../services/address.service.js";
-import { deliveryService } from "../../services/delivery.service.js";
+import { deliveryService, cartChargesService } from "../../services/delivery.service.js";
 import { couponsService } from "../../services/coupons.service.js";
 import { orderService } from "../../services/order.service.js";
 import { paymentService } from "../../services/payment.service.js";
@@ -49,7 +49,7 @@ import {
   resolveDonationLineAmount,
   applyDonationToFinalPayable,
 } from "../../utils/donation.js";
-import { adjustSummaryForPaymentModeCharges } from "../../utils/cartCharges.js";
+import { adjustSummaryForPaymentModeCharges, getApplicableCodCharge } from "../../utils/cartCharges.js";
 import DonationPicker from "../../shared/components/DonationPicker.jsx";
 import {
   BindOfferBillRows,
@@ -275,6 +275,7 @@ function CheckoutPage() {
   const [useWalletForOnline, setUseWalletForOnline] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
+  const [activeCartCharges, setActiveCartCharges] = useState([]);
   const [codWarningOpen, setCodWarningOpen] = useState(false);
   const [addressConfirmOpen, setAddressConfirmOpen] = useState(false);
   const [placeOrderLoading, setPlaceOrderLoading] = useState(false);
@@ -642,6 +643,26 @@ function CheckoutPage() {
       })
       .catch(() => setDeliveryOptionsFromPincode([]));
   }, [pincode]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    cartChargesService
+      .getActive()
+      .then((res) => {
+        if (cancelled) return;
+        const list =
+          res?.data?.data?.data ?? res?.data?.data ?? res?.data?.items ?? res?.data ?? [];
+        debugLog("[Checkout] cartCharges fetched:", list);
+        setActiveCartCharges(Array.isArray(list) ? list : []);
+      })
+      .catch((err) => {
+        debugError("[Checkout] cartCharges error:", err?.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!cartData?.items?.length || !isAuthenticated) return;
@@ -1834,6 +1855,14 @@ function CheckoutPage() {
   );
   const chargeAdjustments = adjustSummaryForPaymentModeCharges(summary, paymentMode);
   const chargesList = chargeAdjustments.visibleCharges;
+  const applicableCodCharge = useMemo(() => {
+    return getApplicableCodCharge({
+      charges: summary?.charges ?? [],
+      activeCartCharges,
+      subTotal: Number(subTotal || 0),
+    });
+  }, [summary?.charges, activeCartCharges, subTotal]);
+  const hasCodCharges = applicableCodCharge > 0;
   const totalGst = summary.gst?.totalGst ?? summary.totalGst ?? 0;
   const taxableAmount = chargeAdjustments.taxableAmount;
   const subTotalAfterDiscount =
@@ -3160,7 +3189,25 @@ function CheckoutPage() {
                   type="button"
                   onClick={() => {
                     if (paymentMode === "COD") return;
-                    setCodWarningOpen(true);
+                    if (hasCodCharges) {
+                      setCodWarningOpen(true);
+                    } else {
+                      debugLog(
+                        "[Checkout][Payment] COD selected directly (no COD charges)",
+                      );
+                      if (appliedCouponCode) {
+                        debugLog(
+                          "[Checkout][Coupon] removing coupon due to COD selection",
+                        );
+                        setAppliedCouponCode(null);
+                        setAppliedCouponMeta(null);
+                        setCouponInput("");
+                        setCouponError(null);
+                        setCouponModalOpen(false);
+                      }
+                      setUseWalletForOnline(false);
+                      setPaymentMode("COD");
+                    }
                   }}
                   className="w-full flex items-center justify-between bg-[#f2f2f2] px-3.5 sm:px-4 py-2.5 sm:py-3 text-left"
                 >
@@ -3268,11 +3315,22 @@ function CheckoutPage() {
                     </h3>
                   </div>
                   <div className="px-5 py-4 text-sm text-gray-700">
-                    {codCouponDiscountValue > 0
-                      ? `If you choose COD, your coupon discount of ${formatRs(codCouponDiscountValue)} will be removed and extra COD charges may apply.`
-                      : hasAnyAppliedCoupon
-                        ? `If you choose COD, your applied coupon${codCouponOfferLabel ? ` (${codCouponOfferLabel})` : ""} will be removed and extra COD charges may apply.`
-                        : "If you choose COD, extra COD charges may apply. Choose online payment for lower price."}
+                    {applicableCodCharge > 0 ? (
+                      <>
+                        If you choose Cash on Delivery (COD), an extra charge of{" "}
+                        <strong>{formatRs(applicableCodCharge)}</strong> will apply.
+                        {hasAnyAppliedCoupon && (
+                          <span className="block mt-1 text-gray-600">
+                            Your applied coupon will also be removed.
+                          </span>
+                        )}
+                        <span className="block mt-1 text-gray-500 text-xs">
+                          Choose online payment for the best price.
+                        </span>
+                      </>
+                    ) : (
+                      "If you choose COD, extra COD charges may apply. Choose online payment for lower price."
+                    )}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 flex gap-2 justify-end">
                     <button

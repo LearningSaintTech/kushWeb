@@ -11,6 +11,7 @@ import {
   buildDesignerLinksBody,
   hydrateEditProfileForm,
   mapGenderToApi,
+  isDesignerRejected,
 } from '../../../../services/communityProfile.service'
 import { debugLog } from '../../../../utils/debugLog'
 
@@ -367,6 +368,36 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
         if (validLinks.length > 0) {
           applyProfile(await communityProfileService.patchDesignerLinks(validLinks))
         }
+
+        // Re-submit application to admin verification if currently rejected or incomplete
+        const isRejectedStatus =
+          isDesignerRejected(profile) ||
+          String(profile?.designerVerificationStatus || '').toLowerCase() === 'rejected' ||
+          String(profile?.verificationStatus || '').toLowerCase() === 'rejected'
+
+        if (isRejectedStatus) {
+          try {
+            debugLog('[CommunityProfile] re-submitting rejected designer profile')
+            applyProfile(await communityProfileService.resubmitDesigner())
+          } catch (resubErr) {
+            debugLog('[CommunityProfile] resubmitDesigner fallback to completeDesigner', resubErr)
+            try {
+              applyProfile(await communityProfileService.completeDesigner())
+            } catch (compErr) {
+              debugLog('[CommunityProfile] completeDesigner fallback failed', compErr)
+            }
+          }
+        } else if (
+          profile?.designerOnboardingStep &&
+          profile.designerOnboardingStep !== 'completed' &&
+          !profile?.isDesignerVerified
+        ) {
+          try {
+            applyProfile(await communityProfileService.completeDesigner())
+          } catch (compErr) {
+            debugLog('[CommunityProfile] completeDesigner failed', compErr)
+          }
+        }
       } else {
         // Creator profile updates
         applyProfile(
@@ -512,6 +543,38 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
 
       {/* Main Form Fields */}
       <div className="mt-6 space-y-6 px-5 sm:px-7">
+        {(category === 'designer' || profile?.isDesigner) && isDesignerRejected(profile) && (
+          <div className="rounded-2xl border border-red-200 bg-gradient-to-r from-[#FFF5F5] via-[#FEE2E2]/60 to-[#FFF5F5] p-4 text-left shadow-2xs">
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-inter text-xs font-bold text-red-950">Application Rejected</p>
+                  <span className="rounded-full bg-red-200/90 px-2 py-0.5 font-inter text-[9px] font-bold text-red-900">
+                    RE-APPLYING
+                  </span>
+                </div>
+                {profile?.designerRejectionReason ? (
+                  <div className="mt-1.5 rounded-lg border border-red-200 bg-white/80 p-2">
+                    <p className="font-inter text-xs text-red-900">
+                      <span className="font-bold text-red-950">Feedback: </span>
+                      {profile.designerRejectionReason}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-1 font-inter text-xs text-red-800/90 leading-relaxed">
+                    Please review and update your information. Clicking Save will re-submit your profile for admin verification.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ——— Section: Essentials ——— */}
         <div className="space-y-4">
           <h3 className="font-inter text-xs font-bold uppercase tracking-wider text-neutral-400">

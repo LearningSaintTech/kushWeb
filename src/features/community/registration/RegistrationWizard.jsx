@@ -28,6 +28,7 @@ import {
   hydrateDesignerForm,
   isCommunityProfileDeleted,
   isDesignerVerified,
+  isDesignerRejected,
 } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
@@ -146,12 +147,13 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
             debugLog('[CommunityProfile] auto selectRole designer error', roleErr)
           }
         }
+        const isRejected = isDesignerRejected(latest)
         const nextForm =
           forceFresh || isCommunityProfileDeleted(latest)
             ? cloneInitialForm()
             : hydrateDesignerForm(latest, cloneInitialForm())
         const nextStep =
-          forceFresh || isCommunityProfileDeleted(latest)
+          forceFresh || isCommunityProfileDeleted(latest) || isRejected
             ? 1
             : designerStepIndex(latest)
         setFormData(nextForm)
@@ -163,6 +165,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
           designerOnboardingStep: latest?.designerOnboardingStep,
           communityProfileStatus: latest?.communityProfileStatus,
           requiresOnboarding: latest?.requiresOnboarding,
+          isRejected,
         })
         setBootstrapped(true)
       } catch (err) {
@@ -254,17 +257,34 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
     }
     if (step === 7) {
       await communityProfileService.patchDesignerLinks(buildDesignerLinksBody(formData))
+      if (
+        isDesignerRejected(profile) ||
+        String(profile?.designerVerificationStatus || '').toLowerCase() === 'rejected' ||
+        String(profile?.verificationStatus || '').toLowerCase() === 'rejected'
+      ) {
+        try {
+          debugLog('[CommunityProfile] re-submitting rejected designer in wizard')
+          return applyProfile(await communityProfileService.resubmitDesigner())
+        } catch (resubErr) {
+          debugLog('[CommunityProfile] resubmitDesigner fallback in wizard', resubErr)
+          return applyProfile(await communityProfileService.completeDesigner())
+        }
+      }
       return applyProfile(await communityProfileService.completeDesigner())
     }
     return profile
   }
 
   const advanceAfterSave = (updated) => {
-    const fromApi = designerStepIndex(updated)
     if (step >= FORM_STEPS) {
       setStep(TOTAL_STEPS)
       return
     }
+    if (isDesignerRejected(profile) || isDesignerRejected(updated)) {
+      setStep(step + 1)
+      return
+    }
+    const fromApi = designerStepIndex(updated)
     setStep(Math.max(step + 1, fromApi))
   }
 

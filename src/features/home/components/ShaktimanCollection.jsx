@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
+import { sectionsService } from '../../../services/content.service.js'
+import { isShaktimanSection, getSectionBannerUrls } from '../../../utils/shaktiman.js'
+import { debugError } from '../../../utils/debugLog.js'
 import ShaktimanPromoBanner from './ShaktimanPromoBanner.jsx'
 
 /**
@@ -39,8 +42,6 @@ export default function ShaktimanCollection({ section: sectionProp = null }) {
   }, [sectionProp])
 
   const { desktopUrl, mobileUrl } = getSectionBannerUrls(section)
-  const resolvedDesktop = desktopUrl || mobileUrl || saktimanBanner
-  const resolvedMobile = mobileUrl || desktopUrl || saktimanBanner
 
   return (
     <section
@@ -48,7 +49,11 @@ export default function ShaktimanCollection({ section: sectionProp = null }) {
       aria-label="Shaktiman limited edition collection"
     >
       <div className="relative mx-auto w-full max-w-[1920px]">
-        <ShaktimanPromoBanner loading="lazy" />
+        <ShaktimanPromoBanner
+          desktopUrl={desktopUrl}
+          mobileUrl={mobileUrl}
+          loading="lazy"
+        />
 
         <Link
           to={exploreTo}
