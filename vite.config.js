@@ -36,6 +36,27 @@ function metaPixelHtmlPlugin(pixelId) {
   }
 }
 
+function openaiPixelHtmlPlugin(pixelId, { debug = false } = {}) {
+  if (!pixelId) return null
+
+  const snippet = `
+    <!-- OpenAI Ads Measurement Pixel -->
+    <script>
+      !function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];if(f&&f.parentNode){f.parentNode.insertBefore(j,f)}else if(d.head){d.head.appendChild(j)}}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");
+      oaiq("init",{pixelId:"${pixelId}"${debug ? ',debug:true' : ''}});
+      window.__KHUSH_OPENAI_PIXEL_ID__ = '${pixelId}';
+    </script>
+    <!-- End OpenAI Ads Measurement Pixel -->
+  `
+
+  return {
+    name: 'inject-openai-pixel',
+    transformIndexHtml(html) {
+      return html.replace('</head>', `${snippet}\n  </head>`)
+    },
+  }
+}
+
 function resolveApiOrigin(env) {
   const raw = String(env.VITE_API_URL || '').trim();
   if (!raw) return '';
@@ -149,6 +170,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const pixelId = env.VITE_META_PIXEL_ID || ''
   const metaPixelPlugin = metaPixelHtmlPlugin(pixelId)
+  const openaiPixelId = env.VITE_OPENAI_PIXEL_ID || 'B5BpwStkMHiJRu9GW1yKWf'
+  const openaiPixelPlugin = openaiPixelHtmlPlugin(openaiPixelId, {
+    debug: mode === 'development',
+  })
   const apiOrigin = resolveApiOrigin(env)
   
   
@@ -223,6 +248,7 @@ console.log("🔥 devProxy =", devProxy)
       tailwindcss(),
       react(),
       metaPixelPlugin,
+      openaiPixelPlugin,
       mode === 'development' && !s3DevProxyOff ? s3DevPutProxyPlugin() : null,
     ].filter(Boolean),
     esbuild: {

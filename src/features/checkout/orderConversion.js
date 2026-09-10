@@ -56,19 +56,28 @@ function purchaseStorageKey(orderId) {
 }
 
 /**
- * Fire Meta Pixel Purchase (once per order per session).
+ * Fire purchase conversions once per order per session (thank-you page only).
+ * Meta Pixel Purchase + OpenAI Ads `order_created`.
  */
 export function trackOrderConversion(conversion) {
   const orderId = conversion?.orderId
   if (!orderId) return
 
-  if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
-    const key = purchaseStorageKey(orderId)
-    if (sessionStorage.getItem(key)) return
-    sessionStorage.setItem(key, '1')
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const key = purchaseStorageKey(orderId)
+      if (sessionStorage.getItem(key)) return
+      sessionStorage.setItem(key, '1')
+    }
+  } catch {
+    // Private mode / blocked storage — still fire conversion once this visit.
   }
 
-  trackPixelPurchase(conversion)
+  try {
+    trackPixelPurchase(conversion)
+  } catch {
+    // Pixel failures must not block internal order_confirmed analytics.
+  }
 
   const value = Number(conversion.value || 0)
   const currency = conversion.currency || 'INR'

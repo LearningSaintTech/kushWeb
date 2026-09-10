@@ -24,6 +24,7 @@
       https://*.doubleclick.net
       https://pagead2.googlesyndication.com
       https://connect.facebook.net
+      https://bzrcdn.openai.com
       https://checkout.razorpay.com
       https://*.razorpay.com
       https://maps.googleapis.com;
@@ -59,6 +60,8 @@
       https://www.facebook.com
       https://graph.facebook.com
       https://*.facebook.com
+      https://bzrcdn.openai.com
+      https://bzr.openai.com
       https://*.a.run.app
       https://*.on.aws
       https://*.razorpay.com
@@ -118,29 +121,16 @@
 
   <meta name="referrer" content="strict-origin-when-cross-origin" />
 
-  <script type="module" crossorigin src="/assets/index-CIfaVUPa.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-B0wPJn0q.css">
+  <script type="module" crossorigin src="/assets/index-DlYgsTh_.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CJtL2xFm.css">
 
-    <!-- Meta Pixel Code -->
+    <!-- OpenAI Ads Measurement Pixel -->
     <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('set', 'autoConfig', false, '4229135387401864');
-      fbq('init', '4229135387401864');
-      fbq('track', 'PageView');
-      window.__KHUSH_META_PIXEL_ID__ = '4229135387401864';
+      !function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];if(f&&f.parentNode){f.parentNode.insertBefore(j,f)}else if(d.head){d.head.appendChild(j)}}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");
+      oaiq("init",{pixelId:"B5BpwStkMHiJRu9GW1yKWf"});
+      window.__KHUSH_OPENAI_PIXEL_ID__ = 'B5BpwStkMHiJRu9GW1yKWf';
     </script>
-    <noscript>
-      <img height="1" width="1" style="display:none" alt=""
-        src="https://www.facebook.com/tr?id=4229135387401864&ev=PageView&noscript=1" />
-    </noscript>
-    <!-- End Meta Pixel Code -->
+    <!-- End OpenAI Ads Measurement Pixel -->
   
   </head>
 

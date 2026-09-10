@@ -6,14 +6,14 @@ const ADD_TO_CART_DEDUPE_MS = 5000;
  * autoConfig is disabled in index.html so Meta does not auto-track button clicks (duplicates).
  * In Events Manager → delete any automatic "Event Setup Tool" rules to avoid duplicates.
  *
- * Funnel mapping:
- * - PageView        → every route (MainLayout)
- * - ViewContent     → product page
- * - AddToCart       → "Add To Cart" + "Buy It Now" on PDP; cart icon on product cards
- * - ViewCart        → /cart
- * - InitiateCheckout→ cart "Checkout" button (not "Add new address")
- * - AddPaymentInfo  → place order on /checkout
- * - Purchase        → /order/thank-you (NOT /orders)
+ * Funnel mapping (Meta → OpenAI):
+ * - PageView        → page_viewed (every route in MainLayout)
+ * - ViewContent     → contents_viewed (product page)
+ * - AddToCart       → items_added
+ * - ViewCart        → custom view_cart
+ * - InitiateCheckout→ checkout_started
+ * - AddPaymentInfo  → custom add_payment_info
+ * - Purchase        → order_created (/order/thank-you, NOT /orders)
  */
 
 import { isDebug } from "../services/config.js";
@@ -22,6 +22,61 @@ import { debugInfo } from '../utils/debugLog.js';
 function logPixel(event, payload) {
   if (!isDebug()) return;
   debugInfo("[Meta Pixel]", event, payload ?? "");
+}
+
+function logOpenaiPixel(event, payload) {
+  if (!isDebug()) return;
+  debugInfo("[OpenAI Pixel]", event, payload ?? "");
+}
+
+/** OpenAI amounts use ISO 4217 minor units (paise for INR). */
+function toMinorAmount(value) {
+  const n = parsePrice(value);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.round(n * 100);
+}
+
+function openaiContent({ id, name, quantity = 1, price, currency }) {
+  const item = {
+    id: id != null ? String(id) : undefined,
+    name: name || undefined,
+    content_type: "product",
+    quantity: Math.max(1, Math.round(Number(quantity) || 1)),
+  };
+  const amount = toMinorAmount(price);
+  if (amount != null) {
+    item.amount = amount;
+    if (currency) item.currency = currency;
+  }
+  return item;
+}
+
+function trackOpenai(eventName, data, options) {
+  if (typeof window === "undefined" || typeof window.oaiq !== "function") {
+    if (import.meta.env.DEV) {
+      logOpenaiPixel(`${eventName} (oaiq missing — set VITE_OPENAI_PIXEL_ID in .env)`, data);
+    }
+    return;
+  }
+  try {
+    if (options) {
+      window.oaiq("measure", eventName, data, options);
+    } else {
+      window.oaiq("measure", eventName, data);
+    }
+    logOpenaiPixel(eventName, data);
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      logOpenaiPixel(`${eventName} failed`, err?.message || err);
+    }
+  }
+}
+
+function trackOpenaiCustom(customEventName, data, options) {
+  trackOpenai("custom", { type: "custom", ...data }, {
+    custom_event_name: customEventName,
+    ...options,
+  });
 }
 
 export function parsePrice(value) {
@@ -81,6 +136,12 @@ function trackMetaCustom(event, payload = {}) {
 
 export function trackPixelPageView(pagePath) {
   trackMeta("PageView", pagePath ? { page_path: pagePath } : {});
+  trackOpenai("page_viewed", {
+    type: "contents",
+    contents: pagePath
+      ? [{ id: pagePath, name: pagePath, content_type: "page" }]
+      : [],
+  });
 }
 
 export function trackPixelViewItem({ id, name, price, currency = "INR" }) {
@@ -91,6 +152,14 @@ export function trackPixelViewItem({ id, name, price, currency = "INR" }) {
     content_name: name,
     value,
     currency,
+  });
+  const amount = toMinorAmount(value);
+  trackOpenai("contents_viewed", {
+    type: "contents",
+    ...(amount != null ? { amount, currency } : {}),
+    contents: id
+      ? [openaiContent({ id, name, price: value, currency })]
+      : [],
   });
 }
 
@@ -139,6 +208,19 @@ export function trackPixelAddToCart({
     },
     { eventID },
   );
+
+  const amount = toMinorAmount(value);
+  trackOpenai(
+    "items_added",
+    {
+      type: "contents",
+      ...(amount != null ? { amount, currency } : {}),
+      contents: id
+        ? [openaiContent({ id: productId, name, quantity: qty, price: unitPrice, currency })]
+        : [],
+    },
+    { event_id: eventID },
+  );
 }
 
 export function trackPixelViewCart({ items, value, currency = "INR" }) {
@@ -155,17 +237,40 @@ export function trackPixelViewCart({ items, value, currency = "INR" }) {
       0,
     ),
   });
+  const amount = toMinorAmount(value);
+  trackOpenaiCustom("view_cart", {
+    ...(amount != null ? { amount, currency } : {}),
+    contents: (items || [])
+      .map((row) =>
+        openaiContent({
+          id: row.item_id ?? row.id,
+          name: row.item_name ?? row.name,
+          quantity: row.quantity,
+          price: row.price,
+          currency,
+        }),
+      )
+      .filter((row) => row.id),
+  });
 }
 
 export function trackPixelRemoveFromCart({ id, name, price, quantity = 1, currency = "INR" }) {
   const qty = Number(quantity) || 1;
+  const value = parsePrice(price) * qty;
   trackMetaCustom("RemoveFromCart", {
     content_type: "product",
     content_ids: id ? [String(id)] : [],
     content_name: name,
-    value: parsePrice(price) * qty,
+    value,
     currency,
     num_items: qty,
+  });
+  const amount = toMinorAmount(value);
+  trackOpenaiCustom("remove_from_cart", {
+    ...(amount != null ? { amount, currency } : {}),
+    contents: id
+      ? [openaiContent({ id, name, quantity: qty, price, currency })]
+      : [],
   });
 }
 
@@ -191,6 +296,22 @@ export function trackPixelBeginCheckout({
         id: row.item_id ?? row.id,
         quantity: row.quantity ?? 1,
       }))
+      .filter((row) => row.id),
+  });
+  const amount = toMinorAmount(parsedValue);
+  trackOpenai("checkout_started", {
+    type: "contents",
+    ...(amount != null ? { amount, currency } : {}),
+    contents: (items || [])
+      .map((row) =>
+        openaiContent({
+          id: row.item_id ?? row.id,
+          name: row.item_name ?? row.name,
+          quantity: row.quantity,
+          price: row.price,
+          currency,
+        }),
+      )
       .filter((row) => row.id),
   });
 }
@@ -226,6 +347,19 @@ export function trackPixelAddPaymentInfo({ value, currency = "INR", contents }) 
     content_type: "product",
     contents,
   });
+  const amount = toMinorAmount(value);
+  trackOpenaiCustom("add_payment_info", {
+    ...(amount != null ? { amount, currency } : {}),
+    contents: (contents || [])
+      .map((row) =>
+        openaiContent({
+          id: row.id,
+          quantity: row.quantity,
+          currency,
+        }),
+      )
+      .filter((row) => row.id),
+  });
 }
 
 export function trackPixelPurchase(conversion) {
@@ -241,6 +375,7 @@ export function trackPixelPurchase(conversion) {
     conversion?.numItems ??
     contents.reduce((sum, row) => sum + (row.quantity || 1), 0);
 
+  const eventID = String(conversion.orderId);
   trackMeta(
     "Purchase",
     {
@@ -251,6 +386,27 @@ export function trackPixelPurchase(conversion) {
       contents,
       num_items: numItems,
     },
-    { eventID: String(conversion.orderId) },
+    { eventID },
+  );
+
+  const amount = toMinorAmount(value);
+  trackOpenai(
+    "order_created",
+    {
+      type: "contents",
+      ...(amount != null ? { amount, currency } : {}),
+      contents: items
+        .map((row) =>
+          openaiContent({
+            id: row.id,
+            name: row.name,
+            quantity: row.quantity,
+            price: row.price,
+            currency,
+          }),
+        )
+        .filter((row) => row.id),
+    },
+    { event_id: eventID },
   );
 }

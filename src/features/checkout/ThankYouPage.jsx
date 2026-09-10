@@ -31,8 +31,17 @@ export default function ThankYouPage() {
       navigate(ROUTES.HOME, { replace: true })
       return
     }
-    if (conversion) {
-      trackOrderConversion(conversion)
+    try {
+      trackOrderConversion(
+        conversion || {
+          orderId,
+          value: 0,
+          currency: 'INR',
+          items: [],
+        },
+      )
+    } catch {
+      // Conversion tracking must not break the thank-you page.
     }
   }, [orderId, conversion, navigate])
 

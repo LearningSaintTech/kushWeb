@@ -1087,7 +1087,7 @@ function CheckoutPage() {
           currency: "INR",
         });
         debugLog(
-          "[Checkout] COD success, refetch cart and navigate to orders:",
+          "[Checkout] COD success, refetch cart and navigate to thank-you:",
           orderId,
         );
         refetchCart();
@@ -1304,7 +1304,7 @@ function CheckoutPage() {
             });
             refetchCart();
             debugLog(
-              "[Checkout] verifyPayment success, navigate to orders:",
+              "[Checkout] verifyPayment success, navigate to thank-you:",
               businessOrderId,
             );
             navigateToThankYou(navigate, {
