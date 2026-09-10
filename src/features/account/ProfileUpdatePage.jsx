@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
 import { authService } from '../../services/auth.service.js'
+import { validatePincode } from '../../services/pincode.service.js'
 import { trackEvent } from '../../analytics'
 import { ROUTES } from '../../utils/constants'
 
@@ -141,6 +142,17 @@ export default function ProfileUpdatePage() {
       return
     }
 
+    const pin = (form.pinCode || '').trim()
+    if (pin) {
+      const pinCheck = await validatePincode(pin)
+      if (!pinCheck.valid) {
+        const msg = 'Please enter a valid pincode'
+        setError(msg)
+        window.alert(msg)
+        return
+      }
+    }
+
     setSubmitting(true)
     try {
       const formData = new FormData()
@@ -148,7 +160,6 @@ export default function ProfileUpdatePage() {
       formData.append('email', (form.email || '').trim())
       formData.append('address', (form.address || '').trim())
       formData.append('city', (form.city || '').trim())
-      const pin = (form.pinCode || '').trim()
       if (pin) formData.append('pinCode', pin)
       if (profileImageFile) formData.append('profileImage', profileImageFile)
 
@@ -200,8 +211,11 @@ export default function ProfileUpdatePage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="font-inter p-3 rounded-lg bg-red-50 text-red-700 text-sm">
-              {error}
+            <div className="flex items-center gap-2.5 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs font-semibold text-red-700 shadow-sm">
+              <svg className="h-4 w-4 shrink-0 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span>{error}</span>
             </div>
           )}
           {success && (
@@ -321,6 +335,19 @@ export default function ProfileUpdatePage() {
                 maxLength={6}
                 value={form.pinCode}
                 onChange={handleChange}
+                onBlur={async () => {
+                  const pin = (form.pinCode || '').trim()
+                  if (pin.length === 6) {
+                    const check = await validatePincode(pin)
+                    if (!check.valid) {
+                      const msg = 'Please enter a valid pincode'
+                      setError(msg)
+                      window.alert(msg)
+                    }
+                  } else if (pin.length > 0 && pin.length < 6) {
+                    setError('Please enter a valid pincode')
+                  }
+                }}
                 pattern="\d{6}"
                 title="Enter a 6-digit pin code"
                 className="font-inter w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"

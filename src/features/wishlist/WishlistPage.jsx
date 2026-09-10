@@ -12,9 +12,21 @@ const PAGE_SIZE = 12
 const PAGE_INSET = 'mx-0 lg:mx-12 xl:mx-auto xl:max-w-[1400px]'
 
 function WishlistPage() {
-  const { wishlist, wishlistCount, wishlistLoading } = useCartWishlist()
+  const { wishlist, wishlistCount, wishlistLoading, clearWishlist } = useCartWishlist()
   const [currentPage, setCurrentPage] = useState(1)
+  const [clearing, setClearing] = useState(false)
   const listRef = useRef(null)
+
+  const handleClearWishlist = async () => {
+    if (window.confirm('Are you sure you want to remove all items from your wishlist?')) {
+      setClearing(true)
+      try {
+        await clearWishlist()
+      } finally {
+        setClearing(false)
+      }
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(wishlist.length / PAGE_SIZE))
   const start = (currentPage - 1) * PAGE_SIZE
@@ -147,16 +159,28 @@ function WishlistPage() {
       {/* {banner} */}
       {breadcrumb}
       <div className={PAGE_INSET}>
-        <div className="flex flex-col gap-1 border-b border-neutral-100 bg-neutral-50/60 px-3 py-2.5 sm:py-3 md:px-4 md:py-3 lg:px-6 lg:py-4">
-          <h1 className="text-lg sm:text-xl mt-6   md:text-xl lg:text-3xl font-bold uppercase tracking-wide text-black">
-            KHUSHLIST
-          </h1>
-          <p className="text-[11px] sm:text-xs md:text-[11px] lg:text-sm text-neutral-600">
-            <span className="font-semibold tabular-nums text-neutral-900">
-              {wishlist.length}
-            </span>{' '}
-            {wishlist.length === 1 ? 'item' : 'items'}
-          </p>
+        <div className="flex items-center justify-between border-b border-neutral-100 bg-neutral-50/60 px-3 py-2.5 sm:py-3 md:px-4 md:py-3 lg:px-6 lg:py-4">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-lg sm:text-xl mt-2 md:text-xl lg:text-3xl font-bold uppercase tracking-wide text-black">
+              KHUSHLIST
+            </h1>
+            <p className="text-[11px] sm:text-xs md:text-[11px] lg:text-sm text-neutral-600">
+              <span className="font-semibold tabular-nums text-neutral-900">
+                {wishlist.length}
+              </span>{' '}
+              {wishlist.length === 1 ? 'item' : 'items'}
+            </p>
+          </div>
+          {wishlist.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearWishlist}
+              disabled={clearing || wishlistLoading}
+              className="text-xs sm:text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors border border-red-200 disabled:opacity-50"
+            >
+              {clearing ? 'Clearing...' : 'Clear All'}
+            </button>
+          )}
         </div>
       </div>
 

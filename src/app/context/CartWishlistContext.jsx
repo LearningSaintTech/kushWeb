@@ -122,16 +122,18 @@ export function CartWishlistProvider({ children }) {
   const [cartLoading, setCartLoading] = useState(false)
 
   useEffect(() => {
+    if (isAuthenticated) return
     try {
       localStorage.setItem(STORAGE_KEY_CART, JSON.stringify(cart))
     } catch {}
-  }, [cart])
+  }, [cart, isAuthenticated])
 
   useEffect(() => {
+    if (isAuthenticated) return
     try {
       localStorage.setItem(STORAGE_KEY_WISHLIST, JSON.stringify(wishlist))
     } catch {}
-  }, [wishlist])
+  }, [wishlist, isAuthenticated])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -286,6 +288,10 @@ export function CartWishlistProvider({ children }) {
     const markMerged = () => {
       try {
         if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(mergeKey, '1')
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(STORAGE_KEY_CART)
+          localStorage.removeItem(STORAGE_KEY_WISHLIST)
+        }
       } catch {}
     }
     try {
@@ -595,6 +601,33 @@ export function CartWishlistProvider({ children }) {
     emitWishlistAnalytics(eventType, typeof product === 'object' ? product : { id })
   }, [isAuthenticated, pincode, wishlistIds, wishlist])
 
+  const clearWishlist = useCallback(async () => {
+    if (isAuthenticated) {
+      setWishlistLoading(true)
+      try {
+        const currentIds = [...wishlistIds]
+        await Promise.allSettled(
+          currentIds.map((id) => wishlistService.toggle({ itemId: id }))
+        )
+        setWishlistIds([])
+        setWishlistDeliveries([])
+        setWishlist([])
+        try {
+          localStorage.removeItem(STORAGE_KEY_WISHLIST)
+        } catch {}
+      } catch (_) {
+      } finally {
+        setWishlistLoading(false)
+      }
+      return
+    }
+    setWishlist([])
+    setWishlistIds([])
+    try {
+      localStorage.removeItem(STORAGE_KEY_WISHLIST)
+    } catch {}
+  }, [isAuthenticated, wishlistIds])
+
   const isInWishlist = useCallback(
     (productId) => {
       if (isAuthenticated) return wishlistIds.some((wid) => String(wid) === String(productId))
@@ -624,6 +657,7 @@ export function CartWishlistProvider({ children }) {
       addToWishlist,
       removeFromWishlist,
       toggleWishlist,
+      clearWishlist,
       isInWishlist,
       refetchCart,
     }),
@@ -642,6 +676,7 @@ export function CartWishlistProvider({ children }) {
       addToWishlist,
       removeFromWishlist,
       toggleWishlist,
+      clearWishlist,
       isInWishlist,
       refetchCart,
     ]

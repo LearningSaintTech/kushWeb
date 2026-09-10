@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
 import { addressService } from '../../services/address.service.js'
 import { reverseGeocode, searchPlaces, getCurrentPosition } from '../../services/geo.service'
+import { validatePincode } from '../../services/pincode.service.js'
 import { setLocation } from '../../app/store/slices/locationSlice'
 import GoogleMapPicker from '../components/GoogleMapPicker'
 import { LocationIcon } from '../ui/icons'
@@ -83,6 +84,7 @@ export default function Address() {
   const currentPincode = useSelector((s) => s?.location?.pincode)
   const [formError, setFormError] = useState(null)
   const [phoneError, setPhoneError] = useState(null)
+  const [pincodeError, setPincodeError] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
   const [mapGeocoding, setMapGeocoding] = useState(false)
   const [pinAutofetchLoading, setPinAutofetchLoading] = useState(false)
@@ -93,6 +95,7 @@ export default function Address() {
   const addressSearchRef = useRef(null)
   const [phoneTouched, setPhoneTouched] = useState(false)
   const lastPinAutofetchRef = useRef(null)
+
 
   const loadAddresses = useCallback(async () => {
     if (!isAuthenticated) {
@@ -141,6 +144,8 @@ export default function Address() {
     setEditingAddressId(null);
     setFormError(null);
     setPhoneError(null);
+    setPincodeError(null);
+    lastPinAutofetchRef.current = null;
     setAddressSearchQuery("");
     setAddressSearchResults([]);
     setAddressSearchOpen(false);
@@ -157,7 +162,7 @@ export default function Address() {
       latitude: null,
       longitude: null,
     });
-    setPhoneTouched(false)
+    setPhoneTouched(false);
     setModalOpen(true);
   };
 
@@ -167,6 +172,8 @@ export default function Address() {
     setEditingAddressId(addr?._id ?? null)
     setFormError(null)
     setPhoneError(null)
+    setPincodeError(null)
+    lastPinAutofetchRef.current = null
     setForm({
       name: addr?.name ?? '',
       phoneNumber: sanitizeAddressPhoneInput(addr?.phoneNumber ?? ''),
@@ -190,6 +197,7 @@ export default function Address() {
   const handleFormChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (field === "phoneNumber") setPhoneError(null);
+    if (field === "pinCode") setPincodeError(null);
   };
 
   const handleMapSelect = useCallback((lat, lng) => {
@@ -220,32 +228,63 @@ export default function Address() {
     return () => clearTimeout(t);
   }, [modalOpen, modalMode, addressSearchQuery]);
 
-  // App autofill from pincode (city/state). Browser autocomplete stays off on inputs.
+  // App autofill & validation from pincode (city/state). Browser autocomplete stays off on inputs.
   useEffect(() => {
     if (!modalOpen) return
     const pin = String(form.pinCode || '').replace(/\D/g, '').slice(0, 6)
-    if (pin.length !== 6) return
+    if (pin.length !== 6) {
+      if (pin.length > 0 && pin.length < 6) {
+        setPincodeError(null)
+      }
+      return
+    }
     if (lastPinAutofetchRef.current === pin) return
 
     let cancelled = false
     setPinAutofetchLoading(true)
+    setPincodeError(null)
     ;(async () => {
       try {
-        const results = await searchPlaces(pin)
+        const pinCheck = await validatePincode(pin)
         if (cancelled) return
-        const list = Array.isArray(results) ? results : []
-        const match =
-          list.find((r) => String(r?.pincode || '').replace(/\D/g, '') === pin) ??
-          list[0] ??
-          null
-        if (!match) return
+        if (!pinCheck.valid) {
+          setPincodeError(pinCheck.message || 'Please enter a valid pincode')
+          setPinAutofetchLoading(false)
+          return
+        }
+
         lastPinAutofetchRef.current = pin
+        setPincodeError(null)
+
+        let city = pinCheck.city || ''
+        let state = pinCheck.state || ''
+        let lat = null
+        let lng = null
+
+        try {
+          const results = await searchPlaces(pin)
+          if (!cancelled) {
+            const list = Array.isArray(results) ? results : []
+            const match =
+              list.find((r) => String(r?.pincode || '').replace(/\D/g, '') === pin) ??
+              list[0] ??
+              null
+            if (match) {
+              if (match.city) city = match.city
+              if (match.state) state = match.state
+              lat = match.latitude ?? null
+              lng = match.longitude ?? null
+            }
+          }
+        } catch {}
+
+        if (cancelled) return
         setForm((prev) => ({
           ...prev,
-          city: prev.city?.trim() ? prev.city : (match.city || prev.city),
-          state: prev.state?.trim() ? prev.state : (match.state || prev.state),
-          latitude: prev.latitude ?? match.latitude ?? prev.latitude,
-          longitude: prev.longitude ?? match.longitude ?? prev.longitude,
+          city: prev.city?.trim() ? prev.city : (city || prev.city),
+          state: prev.state?.trim() ? prev.state : (state || prev.state),
+          latitude: prev.latitude ?? lat ?? prev.latitude,
+          longitude: prev.longitude ?? lng ?? prev.longitude,
         }))
       } catch {
         // ignore
@@ -257,7 +296,7 @@ export default function Address() {
     return () => {
       cancelled = true
     }
-  }, [modalOpen, form.pinCode, form.city, form.state])
+  }, [modalOpen, form.pinCode])
 
   const handleSelectAddressSuggestion = useCallback((item) => {
     setForm((prev) => ({
@@ -317,6 +356,7 @@ export default function Address() {
     e.preventDefault();
     setFormError(null);
     setPhoneError(null);
+    setPincodeError(null);
 
     const phoneDigits = sanitizeAddressPhoneInput(form.phoneNumber);
     setPhoneTouched(true);
@@ -340,6 +380,27 @@ export default function Address() {
       if (!phoneDigits) setPhoneError("Phone number is required.");
       return;
     }
+
+    if (pin.length !== 6) {
+      const msg = "Please enter a valid pincode";
+      setFormError(msg);
+      setPincodeError(msg);
+      window.alert(msg);
+      return;
+    }
+
+    setFormLoading(true);
+
+    const pinCheck = await validatePincode(pin);
+    if (!pinCheck.valid) {
+      const msg = "Please enter a valid pincode";
+      setFormError(msg);
+      setPincodeError(msg);
+      window.alert(msg);
+      setFormLoading(false);
+      return;
+    }
+
     if (
       modalMode === "create" &&
       (form.latitude == null || form.longitude == null)
@@ -347,6 +408,7 @@ export default function Address() {
       setFormError(
         "Please search for your area or use current location so we can confirm your delivery point.",
       );
+      setFormLoading(false);
       return;
     }
 
@@ -369,10 +431,11 @@ export default function Address() {
 
     if (payload.pinCode <= 0) {
       setFormError("Please enter a valid pincode.");
+      setPincodeError("Please enter a valid pincode");
+      setFormLoading(false);
       return;
     }
 
-    setFormLoading(true);
     try {
       if (modalMode === "edit" && editingAddressId) {
         await addressService.update(editingAddressId, payload);
@@ -636,7 +699,14 @@ export default function Address() {
               autoComplete="off"
               className="px-4 sm:px-5 py-4 space-y-3 max-h-[min(85vh,560px)] overflow-y-auto"
             >
-              {formError && <p className="text-xs text-red-600">{formError}</p>}
+              {formError && (
+                <div className="flex items-center gap-2.5 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs font-semibold text-red-700 shadow-sm">
+                  <svg className="h-4 w-4 shrink-0 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>{formError}</span>
+                </div>
+              )}
               {modalMode === "create" && (
                 <>
                   <div className="relative" ref={addressSearchRef}>
@@ -788,6 +858,7 @@ export default function Address() {
                 />
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={form.pinCode}
                   onChange={(e) =>
                     handleFormChange(
@@ -795,15 +866,36 @@ export default function Address() {
                       e.target.value.replace(/\D/g, "").slice(0, 6),
                     )
                   }
+                  onBlur={async () => {
+                    const pin = String(form.pinCode || "").trim().replace(/\D/g, "").slice(0, 6);
+                    if (pin.length === 6) {
+                      const check = await validatePincode(pin);
+                      if (!check.valid) {
+                        const msg = "Please enter a valid pincode";
+                        setPincodeError(msg);
+                        window.alert(msg);
+                      }
+                    } else if (pin.length > 0 && pin.length < 6) {
+                      setPincodeError("Please enter a valid pincode");
+                    }
+                  }}
                   placeholder="PIN code"
                   autoComplete="off"
-                  className="w-24 sm:w-32 border-b border-gray-300 py-2 text-sm outline-none placeholder:text-gray-400"
+                  className={`w-24 sm:w-32 border-b py-2 text-sm outline-none placeholder:text-gray-400 ${pincodeError ? 'border-red-500 text-red-600 font-semibold' : 'border-gray-300'}`}
                   required
                 />
               </div>
-              {pinAutofetchLoading && (
+              {pincodeError && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
+                  <svg className="h-4 w-4 shrink-0 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>{pincodeError}</span>
+                </div>
+              )}
+              {pinAutofetchLoading && !pincodeError && (
                 <p className="-mt-2 text-xs text-gray-500">
-                  Fetching city/state from pincode…
+                  Verifying pincode & fetching city/state…
                 </p>
               )}
               <div>

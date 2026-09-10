@@ -80,3 +80,4 @@ export { referralService, unwrapReferralResponse } from './referral.service.js';
 export { earningsService, unwrapEarningsResponse } from './earnings.service.js';
 
 export { getCurrentPosition, reverseGeocode, getCurrentLocationPincode } from './geo.service.js';
+export { pincodeService, validatePincode } from './pincode.service.js';

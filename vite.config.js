@@ -187,21 +187,28 @@ export default defineConfig(({ mode }) => {
     }
   }
 
-  const devProxy = apiOrigin
-    ? {
-        '/api': withLocalCookieRewrite({
-          target: apiOrigin,
-          changeOrigin: true,
-          ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
-        }),
-        '/socket.io': withLocalCookieRewrite({
-          target: apiOrigin,
-          changeOrigin: true,
-          ws: true,
-          ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
-        }),
-      }
-    : undefined
+  const devProxy = {
+    ...(apiOrigin
+      ? {
+          '/api': withLocalCookieRewrite({
+            target: apiOrigin,
+            changeOrigin: true,
+            ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
+          }),
+          '/socket.io': withLocalCookieRewrite({
+            target: apiOrigin,
+            changeOrigin: true,
+            ws: true,
+            ...(pinggyBypassHeaders ? { headers: pinggyBypassHeaders } : {}),
+          }),
+        }
+      : {}),
+    '/api-postal': {
+      target: 'https://api.postalpincode.in',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api-postal/, ''),
+    },
+  }
 
     console.log("🔥 VITE_API_URL =", env.VITE_API_URL)
 console.log("🔥 apiOrigin =", apiOrigin)

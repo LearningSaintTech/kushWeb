@@ -139,26 +139,41 @@ export default function CommunitySidebar({
       </div>
 
       <div className="mt-auto flex shrink-0 flex-col gap-3 pt-4">
-        <Link
-          to={ROUTES.CART}
-          className="inline-flex items-center gap-2 px-2 font-inter text-sm font-semibold text-black transition hover:opacity-70"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            aria-hidden
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
-            />
-          </svg>
-          Go to Cart
-        </Link>
+       <Link
+  to={ROUTES.CART}
+  className="flex h-[56px] w-full items-center justify-center gap-3 rounded-full bg-black px-4 font-inter text-[18px] font-medium text-white transition hover:bg-neutral-900"
+>
+  <span>Go to cart</span>
+
+  <span className="relative flex items-center justify-center">
+    {/* Cart Icon */}
+    <svg
+      className="h-[32px] w-[32px]"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4.5h1.5l1.2 9.15a2 2 0 001.98 1.73h8.64a2 2 0 001.93-1.48L20 7.5H6"
+      />
+
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 19.5a1 1 0 11-2 0 1 1 0 012 0zm8 0a1 1 0 11-2 0 1 1 0 012 0z"
+      />
+    </svg>
+
+    {/* Cart Count */}
+    {/* <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white font-inter text-[14px] font-bold text-black">
+      4
+    </span> */}
+  </span>
+</Link>
 
         <Link
           to={ROUTES.HOME}

@@ -21,8 +21,16 @@ export function NotificationProvider({ children }) {
     setLoading(true);
     try {
       const data = await notificationService.getList({ page, limit });
-      const items = data?.list ?? [];
+      const rawItems = data?.list ?? [];
       const total = data?.total ?? 0;
+      const items = rawItems.filter((n) => {
+        const body = String(n?.body || '').trim();
+        const title = String(n?.title || '').trim();
+        const mod = String(n?.module || n?.type || '').toLowerCase();
+        if (mod.includes('wishlist')) return false;
+        if (!body && !title) return false;
+        return true;
+      });
       setList(items);
       return { list: items, total, page: data?.page ?? page, limit: data?.limit ?? limit };
     } catch {
@@ -90,6 +98,15 @@ export function NotificationProvider({ children }) {
 
   const prependFromSocket = useCallback((payload) => {
     if (!payload) return;
+    const body = typeof payload.body === 'string' ? payload.body.trim() : (payload.body || '');
+    const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+    const moduleName = String(payload.module || payload.type || '').toLowerCase();
+
+    // Ignore blank notifications or any wishlist action events
+    if ((!body && !title) || moduleName.includes('wishlist')) {
+      return;
+    }
+
     const item = {
       _id: payload.id || payload._id || `notif-${Date.now()}`,
       title: payload.title || 'New Notification',

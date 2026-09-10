@@ -5,6 +5,7 @@ import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { cartService } from "../../services/cart.service.js";
 import { addressService } from "../../services/address.service.js";
+import { validatePincode } from "../../services/pincode.service.js";
 import { deliveryService, cartChargesService } from "../../services/delivery.service.js";
 import { couponsService } from "../../services/coupons.service.js";
 import { orderService } from "../../services/order.service.js";
@@ -198,14 +199,15 @@ function isCouponAppliedInSummary(summaryData, expectedCode) {
     .trim()
     .toUpperCase();
   const summaryDiscount = Number(summary?.coupon?.discountAmount ?? 0);
-  const inferredDiscount = Math.max(
-    0,
-    Number(summary?.subTotal ?? 0) -
-      Number(summary?.subTotalAfterDiscount ?? summary?.subTotal ?? 0),
-  );
-  if (normalizedExpectedCode && summaryCouponCode === normalizedExpectedCode)
-    return true;
-  return summaryDiscount > 0 || inferredDiscount > 0;
+
+  if (normalizedExpectedCode) {
+    return Boolean(
+      summaryCouponCode &&
+        summaryCouponCode === normalizedExpectedCode &&
+        (summaryDiscount > 0 || summary?.coupon != null),
+    );
+  }
+  return Boolean(summaryCouponCode && summaryDiscount > 0);
 }
 
 function CheckoutPage() {
@@ -247,6 +249,9 @@ function CheckoutPage() {
   const [addressFormLoading, setAddressFormLoading] = useState(false);
   const [addressFormError, setAddressFormError] = useState(null);
   const [addressFormPhoneError, setAddressFormPhoneError] = useState(null);
+  const [addressFormPincodeError, setAddressFormPincodeError] = useState(null);
+  const [addressFormPinLoading, setAddressFormPinLoading] = useState(false);
+  const lastAddressFormPinRef = useRef(null);
   const [addressForm, setAddressForm] = useState({
     name: "",
     phoneNumber: "",
@@ -393,9 +398,36 @@ function CheckoutPage() {
         const msg =
           err?.response?.data?.message ??
           err?.message ??
-          "Failed to get price summary";
+          "Invalid coupon or coupon expired";
         setCouponError(msg);
-        setPriceSummary(null);
+        if (couponCode) {
+          setAppliedCouponCode(null);
+          setAppliedCouponMeta(null);
+          const fallbackParams = {
+            paymentMode: paymentModeParam,
+            useWallet: useWalletParam ? "true" : "false",
+            ...(useWalletParam
+              ? { walletAmountToUse: Math.max(0, Number(walletBalance || 0)) }
+              : {}),
+            ...(buildDonationApiParams({
+              donationEnabled,
+              donationAmount,
+              donationPresetUsed,
+            }) || {}),
+          };
+          try {
+            const fallbackRes = await cartService.getPriceSummary(fallbackParams);
+            if (requestId === priceSummaryRequestRef.current) {
+              const fallbackData =
+                fallbackRes?.data?.data ?? fallbackRes?.data;
+              setPriceSummary(fallbackData?.cartSummary ?? fallbackData);
+            }
+          } catch {
+            setPriceSummary(null);
+          }
+        } else {
+          setPriceSummary(null);
+        }
         return null;
       }
     },
@@ -801,7 +833,7 @@ function CheckoutPage() {
     };
   }, []);
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     const code = couponInput?.trim();
     if (!code) return;
     if (
@@ -810,13 +842,71 @@ function CheckoutPage() {
     ) {
       setAutoCouponDismissed(true);
     }
-    setAppliedCouponCode(code);
-    setAppliedCouponMeta(null);
     setCouponError(null);
-    fetchPriceSummary(code, paymentMode)
-      .then(() => fetchCart())
-      .then(() => fetchPriceSummary(code, paymentMode))
-      .catch(() => {});
+
+    try {
+      let validateError = null;
+      try {
+        const valRes = await couponsService.validate(code);
+        const couponData = valRes?.data?.data ?? valRes?.data;
+        if (couponData) {
+          const now = new Date();
+          if (couponData.expiryDate) {
+            const exp = new Date(couponData.expiryDate);
+            if (!Number.isNaN(exp.getTime()) && exp < now) {
+              validateError = "Coupon has expired";
+            }
+          }
+          if (couponData.startDate) {
+            const start = new Date(couponData.startDate);
+            if (!Number.isNaN(start.getTime()) && start > now) {
+              validateError = "Coupon is not active yet";
+            }
+          }
+          const minCart = couponData.minCartValue ?? 0;
+          const cartSubTotal =
+            cartData?.summary?.subTotal ?? priceSummary?.summary?.subTotal ?? 0;
+          if (minCart > 0 && cartSubTotal < minCart) {
+            validateError = `Minimum cart value of Rs. ${minCart} required for this coupon`;
+          }
+        }
+      } catch (valErr) {
+        validateError = valErr?.response?.data?.message || "Invalid coupon code";
+      }
+
+      if (validateError) {
+        setAppliedCouponCode(null);
+        setAppliedCouponMeta(null);
+        setCouponError(validateError);
+        await fetchPriceSummary(null, paymentMode);
+        return;
+      }
+
+      const summaryRes = await fetchPriceSummary(code, paymentMode);
+      if (isCouponAppliedInSummary(summaryRes, code)) {
+        setAppliedCouponCode(code);
+        const selected = availableCoupons.find(
+          (c) =>
+            String(c?.code ?? "").toUpperCase() === String(code).toUpperCase(),
+        );
+        setAppliedCouponMeta(selected ?? null);
+        setCouponError(null);
+      } else {
+        setAppliedCouponCode(null);
+        setAppliedCouponMeta(null);
+        setCouponError("Invalid coupon or coupon expired");
+        await fetchPriceSummary(null, paymentMode);
+      }
+    } catch (err) {
+      setAppliedCouponCode(null);
+      setAppliedCouponMeta(null);
+      const msg =
+        err?.response?.data?.message ??
+        err?.message ??
+        "Invalid coupon or coupon expired";
+      setCouponError(msg);
+      await fetchPriceSummary(null, paymentMode);
+    }
   };
 
   const handleRemoveCoupon = () => {
@@ -864,7 +954,7 @@ function CheckoutPage() {
       .finally(() => setLoadingCoupons(false));
   };
 
-  const handleApplyCouponFromModal = (code) => {
+  const handleApplyCouponFromModal = async (code) => {
     if (!code) return;
     if (
       autoIncludedCouponCode &&
@@ -873,17 +963,35 @@ function CheckoutPage() {
       setAutoCouponDismissed(true);
     }
     setCouponInput(code);
-    setAppliedCouponCode(code);
-    const selected = availableCoupons.find(
-      (c) => String(c?.code ?? "").toUpperCase() === String(code).toUpperCase(),
-    );
-    setAppliedCouponMeta(selected ?? null);
     setCouponError(null);
-    fetchPriceSummary(code, paymentMode)
-      .then(() => fetchCart())
-      .then(() => fetchPriceSummary(code, paymentMode))
-      .catch(() => {});
     setCouponModalOpen(false);
+
+    try {
+      const summaryRes = await fetchPriceSummary(code, paymentMode);
+      if (isCouponAppliedInSummary(summaryRes, code)) {
+        setAppliedCouponCode(code);
+        const selected = availableCoupons.find(
+          (c) =>
+            String(c?.code ?? "").toUpperCase() === String(code).toUpperCase(),
+        );
+        setAppliedCouponMeta(selected ?? null);
+        setCouponError(null);
+      } else {
+        setAppliedCouponCode(null);
+        setAppliedCouponMeta(null);
+        setCouponError("Invalid coupon or coupon expired");
+        await fetchPriceSummary(null, paymentMode);
+      }
+    } catch (err) {
+      setAppliedCouponCode(null);
+      setAppliedCouponMeta(null);
+      const msg =
+        err?.response?.data?.message ??
+        err?.message ??
+        "Invalid coupon or coupon expired";
+      setCouponError(msg);
+      await fetchPriceSummary(null, paymentMode);
+    }
   };
 
   useEffect(() => {
@@ -905,6 +1013,7 @@ function CheckoutPage() {
     debugLog("[Checkout] openAddressForm");
     setAddressFormError(null);
     setAddressFormPhoneError(null);
+    setAddressFormPincodeError(null);
     const loginPhone =
       addresses.length === 0 ? getLoginPhoneForAddress(user) : "";
     setAddressForm({
@@ -923,13 +1032,64 @@ function CheckoutPage() {
   const handleAddressFormChange = (field, value) => {
     setAddressForm((prev) => ({ ...prev, [field]: value }));
     if (field === "phoneNumber") setAddressFormPhoneError(null);
+    if (field === "pinCode") setAddressFormPincodeError(null);
   };
+
+  // Address form pincode validation & city/state autofill
+  useEffect(() => {
+    if (!addressFormOpen) return;
+    const pin = String(addressForm.pinCode || '').replace(/\D/g, '').slice(0, 6);
+    if (pin.length !== 6) {
+      if (pin.length > 0 && pin.length < 6) {
+        setAddressFormPincodeError(null);
+      }
+      return;
+    }
+    if (lastAddressFormPinRef.current === pin) return;
+
+    let cancelled = false;
+    setAddressFormPinLoading(true);
+    setAddressFormPincodeError(null);
+
+    (async () => {
+      try {
+        const pinCheck = await validatePincode(pin);
+        if (cancelled) return;
+        if (!pinCheck.valid) {
+          setAddressFormPincodeError(pinCheck.message || 'Please enter a valid pincode');
+          setAddressFormPinLoading(false);
+          return;
+        }
+
+        lastAddressFormPinRef.current = pin;
+        setAddressFormPincodeError(null);
+
+        const city = pinCheck.city || '';
+        const state = pinCheck.state || '';
+
+        setAddressForm((prev) => ({
+          ...prev,
+          city: prev.city?.trim() ? prev.city : (city || prev.city),
+          state: prev.state?.trim() ? prev.state : (state || prev.state),
+        }));
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setAddressFormPinLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addressFormOpen, addressForm.pinCode]);
 
   const handleAddressFormSubmit = async (e) => {
     e.preventDefault();
     debugLog("[Checkout] handleAddressFormSubmit");
     setAddressFormError(null);
     setAddressFormPhoneError(null);
+    setAddressFormPincodeError(null);
     const pin = String(addressForm.pinCode || "")
       .trim()
       .replace(/\D/g, "");
@@ -967,7 +1127,27 @@ function CheckoutPage() {
       if (!phoneDigits) setAddressFormPhoneError("Phone number is required.");
       return;
     }
+
+    if (pin.length !== 6) {
+      const msg = "Please enter a valid pincode";
+      setAddressFormError(msg);
+      setAddressFormPincodeError(msg);
+      window.alert(msg);
+      return;
+    }
+
     setAddressFormLoading(true);
+
+    const pinCheck = await validatePincode(pin);
+    if (!pinCheck.valid) {
+      const msg = "Please enter a valid pincode";
+      setAddressFormError(msg);
+      setAddressFormPincodeError(msg);
+      window.alert(msg);
+      setAddressFormLoading(false);
+      return;
+    }
+
     try {
       const payload = {
         name: addressForm.name.trim(),
@@ -982,7 +1162,9 @@ function CheckoutPage() {
       };
       if (payload.pinCode <= 0) {
         debugLog("[Checkout] handleAddressFormSubmit: invalid pincode");
-        setAddressFormError("Please enter a valid pincode.");
+        const msg = "Please enter a valid pincode";
+        setAddressFormError(msg);
+        setAddressFormPincodeError(msg);
         setAddressFormLoading(false);
         return;
       }
@@ -2557,7 +2739,12 @@ function CheckoutPage() {
                     className="overflow-y-auto p-4 flex-1 space-y-3"
                   >
                     {addressFormError && (
-                      <p className="text-xs text-red-600">{addressFormError}</p>
+                      <div className="flex items-center gap-2.5 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs font-semibold text-red-700 shadow-sm">
+                        <svg className="h-4 w-4 shrink-0 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <span>{addressFormError}</span>
+                      </div>
                     )}
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
@@ -2678,13 +2865,42 @@ function CheckoutPage() {
                         inputMode="numeric"
                         value={addressForm.pinCode}
                         onChange={(e) =>
-                          handleAddressFormChange("pinCode", e.target.value)
+                          handleAddressFormChange(
+                            "pinCode",
+                            e.target.value.replace(/\D/g, "").slice(0, 6)
+                          )
                         }
+                        onBlur={async () => {
+                          const pin = String(addressForm.pinCode || "").trim().replace(/\D/g, "").slice(0, 6);
+                          if (pin.length === 6) {
+                            const check = await validatePincode(pin);
+                            if (!check.valid) {
+                              const msg = "Please enter a valid pincode";
+                              setAddressFormPincodeError(msg);
+                              window.alert(msg);
+                            }
+                          } else if (pin.length > 0 && pin.length < 6) {
+                            setAddressFormPincodeError("Please enter a valid pincode");
+                          }
+                        }}
                         autoComplete="off"
-                        className="w-full border border-gray-300 py-2 px-3 text-sm"
-                        placeholder="Pincode"
+                        className={`w-full border py-2 px-3 text-sm ${addressFormPincodeError ? 'border-red-500 text-red-600 font-semibold' : 'border-gray-300'}`}
+                        placeholder="6-digit pincode"
                         required
                       />
+                      {addressFormPincodeError && (
+                        <div className="mt-1 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
+                          <svg className="h-4 w-4 shrink-0 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          <span>{addressFormPincodeError}</span>
+                        </div>
+                      )}
+                      {addressFormPinLoading && !addressFormPincodeError && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Verifying pincode & fetching city/state…
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase text-gray-700 mb-1">
