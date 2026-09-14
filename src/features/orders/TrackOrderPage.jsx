@@ -109,6 +109,37 @@ const FALLBACK_RETURN_REASONS = [
     label: "Manufacturing defects",
     requiresUnboxingVideo: true,
   },
+  {
+    key: "DAMAGED PRODUCT",
+    label: "Damage",
+    requiresUnboxingVideo: true,
+
+  },
+  {
+    key: "Wrong product delivered",
+    label: "Wrong product delivered",
+    requiresUnboxingVideo: false,
+  },
+  {
+    key: "late delivery",
+    label: "Late delivery",
+    requiresUnboxingVideo: false,
+  },
+  {
+    key: "Changed of mind",
+    label: "Changed of mind",
+    requiresUnboxingVideo: false,
+  },
+  {
+    key: "  Design mismatch",
+    label: "Design mismatch",
+    requiresUnboxingVideo: false,
+  },
+  {
+    key: "Packaging issues",
+    label: "Packaging issues",
+    requiresUnboxingVideo: false,
+  }
 ];
 
 
@@ -1448,7 +1479,7 @@ export default function TrackOrderPage() {
     }
     if (returnStep === 2) {
       if (selectedReturnReason?.requiresUnboxingVideo && !returnVideoFile) {
-        setReturnError("Please upload an uncut unboxing video for this reason.");
+        setReturnError("Please upload an uncut unboxing video/images for this reason.");
         return;
       }
       setReturnError(null);
@@ -2954,7 +2985,7 @@ export default function TrackOrderPage() {
                               {r.label}
                               {r.requiresUnboxingVideo ? (
                                 <span className="block text-xs text-gray-500 mt-0.5">
-                                  Uncut unboxing video required
+                                  Uncut unboxing video/images required for verification
                                 </span>
                               ) : null}
                             </span>
