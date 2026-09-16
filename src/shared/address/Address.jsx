@@ -401,16 +401,16 @@ export default function Address() {
       return;
     }
 
-    if (
-      modalMode === "create" &&
-      (form.latitude == null || form.longitude == null)
-    ) {
-      setFormError(
-        "Please search for your area or use current location so we can confirm your delivery point.",
-      );
-      setFormLoading(false);
-      return;
-    }
+    // if (
+    //   modalMode === "create" &&
+    //   (form.latitude == null || form.longitude == null)
+    // ) {
+    //   setFormError(
+    //     "Please search for your area or use current location so we can confirm your delivery point.",
+    //   );
+    //   setFormLoading(false);
+    //   return;
+    // }
 
     const addressType = (form.addressType || 'HOME').toUpperCase()
     const payload = {

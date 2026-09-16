@@ -232,6 +232,7 @@ function CartPage() {
   const [addressFormPhoneError, setAddressFormPhoneError] = useState(null)
   const [addressFormPinLoading, setAddressFormPinLoading] = useState(false)
   const lastCartAddressPinRef = useRef(null)
+  const [editingAddressId, setEditingAddressId] = useState(null)
   const [addressForm, setAddressForm] = useState({
     name: '',
     phoneNumber: '',
@@ -835,6 +836,7 @@ function CartPage() {
     setAddressFormPhoneError(null)
     setAddressFormTouched({})
     setAddressFormErrors({})
+    setEditingAddressId(null)
     lastCartAddressPinRef.current = null
     const loginPhone =
       addresses.length === 0 ? getLoginPhoneForAddress(user) : ''
@@ -847,6 +849,28 @@ function CartPage() {
       pinCode: '',
       addressType: 'HOME',
       isDefault: addresses.length === 0,
+    })
+    setAddressFormOpen(true)
+  }
+
+  const openEditAddressForm = (addr) => {
+    if (!addr?._id) return
+    setAddressFormError(null)
+    setAddressFormPhoneError(null)
+    setAddressFormTouched({})
+    setAddressFormErrors({})
+    setEditingAddressId(addr._id)
+    const pin = addr.pinCode != null ? String(addr.pinCode) : ''
+    lastCartAddressPinRef.current = pin.replace(/\D/g, '').slice(0, 6) || null
+    setAddressForm({
+      name: addr.name ?? '',
+      phoneNumber: sanitizeAddressPhoneInput(addr.phoneNumber ?? ''),
+      addressLine: addr.addressLine ?? '',
+      city: addr.city ?? '',
+      state: addr.state ?? '',
+      pinCode: pin,
+      addressType: addr.addressType === 'OFFICE' ? 'WORK' : (addr.addressType || 'HOME'),
+      isDefault: !!addr.isDefault,
     })
     setAddressFormOpen(true)
   }
@@ -1026,22 +1050,45 @@ function CartPage() {
         setAddressFormLoading(false)
         return
       }
-      const res = await addressService.create(payload)
-      const newAddr = res?.data?.data ?? res?.data
-      const list = await refetchAddresses()
-      if (newAddr?._id) setSelectedAddress(newAddr)
-      else if (list?.length) setSelectedAddress(list[list.length - 1])
-      trackEvent({
-        eventType: 'checkout_address_added',
-        addressId: newAddr?._id ? String(newAddr._id) : undefined,
-      })
-      trackEvent({
-        eventType: 'address_added',
-        addressId: newAddr?._id ? String(newAddr._id) : undefined,
-      })
-      setAddressFormOpen(false)
-      refetchCart(newAddr?._id ? { addressId: newAddr._id } : {})
-      if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+      if (editingAddressId) {
+        await addressService.update(editingAddressId, payload)
+        const list = await refetchAddresses()
+        const updated =
+          list?.find((a) => String(a._id ?? '') === String(editingAddressId)) ?? null
+        if (updated) {
+          setSelectedAddress(updated)
+          dispatch(setLocation({
+            pincode: updated.pinCode != null ? String(updated.pinCode) : null,
+            addressLabel: formatAddress(updated) || (updated.pinCode ? `Pin ${updated.pinCode}` : null),
+            selectedAddressId: updated._id ?? null,
+          }))
+        }
+        trackEvent({
+          eventType: 'address_updated',
+          addressId: String(editingAddressId),
+        })
+        setEditingAddressId(null)
+        setAddressFormOpen(false)
+        refetchCart(updated?._id ? { addressId: updated._id } : {})
+        if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+      } else {
+        const res = await addressService.create(payload)
+        const newAddr = res?.data?.data ?? res?.data
+        const list = await refetchAddresses()
+        if (newAddr?._id) setSelectedAddress(newAddr)
+        else if (list?.length) setSelectedAddress(list[list.length - 1])
+        trackEvent({
+          eventType: 'checkout_address_added',
+          addressId: newAddr?._id ? String(newAddr._id) : undefined,
+        })
+        trackEvent({
+          eventType: 'address_added',
+          addressId: newAddr?._id ? String(newAddr._id) : undefined,
+        })
+        setAddressFormOpen(false)
+        refetchCart(newAddr?._id ? { addressId: newAddr._id } : {})
+        if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null)
+      }
     } catch (err) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to add address.'
       setAddressFormError(msg)
@@ -1527,14 +1574,38 @@ function CartPage() {
                         : (addresses.find((a) => a.isDefault) ?? addresses[0])
                       if (!toShow) return null
                       return (
-                        <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
-                          <p className="font-semibold uppercase text-black">{toShow.name}</p>
-                          <p className="text-gray-700 mt-1">{formatAddress(toShow)}</p>
-                          {(toShow.phoneNumber || toShow.countryCode) && (
-                            <p className="text-xs uppercase text-gray-600 mt-1">
-                              Contact: {[toShow.countryCode, toShow.phoneNumber].filter(Boolean).join(' ')}
-                            </p>
-                          )}
+                        <div className="flex items-start justify-between gap-2 text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
+                          <div className="min-w-0">
+                            <p className="font-semibold uppercase text-black">{toShow.name}</p>
+                            <p className="text-gray-700 mt-1">{formatAddress(toShow)}</p>
+                            {(toShow.phoneNumber || toShow.countryCode) && (
+                              <p className="text-xs uppercase text-gray-600 mt-1">
+                                Contact: {[toShow.countryCode, toShow.phoneNumber].filter(Boolean).join(' ')}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openEditAddressForm(toShow)}
+                            className="shrink-0 mt-0.5 flex h-8 w-8 items-center justify-center text-gray-600 hover:text-black hover:bg-gray-100 transition-colors"
+                            aria-label="Edit address"
+                            title="Edit address"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-4 w-4"
+                              aria-hidden
+                            >
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                          </button>
                         </div>
                       )
                     })()}
@@ -1554,11 +1625,31 @@ function CartPage() {
 
             {/* Add / Edit Address modal */}
             {addressFormOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !addressFormLoading && setAddressFormOpen(false)}>
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                onClick={() => {
+                  if (addressFormLoading) return
+                  setAddressFormOpen(false)
+                  setEditingAddressId(null)
+                }}
+              >
                 <div className="bg-white w-full max-w-md max-h-[90vh] flex flex-col shadow-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">Add new address</h3>
-                    <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="p-2 text-gray-500 hover:text-black" aria-label="Close">×</button>
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-black">
+                      {editingAddressId ? 'Edit address' : 'Add new address'}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (addressFormLoading) return
+                        setAddressFormOpen(false)
+                        setEditingAddressId(null)
+                      }}
+                      className="p-2 text-gray-500 hover:text-black"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
                   </div>
                   <form onSubmit={handleAddressFormSubmit} autoComplete="off" className="overflow-y-auto p-4 flex-1 space-y-3  scrollbar-hide">
                     {addressFormError && (
@@ -1724,7 +1815,17 @@ function CartPage() {
                       <label htmlFor="addr-default" className="text-sm text-gray-700">Set as default address</label>
                     </div>
                     <div className="flex gap-2 pt-2">
-                      <button type="button" onClick={() => !addressFormLoading && setAddressFormOpen(false)} className="flex-1 border border-gray-300 py-2 px-4 text-sm font-medium uppercase">Cancel</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (addressFormLoading) return
+                          setAddressFormOpen(false)
+                          setEditingAddressId(null)
+                        }}
+                        className="flex-1 border border-gray-300 py-2 px-4 text-sm font-medium uppercase"
+                      >
+                        Cancel
+                      </button>
                       <button type="submit" disabled={addressFormLoading} className="flex-1 bg-black text-white py-2 px-4 text-sm font-semibold uppercase hover:bg-gray-800 disabled:opacity-60">
                         {addressFormLoading ? 'Saving…' : 'Save address'}
                       </button>

@@ -100,7 +100,16 @@ const CONTACT_LIMITS = {
   subjectMax: 150,
 }
 
-const CONTACT_NAME_PATTERN = /^[\p{L}\p{M}\s.'-]+$/u
+/** Letters (any language) + combining marks + spaces only — no digits or special characters. */
+const CONTACT_NAME_PATTERN = /^[\p{L}\p{M}\s]+$/u
+const CONTACT_NAME_ALLOWED_CHARS = /[^\p{L}\p{M}\s]/gu
+
+/** Strip digits and special characters from a contact name; keep letters and spaces. */
+export function sanitizeContactNameInput(value) {
+  return String(value ?? '')
+    .replace(CONTACT_NAME_ALLOWED_CHARS, '')
+    .replace(/\s{2,}/g, ' ')
+}
 
 /**
  * Validate contact-us form fields.
@@ -123,7 +132,7 @@ export function validateContactForm(fields, { phoneRequired = false } = {}) {
   } else if (name.length > CONTACT_LIMITS.nameMax) {
     errors.name = `Name must be at most ${CONTACT_LIMITS.nameMax} characters.`
   } else if (!CONTACT_NAME_PATTERN.test(name)) {
-    errors.name = "Name can only contain letters, spaces, and . ' -"
+    errors.name = 'Name can only contain letters and spaces (no special characters).'
   }
 
   if (!isRequired(email)) {

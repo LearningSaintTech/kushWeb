@@ -11,7 +11,7 @@ const NAV_ITEMS = [
     label: 'Home',
     to: ROUTES.COMMUNITY_FEED,
     icon: (
-      <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
       </svg>
     ),
@@ -21,7 +21,7 @@ const NAV_ITEMS = [
     label: 'Search',
     to: ROUTES.COMMUNITY_SEARCH,
     icon: (
-      <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
       </svg>
     ),
@@ -31,7 +31,7 @@ const NAV_ITEMS = [
     label: 'Reels',
     to: ROUTES.COMMUNITY_REELS,
     icon: (
-      <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
       </svg>
     ),
@@ -41,7 +41,7 @@ const NAV_ITEMS = [
     label: 'Notifications',
     to: ROUTES.COMMUNITY_FEED,
     icon: (
-      <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
       </svg>
     ),
@@ -51,7 +51,7 @@ const NAV_ITEMS = [
     label: 'Create',
     to: ROUTES.COMMUNITY_CREATE_JOIN,
     icon: (
-      <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
     ),
@@ -61,7 +61,7 @@ const NAV_ITEMS = [
     label: 'Profile',
     to: ROUTES.COMMUNITY_PROFILE,
     icon: (
-      <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
       </svg>
     ),
@@ -71,7 +71,7 @@ const NAV_ITEMS = [
     label: 'Saved',
     to: ROUTES.COMMUNITY_SAVED,
     icon: (
-      <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
       </svg>
     ),
@@ -119,7 +119,7 @@ export default function CommunitySidebar({
                 to={item.to}
                 end={item.id === 'home'}
                 onClick={(e) => handleNavClick(item, e)}
-                className={`flex items-center gap-3 rounded-full px-3 py-[7px] font-inter text-sm transition ${
+                className={`flex items-center gap-3 rounded-full px-3 py-[7px] font-inter text-[10px] transition ${
                   isActive
                     ? 'bg-neutral-100 font-semibold text-black'
                     : 'font-medium text-neutral-700 hover:bg-neutral-50'
@@ -139,16 +139,15 @@ export default function CommunitySidebar({
       </div>
 
       <div className="mt-auto flex shrink-0 flex-col gap-3 pt-4">
-       <Link
+  <Link
   to={ROUTES.CART}
-  className="flex h-[56px] w-full items-center justify-center gap-3 rounded-full bg-black px-4 font-inter text-[18px] font-medium text-white transition hover:bg-neutral-900"
+  className="flex h-[36px] w-[120px] items-center justify-center gap-2 rounded-full bg-black px-3 font-inter text-[10px] font-medium text-white transition hover:bg-neutral-900"
 >
   <span>Go to cart</span>
 
   <span className="relative flex items-center justify-center">
-    {/* Cart Icon */}
     <svg
-      className="h-[32px] w-[32px]"
+      className="h-[20px] w-[20px]"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -167,17 +166,12 @@ export default function CommunitySidebar({
         d="M9 19.5a1 1 0 11-2 0 1 1 0 012 0zm8 0a1 1 0 11-2 0 1 1 0 012 0z"
       />
     </svg>
-
-    {/* Cart Count */}
-    {/* <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white font-inter text-[14px] font-bold text-black">
-      4
-    </span> */}
   </span>
 </Link>
 
         <Link
           to={ROUTES.HOME}
-          className="inline-flex items-center gap-2 px-2 font-inter text-sm font-semibold text-black transition hover:opacity-70"
+          className="inline-flex items-center gap-2 px-2 font-inter text-sm font-medium text-black transition hover:opacity-70"
         >
           <svg
             className="h-4 w-4"

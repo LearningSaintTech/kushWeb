@@ -9,7 +9,11 @@ import { contactUsService } from '../../services'
 
 import { ROUTES } from '../../utils/constants'
 
-import { CONTACT_LIMITS, validateContactForm } from '../../utils/validators'
+import {
+  CONTACT_LIMITS,
+  sanitizeContactNameInput,
+  validateContactForm,
+} from '../../utils/validators'
 
 
 
@@ -138,27 +142,33 @@ export default function ContactUsPage() {
 
 
   const handleChange = (e) => {
-
     const { name, value } = e.target
+    let nextValue = value
 
-    setForm((prev) => ({ ...prev, [name]: value }))
-
-    if (fieldErrors[name]) {
-
+    if (name === 'name') {
+      nextValue = sanitizeContactNameInput(value)
+      if (nextValue !== value) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          name: 'Name can only contain letters and spaces (no special characters).',
+        }))
+      } else if (fieldErrors.name) {
+        setFieldErrors((prev) => {
+          const next = { ...prev }
+          delete next.name
+          return next
+        })
+      }
+    } else if (fieldErrors[name]) {
       setFieldErrors((prev) => {
-
         const next = { ...prev }
-
         delete next[name]
-
         return next
-
       })
-
     }
 
+    setForm((prev) => ({ ...prev, [name]: nextValue }))
     if (status) setStatus(null)
-
   }
 
 

@@ -289,7 +289,7 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
         if (category === 'designer' || profile?.isDesigner || hasCover) {
           applyProfile(await communityProfileService.patchDesignerScene(fd))
         } else if (hasPhoto) {
-          applyProfile(await communityProfileService.patchCreatorPhoto(fd))
+        applyProfile(await communityProfileService.patchCreatorPhoto(fd))
         }
       }
 
@@ -400,34 +400,34 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
         }
       } else {
         // Creator profile updates
-        applyProfile(
-          await communityProfileService.patchCreatorBasic({
-            name: name.trim(),
-            username: cleanUsername,
-          }),
-        )
+      applyProfile(
+        await communityProfileService.patchCreatorBasic({
+          name: name.trim(),
+          username: cleanUsername,
+        }),
+      )
 
-        applyProfile(
-          await communityProfileService.patchCreatorAbout({
-            bio: bio.trim().slice(0, 160) || undefined,
-            website: website.trim() || undefined,
-          }),
-        )
+      applyProfile(
+        await communityProfileService.patchCreatorAbout({
+          bio: bio.trim().slice(0, 160) || undefined,
+          website: website.trim() || undefined,
+        }),
+      )
 
-        const phoneNumber = normalizePhoneForApi(phone)
+      const phoneNumber = normalizePhoneForApi(phone)
         if (phoneNumber && !/^[6-9]\d{9}$/.test(phoneNumber)) {
           setError('Enter a valid 10-digit Indian mobile number.')
           setSaving(false)
           return
         }
-        applyProfile(
-          await communityProfileService.patchCreatorPrivate({
-            email: email.trim() || undefined,
-            phoneNumber,
-            countryCode: phoneNumber ? '+91' : undefined,
-            gender: mapGenderToApi(gender),
-          }),
-        )
+      applyProfile(
+        await communityProfileService.patchCreatorPrivate({
+          email: email.trim() || undefined,
+          phoneNumber,
+          countryCode: phoneNumber ? '+91' : undefined,
+          gender: mapGenderToApi(gender),
+        }),
+      )
       }
 
       await refresh()
@@ -449,18 +449,18 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
     <div className="scrollbar-hide flex max-h-[min(94vh,860px)] w-full max-w-[440px] flex-col overflow-y-auto rounded-[1.75rem] bg-white pb-8 shadow-[0_12px_36px_rgba(0,0,0,0.08)]">
       {/* Top sticky header */}
       <div className="sticky top-0 z-20 flex items-center justify-between border-b border-neutral-100 bg-white/95 px-5 py-4 backdrop-blur-sm sm:px-6">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Back"
-            className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-black transition hover:bg-neutral-100"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-          </button>
-          <h2 className="font-inter text-lg font-bold text-black">Edit Profile</h2>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-black transition hover:bg-neutral-100"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+        <h2 className="font-inter text-lg font-bold text-black">Edit Profile</h2>
         </div>
         <button
           type="button"
@@ -473,14 +473,14 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
       </div>
 
       {/* Cover Photo Banner & Avatar Section */}
-      <div className="relative">
+        <div className="relative">
         <div className="group relative h-36 w-full overflow-hidden bg-neutral-900 sm:h-40">
           {coverPreview ? (
             <img src={coverPreview} alt="Cover preview" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-neutral-800 text-neutral-400">
               <CameraIcon className="h-8 w-8 opacity-40" />
-            </div>
+          </div>
           )}
           <div className="absolute inset-0 bg-black/20" />
           <button
@@ -531,13 +531,13 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
               onChange={onPhotoChange}
             />
           </div>
-          <button
-            type="button"
+        <button
+          type="button"
             onClick={() => photoFileRef.current?.click()}
             className="mt-2 cursor-pointer font-inter text-xs font-semibold text-neutral-700 transition hover:text-black"
-          >
+        >
             Change Profile Photo
-          </button>
+        </button>
         </div>
       </div>
 
@@ -581,88 +581,88 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
             The Essentials
           </h3>
 
-          <label className="block">
+        <label className="block">
             <span className={labelClass}>Full Name</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={fieldClass}
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={fieldClass}
               placeholder="Your full name"
-              autoComplete="name"
-            />
-          </label>
+            autoComplete="name"
+          />
+        </label>
 
-          <label className="block">
-            <span className={labelClass}>Username</span>
+        <label className="block">
+          <span className={labelClass}>Username</span>
             <div className={`flex items-center overflow-hidden ${fieldClass} !px-0`}>
               <span className="select-none pl-4 font-inter text-sm text-neutral-400" aria-hidden>
                 @
               </span>
-              <input
+          <input
                 value={String(username || '').replace(/^@/, '')}
-                onChange={(e) =>
+            onChange={(e) =>
                   setUsername(
                     e.target.value.replace(/^@/, '').replace(/\s/g, '').slice(0, 30),
                   )
-                }
+            }
                 className="min-w-0 flex-1 border-0 bg-transparent py-0 pl-1 pr-4 font-inter text-sm text-black outline-none"
-                autoComplete="username"
+            autoComplete="username"
                 maxLength={30}
                 placeholder="username"
               />
             </div>
-          </label>
+        </label>
 
-          <div className="relative block">
+        <div className="relative block">
             <span className={labelClass}>Community Role</span>
-            <button
-              type="button"
-              onClick={() => {
-                setCategoryOpen((open) => !open)
-                setGenderOpen(false)
-              }}
-              className={`${fieldClass} flex cursor-pointer items-center justify-between text-left`}
-              aria-expanded={categoryOpen}
-              aria-haspopup="listbox"
-            >
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryOpen((open) => !open)
+              setGenderOpen(false)
+            }}
+            className={`${fieldClass} flex cursor-pointer items-center justify-between text-left`}
+            aria-expanded={categoryOpen}
+            aria-haspopup="listbox"
+          >
               <span className="font-medium text-black">{categoryLabel}</span>
-              <svg
-                className={`h-4 w-4 text-neutral-400 transition ${categoryOpen ? 'rotate-90' : ''}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-            {categoryOpen ? (
-              <ul
-                role="listbox"
+            <svg
+              className={`h-4 w-4 text-neutral-400 transition ${categoryOpen ? 'rotate-90' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+          {categoryOpen ? (
+            <ul
+              role="listbox"
                 className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl bg-white py-1 shadow-[0_12px_32px_rgba(0,0,0,0.12)] ring-1 ring-black/5"
-              >
-                {CATEGORIES.map((item) => (
-                  <li key={item.value}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={category === item.value}
-                      onClick={() => {
-                        setCategory(item.value)
-                        setCategoryOpen(false)
-                      }}
-                      className={`flex w-full cursor-pointer px-4 py-3 text-left font-inter text-sm transition hover:bg-neutral-50 ${
-                        category === item.value ? 'font-semibold text-black' : 'text-neutral-600'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+            >
+              {CATEGORIES.map((item) => (
+                <li key={item.value}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={category === item.value}
+                    onClick={() => {
+                      setCategory(item.value)
+                      setCategoryOpen(false)
+                    }}
+                    className={`flex w-full cursor-pointer px-4 py-3 text-left font-inter text-sm transition hover:bg-neutral-50 ${
+                      category === item.value ? 'font-semibold text-black' : 'text-neutral-600'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
 
           <label className="block">
             <span className={labelClass}>Location</span>
@@ -1189,14 +1189,14 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
                 ))}
               </ul>
             ) : null}
-          </div>
         </div>
+      </div>
 
-        {error ? (
+      {error ? (
           <div className="rounded-xl bg-red-50 p-3 text-center" role="alert">
             <p className="font-inter text-xs font-semibold text-red-600">{error}</p>
           </div>
-        ) : null}
+      ) : null}
 
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3 pt-3">
@@ -1207,14 +1207,14 @@ export default function CreatorEditProfile({ onBack, onSaved }) {
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
             className="cursor-pointer rounded-xl bg-black py-3.5 font-inter text-sm font-semibold text-white shadow-md transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+      >
             {saving ? 'Saving Changes…' : 'Save Changes'}
-          </button>
+      </button>
         </div>
       </div>
     </div>

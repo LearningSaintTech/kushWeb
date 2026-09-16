@@ -10,40 +10,111 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+function isInvalidText(str) {
+  if (typeof str !== 'string') return true;
+  const trimmed = str.trim();
+  return (
+    !trimmed ||
+    trimmed === 'undefined' ||
+    trimmed === 'null' ||
+    trimmed === '{}' ||
+    trimmed === '[]' ||
+    trimmed === '[object Object]'
+  );
+}
+
+function containsWishlistKeyword(...args) {
+  for (const arg of args) {
+    if (!arg) continue;
+    const str = typeof arg === 'string' ? arg : JSON.stringify(arg);
+    if (str.toLowerCase().includes('wishlist')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-  let payload = { title: 'Khush', body: '', module: '', type: '' };
+
+  let rawData = null;
+  let textData = '';
   try {
-    const data = event.data.json();
-    if (data && typeof data === 'object') {
-      payload = {
-        title: data.title || payload.title,
-        body: data.body || payload.body || '',
-        module: data.module || data.type || '',
-        type: data.type || data.eventType || '',
-      };
-    } else {
-      payload.body = event.data.text() || '';
-    }
+    rawData = event.data.json();
   } catch {
-    payload.body = event.data.text() || '';
+    try {
+      textData = event.data.text() || '';
+    } catch {}
   }
 
-  // 1. Drop any notification with an empty or whitespace-only body
-  const bodyText = typeof payload.body === 'string' ? payload.body.trim() : '';
-  if (!bodyText) {
+  const notificationObj = rawData?.notification || {};
+  const dataObj = rawData?.data || {};
+
+  const title =
+    rawData?.title ||
+    notificationObj?.title ||
+    dataObj?.title ||
+    'Khush';
+
+  const rawBody =
+    rawData?.body ||
+    rawData?.message ||
+    rawData?.content ||
+    rawData?.description ||
+    notificationObj?.body ||
+    notificationObj?.message ||
+    dataObj?.body ||
+    dataObj?.message ||
+    dataObj?.content ||
+    textData;
+
+  const moduleName =
+    rawData?.module ||
+    rawData?.type ||
+    notificationObj?.module ||
+    dataObj?.module ||
+    dataObj?.type ||
+    '';
+
+  const templateKey =
+    rawData?.templateKey ||
+    notificationObj?.templateKey ||
+    dataObj?.templateKey ||
+    '';
+
+  const action =
+    rawData?.action ||
+    rawData?.eventType ||
+    dataObj?.action ||
+    dataObj?.eventType ||
+    '';
+
+  // 1. Drop any notification related to wishlist actions
+  if (
+    containsWishlistKeyword(
+      moduleName,
+      templateKey,
+      action,
+      title,
+      rawBody,
+      rawData?.metadata,
+      dataObj?.metadata
+    )
+  ) {
     return;
   }
 
-  // 2. Drop any wishlist-related push notifications
-  const mod = String(payload.module || payload.type || '').toLowerCase();
-  if (mod.includes('wishlist')) {
+  // 2. Drop any notification with an empty, missing, or invalid body text
+  if (isInvalidText(rawBody)) {
     return;
   }
+
+  const cleanBody = typeof rawBody === 'string' ? rawBody.trim() : String(rawBody).trim();
+  const cleanTitle = typeof title === 'string' && title.trim() ? title.trim() : 'Khush';
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: bodyText,
+    self.registration.showNotification(cleanTitle, {
+      body: cleanBody,
       icon: '/favicon.ico',
       tag: 'khush-notification',
       renotify: true,
@@ -64,4 +135,3 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
-

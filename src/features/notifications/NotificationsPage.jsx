@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
-import { useNotification, isCommunityNotification } from "../../app/context/NotificationContext";
-import { notificationService } from "../../services/notification.service.js";
+import {
+  useNotification,
+  isStoreNotification,
+  collectVisibleNotificationPage,
+} from "../../app/context/NotificationContext";
 import { ROUTES } from "../../utils/constants";
 import { trackEvent } from "../../analytics";
 import coupon from "../../assets/images/coupon/khushnotifi.svg";
@@ -33,13 +36,11 @@ export default function NotificationsPage() {
   const { isAuthenticated } = useAuth();
   const { markRead, markStoreAllRead, storeUnreadCount } = useNotification();
   const [list, setList] = useState([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const loadPage = useCallback(
     async (pageNum = 1, { showFullPageLoading = false } = {}) => {
@@ -47,21 +48,19 @@ export default function NotificationsPage() {
       if (showFullPageLoading) setLoading(true);
       else setFetching(true);
       try {
-        const data = await notificationService.getList({
+        const result = await collectVisibleNotificationPage({
+          predicate: isStoreNotification,
           page: pageNum,
-          limit: PAGE_SIZE,
+          pageSize: PAGE_SIZE,
         });
-        const rawItems = data?.list ?? [];
-        // Store/order notifications only — never mix with community!
-        const storeItems = rawItems.filter((n) => !isCommunityNotification(n));
-        setList(storeItems);
-        setTotal(data?.total != null ? Number(data.total) : storeItems.length);
-        setPage(Number(data?.page) || pageNum);
+        setList(result.items);
+        setPage(result.page);
+        setHasNext(result.hasNext);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch {
         if (showFullPageLoading) {
           setList([]);
-          setTotal(0);
+          setHasNext(false);
         }
       } finally {
         setLoading(false);
@@ -199,7 +198,7 @@ export default function NotificationsPage() {
         </ul>
       )}
 
-      {!loading && total > 0 && totalPages > 1 && (
+      {!loading && (page > 1 || hasNext) && (
         <nav
           className="mt-8 flex flex-col items-center gap-3 border-t border-gray-200 pt-6 sm:flex-row sm:justify-center sm:gap-6"
           aria-label="Notifications pagination"
@@ -216,15 +215,14 @@ export default function NotificationsPage() {
             <button
               type="button"
               onClick={() => loadPage(page + 1)}
-              disabled={page >= totalPages || fetching}
+              disabled={!hasNext || fetching}
               className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
             </button>
           </div>
           <p className="text-sm text-gray-600">
-            Page <span className="font-medium text-gray-900">{page}</span> of{" "}
-            <span className="font-medium text-gray-900">{totalPages}</span>
+            Page <span className="font-medium text-gray-900">{page}</span>
             {fetching && <span className="ml-2 text-gray-500">· Loading…</span>}
           </p>
           {/* Image Preview Modal */}

@@ -4,8 +4,138 @@ import { io } from 'socket.io-client';
 import { getSocketUrl } from '../../services/config.js';
 import { debugLog } from '../../utils/debugLog.js';
 
+export function isWishlistNotification(n) {
+  if (!n) return false;
+  const str = [
+    n?.module,
+    n?.type,
+    n?.templateKey,
+    n?.action,
+    n?.eventType,
+    n?.title,
+    n?.body,
+    n?.message,
+    typeof n?.metadata === 'object' ? JSON.stringify(n.metadata) : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return str.includes('wishlist');
+}
+
+export function isValidNotification(n) {
+  if (!n) return false;
+  if (isWishlistNotification(n)) return false;
+  const rawBody = n?.body ?? n?.message ?? n?.content ?? '';
+  const rawTitle = n?.title ?? '';
+  const body = typeof rawBody === 'string' ? rawBody.trim() : String(rawBody).trim();
+  const title = typeof rawTitle === 'string' ? rawTitle.trim() : String(rawTitle).trim();
+  const isInvalid = (s) =>
+    !s ||
+    s === 'undefined' ||
+    s === 'null' ||
+    s === '{}' ||
+    s === '[]' ||
+    s === '[object Object]';
+  return !isInvalid(body) || !isInvalid(title);
+}
+
 export function isCommunityNotification(n) {
   return n?.module === 'community' || String(n?.templateKey || '').startsWith('COMMUNITY_');
+}
+
+export function isStoreNotification(n) {
+  return isValidNotification(n) && !isWishlistNotification(n) && !isCommunityNotification(n);
+}
+
+export function isVisibleCommunityNotification(n) {
+  return isValidNotification(n) && !isWishlistNotification(n) && isCommunityNotification(n);
+}
+
+export function isVisibleNotification(n) {
+  return isValidNotification(n) && !isWishlistNotification(n);
+}
+
+function notificationId(n) {
+  const id = n?._id ?? n?.id;
+  return id != null && id !== '' ? String(id) : '';
+}
+
+/**
+ * Walk API pages until we have `want` visible items (skips blank/wishlist holes).
+ * Used so page 1 is never empty while real order/community rows sit on later pages.
+ */
+export async function collectVisibleNotifications({
+  predicate = isVisibleNotification,
+  want,
+  startPage = 1,
+  apiLimit = 40,
+  maxPages = 20,
+  excludeIds = [],
+} = {}) {
+  const items = [];
+  const seen = new Set(
+    (excludeIds || []).map((id) => String(id)).filter(Boolean),
+  );
+  let apiPage = Math.max(1, startPage);
+  let lastRawLength = 0;
+  let pagesFetched = 0;
+
+  while (items.length < want && pagesFetched < maxPages) {
+    const data = await notificationService.getList({ page: apiPage, limit: apiLimit });
+    const raw = Array.isArray(data?.list) ? data.list : [];
+    lastRawLength = raw.length;
+    pagesFetched += 1;
+
+    for (const n of raw) {
+      if (!predicate(n)) continue;
+      const id = notificationId(n);
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      items.push(n);
+      if (items.length >= want) break;
+    }
+
+    if (raw.length < apiLimit) break;
+    apiPage += 1;
+  }
+
+  const lastPage = startPage + pagesFetched - 1;
+  const apiHasMore = lastRawLength >= apiLimit;
+  return {
+    items,
+    lastPage: lastPage > 0 ? lastPage : startPage,
+    hasMore: items.length >= want && apiHasMore,
+  };
+}
+
+/**
+ * UI page of visible notifications. Compacts filtered-out blanks so orders
+ * that lived on API page 2 still appear on UI page 1.
+ */
+export async function collectVisibleNotificationPage({
+  predicate,
+  page = 1,
+  pageSize = 20,
+  apiLimit = 40,
+  maxPages = 25,
+} = {}) {
+  const skip = Math.max(0, (page - 1) * pageSize);
+  const { items, lastPage } = await collectVisibleNotifications({
+    predicate,
+    want: skip + pageSize + 1,
+    startPage: 1,
+    apiLimit,
+    maxPages,
+  });
+  const pageItems = items.slice(skip, skip + pageSize);
+  return {
+    items: pageItems,
+    page,
+    hasPrev: page > 1,
+    hasNext: items.length > skip + pageSize,
+    lastPage,
+  };
 }
 
 const NotificationContext = createContext(null);
@@ -20,19 +150,14 @@ export function NotificationProvider({ children }) {
   const refreshList = useCallback(async (page = 1, limit = LIST_PAGE_SIZE) => {
     setLoading(true);
     try {
-      const data = await notificationService.getList({ page, limit });
-      const rawItems = data?.list ?? [];
-      const total = data?.total ?? 0;
-      const items = rawItems.filter((n) => {
-        const body = String(n?.body || '').trim();
-        const title = String(n?.title || '').trim();
-        const mod = String(n?.module || n?.type || '').toLowerCase();
-        if (mod.includes('wishlist')) return false;
-        if (!body && !title) return false;
-        return true;
+      const { items } = await collectVisibleNotifications({
+        predicate: isVisibleNotification,
+        want: limit,
+        startPage: page,
+        apiLimit: Math.max(limit, 40),
       });
       setList(items);
-      return { list: items, total, page: data?.page ?? page, limit: data?.limit ?? limit };
+      return { list: items, total: items.length, page, limit };
     } catch {
       setList([]);
       return { list: [], total: 0, page: 1, limit };
@@ -97,20 +222,19 @@ export function NotificationProvider({ children }) {
   }, [list]);
 
   const prependFromSocket = useCallback((payload) => {
-    if (!payload) return;
-    const body = typeof payload.body === 'string' ? payload.body.trim() : (payload.body || '');
-    const title = typeof payload.title === 'string' ? payload.title.trim() : '';
-    const moduleName = String(payload.module || payload.type || '').toLowerCase();
-
-    // Ignore blank notifications or any wishlist action events
-    if ((!body && !title) || moduleName.includes('wishlist')) {
+    if (!payload || !isValidNotification(payload) || isWishlistNotification(payload)) {
       return;
     }
 
+    const rawBody = payload.body ?? payload.message ?? payload.content ?? '';
+    const rawTitle = payload.title ?? '';
+    const body = typeof rawBody === 'string' ? rawBody.trim() : String(rawBody).trim();
+    const title = typeof rawTitle === 'string' ? rawTitle.trim() : String(rawTitle).trim();
+
     const item = {
       _id: payload.id || payload._id || `notif-${Date.now()}`,
-      title: payload.title || 'New Notification',
-      body: payload.body || '',
+      title: title || 'New Notification',
+      body: body || '',
       image: payload.image || '',
       module: payload.module || 'community',
       referenceId: payload.referenceId || null,

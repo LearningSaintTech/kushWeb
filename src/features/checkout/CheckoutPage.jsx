@@ -252,6 +252,7 @@ function CheckoutPage() {
   const [addressFormPincodeError, setAddressFormPincodeError] = useState(null);
   const [addressFormPinLoading, setAddressFormPinLoading] = useState(false);
   const lastAddressFormPinRef = useRef(null);
+  const [editingAddressId, setEditingAddressId] = useState(null);
   const [addressForm, setAddressForm] = useState({
     name: "",
     phoneNumber: "",
@@ -1014,6 +1015,8 @@ function CheckoutPage() {
     setAddressFormError(null);
     setAddressFormPhoneError(null);
     setAddressFormPincodeError(null);
+    setEditingAddressId(null);
+    lastAddressFormPinRef.current = null;
     const loginPhone =
       addresses.length === 0 ? getLoginPhoneForAddress(user) : "";
     setAddressForm({
@@ -1025,6 +1028,28 @@ function CheckoutPage() {
       pinCode: "",
       addressType: "HOME",
       isDefault: addresses.length === 0,
+    });
+    setAddressFormOpen(true);
+  };
+
+  const openEditAddressForm = (addr) => {
+    if (!addr?._id) return;
+    debugLog("[Checkout] openEditAddressForm", { addressId: addr._id });
+    setAddressFormError(null);
+    setAddressFormPhoneError(null);
+    setAddressFormPincodeError(null);
+    setEditingAddressId(addr._id);
+    const pin = addr.pinCode != null ? String(addr.pinCode) : "";
+    lastAddressFormPinRef.current = pin.replace(/\D/g, "").slice(0, 6) || null;
+    setAddressForm({
+      name: addr.name ?? "",
+      phoneNumber: sanitizeAddressPhoneInput(addr.phoneNumber ?? ""),
+      addressLine: addr.addressLine ?? "",
+      city: addr.city ?? "",
+      state: addr.state ?? "",
+      pinCode: pin,
+      addressType: addr.addressType === "OFFICE" ? "WORK" : (addr.addressType || "HOME"),
+      isDefault: !!addr.isDefault,
     });
     setAddressFormOpen(true);
   };
@@ -1168,21 +1193,39 @@ function CheckoutPage() {
         setAddressFormLoading(false);
         return;
       }
-      debugLog("[Checkout] REQ addressService.create:", payload);
-      const res = await addressService.create(payload);
-      debugLog("[Checkout] RES addressService.create:", res?.data);
-      const newAddr = res?.data?.data ?? res?.data;
-      const list = await refetchAddresses();
-      if (newAddr?._id) setSelectedAddress(newAddr);
-      else if (list?.length) setSelectedAddress(list[list.length - 1]);
-      trackEvent({
-        eventType: "checkout_address_added",
-        addressId: newAddr?._id ? String(newAddr._id) : undefined,
-      });
-      trackEvent({
-        eventType: "address_added",
-        addressId: newAddr?._id ? String(newAddr._id) : undefined,
-      });
+      if (editingAddressId) {
+        debugLog("[Checkout] REQ addressService.update:", {
+          id: editingAddressId,
+          payload,
+        });
+        await addressService.update(editingAddressId, payload);
+        const list = await refetchAddresses();
+        const updated =
+          list?.find((a) => String(a._id ?? "") === String(editingAddressId)) ??
+          null;
+        if (updated) setSelectedAddress(updated);
+        trackEvent({
+          eventType: "address_updated",
+          addressId: String(editingAddressId),
+        });
+      } else {
+        debugLog("[Checkout] REQ addressService.create:", payload);
+        const res = await addressService.create(payload);
+        debugLog("[Checkout] RES addressService.create:", res?.data);
+        const newAddr = res?.data?.data ?? res?.data;
+        const list = await refetchAddresses();
+        if (newAddr?._id) setSelectedAddress(newAddr);
+        else if (list?.length) setSelectedAddress(list[list.length - 1]);
+        trackEvent({
+          eventType: "checkout_address_added",
+          addressId: newAddr?._id ? String(newAddr._id) : undefined,
+        });
+        trackEvent({
+          eventType: "address_added",
+          addressId: newAddr?._id ? String(newAddr._id) : undefined,
+        });
+      }
+      setEditingAddressId(null);
       setAddressFormOpen(false);
       if (cartData?.items?.length) fetchPriceSummary(appliedCouponCode || null);
     } catch (err) {
@@ -2029,7 +2072,6 @@ function CheckoutPage() {
       : codCouponOfferLabel
         ? `Offer: ${codCouponOfferLabel}`
         : null;
-  const hasAnyAppliedCoupon = Boolean(appliedCouponCode);
   const deliverySummary = summary.delivery;
   const walletUsedFromSummary = Number(summary?.wallet?.usedAmount ?? 0);
   const rewardPointsToEarn = Number(
@@ -2678,18 +2720,42 @@ function CheckoutPage() {
                       toShow.countryCode,
                     );
                     return (
-                      <div className="text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
-                        <p className="font-semibold uppercase text-black">
-                          {toShow.name}
-                        </p>
-                        <p className="text-gray-700 mt-1">
-                          {formatAddress(toShow)}
-                        </p>
-                        {contactPhone && (
-                          <p className="text-xs uppercase text-gray-600 mt-1">
-                            Contact: {contactPhone}
+                      <div className="flex items-start justify-between gap-2 text-sm text-gray-800 mb-3 pt-1 border-t border-gray-200">
+                        <div className="min-w-0">
+                          <p className="font-semibold uppercase text-black">
+                            {toShow.name}
                           </p>
-                        )}
+                          <p className="text-gray-700 mt-1">
+                            {formatAddress(toShow)}
+                          </p>
+                          {contactPhone && (
+                            <p className="text-xs uppercase text-gray-600 mt-1">
+                              Contact: {contactPhone}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openEditAddressForm(toShow)}
+                          className="shrink-0 mt-0.5 flex h-8 w-8 items-center justify-center text-gray-600 hover:text-black hover:bg-gray-100 transition-colors"
+                          aria-label="Edit address"
+                          title="Edit address"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4"
+                            aria-hidden
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
                       </div>
                     );
                   })()}
@@ -2712,7 +2778,11 @@ function CheckoutPage() {
             {addressFormOpen && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-                onClick={() => !addressFormLoading && setAddressFormOpen(false)}
+                onClick={() => {
+                  if (addressFormLoading) return;
+                  setAddressFormOpen(false);
+                  setEditingAddressId(null);
+                }}
               >
                 <div
                   className="bg-white w-full max-w-md max-h-[90vh] flex flex-col shadow-lg overflow-hidden"
@@ -2720,13 +2790,15 @@ function CheckoutPage() {
                 >
                   <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-black">
-                      Add new address
+                      {editingAddressId ? "Edit address" : "Add new address"}
                     </h3>
                     <button
                       type="button"
-                      onClick={() =>
-                        !addressFormLoading && setAddressFormOpen(false)
-                      }
+                      onClick={() => {
+                        if (addressFormLoading) return;
+                        setAddressFormOpen(false);
+                        setEditingAddressId(null);
+                      }}
                       className="p-2 text-gray-500 hover:text-black"
                       aria-label="Close"
                     >
@@ -2939,9 +3011,11 @@ function CheckoutPage() {
                     <div className="flex gap-2 pt-2">
                       <button
                         type="button"
-                        onClick={() =>
-                          !addressFormLoading && setAddressFormOpen(false)
-                        }
+                        onClick={() => {
+                          if (addressFormLoading) return;
+                          setAddressFormOpen(false);
+                          setEditingAddressId(null);
+                        }}
                         className="flex-1 border border-gray-300 py-2 px-4 text-sm font-medium uppercase"
                       >
                         Cancel
@@ -3411,16 +3485,6 @@ function CheckoutPage() {
                       debugLog(
                         "[Checkout][Payment] COD selected directly (no COD charges)",
                       );
-                      if (appliedCouponCode) {
-                        debugLog(
-                          "[Checkout][Coupon] removing coupon due to COD selection",
-                        );
-                        setAppliedCouponCode(null);
-                        setAppliedCouponMeta(null);
-                        setCouponInput("");
-                        setCouponError(null);
-                        setCouponModalOpen(false);
-                      }
                       setUseWalletForOnline(false);
                       setPaymentMode("COD");
                     }
@@ -3535,11 +3599,6 @@ function CheckoutPage() {
                       <>
                         If you choose Cash on Delivery (COD), an extra charge of{" "}
                         <strong>{formatRs(applicableCodCharge)}</strong> will apply.
-                        {hasAnyAppliedCoupon && (
-                          <span className="block mt-1 text-gray-600">
-                            Your applied coupon will also be removed.
-                          </span>
-                        )}
                         <span className="block mt-1 text-gray-500 text-xs">
                           Choose online payment for the best price.
                         </span>
@@ -3566,17 +3625,6 @@ function CheckoutPage() {
                             autoIncludedCouponCode,
                           },
                         );
-                        // COD should never keep any coupon discount.
-                        if (appliedCouponCode) {
-                          debugLog(
-                            "[Checkout][Coupon] removing coupon due to COD selection",
-                          );
-                        }
-                        setAppliedCouponCode(null);
-                        setAppliedCouponMeta(null);
-                        setCouponInput("");
-                        setCouponError(null);
-                        setCouponModalOpen(false);
                         setCodWarningOpen(false);
                         setUseWalletForOnline(false);
                         setPaymentMode("COD");
@@ -3642,9 +3690,37 @@ function CheckoutPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold uppercase text-gray-500">
-                        Address
-                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase text-gray-500">
+                          Address
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddressConfirmOpen(false);
+                            openEditAddressForm(selectedAddress);
+                          }}
+                          disabled={placeOrderLoading}
+                          className="flex h-7 w-7 items-center justify-center text-gray-600 hover:text-black hover:bg-gray-100 transition-colors disabled:opacity-60"
+                          aria-label="Edit address"
+                          title="Edit address"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4"
+                            aria-hidden
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
+                      </div>
                       <p className="mt-1 text-gray-700">
                         {formatAddress(selectedAddress)}
                       </p>

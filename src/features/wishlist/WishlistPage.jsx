@@ -28,14 +28,14 @@ function WishlistPage() {
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(wishlist.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(Math.max(wishlist.length, wishlistCount) / PAGE_SIZE))
   const start = (currentPage - 1) * PAGE_SIZE
   const displayedItems = wishlist.slice(start, start + PAGE_SIZE)
 
   // Reset to page 1 when wishlist length changes (e.g. item removed elsewhere)
   useEffect(() => {
     if (currentPage > totalPages && totalPages >= 1) setCurrentPage(1)
-  }, [wishlist.length, totalPages, currentPage])
+  }, [wishlist.length, wishlistCount, totalPages, currentPage])
 
   // Smooth: scroll list into view when page changes (no full reload)
   useEffect(() => {
@@ -166,17 +166,17 @@ function WishlistPage() {
             </h1>
             <p className="text-[11px] sm:text-xs md:text-[11px] lg:text-sm text-neutral-600">
               <span className="font-semibold tabular-nums text-neutral-900">
-                {wishlist.length}
+                {wishlistCount}
               </span>{' '}
-              {wishlist.length === 1 ? 'item' : 'items'}
+              {wishlistCount === 1 ? 'item' : 'items'}
             </p>
           </div>
-          {wishlist.length > 0 && (
+          {wishlistCount > 0 && (
             <button
               type="button"
               onClick={handleClearWishlist}
               disabled={clearing || wishlistLoading}
-              className="text-xs sm:text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors border border-red-200 disabled:opacity-50"
+              className="text-xs sm:text-sm font-medium text-neutral-800 hover:text-black bg-white hover:bg-neutral-100 px-3 py-1.5 sm:px-4 sm:py-2 rounded-none border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
             >
               {clearing ? 'Clearing...' : 'Clear All'}
             </button>

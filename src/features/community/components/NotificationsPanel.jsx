@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useNotification, isCommunityNotification } from '../../../app/context/NotificationContext'
-import { notificationService } from '../../../services/notification.service.js'
+import {
+  useNotification,
+  isVisibleCommunityNotification,
+  collectVisibleNotifications,
+} from '../../../app/context/NotificationContext'
 import { ROUTES } from '../../../utils/constants'
 import { navigateToReel } from '../utils/openReel'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
@@ -158,12 +161,12 @@ export default function NotificationsPanel({
 
   const [tab, setTab] = useState('All')
   const [items, setItems] = useState([])
-  const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const inFlightRef = useRef(false)
+  const apiPageRef = useRef(1)
 
   // Sync with context community list on socket event or context updates
   useEffect(() => {
@@ -182,15 +185,20 @@ export default function NotificationsPanel({
     setLoading(true)
     setError(null)
     try {
-      const data = await notificationService.getList({ page: 1, limit: PAGE_SIZE })
-      const rawList = data?.list ?? []
-      // Community-only filter: NEVER mix with order notifications
-      const communityOnly = rawList.filter(isCommunityNotification)
+      const { items: communityOnly, lastPage, hasMore: more } =
+        await collectVisibleNotifications({
+          predicate: isVisibleCommunityNotification,
+          want: PAGE_SIZE,
+          startPage: 1,
+          apiLimit: PAGE_SIZE,
+        })
       setItems(communityOnly)
-      setPage(1)
-      setHasMore(rawList.length >= PAGE_SIZE)
+      apiPageRef.current = lastPage
+      setHasMore(more)
       refreshUnreadCount?.().catch(() => {})
-      debugLog('[NotificationsPanel] community notifications load ok', { count: communityOnly.length })
+      debugLog('[NotificationsPanel] community notifications load ok', {
+        count: communityOnly.length,
+      })
     } catch (err) {
       debugError('[NotificationsPanel] load error', err?.message)
       setError('Could not load notifications.')
@@ -219,19 +227,23 @@ export default function NotificationsPanel({
     if (loadingMore || inFlightRef.current || !hasMore) return
     inFlightRef.current = true
     setLoadingMore(true)
-    const nextPage = page + 1
     try {
-      const data = await notificationService.getList({ page: nextPage, limit: PAGE_SIZE })
-      const rawList = data?.list ?? []
-      const communityOnly = rawList.filter(isCommunityNotification)
+      const { items: communityOnly, lastPage, hasMore: more } =
+        await collectVisibleNotifications({
+          predicate: isVisibleCommunityNotification,
+          want: PAGE_SIZE,
+          startPage: apiPageRef.current,
+          apiLimit: PAGE_SIZE,
+          excludeIds: items.map((n) => n._id || n.id),
+        })
 
       setItems((prev) => {
         const seen = new Set(prev.map((n) => n._id || n.id))
         const unique = communityOnly.filter((n) => !seen.has(n._id || n.id))
         return [...prev, ...unique]
       })
-      setPage(nextPage)
-      setHasMore(rawList.length >= PAGE_SIZE)
+      apiPageRef.current = lastPage
+      setHasMore(more)
     } catch (err) {
       debugError('[NotificationsPanel] loadMore error', err?.message)
     } finally {

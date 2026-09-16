@@ -37,6 +37,54 @@ function loadWishlist() {
   }
 }
 
+const WISHLIST_PAGE_LIMIT = 50
+const WISHLIST_MAX_PAGES = 40
+
+/** Fetch every wishlist page so badge count and page list stay in sync. */
+async function fetchAllWishlistItems(pincode) {
+  let page = 1
+  let totalPages = 1
+  const allItems = []
+  const deliveryByKey = new Map()
+
+  while (page <= totalPages && page <= WISHLIST_MAX_PAGES) {
+    const params = { page, limit: WISHLIST_PAGE_LIMIT }
+    if (pincode) params.pincode = String(pincode)
+    const res = await wishlistService.getItems(params)
+    const data = res?.data?.data ?? res?.data
+    const items = data?.items ?? (Array.isArray(data) ? data : [])
+    const deliveries = Array.isArray(data?.deliveries) ? data.deliveries : []
+    allItems.push(...items)
+    for (const d of deliveries) {
+      const key = String(d?.itemId ?? d?.id ?? d?._id ?? deliveryByKey.size)
+      if (!deliveryByKey.has(key)) deliveryByKey.set(key, d)
+    }
+    const pagination = data?.pagination ?? {}
+    const reportedTotalPages = Number(
+      pagination.totalPages ?? pagination.pages ?? pagination.pageCount ?? 0,
+    )
+    const reportedTotal = Number(
+      pagination.total ?? pagination.totalItems ?? pagination.totalCount ?? 0,
+    )
+    if (reportedTotalPages > 0) {
+      totalPages = reportedTotalPages
+    } else if (reportedTotal > 0) {
+      totalPages = Math.max(1, Math.ceil(reportedTotal / WISHLIST_PAGE_LIMIT))
+    } else if (items.length < WISHLIST_PAGE_LIMIT) {
+      break
+    } else {
+      totalPages = page + 1
+    }
+    if (reportedTotal > 0 && allItems.length >= reportedTotal) break
+    page += 1
+  }
+
+  return {
+    items: allItems,
+    deliveries: Array.from(deliveryByKey.values()),
+  }
+}
+
 /** True while guest cart/wishlist exists in localStorage but post-login merge has not finished for this token. */
 function isGuestMergePending(token) {
   if (!token) return false
@@ -148,8 +196,6 @@ export function CartWishlistProvider({ children }) {
       return
     }
     setWishlistLoading(true)
-    const wishlistParams = { page: 1, limit: 100 }
-    if (pincode) wishlistParams.pincode = String(pincode)
     Promise.all([
       wishlistService.getIds().then((res) => {
         const data = res?.data?.data ?? res?.data
@@ -158,11 +204,8 @@ export function CartWishlistProvider({ children }) {
         setWishlistIds(idList)
         return idList
       }).catch(() => setWishlistIds([])),
-      wishlistService.getItems(wishlistParams).then((res) => {
-        const data = res?.data?.data ?? res?.data
-        const items = data?.items ?? (Array.isArray(data) ? data : [])
-        const deliveries = data?.deliveries ?? []
-        setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
+      fetchAllWishlistItems(pincode).then(({ items, deliveries }) => {
+        setWishlistDeliveries(deliveries)
         setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
       }).catch(() => {
         setWishlistDeliveries([])
@@ -311,8 +354,6 @@ export function CartWishlistProvider({ children }) {
     const reloadWishlistAfterMerge = async () => {
       setWishlistLoading(true)
       try {
-        const wishlistParams = { page: 1, limit: 100 }
-        if (pincode) wishlistParams.pincode = String(pincode)
         await Promise.all([
           wishlistService.getIds().then((res) => {
             const d = res?.data?.data ?? res?.data
@@ -320,11 +361,8 @@ export function CartWishlistProvider({ children }) {
             const idList = ids.map((x) => x?.itemId ?? x?.id ?? x).filter(Boolean)
             setWishlistIds(idList)
           }),
-          wishlistService.getItems(wishlistParams).then((res) => {
-            const itemsData = res?.data?.data ?? res?.data
-            const items = itemsData?.items ?? (Array.isArray(itemsData) ? itemsData : [])
-            const deliveries = itemsData?.deliveries ?? []
-            setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
+          fetchAllWishlistItems(pincode).then(({ items, deliveries }) => {
+            setWishlistDeliveries(deliveries)
             setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
           }),
         ])
@@ -507,19 +545,14 @@ export function CartWishlistProvider({ children }) {
         if (wishlistIds.some((wid) => String(wid) === String(id))) return
         try {
           await wishlistService.toggle({ itemId: id })
-          const wishlistParams = { page: 1, limit: 100 }
-          if (pincode) wishlistParams.pincode = String(pincode)
-          const [idsRes, itemsRes] = await Promise.all([
+          const [idsRes, { items, deliveries }] = await Promise.all([
             wishlistService.getIds(),
-            wishlistService.getItems(wishlistParams),
+            fetchAllWishlistItems(pincode),
           ])
           const idsData = idsRes?.data?.data ?? idsRes?.data
           const idList = (Array.isArray(idsData) ? idsData : (idsData?.ids ?? idsData?.itemIds ?? [])).map((x) => (typeof x === 'object' ? (x?.itemId ?? x?.id ?? x) : x)).filter(Boolean)
           setWishlistIds(idList)
-          const itemsData = itemsRes?.data?.data ?? itemsRes?.data
-          const items = itemsData?.items ?? (Array.isArray(itemsData) ? itemsData : [])
-          const deliveries = itemsData?.deliveries ?? []
-          setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
+          setWishlistDeliveries(deliveries)
           setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
           emitWishlistAnalytics('wishlist_add', product)
         } catch (_) {}
@@ -539,19 +572,14 @@ export function CartWishlistProvider({ children }) {
       if (isAuthenticated) {
         try {
           await wishlistService.toggle({ itemId: productId })
-          const wishlistParams = { page: 1, limit: 100 }
-          if (pincode) wishlistParams.pincode = String(pincode)
-          const [idsRes, itemsRes] = await Promise.all([
+          const [idsRes, { items, deliveries }] = await Promise.all([
             wishlistService.getIds(),
-            wishlistService.getItems(wishlistParams),
+            fetchAllWishlistItems(pincode),
           ])
           const idsData = idsRes?.data?.data ?? idsRes?.data
           const idList = (Array.isArray(idsData) ? idsData : (idsData?.ids ?? idsData?.itemIds ?? [])).map((x) => x?.itemId ?? x?.id ?? x).filter(Boolean)
           setWishlistIds(idList)
-          const itemsData = itemsRes?.data?.data ?? itemsRes?.data
-          const items = itemsData?.items ?? (Array.isArray(itemsData) ? itemsData : [])
-          const deliveries = itemsData?.deliveries ?? []
-          setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
+          setWishlistDeliveries(deliveries)
           setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
           emitWishlistAnalytics('wishlist_remove', { id: productId })
         } catch {}
@@ -578,13 +606,8 @@ export function CartWishlistProvider({ children }) {
         const ids = Array.isArray(data) ? data : (data?.ids ?? data?.itemIds ?? [])
         const idList = ids.map((x) => x?.itemId ?? x?.id ?? x).filter(Boolean)
         setWishlistIds(idList)
-        const wishlistParams = { page: 1, limit: 100 }
-        if (pincode) wishlistParams.pincode = String(pincode)
-        const itemsRes = await wishlistService.getItems(wishlistParams)
-        const itemsData = itemsRes?.data?.data ?? itemsRes?.data
-        const items = itemsData?.items ?? (Array.isArray(itemsData) ? itemsData : [])
-        const deliveries = itemsData?.deliveries ?? []
-        setWishlistDeliveries(Array.isArray(deliveries) ? deliveries : [])
+        const { items, deliveries } = await fetchAllWishlistItems(pincode)
+        setWishlistDeliveries(deliveries)
         setWishlist(items.map((it) => mapWishlistItem(it, deliveries)))
         emitWishlistAnalytics(eventType, typeof product === 'object' ? product : { id })
       } catch {}

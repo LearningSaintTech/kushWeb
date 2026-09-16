@@ -66,6 +66,7 @@ export function usePushSubscribe(token) {
     (async () => {
       try {
         const reg = await navigator.serviceWorker.register(SW_PATH, { scope: '/' });
+        await reg.update().catch(() => {});
         await navigator.serviceWorker.ready;
         if (cancelled) return;
 
