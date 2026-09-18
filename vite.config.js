@@ -68,6 +68,26 @@ function resolveApiOrigin(env) {
   }
 }
 
+/** Insert VITE_API_URL / asset origins into CSP connect-src so fetches are not blocked. */
+function cspApiConnectSrcPlugin(origins) {
+  const extra = [...new Set((origins || []).filter(Boolean))]
+  if (!extra.length) return null
+  return {
+    name: 'csp-api-connect-src',
+    transformIndexHtml(html) {
+      const marker = "connect-src 'self' ws: wss:"
+      if (!html.includes(marker)) return html
+      let out = html
+      for (const origin of extra) {
+        if (!out.includes(origin)) {
+          out = out.replace(marker, `${marker}\n      ${origin}`)
+        }
+      }
+      return out
+    },
+  }
+}
+
 function resolveBuildAppEnv(env, mode) {
   const v = String(env.VITE_APP_ENV ?? '').toLowerCase().trim()
   if (v === 'dev' || v === 'development') return 'dev'
@@ -254,6 +274,10 @@ console.log("🔥 devProxy =", devProxy)
     plugins: [
       tailwindcss(),
       react(),
+      cspApiConnectSrcPlugin([
+        apiOrigin,
+        resolveApiOrigin({ VITE_API_URL: env.VITE_ASSET_URL }),
+      ]),
       metaPixelPlugin,
       openaiPixelPlugin,
       mode === 'development' && !s3DevProxyOff ? s3DevPutProxyPlugin() : null,
