@@ -11,10 +11,14 @@ function decodeJwtPayload(token) {
   }
 }
 
+/** Refresh a bit before `exp` so short-lived access tokens don't look like a logout. */
+const EXPIRY_SKEW_MS = 20_000;
+
 export function isTokenExpired(token) {
   const decoded = decodeJwtPayload(token);
-  if (!decoded?.exp) return true;
-  return decoded.exp * 1000 <= Date.now();
+  if (!decoded) return true;
+  if (!decoded.exp) return false;
+  return decoded.exp * 1000 <= Date.now() + EXPIRY_SKEW_MS;
 }
 
 export function getValidAccessToken(token) {

@@ -8,6 +8,7 @@ import { logCommunity } from '../../../services/communityApi.js'
 import { debugError } from '../../../utils/debugLog.js'
 import { SearchCardSkeleton } from '../components/PostCardSkeleton'
 import { openCommunityMedia, playlistFromGrid } from '../utils/openReel'
+import { useAuth } from '../../../app/context/AuthContext'
 
 function SearchResultCard({ item, onOpen }) {
   return (
@@ -53,6 +54,7 @@ function SearchResultCard({ item, onOpen }) {
  * Community search / explore — GET /community/feed?scope=explore&q=
  */
 export default function CommunitySearchFeed() {
+  const { isAuthenticated } = useAuth()
   const [query, setQuery] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const [filter, setFilter] = useState('All')
@@ -103,6 +105,7 @@ export default function CommunitySearchFeed() {
     type: feedType === 'all' ? 'all' : feedType,
     q: debouncedQ || undefined,
     hashtag: filter !== 'All' && filter !== 'Reels' && filter !== 'Posts' ? filter.replace(/^#/, '') : undefined,
+    enabled: isAuthenticated,
   })
 
   // Infinite scroll observer

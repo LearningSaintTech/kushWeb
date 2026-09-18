@@ -1,5 +1,6 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
+import { navigateApp } from '../../../app/navigateApp.js'
 import { goCommunity } from '../utils/communityNav'
 import whiteKhush from '../../../assets/images/community/whitekhush.svg'
 import createCardBg from '../../../assets/images/community/black rectangle.png'
@@ -143,38 +144,40 @@ export default function CommunitySidebar({
       </div>
 
       <div className="mt-auto flex shrink-0 flex-col gap-3 pt-4">
-  <Link
-  to={ROUTES.CART}
-  className="flex h-[36px] w-[120px] items-center justify-center gap-2 rounded-full bg-black px-3 font-inter text-[10px] font-medium text-white transition hover:bg-neutral-900"
->
-  <span>Go to cart</span>
+        <button
+          type="button"
+          onClick={() => navigateApp(ROUTES.CART)}
+          className="flex h-[36px] w-[120px] items-center justify-center gap-2 rounded-full bg-black px-3 font-inter text-[10px] font-medium text-white transition hover:bg-neutral-900"
+        >
+          <span>Go to cart</span>
 
-  <span className="relative flex items-center justify-center">
-    <svg
-      className="h-[20px] w-[20px]"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 4.5h1.5l1.2 9.15a2 2 0 001.98 1.73h8.64a2 2 0 001.93-1.48L20 7.5H6"
-      />
+          <span className="relative flex items-center justify-center">
+            <svg
+              className="h-[20px] w-[20px]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 4.5h1.5l1.2 9.15a2 2 0 001.98 1.73h8.64a2 2 0 001.93-1.48L20 7.5H6"
+              />
 
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 19.5a1 1 0 11-2 0 1 1 0 012 0zm8 0a1 1 0 11-2 0 1 1 0 012 0z"
-      />
-    </svg>
-  </span>
-</Link>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 19.5a1 1 0 11-2 0 1 1 0 012 0zm8 0a1 1 0 11-2 0 1 1 0 012 0z"
+              />
+            </svg>
+          </span>
+        </button>
 
-        <Link
-          to={ROUTES.HOME}
+        <button
+          type="button"
+          onClick={() => navigateApp(ROUTES.HOME)}
           className="inline-flex items-center gap-2 px-2 font-inter text-sm font-medium text-black transition hover:opacity-70"
         >
           <svg
@@ -188,7 +191,7 @@ export default function CommunitySidebar({
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
           Back to Khush
-        </Link>
+        </button>
 
         {caps.showCreateCard && !hasPosts ? (
           <div className="relative overflow-hidden rounded-xl">

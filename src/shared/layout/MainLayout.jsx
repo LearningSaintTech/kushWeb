@@ -46,7 +46,7 @@ function MainLayout() {
       <FoldScrollSafety />
       {!isCommunityFeed ? <Header /> : null}
       <main className="min-w-0 flex-1 w-full max-w-full">
-        <Outlet />
+        <Outlet key={location.pathname} />
       </main>
       {!isCommunityFeed ? (
         <>

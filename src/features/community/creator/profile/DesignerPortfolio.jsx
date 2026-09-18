@@ -1,5 +1,6 @@
 import { DESIGNER_PROFILE } from '../../data/mockCreator'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
+import { getDesignerPortfolioProgress } from '../../../../services/communityProfile.service'
 
 function LinkIcon({ platform }) {
   const common = 'h-4 w-4'
@@ -35,10 +36,11 @@ function LinkIcon({ platform }) {
 /**
  * Full-height designer portfolio panel (not a half scroll card).
  */
-export default function DesignerPortfolio({ onBack, onViewProjects }) {
+export default function DesignerPortfolio({ onBack, onViewProjects, onEdit }) {
   const { profile: communityProfile } = useCommunityProfile()
 
   const name = communityProfile?.name || DESIGNER_PROFILE.name
+  const progress = getDesignerPortfolioProgress(communityProfile)
   const bio =
     communityProfile?.designerBio ||
     communityProfile?.designerTagline ||
@@ -80,6 +82,15 @@ export default function DesignerPortfolio({ onBack, onViewProjects }) {
         <h2 className="min-w-0 flex-1 truncate font-inter text-[15px] font-semibold text-white">
           {name}
         </h2>
+        {onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="shrink-0 cursor-pointer rounded-full border border-white/20 px-3 py-2 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-white transition hover:bg-white/10"
+          >
+            Edit
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onViewProjects}
@@ -90,8 +101,37 @@ export default function DesignerPortfolio({ onBack, onViewProjects }) {
       </div>
 
       <div className="mt-8 flex min-h-0 flex-1 flex-col">
+        <section className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-inter text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+              Profile progress
+            </p>
+            <p className="font-inter text-xs font-semibold text-white">
+              {progress.completed}/{progress.total} steps
+            </p>
+          </div>
+          <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/15">
+            <div
+              className="h-full rounded-full bg-[#7C5CFF] transition-all"
+              style={{ width: `${progress.percent}%` }}
+            />
+          </div>
+          <ul className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {progress.steps.map((step) => (
+              <li
+                key={step.id}
+                className={`font-inter text-[11px] ${
+                  step.done ? 'text-white/80' : 'text-white/35'
+                }`}
+              >
+                {step.done ? '✓' : '○'} {step.title}
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <section>
-          <h3 className="font-refer-display text-[1.75rem] font-normal leading-tight tracking-tight text-white">
+          <h3 className="mt-8 font-refer-display text-[1.75rem] font-normal leading-tight tracking-tight text-white">
             About Me
           </h3>
           <p className="mt-3 font-geist text-[13px] leading-relaxed text-white/70">

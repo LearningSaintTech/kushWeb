@@ -43,7 +43,6 @@ import Address from '../../shared/address/Address'
 import ProfileUpdatePage from '../../features/account/ProfileUpdatePage'
 import AccountPage from '../../features/account/AccountPage'
 import AppDownloadRedirectPage from '../../shared/components/AppDownloadRedirectPage'
-import { ROUTES } from '../../utils/constants'
 
 const router = createBrowserRouter([
   {
@@ -84,8 +83,7 @@ const router = createBrowserRouter([
       { path: 'giftcard', element: <GiftCardPage /> },
       { path: 'community', element: <CommunityPage /> },
       { path: 'community/enter', element: <CommunityEnterPage /> },
-      { path: 'community/feed/*', element: <CommunityFeedLayout /> },
-      { path: 'community/feed', element: <CommunityFeedLayout /> },
+      { path: 'community/feed/:page?', element: <CommunityFeedLayout /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],

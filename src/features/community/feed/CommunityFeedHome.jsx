@@ -13,6 +13,7 @@ import {
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { debugError } from '../../../utils/debugLog.js'
 import { shareCommunityContent } from '../utils/shareProfile'
+import { useAuth } from '../../../app/context/AuthContext'
 
 /**
  * Home feed — following / explore via communityService.getFeed
@@ -21,6 +22,7 @@ export default function CommunityFeedHome() {
   const [activeFilter, setActiveFilter] = useState('All')
   const [feedFilters, setFeedFilters] = useState([])
   const [hashtagsLoading, setHashtagsLoading] = useState(true)
+  const { isAuthenticated } = useAuth()
   const { openProfile, openPost } = useCommunityFeedUi()
   const social = useCommunitySocial()
   const sentinelRef = useRef(null)
@@ -96,7 +98,10 @@ export default function CommunityFeedHome() {
     scope,
     type: 'post',
     hashtag: activeHashtag,
-    enabled: activeFilter !== 'Notifications' && activeFilter !== 'Profile',
+    enabled:
+      isAuthenticated &&
+      activeFilter !== 'Notifications' &&
+      activeFilter !== 'Profile',
   })
 
   // Infinite scroll observer: trigger loadMore when sentinel approaches viewport

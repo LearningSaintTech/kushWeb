@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../../../app/context/AuthContext'
 import { useCartWishlist } from '../../../../app/context/CartWishlistContext'
 import { ROUTES } from '../../../../utils/constants'
+import { navigateApp } from '../../../../app/navigateApp.js'
 import { debugError } from '../../../../utils/debugLog.js'
 import CommunityVariantPickerModal from './CommunityVariantPickerModal'
 
@@ -19,15 +19,30 @@ export default function TaggedProductsCarousel({
   compact = false,
 }) {
   const trackRef = useRef(null)
-  const navigate = useNavigate()
   const { isAuthenticated, openAuthModal } = useAuth()
-  const { addToCart } = useCartWishlist()
+  const { addToCart, cart } = useCartWishlist()
   const [activeIndex, setActiveIndex] = useState(0)
   const [busyId, setBusyId] = useState(null)
   const [errorById, setErrorById] = useState({})
+  const [addedIds, setAddedIds] = useState(() => new Set())
   const [pickerProduct, setPickerProduct] = useState(null)
   const [cartToast, setCartToast] = useState(null)
   const isDark = variant === 'dark'
+
+  const cartIdSet = useMemo(() => {
+    const ids = new Set()
+    for (const line of cart || []) {
+      if (line?.id != null) ids.add(String(line.id))
+      if (line?.sku != null) ids.add(String(line.sku))
+    }
+    return ids
+  }, [cart])
+
+  const isAdded = (itemId) => {
+    const key = String(itemId || '')
+    if (!key) return false
+    return addedIds.has(key) || cartIdSet.has(key)
+  }
 
   const syncIndex = useCallback(() => {
     const el = trackRef.current
@@ -89,6 +104,11 @@ export default function TaggedProductsCarousel({
         throw new Error(result.message || 'Could not add to cart.')
       }
       setPickerProduct(null)
+      setAddedIds((prev) => {
+        const next = new Set(prev)
+        if (itemId) next.add(String(itemId))
+        return next
+      })
       setCartToast({
         name: cartProduct?.title || cartProduct?.name || 'Item',
         image: cartProduct?.image || cartProduct?.thumb || '',
@@ -139,6 +159,7 @@ export default function TaggedProductsCarousel({
         {products.map((product) => {
           const itemId = product?.id || product?.itemId
           const busy = busyId && String(busyId) === String(itemId)
+          const added = isAdded(itemId)
           const err = errorById[itemId]
           return (
             <article
@@ -167,10 +188,10 @@ export default function TaggedProductsCarousel({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => openPicker(product)}
+                  onClick={() => (added ? navigateApp(ROUTES.CART) : openPicker(product))}
                   className="mt-2 w-full cursor-pointer rounded-lg bg-black py-2 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60"
                 >
-                  {busy ? 'Adding…' : 'Add to Cart'}
+                  {busy ? 'Adding…' : added ? 'Added to cart' : 'Add to Cart'}
                 </button>
                 {err ? (
                   <p className="mt-1 font-inter text-[10px] leading-snug text-red-600">{err}</p>
@@ -239,10 +260,10 @@ export default function TaggedProductsCarousel({
             </div>
             <button
               type="button"
-              onClick={() => navigate(ROUTES.CART)}
+              onClick={() => navigateApp(ROUTES.CART)}
               className="shrink-0 cursor-pointer rounded-full bg-white px-3 py-1.5 font-inter text-xs font-bold text-black transition hover:bg-neutral-200"
             >
-              View cart
+              Go to cart
             </button>
           </div>
         </div>

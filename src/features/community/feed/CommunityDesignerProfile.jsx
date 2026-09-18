@@ -185,6 +185,7 @@ export default function CommunityDesignerProfile(props) {
     setShowPortfolio(false)
     setAddOpen(false)
     setEditingProject(null)
+    setEditing(false)
   }
 
   const openAdd = () => {
@@ -215,11 +216,23 @@ export default function CommunityDesignerProfile(props) {
     return (
       <>
         <div className="flex w-full flex-col items-stretch gap-5 lg:min-h-[640px] lg:flex-row lg:gap-6 xl:gap-8 2xl:gap-10">
-          <div className="w-full shrink-0 overflow-hidden rounded-[1.5rem] bg-black shadow-[0_8px_32px_rgba(0,0,0,0.12)] max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[410px] 2xl:w-[460px] lg:max-w-none">
-            <DesignerPortfolio
-              onBack={handleClosePortfolio}
-              onViewProjects={() => setShowProjects(true)}
-            />
+          <div
+            className={`w-full shrink-0 overflow-hidden rounded-[1.5rem] shadow-[0_8px_32px_rgba(0,0,0,0.12)] max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[410px] 2xl:w-[460px] lg:max-w-none ${
+              editing ? 'bg-white' : 'bg-black'
+            }`}
+          >
+            {editing ? (
+              <CreatorEditProfile
+                onBack={() => setEditing(false)}
+                onSaved={() => setEditing(false)}
+              />
+            ) : (
+              <DesignerPortfolio
+                onBack={handleClosePortfolio}
+                onViewProjects={() => setShowProjects(true)}
+                onEdit={() => setEditing(true)}
+              />
+            )}
           </div>
 
           <div className="relative min-h-[520px] min-w-0 flex-1 overflow-hidden rounded-[1.5rem] bg-white shadow-[0_8px_32px_rgba(0,0,0,0.06)]">

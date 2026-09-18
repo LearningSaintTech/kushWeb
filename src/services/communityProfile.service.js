@@ -9,6 +9,7 @@
 import client from './axiosClient.js';
 import { debugLog, debugError } from '../utils/debugLog.js';
 import { redactForLog } from '../utils/logRedact.util.js';
+import { isCommunityAuthError } from './communityApi.js';
 
 const BASE = '/user/community-profile';
 
@@ -51,6 +52,9 @@ function wrap(method, path, promise, body) {
 
 /** Prefer API message (+ express-validator errors) for UI alerts. */
 export function getCommunityProfileErrorMessage(err, fallback = 'Something went wrong.') {
+  if (isCommunityAuthError(err)) {
+    return '';
+  }
   const data = err?.response?.data;
   const errors = data?.errors;
   if (Array.isArray(errors) && errors.length) {
@@ -244,6 +248,7 @@ export {
   DESIGNER_STEP_TO_INDEX,
   CREATOR_STEP_TO_INDEX,
   designerStepIndex,
+  getDesignerPortfolioProgress,
   creatorStepIndex,
   mapGenderToApi,
   mapGenderFromApi,

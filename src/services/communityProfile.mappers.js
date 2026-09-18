@@ -34,6 +34,62 @@ export function designerStepIndex(profile) {
   return DESIGNER_STEP_TO_INDEX[key] ?? 1;
 }
 
+function hasFilled(value) {
+  return Boolean(String(value || '').trim());
+}
+
+/** How many designer portfolio / onboarding steps have real data. */
+export function getDesignerPortfolioProgress(profile) {
+  const p = profile || {};
+  const skills = Array.isArray(p.designerSkills)
+    ? p.designerSkills.filter((s) => hasFilled(s?.name))
+    : [];
+  const experience = Array.isArray(p.designerWorkExperience)
+    ? p.designerWorkExperience.filter((r) => hasFilled(r?.jobTitle) || hasFilled(r?.company))
+    : [];
+  const education = Array.isArray(p.designerEducation)
+    ? p.designerEducation.filter((e) => hasFilled(e?.degree) || hasFilled(e?.institution))
+    : [];
+  const links = Array.isArray(p.designerSocialLinks)
+    ? p.designerSocialLinks.filter((l) => hasFilled(l?.url) && l.enabled !== false)
+    : [];
+  const created =
+    p.designerOnboardingStep === 'completed' ||
+    p.isDesigner === true ||
+    Boolean(p.designerProfileCompleted);
+
+  const steps = [
+    {
+      id: 1,
+      title: 'Essentials',
+      done: hasFilled(p.name || p.fullName) && hasFilled(p.username),
+    },
+    {
+      id: 2,
+      title: 'Photo',
+      done: Boolean(p.profileImage || p.avatar || p.profilePreview),
+    },
+    { id: 3, title: 'Skills', done: skills.length > 0 },
+    { id: 4, title: 'Experience', done: experience.length > 0 },
+    { id: 5, title: 'Education', done: education.length > 0 },
+    {
+      id: 6,
+      title: 'Story',
+      done: hasFilled(p.designerBio || p.bio || p.shortBio || p.designerTagline),
+    },
+    { id: 7, title: 'Links', done: links.length > 0 },
+    { id: 8, title: 'Profile created', done: created },
+  ];
+  const completed = steps.filter((s) => s.done).length;
+  const total = steps.length;
+  return {
+    completed,
+    total,
+    steps,
+    percent: Math.round((completed / total) * 100),
+  };
+}
+
 export function creatorStepIndex(profile) {
   const key = profile?.creatorOnboardingStep || 'not_started';
   return CREATOR_STEP_TO_INDEX[key] ?? 1;

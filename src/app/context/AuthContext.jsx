@@ -5,7 +5,7 @@ import { getMemoryToken, setMemoryToken, subscribeMemoryToken, clearMemoryToken 
 import { getValidAccessToken, isTokenExpired } from '../../utils/authToken.js'
 import { refreshUserAccessToken, rememberRefreshTokenFromAuthPayload } from '../../utils/authSession.js'
 import { performLogout, clearLegacyAuthStorage } from '../../utils/sessionLogout.js'
-import { setSessionHint } from '../../utils/sessionHint.js'
+import { hasSessionHint, setSessionHint } from '../../utils/sessionHint.js'
 import { getOrCreateDeviceId } from '../../utils/deviceId.js'
 import {
   buildMinimalUser,
@@ -84,7 +84,9 @@ export function AuthProvider({ children }) {
     setTokenState(next)
   }, [])
 
-  const isAuthenticated = Boolean(getValidAccessToken(getMemoryToken()))
+  // Memory access JWT expires often. Session hint means refresh cookie / stored
+  // refresh token can mint a new access token — do not treat that as logged out.
+  const isAuthenticated = Boolean(getValidAccessToken(token)) || hasSessionHint()
 
   useEffect(() => {
     setAccessTokenGetter(() => getMemoryToken())

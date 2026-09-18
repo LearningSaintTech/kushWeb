@@ -14,6 +14,7 @@ import { mapContentToReel } from '../../../services/communityContent.mappers.js'
 import { extractReelPoster, extractReelVideo, readReelNavState } from '../utils/openReel'
 import { shareCommunityContent } from '../utils/shareProfile'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
+import { useAuth } from '../../../app/context/AuthContext'
 
 /**
  * Fullscreen Shorts / Reels — one reel per viewport, snap scroll.
@@ -21,6 +22,7 @@ import { debugError, debugLog } from '../../../utils/debugLog.js'
  * Profile open: location.state.playlist = that user's reels
  */
 export default function CommunityReelsFeed() {
+  const { isAuthenticated } = useAuth()
   const { openProfile, openReelComments } = useCommunityFeedUi()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -79,7 +81,7 @@ export default function CommunityReelsFeed() {
     type: 'reel',
     limit: 6,
     // Skip explore fetch when opening a profile playlist — show user's reels immediately
-    enabled: !useProfilePlaylist,
+    enabled: isAuthenticated && !useProfilePlaylist,
   })
 
   // Seed from navigation state immediately (profile / saved)

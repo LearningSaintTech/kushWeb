@@ -8,6 +8,7 @@
 
 import { debugLog, debugError, debugWarn } from '../utils/debugLog.js';
 import { redactForLog } from '../utils/logRedact.util.js';
+import { triggerAuthRequired } from './axiosClient.js';
 
 export const COMMUNITY_BASE = '/community';
 
@@ -15,7 +16,25 @@ export function unwrapCommunity(res) {
   return res?.data?.data ?? res?.data ?? null;
 }
 
+export function isCommunityAuthError(err) {
+  const status = err?.response?.status;
+  const msg = String(err?.response?.data?.message ?? err?.message ?? '');
+  return (
+    status === 401 ||
+    /access token is missing/i.test(msg) ||
+    /missing access token/i.test(msg) ||
+    /no token provided/i.test(msg) ||
+    /jwt expired/i.test(msg) ||
+    /invalid access token/i.test(msg) ||
+    /token expired/i.test(msg)
+  );
+}
+
 export function getCommunityErrorMessage(err, fallback = 'Something went wrong.') {
+  if (isCommunityAuthError(err)) {
+    triggerAuthRequired();
+    return '';
+  }
   const data = err?.response?.data;
   const msg = data?.message;
   if (typeof msg === 'string' && msg.trim()) return msg.trim();

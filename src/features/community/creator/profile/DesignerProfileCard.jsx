@@ -438,13 +438,21 @@ export default function DesignerProfileCard({
         })}
       </div>
 
-      <div className="grid grid-cols-3 gap-0.5 bg-[#111111]">
+      <div
+        className={`grid gap-0.5 ${
+          media.length <= 1
+            ? 'grid-cols-1 w-1/3'
+            : media.length === 2
+              ? 'grid-cols-2 w-2/3'
+              : 'grid-cols-3 w-full'
+        }`}
+      >
         {loading && media.length === 0 ? (
-          <p className="col-span-3 py-10 text-center font-inter text-xs text-neutral-400">
+            <p className="col-span-full py-10 text-center font-inter text-xs text-neutral-400">
             Loading…
           </p>
         ) : media.length === 0 ? (
-          <p className="col-span-3 py-10 text-center font-inter text-xs text-neutral-400">
+            <p className="col-span-full py-10 text-center font-inter text-xs text-neutral-400">
             No {tab.toLowerCase()} yet
           </p>
         ) : (

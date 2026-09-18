@@ -11,6 +11,7 @@ import { performLogout } from '../utils/sessionLogout.js';
 import { getMemoryToken, setMemoryToken } from '../utils/tokenMemory.js';
 import { getOrCreateDeviceId } from '../utils/deviceId.js';
 import { hasSessionHint } from '../utils/sessionHint.js';
+import { isTokenExpired } from '../utils/authToken.js';
 import {
   isRateLimitedStatus,
   normalizeRateLimitMessage,
@@ -49,6 +50,11 @@ function notifyAuthRequired() {
   } catch {
     /* ignore */
   }
+}
+
+/** Open login modal without logging out other devices. */
+export function triggerAuthRequired() {
+  notifyAuthRequired();
 }
 
 let refreshPromise = null;
@@ -122,10 +128,19 @@ const client = axios.create({
 });
 
 client.interceptors.request.use(
-  (config) => {
+  async (config) => {
     config.metadata = { ...(config.metadata || {}), startedAt: Date.now() };
 
-    const token = getAccessToken();
+    let token = getAccessToken();
+    if (
+      token &&
+      isTokenExpired(token) &&
+      hasSessionHint() &&
+      !isAuthRequestUrl(config.url)
+    ) {
+      const next = await runTokenRefresh();
+      if (next) token = next;
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -235,10 +250,13 @@ client.interceptors.response.use(
       status === 401 &&
       originalConfig &&
       !isAuthRequestUrl(originalConfig.url) &&
-      !isPublicApiUrl(originalConfig.url) &&
-      requestHadAuth(originalConfig)
+      !isPublicApiUrl(originalConfig.url)
     ) {
-      await performLogout({ server: false });
+      if (requestHadAuth(originalConfig) && !hasSessionHint()) {
+        // Refresh already rejected this device's session. Clear local only —
+        // never POST /logout here (that would kick other devices).
+        await performLogout({ server: false });
+      }
       notifyAuthRequired();
     }
 

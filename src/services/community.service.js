@@ -13,6 +13,7 @@ import {
   COMMUNITY_BASE,
   wrapCommunity,
   getCommunityErrorMessage,
+  isCommunityAuthError,
   isDesignerNotVerifiedError,
   logCommunity,
 } from './communityApi.js';
@@ -542,7 +543,7 @@ export const communityService = {
     ),
 };
 
-export { getCommunityErrorMessage, isDesignerNotVerifiedError };
+export { getCommunityErrorMessage, isCommunityAuthError, isDesignerNotVerifiedError };
 export {
   mapContentToPost,
   mapContentToReel,
