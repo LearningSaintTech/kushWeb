@@ -8,6 +8,7 @@ import {
 import { communityProfileService } from '../../../../services/communityProfile.service'
 import { debugError, debugLog } from '../../../../utils/debugLog'
 import { shareCommunityProfile } from '../../utils/shareProfile'
+import { playlistFromGrid } from '../../utils/openReel'
 import { getPublicImageUrl } from '../../../../services/config'
 
 const TABS = ['Posts', 'Reels', 'Tagged']
@@ -457,7 +458,9 @@ export default function DesignerProfileCard({
                   playlist: playlistFromGrid(social?.mediaByTab?.Reels || []),
                 })
               }
-              className="aspect-square cursor-pointer overflow-hidden bg-neutral-800"
+              className={`cursor-pointer overflow-hidden bg-neutral-800 ${
+                tab === 'Reels' ? 'aspect-[3/4]' : 'aspect-square'
+              }`}
               aria-label={`Open ${item.type}`}
             >
               {item.image ? (

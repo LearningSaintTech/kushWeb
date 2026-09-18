@@ -1,4 +1,4 @@
-import { Link, NavLink } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
 import whiteKhush from '../../../assets/images/community/whitekhush.svg'
 import createCardBg from '../../../assets/images/community/black rectangle.png'
@@ -90,6 +90,7 @@ export default function CommunitySidebar({
 }) {
   const caps = getCapabilities(role)
   const items = NAV_ITEMS.filter((item) => caps.sidebar.includes(item.id))
+  const navigate = useNavigate()
 
   const handleNavClick = (item, event) => {
     if (item.id === 'create' && onCreateClick) {
@@ -100,7 +101,10 @@ export default function CommunitySidebar({
     if (item.id === 'notifications' && onNotificationsClick) {
       event.preventDefault()
       onNotificationsClick()
+      return
     }
+    event.preventDefault()
+    navigate(item.to)
   }
 
   return (
@@ -114,10 +118,9 @@ export default function CommunitySidebar({
           {items.map((item) => {
             const isActive = item.id === activeId
             return (
-              <NavLink
+              <Link
                 key={item.id}
                 to={item.to}
-                end={item.id === 'home'}
                 onClick={(e) => handleNavClick(item, e)}
                 className={`flex items-center gap-3 rounded-full px-3 py-[7px] font-inter text-[10px] transition ${
                   isActive
@@ -132,7 +135,7 @@ export default function CommunitySidebar({
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 ) : null}
-              </NavLink>
+              </Link>
             )
           })}
         </nav>

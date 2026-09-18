@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useOutletContext, useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
+import { useCommunityFeedUi } from '../context/CommunityFeedUiContext'
 import ReelCard from '../components/reels/ReelCard'
 import {
   useCommunityFeed,
@@ -10,8 +11,7 @@ import {
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { communityService } from '../../../services/community.service.js'
 import { mapContentToReel } from '../../../services/communityContent.mappers.js'
-import { getCommunityReelsPath } from '../../../utils/constants'
-import { logCommunity } from '../../../services/communityApi.js'
+import { extractReelPoster, extractReelVideo, readReelNavState } from '../utils/openReel'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 
 /**
@@ -20,30 +20,41 @@ import { debugError, debugLog } from '../../../utils/debugLog.js'
  * Profile open: location.state.playlist = that user's reels
  */
 export default function CommunityReelsFeed() {
-  const { openProfile, openReelComments } = useOutletContext() ?? {}
+  const { openProfile, openReelComments } = useCommunityFeedUi()
   const location = useLocation()
   const [searchParams] = useSearchParams()
+  const storedNav = useMemo(() => readReelNavState(), [location.key, location.search])
   const startReelId =
     searchParams.get('reelId') ||
     searchParams.get('reel') ||
     location.state?.startReelId ||
+    storedNav?.startReelId ||
     ''
 
   const profilePlaylist = useMemo(() => {
-    const list = Array.isArray(location.state?.playlist) ? location.state.playlist : []
+    const list = Array.isArray(location.state?.playlist)
+      ? location.state.playlist
+      : Array.isArray(storedNav?.playlist)
+        ? storedNav.playlist
+        : []
     return list
-      .filter((r) => r?.id)
-      .map((r) => ({
-        ...r,
-        type: 'reel',
-        video: r.video || r.videoUrl || '',
-        videoUrl: r.videoUrl || r.video || '',
-        poster: r.poster || r.image || '',
-      }))
-  }, [location.state])
+      .filter((r) => r?.id || r?._id)
+      .map((r) => {
+        const video = extractReelVideo(r)
+        const id = r.id || r._id
+        return {
+          ...r,
+          id,
+          type: 'reel',
+          video,
+          videoUrl: video,
+          poster: extractReelPoster(r),
+        }
+      })
+  }, [location.state, storedNav])
 
-  const profileSeed = location.state?.seed || null
-  const useProfilePlaylist = profilePlaylist.length > 0 || Boolean(profileSeed?.id)
+  const profileSeed = location.state?.seed || storedNav?.seed || null
+  const useProfilePlaylist = profilePlaylist.length > 0 || Boolean(profileSeed?.id || profileSeed?._id)
 
   const social = useCommunitySocial()
   const scrollerRef = useRef(null)
@@ -73,25 +84,31 @@ export default function CommunityReelsFeed() {
   // Seed from navigation state immediately (profile / saved)
   useEffect(() => {
     if (!useProfilePlaylist) return
-    if (profileSeed?.id) {
+    if (profileSeed?.id || profileSeed?._id) {
+      const video = extractReelVideo(profileSeed)
       setBootReel({
         ...profileSeed,
+        id: profileSeed.id || profileSeed._id,
         type: 'reel',
-        video: profileSeed.video || profileSeed.videoUrl || '',
-        videoUrl: profileSeed.videoUrl || profileSeed.video || '',
-        poster: profileSeed.poster || profileSeed.image || '',
+        video,
+        videoUrl: video,
+        poster: extractReelPoster(profileSeed),
       })
     }
   }, [useProfilePlaylist, profileSeed])
 
-  // Hydrate video URL if playlist seed only has a poster/thumbnail
+  // Always hydrate the opened reel so profile/saved/search thumbs become playable video
   useEffect(() => {
-    if (!useProfilePlaylist || !startReelId) return undefined
+    if (!startReelId) return undefined
     const existing =
       profilePlaylist.find((r) => String(r.id) === String(startReelId)) ||
-      (profileSeed && String(profileSeed.id) === String(startReelId) ? profileSeed : null)
-    const hasVideo = Boolean(existing?.video || existing?.videoUrl)
-    if (hasVideo) return undefined
+      (profileSeed && String(profileSeed.id || profileSeed._id) === String(startReelId)
+        ? profileSeed
+        : null)
+    const hasVideo = Boolean(extractReelVideo(existing) || existing?.video || existing?.videoUrl)
+    if (hasVideo && existing?.video && !/\.(jpe?g|png|webp|gif)(\?|$)/i.test(existing.video)) {
+      return undefined
+    }
 
     let cancelled = false
     communityService
@@ -103,13 +120,13 @@ export default function CommunityReelsFeed() {
         setBootReel(mapped)
       })
       .catch((err) => {
-        debugError('[Community] profile reel hydrate failed', err?.message)
+        debugError('[Community] reel hydrate failed', err?.message)
       })
 
     return () => {
       cancelled = true
     }
-  }, [useProfilePlaylist, startReelId, profilePlaylist, profileSeed])
+  }, [startReelId, profilePlaylist, profileSeed])
 
   // Fetch missing deep-linked reel only for explore mode
   useEffect(() => {
@@ -315,15 +332,8 @@ export default function CommunityReelsFeed() {
   )
 
   const handleShare = useCallback(async (reel) => {
-    const url = `${window.location.origin}${getCommunityReelsPath(reel.id)}`
-    logCommunity('ReelsFeed share', { id: reel.id, url })
     try {
-      if (navigator.share) {
-        await navigator.share({ title: reel.caption || 'Khush Reel', url })
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url)
-        debugLog('[Community] reel link copied', url)
-      }
+      await shareCommunityContent({ ...reel, type: 'reel' })
     } catch (err) {
       if (err?.name !== 'AbortError') {
         debugError('[Community] reel share failed', err?.message)
@@ -412,7 +422,7 @@ export default function CommunityReelsFeed() {
                   itemRefs.current[index] = el
                 }}
                 data-reel-index={index}
-                className="box-border h-full min-h-full max-h-full snap-start snap-always bg-black"
+                className="box-border h-full min-h-full max-h-full w-full snap-start snap-always bg-black"
                 aria-hidden
               />
             )
@@ -425,7 +435,7 @@ export default function CommunityReelsFeed() {
                 itemRefs.current[index] = el
               }}
               data-reel-index={index}
-              className="box-border flex h-full min-h-full max-h-full snap-start snap-always flex-col overflow-hidden"
+              className="box-border flex h-full min-h-full max-h-full w-full snap-start snap-always flex-col items-center justify-center overflow-hidden"
               aria-label={`Reel ${index + 1} of ${reels.length}`}
             >
               <ReelCard

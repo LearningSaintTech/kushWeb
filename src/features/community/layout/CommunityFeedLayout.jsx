@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../app/context/AuthContext'
 import { useNotification } from '../../../app/context/NotificationContext'
 import { getCommunityReelsPath, ROUTES } from '../../../utils/constants'
@@ -21,15 +21,24 @@ import CreateTypeModal from '../components/create/CreateTypeModal'
 import AddMediaSheet from '../components/create/AddMediaSheet'
 import CreatePostComposer from '../components/create/CreatePostComposer'
 import { CommunitySocialProvider } from '../context/CommunitySocialContext'
+import { CommunityFeedUiContext } from '../context/CommunityFeedUiContext'
+import { communityService, mapContentToPost } from '../../../services/community.service.js'
+import CommunityFeedHome from '../feed/CommunityFeedHome'
+import CommunitySearchFeed from '../feed/CommunitySearchFeed'
+import CommunityReelsFeed from '../feed/CommunityReelsFeed'
+import CommunityProfilePage from '../feed/CommunityProfilePage'
+import CommunityCreateJoin from '../feed/CommunityCreateJoin'
+import CommunitySavedFeed from '../feed/CommunitySavedFeed'
 import { SUGGESTED_CREATORS, TRENDING_HASHTAGS } from '../data/mockFeed'
 import { debugLog } from '../../../utils/debugLog'
 
 function resolveActiveNav(pathname) {
-  if (pathname.includes('/saved')) return 'saved'
-  if (pathname.includes('/search')) return 'search'
-  if (pathname.includes('/reels')) return 'reels'
-  if (pathname.includes('/create')) return 'create'
-  if (pathname.includes('/profile')) return 'profile'
+  const path = String(pathname || '')
+  if (path.includes('/community/feed/saved')) return 'saved'
+  if (path.includes('/community/feed/search')) return 'search'
+  if (path.includes('/community/feed/reels')) return 'reels'
+  if (path.includes('/community/feed/create')) return 'create'
+  if (path.includes('/community/feed/profile')) return 'profile'
   return 'home'
 }
 
@@ -49,11 +58,9 @@ export default function CommunityFeedLayout({
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const profileIdParam = searchParams.get('profileId') || searchParams.get('userId')
+  const postIdParam = searchParams.get('postId')
   
-  const activeNav = useMemo(
-    () => resolveActiveNav(location.pathname),
-    [location.pathname],
-  )
+  const activeNav = resolveActiveNav(location.pathname)
   const isSaved = activeNav === 'saved'
   const isSearch = activeNav === 'search'
   const isReels = activeNav === 'reels'
@@ -83,13 +90,16 @@ export default function CommunityFeedLayout({
   }, [authChecked, isAuthenticated, openAuthModal, location.pathname, location.search])
 
   const canPost = can(role, 'canPost')
-  const { profile: socialProfile } = useCommunitySocialProfile({
+  const { profile: socialProfile, loading: socialLoading } = useCommunitySocialProfile({
     enabled: Boolean(isAuthenticated && canPost),
   })
+  // While profile is loading or not yet resolved, default to true so the empty card never flashes for 1 second
   const hasPosts =
-    (socialProfile?.statsRaw?.posts ?? 0) > 0 ||
-    (socialProfile?.mediaByTab?.Posts?.length ?? 0) > 0 ||
-    (socialProfile?.mediaByTab?.Reels?.length ?? 0) > 0
+    socialLoading || !socialProfile
+      ? true
+      : (socialProfile?.statsRaw?.posts ?? 0) > 0 ||
+        (socialProfile?.mediaByTab?.Posts?.length ?? 0) > 0 ||
+        (socialProfile?.mediaByTab?.Reels?.length ?? 0) > 0
 
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [selectedPost, setSelectedPost] = useState(null)
@@ -245,6 +255,24 @@ export default function CommunityFeedLayout({
     openPost(reel, { forceModal: true })
   }, [openPost])
 
+  useEffect(() => {
+    if (!postIdParam) return undefined
+    let cancelled = false
+    communityService
+      .getContent(postIdParam)
+      .then((raw) => {
+        if (cancelled) return
+        const mapped = mapContentToPost(raw?.content || raw?.item || raw)
+        if (mapped) openPost(mapped, { source: 'share' })
+      })
+      .catch((err) => {
+        debugLog('[Community] shared post open failed', err?.message)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [postIdParam, openPost])
+
   const openNotifications = useCallback(() => {
     setSelectedProfile(null)
     setSelectedPost(null)
@@ -320,7 +348,30 @@ export default function CommunityFeedLayout({
         ? 'notifications'
         : activeNav
 
+  const feedUi = useMemo(
+    () => ({ openProfile, openPost, openReelComments }),
+    [openProfile, openPost, openReelComments],
+  )
+
+  const communityPage = useMemo(() => {
+    switch (activeNav) {
+      case 'search':
+        return <CommunitySearchFeed />
+      case 'reels':
+        return <CommunityReelsFeed />
+      case 'profile':
+        return <CommunityProfilePage />
+      case 'create':
+        return <CommunityCreateJoin />
+      case 'saved':
+        return <CommunitySavedFeed />
+      default:
+        return <CommunityFeedHome />
+    }
+  }, [activeNav])
+
   return (
+    <CommunitySocialProvider>
     <div className={`relative flex h-dvh min-h-0 w-full flex-col overflow-hidden lg:flex-row ${isReels ? 'bg-black' : 'bg-white'}`}>
       <header
         className={`flex shrink-0 items-center justify-between px-4 py-3 lg:hidden ${
@@ -457,52 +508,45 @@ export default function CommunityFeedLayout({
               : 'justify-center px-4 lg:px-8 xl:px-10'
         } ${isProfile ? 'bg-white' : isJoinCanvas ? 'bg-[#f5f5f5]' : isReels ? 'bg-black' : 'bg-white'}`}
       >
-        {isReels ? (
-          /* Fullscreen Shorts stage — one reel fills the column */
-          <main className="h-full min-h-0 w-full max-w-[460px] overflow-hidden">
-            <Outlet context={{ openProfile, openPost, openReelComments }} />
-          </main>
-        ) : (
-          <div
-            className={`flex h-full min-w-0 ${
-              isSaved || isJoinCanvas || isProfileShell
-                ? 'w-full'
-                : isSearch
-                  ? 'w-full max-w-[1100px] gap-8 xl:gap-10'
-                  : 'w-full max-w-[920px] gap-8 xl:max-w-[980px] xl:gap-10'
+        <div
+          className={`flex h-full min-w-0 ${
+            isReels || isSaved || isJoinCanvas || isProfileShell
+              ? 'w-full'
+              : isSearch
+                ? 'w-full max-w-[1100px] gap-8 xl:gap-10'
+                : 'w-full max-w-[920px] gap-8 xl:max-w-[980px] xl:gap-10'
+          }`}
+        >
+          <main
+            className={`min-h-0 min-w-0 flex-1 ${
+              isReels
+                ? 'overflow-hidden flex items-center justify-center'
+                : 'overflow-y-auto scrollbar-hide'
             }`}
           >
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-hide">
-              <div
-                className={
-                  isSaved
+            <div
+              className={
+                isReels
+                  ? 'h-full min-h-0 w-full'
+                  : isSaved
                     ? 'w-full px-6 py-6 sm:px-8 lg:px-10'
                     : isProfileShell
-                      ? 'w-full max-w-[1360px] mx-auto px-4 py-4 sm:px-6 lg:px-8 lg:py-6'
+                      ? 'w-full max-w-[1360px] xl:max-w-[1520px] 2xl:max-w-[1720px] mx-auto px-4 py-4 sm:px-6 lg:px-8 lg:py-6 xl:px-10 2xl:px-12'
                       : isCreateJoin
                         ? 'flex min-h-full w-full items-stretch px-4 py-6 sm:px-8 lg:px-12'
                         : isSearch
                           ? 'w-full py-6 pr-1'
                           : 'mx-auto w-full max-w-[520px] py-6'
-                }
-              >
-                <Outlet context={{ openProfile, openPost, openReelComments }} />
-              </div>
-            </main>
-
-            {/* Task 2: Suggested Creators and Suggested Hashtags commented out (can be easily restored) */}
-            {/*
-            {showRightRail ? (
-              <aside className="scrollbar-hide hidden h-full w-[250px] shrink-0 overflow-y-auto py-6 xl:block xl:w-[260px]">
-                <SuggestedCreators creators={SUGGESTED_CREATORS} />
-                <div className="mt-8">
-                  <TrendingHashtags hashtags={TRENDING_HASHTAGS} />
+              }
+            >
+              <CommunityFeedUiContext.Provider value={feedUi}>
+                <div key={activeNav} className={isReels ? 'h-full min-h-0 w-full' : 'w-full'}>
+                  {communityPage}
                 </div>
-              </aside>
-            ) : null}
-            */}
-          </div>
-        )}
+              </CommunityFeedUiContext.Provider>
+            </div>
+          </main>
+        </div>
       </div>
 
       <ProfileSidePanel
@@ -546,5 +590,6 @@ export default function CommunityFeedLayout({
         onPosted={handlePosted}
       />
     </div>
+    </CommunitySocialProvider>
   )
 }

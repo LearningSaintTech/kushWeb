@@ -36,45 +36,69 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
   const showDots = slideCount > 1
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/55 via-black/25 to-transparent pt-24 pb-8 sm:pb-10 md:pb-12">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/60 via-black/25 to-transparent pt-20 pb-6 sm:pb-8 md:pb-10">
       <div className="pointer-events-auto px-4 sm:px-6 md:px-10 lg:px-14">
-        <div className="max-w-xl text-left text-white">
-          {showDots ? (
-            <div
-              className="mt-4 flex items-center gap-1.5 sm:mt-5"
-              role="tablist"
-              aria-label="Banner slides"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              {Array.from({ length: slideCount }, (_, i) => (
+        <div className="max-w-md text-left text-white">
+          <p className="font-inter text-[11px] sm:text-xs font-normal uppercase tracking-[0.14em] text-white/90">
+            KHUSH @2026
+          </p>
+          <h2 className="mt-0.5 font-inter text-xl sm:text-2xl font-black uppercase tracking-tight text-white drop-shadow-sm">
+            FASHION WEEK
+          </h2>
+
+          <div
+            className="mt-2.5 flex items-center gap-1.5 sm:mt-3"
+            role="tablist"
+            aria-label="Banner slides"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {showDots ? (
+              Array.from({ length: slideCount }, (_, i) => (
                 <DiamondDot
                   key={i}
                   active={i === slideIndex}
                   label={`Slide ${i + 1}`}
                   onClick={() => onSelectSlide?.(i)}
                 />
-              ))}
-            </div>
-          ) : null}
+              ))
+            ) : (
+              // 5 decorative diamond indicators matching user screenshot
+              Array.from({ length: 5 }, (_, i) => (
+                <DiamondDot key={i} active={i === 0} label={`Indicator ${i + 1}`} />
+              ))
+            )}
+          </div>
+
+          <div className="mt-4 sm:mt-4.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onExploreFashion?.()
+              }}
+              className="group relative inline-flex cursor-pointer items-center gap-2 overflow-hidden rounded-full border-2 border-white bg-black/85 px-4.5 py-1.5 sm:px-5 sm:py-2 font-inter text-xs sm:text-[13px] font-medium text-white shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] hover:bg-black active:scale-95"
+            >
+              {/* Subtle looping shine line */}
+              <span
+                className="pointer-events-none absolute inset-0 -top-1 -bottom-1 w-1/3 bg-gradient-to-r from-transparent via-white/35 to-transparent animate-button-shine"
+                aria-hidden
+              />
+              <span className="relative z-10">Explore Fashion</span>
+              <span className="relative z-10 text-sm font-light leading-none transition-transform duration-300 group-hover:translate-x-1" aria-hidden>
+                &rsaquo;
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-/* Mobile header is fixed + white.
-   Portrait phones: tall 9:16 hero.
-   Landscape phones (still < lg): do NOT keep 9:16 — that stretches to a huge tall box and looks distorted after rotate.
-   Desktop: dvh heights (vh jumps wrongly on Samsung after orientation change). */
-const bannerShellClass = [
-  'relative w-full overflow-hidden',
-  'max-lg:mt-[7.25rem]',
-  'max-lg:portrait:aspect-[9/16]',
-  'max-lg:landscape:aspect-auto max-lg:landscape:h-[min(70dvh,24rem)]',
-  'lg:mt-0 lg:aspect-auto lg:h-[min(70dvh,52rem)]',
-  'xl:h-dvh',
-].join(' ')
+/* Original banner dimensions restored */
+const bannerShellClass =
+  'relative w-full overflow-hidden max-md:mt-[7.25rem] max-md:aspect-[9/16] md:mt-0 md:aspect-auto md:h-[70vh] lg:h-screen'
 
 const mediaClassName =
   'absolute inset-0 h-full w-full object-cover object-center max-lg:portrait:object-top'
@@ -263,16 +287,42 @@ const Banner = () => {
   const [layoutEpoch, setLayoutEpoch] = useState(0)
 
   const handleExploreFashion = () => {
-    debugLog('[CommunityProfile] Explore Fashion clicked', {
-      authChecked,
-      isAuthenticated,
-    })
-    if (!authChecked) return
-    if (!isAuthenticated) {
-      openAuthModal(ROUTES.COMMUNITY_ENTER)
+    debugLog('[CommunityProfile] Explore Fashion clicked')
+    const userAgent =
+      typeof navigator !== 'undefined'
+        ? navigator.userAgent || navigator.vendor || window.opera || ''
+        : ''
+    const isMobile =
+      /android|iPad|iPhone|iPod|windows phone/i.test(userAgent) ||
+      (typeof window !== 'undefined' && window.innerWidth < 768)
+
+    if (isMobile) {
+      if (/android/i.test(userAgent)) {
+        window.location.href =
+          'https://play.google.com/store/apps/details?id=com.khushpehno.app'
+        return
+      }
+      if (/iPad|iPhone|iPod/.test(userAgent)) {
+        window.location.href =
+          'https://apps.apple.com/in/app/khush-fashion-shopping-app/id6761365897'
+        return
+      }
+      // General mobile fallback
+      window.location.href =
+        'https://play.google.com/store/apps/details?id=com.khushpehno.app'
       return
     }
-    navigate(ROUTES.COMMUNITY_ENTER)
+
+    // Desktop / laptop: if registered/authenticated with profile, navigate directly to feed
+    if (isAuthenticated) {
+      navigate(ROUTES.COMMUNITY_FEED)
+      return
+    }
+    if (!authChecked) {
+      navigate(ROUTES.COMMUNITY_ENTER)
+      return
+    }
+    openAuthModal(ROUTES.COMMUNITY_FEED)
   }
 
   const handleBannerClick = () => {

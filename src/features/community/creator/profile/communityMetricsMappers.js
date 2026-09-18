@@ -19,6 +19,41 @@ function firstNumber(...values) {
   return null
 }
 
+function asList(value) {
+  if (Array.isArray(value)) return value
+  if (Array.isArray(value?.items)) return value.items
+  return []
+}
+
+function sumField(list, key) {
+  return asList(list).reduce((total, row) => total + (Number(row?.[key]) || 0), 0)
+}
+
+function unwrapMetricsPayload(payload) {
+  if (!payload || typeof payload !== 'object') return {}
+  const nested =
+    payload.stats && typeof payload.stats === 'object'
+      ? payload.stats
+      : payload.metrics && typeof payload.metrics === 'object'
+        ? payload.metrics
+        : payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+          ? payload.data
+          : null
+  return nested ? { ...payload, ...nested } : payload
+}
+
+function viewsFromRoleBucket(stats, mode) {
+  const bucket = stats?.byRole?.[mode] || stats?.byRole?.[String(mode || '').toUpperCase()]
+  if (!bucket || typeof bucket !== 'object') return null
+  return firstNumber(
+    bucket.totalViews,
+    bucket.views,
+    bucket.viewCount,
+    bucket.viewsCount,
+    bucket.postViews,
+  )
+}
+
 /**
  * @param {object|null} stats - GET /community/stats payload
  * @param {object|null} profile - GET /community/profile/me payload (raw or mapped)
@@ -26,37 +61,71 @@ function firstNumber(...values) {
  * @returns {{ chips: Array<{label:string,value:string}>, raw: object } | null}
  */
 export function mapCommunityDashboardMetrics(stats, profile, mode = 'creator') {
-  const counts = profile?.counts || {}
-  const statsRaw = profile?.statsRaw || {}
+  const statsObj = unwrapMetricsPayload(stats)
+  const profileObj = unwrapMetricsPayload(profile)
+  const counts = profileObj?.counts || profileObj?.statsRaw || {}
+  const statsRaw = profileObj?.statsRaw || {}
   const contentLabel = mode === 'designer' ? 'Designs' : 'Posts'
 
+  const profilePosts = asList(profileObj.posts).length
+    ? asList(profileObj.posts)
+    : asList(profileObj.raw?.posts)
+  const profileReels = asList(profileObj.reels).length
+    ? asList(profileObj.reels)
+    : asList(profileObj.raw?.reels)
+  const summedLikes =
+    sumField(profilePosts, 'likeCount') + sumField(profileReels, 'likeCount')
+  const summedViews =
+    sumField(profilePosts, 'viewCount') + sumField(profileReels, 'viewCount')
   const likes = firstNumber(
-    stats?.totalLikes,
-    stats?.likes,
+    profilePosts.length + profileReels.length > 0 ? summedLikes : null,
     counts.likes,
-    profile?.likesCount,
+    counts.likeCount,
     statsRaw.likes,
+    profileObj.likesCount,
+    profileObj.totalLikes,
+    statsObj.totalLikes,
+    statsObj.likes,
+    statsObj.likeCount,
+    statsObj.likesCount,
+    viewsFromRoleBucket(statsObj, mode) != null
+      ? statsObj.byRole?.[mode]?.totalLikes || statsObj.byRole?.[mode]?.likes
+      : null,
   )
   const views = firstNumber(
-    stats?.totalViews,
-    stats?.views,
+    profilePosts.length + profileReels.length > 0 ? summedViews : null,
     counts.views,
-    profile?.viewsCount,
+    counts.viewCount,
+    counts.totalViews,
     statsRaw.views,
+    profileObj.viewsCount,
+    profileObj.totalViews,
+    profileObj.viewCount,
+    profileObj.views,
+    statsObj.totalViews,
+    statsObj.views,
+    statsObj.viewCount,
+    statsObj.viewsCount,
+    statsObj.postViews,
+    statsObj.contentViews,
+    viewsFromRoleBucket(statsObj, mode),
   )
   const posts = firstNumber(
-    stats?.totalContent,
-    stats?.totalPosts,
-    stats?.totalDesigns,
-    stats?.designs,
-    stats?.posts,
     counts.posts,
+    counts.content,
     counts.designs,
-    profile?.postsCount,
+    counts.totalPosts,
+    profilePosts.length || null,
     statsRaw.posts,
+    profileObj.postsCount,
+    profileObj.totalPosts,
+    statsObj.totalPosts,
+    statsObj.totalDesigns,
+    statsObj.designs,
+    statsObj.posts,
+    statsObj.contentCount,
+    statsObj.totalContent,
   )
-
-  if (likes == null && views == null && posts == null) return null
 
   return {
     chips: [

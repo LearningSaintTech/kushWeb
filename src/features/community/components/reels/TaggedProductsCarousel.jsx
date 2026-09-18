@@ -26,6 +26,7 @@ export default function TaggedProductsCarousel({
   const [busyId, setBusyId] = useState(null)
   const [errorById, setErrorById] = useState({})
   const [pickerProduct, setPickerProduct] = useState(null)
+  const [cartToast, setCartToast] = useState(null)
   const isDark = variant === 'dark'
 
   const syncIndex = useCallback(() => {
@@ -83,19 +84,16 @@ export default function TaggedProductsCarousel({
     const itemId = cartProduct?.id
     setBusyId(itemId)
     try {
-      console.log('[Community] addToCart from variant picker', {
-        itemId: cartProduct.id,
-        contentId: cartProduct.contentId,
-        sku: cartProduct.sku,
-        variant: cartProduct.variant,
-        product: cartProduct,
-      })
       const result = await addToCart(cartProduct)
       if (result?.success === false) {
         throw new Error(result.message || 'Could not add to cart.')
       }
       setPickerProduct(null)
-      navigate(ROUTES.CART)
+      setCartToast({
+        name: cartProduct?.title || cartProduct?.name || 'Item',
+        image: cartProduct?.image || cartProduct?.thumb || '',
+      })
+      window.setTimeout(() => setCartToast(null), 5000)
     } catch (err) {
       debugError('[Community] add to cart failed', err?.message)
       setErrorById((prev) => ({
@@ -218,6 +216,37 @@ export default function TaggedProductsCarousel({
         onClose={() => setPickerProduct(null)}
         onConfirm={handleConfirmVariant}
       />
+
+      {cartToast ? (
+        <div className="fixed bottom-5 left-1/2 z-[120] w-[min(92vw,22rem)] -translate-x-1/2 rounded-2xl bg-black px-4 py-3 text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+          <div className="flex items-center gap-3">
+            {cartToast.image ? (
+              <img
+                src={cartToast.image}
+                alt=""
+                className="h-11 w-11 shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-inter text-sm font-semibold">Added to cart</p>
+              <p className="truncate font-inter text-xs text-white/70">{cartToast.name}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.CART)}
+              className="shrink-0 cursor-pointer rounded-full bg-white px-3 py-1.5 font-inter text-xs font-bold text-black transition hover:bg-neutral-200"
+            >
+              View cart
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

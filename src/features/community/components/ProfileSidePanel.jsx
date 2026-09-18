@@ -8,7 +8,7 @@ import {
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { useCommunitySocialProfile } from '../hooks/useCommunitySocialProfile'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
-import { isReelGridItem, navigateToReel, playlistFromGrid } from '../utils/openReel'
+import { openCommunityMedia, playlistFromGrid } from '../utils/openReel'
 import { isSameCommunityUser } from '../utils/userIds'
 import ReportReasonModal from './ReportReasonModal'
 import BlockedUsersModal from './BlockedUsersModal'
@@ -181,21 +181,15 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
   }
 
   const handleOpenMedia = (item) => {
-    if (!item) return
-    if (isReelGridItem(item, activeTab)) {
-      const reelSeed = item.post
-        ? { ...item.post, type: 'reel' }
-        : { id: item.id, type: 'reel', image: item.image || '', poster: item.image || '' }
-      onClose?.()
-      navigateToReel(navigate, {
-        reelId: item.id || item.post?.id,
-        seed: reelSeed,
-        playlist: playlistFromGrid(display.mediaByTab?.Reels || []),
-        source: 'profile',
-      })
-      return
-    }
-    if (item.post) onOpenPost?.(item.post)
+    const opened = openCommunityMedia({
+      item,
+      tab: activeTab,
+      playlist: playlistFromGrid(display.mediaByTab?.Reels || []),
+      navigate,
+      openPost: onOpenPost,
+      source: 'profile',
+    })
+    if (opened) onClose?.()
   }
 
   return (

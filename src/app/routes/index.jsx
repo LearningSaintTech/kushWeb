@@ -24,15 +24,16 @@ import { CoinsPage } from '../../features/coins'
 import { GiftCardPage } from '../../features/giftcard'
 import {
   CommunityPage,
-  CommunityFeedLayout,
-  CommunityFeedHome,
-  CommunitySavedFeed,
-  CommunitySearchFeed,
-  CommunityProfilePage,
-  CommunityCreateJoin,
-  CommunityReelsFeed,
   CommunityEnterPage,
 } from '../../features/community'
+import {
+  CommunityFeedHomeRoute,
+  CommunityFeedSearchRoute,
+  CommunityFeedReelsRoute,
+  CommunityFeedProfileRoute,
+  CommunityFeedCreateRoute,
+  CommunityFeedSavedRoute,
+} from '../../features/community/feed/CommunityFeedRoutes'
 import {
   RefundCancelPolicyPage,
   PaymentPolicyPage,
@@ -90,18 +91,12 @@ const router = createBrowserRouter([
       { path: 'giftcard', element: <GiftCardPage /> },
       { path: 'community', element: <CommunityPage /> },
       { path: 'community/enter', element: <CommunityEnterPage /> },
-      {
-        path: 'community/feed',
-        element: <CommunityFeedLayout />,
-        children: [
-          { index: true, element: <CommunityFeedHome /> },
-          { path: 'search', element: <CommunitySearchFeed /> },
-          { path: 'reels', element: <CommunityReelsFeed /> },
-          { path: 'profile', element: <CommunityProfilePage /> },
-          { path: 'create', element: <CommunityCreateJoin /> },
-          { path: 'saved', element: <CommunitySavedFeed /> },
-        ],
-      },
+      { path: 'community/feed/search', element: <CommunityFeedSearchRoute /> },
+      { path: 'community/feed/reels', element: <CommunityFeedReelsRoute /> },
+      { path: 'community/feed/profile', element: <CommunityFeedProfileRoute /> },
+      { path: 'community/feed/create', element: <CommunityFeedCreateRoute /> },
+      { path: 'community/feed/saved', element: <CommunityFeedSavedRoute /> },
+      { path: 'community/feed', element: <CommunityFeedHomeRoute /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],

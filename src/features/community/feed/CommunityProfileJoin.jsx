@@ -165,17 +165,17 @@ export default function CommunityProfileJoin() {
 
   return (
     <>
-      <div className="mx-auto flex min-h-full w-full max-w-[980px] flex-col items-center px-2 py-8 sm:py-10">
+      <div className="mx-auto flex min-h-full w-full max-w-[980px] xl:max-w-[1160px] 2xl:max-w-[1320px] flex-col items-center px-2 py-8 sm:py-10 xl:py-14">
         <div className="flex flex-col items-center text-center">
           <img
             src={heroIllustration}
             alt=""
             className="h-full w-full object-contain sm:h-24 sm:w-24"
           />
-          <h1 className="mt-4 font-inter text-2xl font-bold tracking-tight text-black sm:text-3xl">
+          <h1 className="mt-4 font-inter text-2xl font-bold tracking-tight text-black sm:text-3xl xl:text-4xl">
             For Uploading Content
           </h1>
-          <p className="mt-2 font-inter text-sm font-normal text-neutral-500 sm:text-base">
+          <p className="mt-2 font-inter text-sm font-normal text-neutral-500 sm:text-base xl:text-lg">
             Select your role to personalize your
             <br /> experience
           </p>
@@ -187,7 +187,7 @@ export default function CommunityProfileJoin() {
           </p>
         ) : null}
 
-        <div className="mt-8 grid w-full gap-5 sm:mt-10 sm:grid-cols-2 sm:gap-6">
+        <div className="mt-8 grid w-full gap-5 sm:mt-10 sm:grid-cols-2 sm:gap-6 xl:gap-8">
           {JOIN_OPTIONS.map((option) => (
             <JoinCard
               key={option.id}

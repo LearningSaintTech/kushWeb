@@ -285,7 +285,9 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
                     playlist: playlistFromGrid(social?.mediaByTab?.Reels || []),
                   })
                 }
-                className="aspect-square cursor-pointer overflow-hidden bg-neutral-200"
+                className={`cursor-pointer overflow-hidden bg-neutral-200 ${
+                  tab === 'Reels' ? 'aspect-[3/4]' : 'aspect-square'
+                }`}
                 aria-label={`Open ${item.type}`}
               >
                 {item.image ? (

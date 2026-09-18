@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useCommunityFeedUi } from '../context/CommunityFeedUiContext'
 import { useCommunityRole } from '../hooks/useCommunityRole'
 import { useCommunityProfile } from '../context/CommunityProfileContext'
 import { can, COMMUNITY_ROLES } from '../capabilities'
@@ -19,6 +20,7 @@ import { debugLog } from '../../../utils/debugLog'
  * Incomplete onboarding resumes the matching wizard once per visit.
  */
 export default function CommunityProfilePage() {
+  const outletCtx = useCommunityFeedUi()
   const role = useCommunityRole()
   const { profile } = useCommunityProfile()
   const [resumeCreator, setResumeCreator] = useState(false)
@@ -54,7 +56,7 @@ export default function CommunityProfilePage() {
   if (role === COMMUNITY_ROLES.DESIGNER) {
     return (
       <>
-        <CommunityDesignerProfile />
+        <CommunityDesignerProfile {...outletCtx} />
         <RegistrationWizard
           open={resumeDesigner}
           onClose={() => setResumeDesigner(false)}
@@ -66,7 +68,7 @@ export default function CommunityProfilePage() {
   if (can(role, 'canPost')) {
     return (
       <>
-        <CommunityCreatorProfile />
+        <CommunityCreatorProfile {...outletCtx} />
         <CreatorWizard open={resumeCreator} onClose={() => setResumeCreator(false)} />
       </>
     )

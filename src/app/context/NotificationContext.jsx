@@ -70,8 +70,9 @@ export async function collectVisibleNotifications({
   want,
   startPage = 1,
   apiLimit = 40,
-  maxPages = 20,
+  maxPages = 8,
   excludeIds = [],
+  params = {},
 } = {}) {
   const items = [];
   const seen = new Set(
@@ -82,7 +83,11 @@ export async function collectVisibleNotifications({
   let pagesFetched = 0;
 
   while (items.length < want && pagesFetched < maxPages) {
-    const data = await notificationService.getList({ page: apiPage, limit: apiLimit });
+    const data = await notificationService.getList({
+      page: apiPage,
+      limit: apiLimit,
+      ...params,
+    });
     const raw = Array.isArray(data?.list) ? data.list : [];
     lastRawLength = raw.length;
     pagesFetched += 1;
@@ -313,9 +318,15 @@ export function useNotificationSocket(token) {
       refreshUnreadCount().catch(() => {});
     });
 
-    socket.on('notification:new', (payload) => {
+    const handleIncoming = (payload) => {
       prependFromSocket(payload);
-    });
+      refreshUnreadCount().catch(() => {});
+    };
+
+    socket.on('notification:new', handleIncoming);
+    socket.on('notification', handleIncoming);
+    socket.on('new_notification', handleIncoming);
+    socket.on('notification_received', handleIncoming);
 
     socket.on('connect_error', (err) => {
       if (import.meta.env.DEV) {
@@ -328,7 +339,14 @@ export function useNotificationSocket(token) {
       refreshUnreadCount().catch(() => {});
     });
 
+    // Fast backup polling every 12s so notifications update quickly even if socket reconnects
+    const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      refreshUnreadCount().catch(() => {});
+    }, 12000);
+
     return () => {
+      clearInterval(pollTimer);
       socket.disconnect();
       socketRef.current = null;
     };

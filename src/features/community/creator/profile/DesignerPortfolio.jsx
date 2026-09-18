@@ -65,7 +65,7 @@ export default function DesignerPortfolio({ onBack, onViewProjects }) {
       : DESIGNER_PROFILE.links
 
   return (
-    <div className="scrollbar-hide flex h-full min-h-[560px] w-full max-w-[380px] flex-col overflow-y-auto bg-black px-5 pb-8 pt-5 text-white sm:max-w-[400px] sm:px-6 sm:pt-6">
+    <div className="scrollbar-hide flex h-full min-h-[560px] w-full flex-col overflow-y-auto bg-black px-5 pb-8 pt-5 text-white sm:px-6 sm:pt-6">
       <div className="flex shrink-0 items-center gap-2.5">
         <button
           type="button"

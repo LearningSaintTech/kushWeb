@@ -353,10 +353,11 @@ export function mapSummaryToDashboardEarnings(
   const paidOutRaw = resolveRolePaidOut(summary, mode)
 
   const lifetimeEarnedRaw =
-    pickAmount(summary, ['lifetimeEarned', 'totalEarned', 'totalEarnings']) ??
+    // pickAmount(summary, ['lifetimeEarned', 'totalEarned', 'totalEarnings']) ??
     displayedRaw
   const lifetimePaidRaw =
-    pickAmount(summary, ['lifetimePaid', 'totalPaid']) ?? paidOutRaw
+    // pickAmount(summary, ['lifetimePaid', 'totalPaid']) ?? 
+    paidOutRaw
   const walletAvailableRaw =
     resolveWalletAvailableBalance(summary) ?? availableRaw
   const walletPendingRaw =

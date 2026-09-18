@@ -11,13 +11,13 @@ import { debugError, debugLog } from '../../../utils/debugLog.js'
 import { useAuth } from '../../../app/context/AuthContext'
 import { isSameCommunityUser } from '../utils/userIds'
 import ReportReasonModal from './ReportReasonModal'
-import {
-  dispatchContentReported,
+import { dispatchContentReported,
   dispatchUserBlocked,
   dispatchUserUnblocked,
   resolveCanBlock,
   resolveCanReport,
 } from '../utils/moderation'
+import { shareCommunityContent } from '../utils/shareProfile'
 
 const TAGGED_PRODUCTS_LIMIT = 10
 
@@ -198,7 +198,7 @@ export default function PostDetailModal({
     setReportError('')
     setComments([])
     setCommentCountLabel(rawPost?.comments ?? '0')
-  }, [rawPost?.id, rawPost?.comments])
+  }, [rawPost, rawPost?.id, rawPost?._id, rawPost?.comments])
 
   useEffect(() => {
     if (!menuOpen) return undefined
@@ -407,6 +407,17 @@ export default function PostDetailModal({
     }
   }
 
+  const handleShare = async () => {
+    if (!post?.id) return
+    setActionError('')
+    const res = await shareCommunityContent(post)
+    if (res?.method === 'clipboard') {
+      setActionSuccess('Link copied')
+    } else if (res?.method !== 'aborted' && !res?.success) {
+      setActionError('Could not share this post.')
+    }
+  }
+
   const handleBlockComment = async (comment) => {
     if (!comment?.id || moderationBusy) return
     const ok = window.confirm(`Block ${comment.name || 'this user'}?`)
@@ -524,7 +535,7 @@ export default function PostDetailModal({
   const products = (post.taggedProducts || []).slice(0, TAGGED_PRODUCTS_LIMIT)
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-5 lg:p-6">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-5 lg:p-6">
       <button
         type="button"
         aria-label="Close post"
@@ -822,6 +833,17 @@ export default function PostDetailModal({
                 </svg>
                 <span className="font-inter text-xs font-medium">{commentCountLabel}</span>
               </span>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="inline-flex cursor-pointer items-center gap-1.5 text-black transition hover:opacity-70"
+                aria-label="Share post"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                </svg>
+                <span className="font-inter text-xs font-medium">Share</span>
+              </button>
             </div>
             {post.date ? (
               <p className="mt-1.5 font-inter text-[9px] font-medium uppercase tracking-[0.14em] text-neutral-400">

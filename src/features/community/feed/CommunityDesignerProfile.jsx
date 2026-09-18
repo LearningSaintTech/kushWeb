@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useOutletContext } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useCommunityFeedUi } from '../context/CommunityFeedUiContext'
 import DesignerProfileCard from '../creator/profile/DesignerProfileCard'
 import DesignerPortfolio from '../creator/profile/DesignerPortfolio'
 import DesignerDashboard from '../creator/profile/DesignerDashboard'
 import DesignerProjects from '../creator/profile/DesignerProjects'
 import AddProjectModal from '../creator/profile/AddProjectModal'
 import CreatorEditProfile from '../creator/profile/CreatorEditProfile'
-import { isReelGridItem, navigateToReel, playlistFromGrid } from '../utils/openReel'
+import { openCommunityMedia, playlistFromGrid } from '../utils/openReel'
 import {
   communityService,
   extractProjectsList,
@@ -56,9 +57,10 @@ function buildProjectBody(payload, cover) {
 /**
  * Designer profile — portfolio stays; View Projects slides in from the right.
  */
-export default function CommunityDesignerProfile() {
+export default function CommunityDesignerProfile(props) {
   const navigate = useNavigate()
-  const { openPost } = useOutletContext() ?? {}
+  const outletCtx = useCommunityFeedUi()
+  const openPost = props.openPost || outletCtx.openPost
   const [showPortfolio, setShowPortfolio] = useState(false)
   const [showProjects, setShowProjects] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
@@ -90,45 +92,16 @@ export default function CommunityDesignerProfile() {
   }, [showPortfolio, showProjects, loadProjects])
 
   const handleOpenMedia = (item, meta = {}) => {
-    if (!item) return
-    if (isReelGridItem(item, meta.tab)) {
-      const seed = item.post
-        ? { ...item.post, type: 'reel' }
-        : {
-            id: item.id,
-            type: 'reel',
-            image: item.image || '',
-            poster: item.image || '',
-            video: item.post?.video || item.post?.videoUrl || '',
-            videoUrl: item.post?.videoUrl || item.post?.video || '',
-          }
-      navigateToReel(navigate, {
-        reelId: item.id || item.post?.id,
-        seed,
-        playlist: meta.playlist?.length
-          ? meta.playlist
-          : playlistFromGrid([item]),
-        source: 'profile',
-      })
-      return
-    }
-    const detail =
-      item.post ||
-      (item.id
-        ? {
-            id: item.id,
-            image: item.image || '',
-            images: item.image ? [item.image] : [],
-            type: item.type || 'post',
-            likes: '0',
-            likeCount: 0,
-            comments: '0',
-            commentCount: 0,
-            caption: '',
-            author: {},
-          }
-        : null)
-    if (detail) openPost?.(detail)
+    openCommunityMedia({
+      item,
+      tab: meta.tab,
+      playlist: meta.playlist?.length
+        ? meta.playlist
+        : playlistFromGrid([item]),
+      navigate,
+      openPost,
+      source: 'profile',
+    })
   }
 
   const handleSaveProject = async (payload, { onProgress } = {}) => {
@@ -241,8 +214,8 @@ export default function CommunityDesignerProfile() {
   if (showPortfolio) {
     return (
       <>
-        <div className="flex w-full flex-col items-stretch gap-5 lg:min-h-[640px] lg:flex-row lg:gap-6 xl:gap-8">
-          <div className="w-full shrink-0 overflow-hidden rounded-[1.5rem] bg-black shadow-[0_8px_32px_rgba(0,0,0,0.12)] max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[400px] 2xl:w-[430px] lg:max-w-none">
+        <div className="flex w-full flex-col items-stretch gap-5 lg:min-h-[640px] lg:flex-row lg:gap-6 xl:gap-8 2xl:gap-10">
+          <div className="w-full shrink-0 overflow-hidden rounded-[1.5rem] bg-black shadow-[0_8px_32px_rgba(0,0,0,0.12)] max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[410px] 2xl:w-[460px] lg:max-w-none">
             <DesignerPortfolio
               onBack={handleClosePortfolio}
               onViewProjects={() => setShowProjects(true)}
@@ -251,7 +224,7 @@ export default function CommunityDesignerProfile() {
 
           <div className="relative min-h-[520px] min-w-0 flex-1 overflow-hidden rounded-[1.5rem] bg-white shadow-[0_8px_32px_rgba(0,0,0,0.06)]">
             <div
-              className={`scrollbar-hide absolute inset-0 overflow-y-auto px-4 py-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-5 lg:px-6 lg:py-6 ${
+              className={`scrollbar-hide absolute inset-0 overflow-y-auto px-4 py-5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-5 lg:px-6 lg:py-6 xl:px-8 xl:py-7 ${
                 showProjects
                   ? 'pointer-events-none -translate-x-8 opacity-0'
                   : 'translate-x-0 opacity-100'
@@ -261,7 +234,7 @@ export default function CommunityDesignerProfile() {
             </div>
 
             <div
-              className={`scrollbar-hide absolute inset-0 overflow-y-auto bg-white px-3 py-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-4 lg:px-5 lg:py-5 ${
+              className={`scrollbar-hide absolute inset-0 overflow-y-auto bg-white px-3 py-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-4 lg:px-5 lg:py-5 xl:px-6 xl:py-6 ${
                 showProjects
                   ? 'translate-x-0 opacity-100'
                   : 'pointer-events-none translate-x-full opacity-0'
@@ -296,8 +269,8 @@ export default function CommunityDesignerProfile() {
   }
 
   return (
-    <div className="flex w-full flex-col items-stretch gap-6 py-1 lg:flex-row lg:items-start lg:gap-8 xl:gap-10">
-      <div className="w-full min-w-0 max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[400px] 2xl:w-[430px] lg:max-w-none shrink-0">
+    <div className="flex w-full flex-col items-stretch gap-6 py-1 lg:flex-row lg:items-start lg:gap-8 xl:gap-10 2xl:gap-12">
+      <div className="w-full min-w-0 max-w-[440px] mx-auto lg:mx-0 lg:w-[360px] xl:w-[410px] 2xl:w-[460px] lg:max-w-none shrink-0">
         {editing ? (
           <CreatorEditProfile
             onBack={() => setEditing(false)}

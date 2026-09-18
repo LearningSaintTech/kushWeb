@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useCommunityFeedUi } from '../context/CommunityFeedUiContext'
 import FeedFilters from '../components/FeedFilters'
 import PostCard from '../components/PostCard'
 import PostCardSkeleton from '../components/PostCardSkeleton'
@@ -12,6 +12,7 @@ import {
 } from '../hooks/useCommunityFeed'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { debugError } from '../../../utils/debugLog.js'
+import { shareCommunityContent } from '../utils/shareProfile'
 
 /**
  * Home feed — following / explore via communityService.getFeed
@@ -20,7 +21,7 @@ export default function CommunityFeedHome() {
   const [activeFilter, setActiveFilter] = useState('All')
   const [feedFilters, setFeedFilters] = useState([])
   const [hashtagsLoading, setHashtagsLoading] = useState(true)
-  const { openProfile, openPost } = useOutletContext() ?? {}
+  const { openProfile, openPost } = useCommunityFeedUi()
   const social = useCommunitySocial()
   const sentinelRef = useRef(null)
 
@@ -211,6 +212,14 @@ export default function CommunityFeedHome() {
     [patchItem, social],
   )
 
+  const handleShare = useCallback(async (post) => {
+    try {
+      await shareCommunityContent(post)
+    } catch (err) {
+      debugError('[Community] post share failed', err?.message)
+    }
+  }, [])
+
   return (
     <div>
       <FeedFilters
@@ -257,6 +266,7 @@ export default function CommunityFeedHome() {
               onFollow={() => handleFollow(post)}
               onLike={() => handleLike(post)}
               onSave={() => handleSave(post)}
+              onShare={() => handleShare(post)}
             />
           ))}
         </div>

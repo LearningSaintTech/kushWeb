@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useCommunityFeedUi } from '../context/CommunityFeedUiContext'
 import { SEARCH_FILTERS } from '../data/mockFeed'
 import { useCommunityFeed } from '../hooks/useCommunityFeed'
 import { communityService } from '../../../services/community.service.js'
 import { logCommunity } from '../../../services/communityApi.js'
 import { debugError } from '../../../utils/debugLog.js'
 import { SearchCardSkeleton } from '../components/PostCardSkeleton'
+import { openCommunityMedia, playlistFromGrid } from '../utils/openReel'
 
 function SearchResultCard({ item, onOpen }) {
   return (
@@ -55,7 +57,8 @@ export default function CommunitySearchFeed() {
   const [debouncedQ, setDebouncedQ] = useState('')
   const [filter, setFilter] = useState('All')
   const [chips, setChips] = useState([])
-  const { openPost } = useOutletContext() ?? {}
+  const { openPost } = useCommunityFeedUi()
+  const navigate = useNavigate()
   const sentinelRef = useRef(null)
 
   useEffect(() => {
@@ -128,6 +131,21 @@ export default function CommunitySearchFeed() {
   }, [chips])
 
   const results = items
+  const reelPlaylist = useMemo(
+    () => playlistFromGrid(results.filter((row) => String(row?.type || '').toLowerCase() === 'reel')),
+    [results],
+  )
+
+  const handleOpen = (item) => {
+    openCommunityMedia({
+      item,
+      tab: item?.type || filter,
+      playlist: reelPlaylist,
+      navigate,
+      openPost,
+      source: 'search',
+    })
+  }
 
   return (
     <div className="pb-8">
@@ -193,7 +211,7 @@ export default function CommunitySearchFeed() {
             <SearchResultCard
               key={item.id || item._id}
               item={item}
-              onOpen={() => openPost?.(item)}
+              onOpen={() => handleOpen(item)}
             />
           ))}
         </div>

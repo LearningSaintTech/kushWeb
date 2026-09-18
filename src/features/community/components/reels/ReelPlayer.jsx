@@ -17,6 +17,42 @@ function PauseIcon({ className }) {
   )
 }
 
+function MuteIcon({ className, muted }) {
+  if (muted) {
+    return (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.348 5.326A.75.75 0 0110.5 6v12a.75.75 0 01-1.152.624L4.8 15.75H2.25A.75.75 0 011.5 15V9a.75.75 0 01.75-.75H4.8l4.548-2.874z" />
+      </svg>
+    )
+  }
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.348 5.326A.75.75 0 0110.5 6v12a.75.75 0 01-1.152.624L4.8 15.75H2.25A.75.75 0 011.5 15V9a.75.75 0 01.75-.75H4.8l4.548-2.874z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 8.25a6 6 0 010 7.5M18.75 6a9.75 9.75 0 010 12" />
+    </svg>
+  )
+}
+
+function readReelMutedPref() {
+  try {
+    const stored = sessionStorage.getItem('khush_reel_muted')
+    if (stored === '0') return false
+    if (stored === '1') return true
+  } catch {
+    // ignore
+  }
+  return true
+}
+
+function writeReelMutedPref(muted) {
+  try {
+    sessionStorage.setItem('khush_reel_muted', muted ? '1' : '0')
+  } catch {
+    // ignore
+  }
+}
+
 function PackageIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.7" aria-hidden>
@@ -49,15 +85,101 @@ export default function ReelPlayer({
   onFollow,
   onProfileClick,
   onTogglePlay,
+  onAspectChange,
 }) {
   const videoRef = useRef(null)
   const hideTimerRef = useRef(null)
   const playRequestRef = useRef(0)
   const [playing, setPlaying] = useState(false)
+  const [muted, setMuted] = useState(readReelMutedPref)
   const [showControl, setShowControl] = useState(true)
   const [showTagged, setShowTagged] = useState(false)
   const shouldMountSrc = Boolean(src) && (active || warm)
   const hasProducts = Array.isArray(taggedProducts) && taggedProducts.length > 0
+
+  const handleLoadedMetadata = (e) => {
+    const video = e.target
+    if (video?.videoWidth && video?.videoHeight) {
+      const { videoWidth, videoHeight } = video
+      const ratio = videoWidth / videoHeight
+      let orientation = 'portrait'
+      if (ratio > 1.15) {
+        orientation = 'landscape'
+      } else if (ratio >= 0.85) {
+        orientation = 'square'
+      }
+      onAspectChange?.({
+        width: videoWidth,
+        height: videoHeight,
+        ratio,
+        orientation,
+      })
+    }
+  }
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (video.videoWidth && video.videoHeight) {
+      const { videoWidth, videoHeight } = video
+      const ratio = videoWidth / videoHeight
+      let orientation = 'portrait'
+      if (ratio > 1.15) {
+        orientation = 'landscape'
+      } else if (ratio >= 0.85) {
+        orientation = 'square'
+      }
+      onAspectChange?.({
+        width: videoWidth,
+        height: videoHeight,
+        ratio,
+        orientation,
+      })
+    }
+  }, [shouldMountSrc, src, onAspectChange])
+
+  useEffect(() => {
+    if (!poster) return undefined
+    let cancelled = false
+    const img = new Image()
+    img.src = poster
+    img.onload = () => {
+      if (cancelled) return
+      if (img.naturalWidth && img.naturalHeight) {
+        const ratio = img.naturalWidth / img.naturalHeight
+        let orientation = 'portrait'
+        if (ratio > 1.15) orientation = 'landscape'
+        else if (ratio >= 0.85) orientation = 'square'
+        onAspectChange?.({
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          ratio,
+          orientation,
+          isPosterHint: true,
+        })
+      }
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [poster, onAspectChange])
+
+  const applyMuted = (next) => {
+    setMuted(next)
+    writeReelMutedPref(next)
+    const video = videoRef.current
+    if (video) {
+      video.muted = next
+      if (!next) video.volume = 1
+    }
+  }
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = muted
+    if (!muted) video.volume = 1
+  }, [muted, active, src, shouldMountSrc])
 
   useEffect(() => {
     if (!active) setShowTagged(false)
@@ -111,8 +233,10 @@ export default function ReelPlayer({
     }
 
     let cancelled = false
-    const tryPlay = () => {
+    const tryPlay = (forceMuted = muted) => {
       if (cancelled || playRequestRef.current !== requestId) return
+      video.muted = forceMuted
+      if (!forceMuted) video.volume = 1
       const playPromise = video.play()
       if (playPromise?.then) {
         playPromise
@@ -123,6 +247,11 @@ export default function ReelPlayer({
           })
           .catch(() => {
             if (cancelled || playRequestRef.current !== requestId) return
+            if (!forceMuted) {
+              applyMuted(true)
+              tryPlay(true)
+              return
+            }
             setPlaying(false)
             setShowControl(true)
           })
@@ -145,6 +274,8 @@ export default function ReelPlayer({
     if (!video || !shouldMountSrc) return
     if (shouldPlay) {
       const requestId = ++playRequestRef.current
+      video.muted = muted
+      if (!muted) video.volume = 1
       video
         .play()
         .then(() => {
@@ -155,8 +286,20 @@ export default function ReelPlayer({
         })
         .catch(() => {
           if (playRequestRef.current !== requestId) return
-          setPlaying(false)
-          setShowControl(true)
+          video.muted = true
+          applyMuted(true)
+          video
+            .play()
+            .then(() => {
+              if (playRequestRef.current !== requestId) return
+              setPlaying(true)
+              flashControl(true)
+            })
+            .catch(() => {
+              if (playRequestRef.current !== requestId) return
+              setPlaying(false)
+              setShowControl(true)
+            })
         })
     } else {
       video.pause()
@@ -198,13 +341,27 @@ export default function ReelPlayer({
       <video
         ref={videoRef}
         poster={poster || undefined}
-        muted
+        muted={muted}
         loop
         playsInline
         preload={active ? 'auto' : warm ? 'metadata' : 'none'}
         disablePictureInPicture
-        className="absolute inset-0 h-full w-full cursor-pointer object-cover"
+        onLoadedMetadata={handleLoadedMetadata}
+        className="h-full w-full cursor-pointer object-contain bg-black"
       />
+
+      <button
+        type="button"
+        data-reel-ui
+        onClick={(event) => {
+          event.stopPropagation()
+          applyMuted(!muted)
+        }}
+        aria-label={muted ? 'Unmute reel' : 'Mute reel'}
+        className="absolute right-3 top-3 z-30 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition hover:bg-black/75 sm:right-4 sm:top-4"
+      >
+        <MuteIcon className="h-4 w-4" muted={muted} />
+      </button>
 
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/65 via-black/25 to-transparent"

@@ -34,6 +34,7 @@ function PostCard({
   onFollow,
   onLike,
   onSave,
+  onShare,
 }) {
   const {
     author,
@@ -231,7 +232,12 @@ function PostCard({
           </svg>
           <span className="font-inter text-sm font-medium">{comments}</span>
         </button>
-        <button type="button" className="cursor-pointer text-black transition hover:opacity-70" aria-label="Share">
+        <button
+          type="button"
+          onClick={() => onShare?.(post)}
+          className="cursor-pointer text-black transition hover:opacity-70"
+          aria-label="Share"
+        >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
           </svg>

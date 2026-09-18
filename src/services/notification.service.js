@@ -13,7 +13,7 @@ function getData(res) {
 }
 
 export const notificationService = {
-  /** GET /notification/list – paginated list. Params: { page, limit } */
+  /** GET /notification/list – paginated list. Params: { page, limit, module? } */
   getList: (params = {}) =>
     client.get(`${BASE}/list`, { params }).then((res) => getData(res)),
 

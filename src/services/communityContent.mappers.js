@@ -208,11 +208,26 @@ export function resolveAuthorAvatar(content, fallbackImage = '') {
   return getPublicImageUrl(raw);
 }
 
+export function unwrapContent(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  if (payload.content && typeof payload.content === 'object') return payload.content;
+  if (payload.item && typeof payload.item === 'object' && (payload.item.media || payload.item._id || payload.item.id)) return payload.item;
+  if (payload.post && typeof payload.post === 'object') return payload.post;
+  if (payload.reel && typeof payload.reel === 'object') return payload.reel;
+  if (payload.data && typeof payload.data === 'object' && (payload.data.media || payload.data._id || payload.data.content)) {
+    return unwrapContent(payload.data);
+  }
+  return payload;
+}
+
 /**
  * API content → PostCard / detail shape used across community feed UI.
  */
-export function mapContentToPost(content) {
+export function mapContentToPost(rawContent) {
+  if (!rawContent) return null;
+  const content = unwrapContent(rawContent);
   if (!content) return null;
+
   const images = mediaList(content)
     .filter((m) => m.kind === 'image' || (m.url && !String(m.mimeType || '').startsWith('video/')))
     .map((m) => getPublicImageUrl(m.url))
@@ -276,7 +291,7 @@ export function mapContentToPost(content) {
     canBlock: content.canBlock !== false && content.isOwn !== true,
     canReport: content.canReport !== false && content.isOwn !== true,
     status: content.status,
-    type: content.type || 'post',
+    type: content.type === 'reel' ? 'reel' : 'post',
     itemId: content.itemId,
     commentList: [],
     raw: content,
@@ -289,10 +304,10 @@ export function mapContentToPost(content) {
 /**
  * API content → ReelCard shape.
  */
-export function mapContentToReel(content) {
-  const post = mapContentToPost(content);
+export function mapContentToReel(rawContent) {
+  const post = mapContentToPost(rawContent);
   if (!post) return null;
-  const video = post.videoUrl || post.image;
+  const video = videoUrl(unwrapContent(rawContent) || rawContent) || post.videoUrl || '';
   return {
     ...post,
     type: 'reel',
@@ -326,36 +341,44 @@ export function mapSaveItem(row) {
   if (!row) return null;
 
   // Common shapes: { saveId, savedAt, content } | content itself | { contentId, content }
-  const content =
+  const rawContent =
     row.content ??
     row.post ??
     row.reel ??
     (row._id || row.id || row.media ? row : null);
 
-  if (!content) {
+  if (!rawContent) {
     logCommunity('mapSaveItem skip — no content', { keys: Object.keys(row) });
     return null;
   }
 
+  const contentObj =
+    typeof rawContent === 'object' && rawContent !== null
+      ? rawContent
+      : { _id: String(rawContent) };
+
   // Normalize id fields before mapping
   const normalized = {
-    ...content,
-    _id: content._id || content.id || row.contentId || row.content_id,
+    ...contentObj,
+    _id: contentObj._id || contentObj.id || row.contentId || row.content_id || (typeof rawContent === 'string' ? rawContent : undefined),
     isSaved: true,
   };
 
-  const mapped = mapContentToPost(normalized);
+  const typeHint = String(contentObj.type || row.type || '').toLowerCase();
+  const mapped =
+    typeHint === 'reel'
+      ? mapContentToReel(normalized)
+      : mapContentToPost(normalized);
   if (!mapped) return null;
 
   // Reels often lack image thumbs — use poster/thumbnail, then item image
-  let image = mapped.image;
+  let image = mapped.image || mapped.poster;
   if (!image) {
     const list = mediaList(normalized);
     image =
       list.find((m) => m.kind === 'thumbnail')?.url ||
       list.find((m) => m.kind === 'image')?.url ||
       normalized.item?.imageUrl ||
-      mapped.videoUrl ||
       '';
   }
 
@@ -364,10 +387,12 @@ export function mapSaveItem(row) {
     id: mapped.id || normalized._id,
     image,
     poster: image,
+    video: mapped.video || mapped.videoUrl || '',
+    videoUrl: mapped.videoUrl || mapped.video || '',
     saveId: row.saveId || row._id || row.id,
     savedAt: row.savedAt || row.createdAt,
     isSaved: true,
-    type: mapped.type || content.type || 'post',
+    type: typeHint === 'reel' ? 'reel' : mapped.type || contentObj.type || 'post',
   };
 }
 
@@ -568,15 +593,38 @@ export function mapSocialProfile(raw) {
       posts: formatCount(counts.posts),
       followers: formatCount(counts.followers),
       following: formatCount(counts.following),
-      likes: formatCount(counts.likes ?? raw.likesCount),
-      views: formatCount(counts.views ?? raw.viewsCount),
+      likes: formatCount(
+        counts.likes ??
+          raw.likesCount ??
+          posts.reduce((n, p) => n + (Number(p?.likeCount) || 0), 0) +
+            reels.reduce((n, r) => n + (Number(r?.likeCount) || 0), 0),
+      ),
+      views: formatCount(
+        counts.views ??
+          raw.viewsCount ??
+          posts.reduce((n, p) => n + (Number(p?.viewCount) || 0), 0) +
+            reels.reduce((n, r) => n + (Number(r?.viewCount) || 0), 0),
+      ),
     },
     statsRaw: {
-      posts: Number(counts.posts) || 0,
+      posts: Number(counts.posts ?? counts.totalPosts ?? raw.postsCount) || 0,
       followers: Number(counts.followers) || 0,
       following: Number(counts.following) || 0,
-      likes: Number(counts.likes ?? raw.likesCount) || 0,
-      views: Number(counts.views ?? raw.viewsCount) || 0,
+      likes:
+        Number(counts.likes ?? counts.likeCount ?? raw.likesCount) ||
+        posts.reduce((n, p) => n + (Number(p?.likeCount) || 0), 0) +
+          reels.reduce((n, r) => n + (Number(r?.likeCount) || 0), 0),
+      views:
+        Number(
+          counts.views ??
+            counts.viewCount ??
+            counts.totalViews ??
+            raw.viewsCount ??
+            raw.viewCount ??
+            raw.totalViews,
+        ) ||
+        posts.reduce((n, p) => n + (Number(p?.viewCount) || 0), 0) +
+          reels.reduce((n, r) => n + (Number(r?.viewCount) || 0), 0),
     },
     posts: posts.map(mapContentToPost).filter(Boolean),
     reels: reels.map(mapContentToReel).filter(Boolean),

@@ -660,3 +660,33 @@ body::-webkit-scrollbar,
   height: auto;
   vertical-align: middle;
 }
+
+/* Looping shine animation for Fashion Week Explore button */
+@keyframes button-shine {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateX(250%) skewX(-20deg);
+    opacity: 0.6;
+  }
+  51%, 100% {
+    transform: translateX(250%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+.animate-button-shine {
+  animation: button-shine 3.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-button-shine {
+    animation: none !important;
+  }
+}
+

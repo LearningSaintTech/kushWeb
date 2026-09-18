@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useOutletContext } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useCommunityFeedUi } from '../context/CommunityFeedUiContext'
 import { useCommunitySaves } from '../hooks/useCommunityFeed'
 import { logCommunity } from '../../../services/communityApi.js'
-import { navigateToReel } from '../utils/openReel'
+import { openCommunityMedia, playlistFromGrid } from '../utils/openReel'
 import { GridCardSkeleton } from '../components/PostCardSkeleton'
 
 const TABS = [
@@ -16,7 +17,7 @@ const TABS = [
 export default function CommunitySavedFeed() {
   const [tab, setTab] = useState('post')
   const navigate = useNavigate()
-  const { openPost } = useOutletContext() ?? {}
+  const { openPost } = useCommunityFeedUi()
   const sentinelRef = useRef(null)
 
   const {
@@ -49,20 +50,17 @@ export default function CommunitySavedFeed() {
   }, [hasMore, loadingMore, loading, loadMore])
 
   const handleOpen = (item) => {
-    logCommunity('SavedFeed open', { id: item.id, type: item.type })
-    if (item.type === 'reel') {
-      const playlist = items
-        .filter((row) => row.type === 'reel')
-        .map((row) => ({ ...row, type: 'reel' }))
-      navigateToReel(navigate, {
-        reelId: item.id,
-        seed: { ...item, type: 'reel' },
-        playlist,
-        source: 'saved',
-      })
-      return
-    }
-    openPost?.(item)
+    logCommunity('SavedFeed open', { id: item?.id || item?._id, type: item?.type || tab })
+    openCommunityMedia({
+      item,
+      tab: item?.type || tab,
+      playlist: playlistFromGrid(
+        items.filter((row) => String(row?.type || tab || '').toLowerCase() === 'reel'),
+      ),
+      navigate,
+      openPost,
+      source: 'saved',
+    })
   }
 
   return (
@@ -127,7 +125,9 @@ export default function CommunitySavedFeed() {
                 key={item.saveId || item.id || item._id}
                 type="button"
                 onClick={() => handleOpen(item)}
-                className="relative aspect-square w-full cursor-pointer overflow-hidden bg-neutral-100 transition hover:opacity-90"
+                className={`relative w-full cursor-pointer overflow-hidden bg-neutral-100 transition hover:opacity-90 ${
+                  isReel ? 'aspect-[3/4]' : 'aspect-square'
+                }`}
                 aria-label={`Open saved ${item.type}`}
               >
                 {thumb ? (

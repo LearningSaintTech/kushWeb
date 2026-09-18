@@ -101,7 +101,7 @@ export default function DesignerProjects({
       {loading ? (
         <p className="mt-16 text-center font-inter text-sm text-neutral-500">Loading projects…</p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-3.5">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 lg:gap-3.5 xl:gap-4">
           {filtered.map((project) => {
             const catClass =
               PROJECT_CATEGORY_COLORS[project.category] || 'text-[#7C5CFF]'

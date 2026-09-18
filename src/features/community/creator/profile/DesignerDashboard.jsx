@@ -261,7 +261,7 @@ export default function DesignerDashboard({
     try {
       const [statsResult, profileResult] = await Promise.allSettled([
         communityService.getStats({ role }),
-        communityService.getMyProfile({ postsLimit: 1, reelsLimit: 1, productsLimit: 1 }),
+        communityService.getMyProfile({ postsLimit: 50, reelsLimit: 50, productsLimit: 20 }),
       ])
 
       const stats = statsResult.status === 'fulfilled' ? statsResult.value : null
@@ -461,14 +461,18 @@ export default function DesignerDashboard({
 
     const defaultRate = role === 'designer' ? '1%' : '2.5%'
     const isCreator = role === 'creator'
+    const liveSummaryChips = metrics?.chips ?? [
+      { label: 'Likes', value: '0' },
+      { label: 'Views', value: '0' },
+      { label: isCreator ? 'Posts' : 'Designs', value: '0' },
+    ]
 
     return {
       range: mock.range,
-      earnings: mappedEarnings?.earnings ?? mock.earnings,
-      summary: metrics?.chips ?? mock.summary,
+      earnings: mappedEarnings?.earnings ?? { total: '₹0.00', change: '+0%' },
+      summary: liveSummaryChips,
       hasLiveMetrics: Boolean(metrics),
-      earningsPerPost:
-        commissionRows.length > 0 ? commissionRows : mock.earningsPerPost,
+      earningsPerPost: commissionRows,
       hasLiveCommissions: commissionRows.length > 0,
       topPosts: mock.topPosts ?? [],
       meta: {
@@ -638,11 +642,11 @@ export default function DesignerDashboard({
       )}
 
       {/* 2-Column Dashboard Grid: Left (Hero Total Earnings + Banner) | Right (3 Stacked Metric Cards) */}
-      <div className="mt-5 grid grid-cols-1 sm:grid-cols-[1fr_130px] md:grid-cols-[1fr_145px] lg:grid-cols-[1fr_155px] items-stretch gap-3 sm:gap-4 lg:gap-5">
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-[1fr_130px] md:grid-cols-[1fr_145px] lg:grid-cols-[1fr_160px] xl:grid-cols-[1fr_190px] 2xl:grid-cols-[1fr_220px] items-stretch gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
         {/* Left Column: Total Earnings Hero Card + Banner */}
         <div className="flex flex-col justify-between gap-3 sm:gap-4">
           {/* Total Earnings Hero Card */}
-          <div className="flex flex-col justify-between rounded-[1.75rem] bg-[#F5F5F7] p-5 sm:p-6 shadow-xs">
+          <div className="flex flex-col justify-between rounded-[1.75rem] bg-[#F5F5F7] p-5 sm:p-6 xl:p-7 shadow-xs">
             <div>
               <div className="flex items-start justify-between gap-2">
                 <p className="font-inter text-xs font-semibold text-neutral-500">
@@ -652,40 +656,46 @@ export default function DesignerDashboard({
                   <svg className="h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
                   </svg>
-                  <span>{data.earnings?.change || '+12.4%'}</span>
+                  <span>{data.earnings?.change || '+0%'}</span>
                 </span>
               </div>
-              <p className="mt-2 font-inter text-3xl sm:text-4xl font-black tracking-tight text-black">
+              <p className="mt-2 font-inter text-3xl sm:text-4xl xl:text-[2.5rem] font-black tracking-tight text-black">
                 {data.meta?.lifetimeEarned || data.earnings?.total || '₹0.00'}
               </p>
             </div>
 
-            {/* Pill-sized Balances & Request Withdrawal Button */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-neutral-200/80 pt-3.5">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 font-inter text-xs font-semibold text-emerald-800">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Available: {data.meta?.available || '₹0.00'}
-              </span>
+            {/* Balances & Request Withdrawal */}
+            <div className="mt-5 border-t border-neutral-200/70 pt-4 flex flex-col gap-3.5">
+              {/* Status Pills */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-3 py-1 font-inter text-xs font-semibold text-emerald-800 shadow-2xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Available: <span className="font-bold">{data.meta?.available || '₹0.00'}</span>
+                </span>
 
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/80 bg-amber-50 px-3 py-1 font-inter text-xs font-semibold text-amber-800">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                Pending: {data.meta?.pending || '₹0.00'}
-              </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/80 bg-amber-50/90 px-3 py-1 font-inter text-xs font-semibold text-amber-800 shadow-2xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  Pending: <span className="font-bold">{data.meta?.pending || '₹0.00'}</span>
+                </span>
 
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-inter text-xs font-medium text-neutral-600">
-                Paid: {data.meta?.lifetimePaid || data.meta?.paidOut || '₹0.00'}
-              </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200/90 bg-white px-3 py-1 font-inter text-xs font-medium text-neutral-600 shadow-2xs">
+                  Paid: <span className="font-semibold text-neutral-800">{data.meta?.lifetimePaid || data.meta?.paidOut || '₹0.00'}</span>
+                </span>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setPayoutOpen(true)}
-                className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-black px-3.5 py-1.5 font-inter text-xs font-bold text-white shadow-xs transition hover:bg-neutral-800 hover:scale-105 active:scale-95"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-                <span>Request Withdrawal</span>
-              </button>
+              {/* Action Button Row */}
+              <div className="flex items-center justify-between gap-3 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPayoutOpen(true)}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-black px-4 py-2.5 font-inter text-xs font-semibold text-white shadow-xs transition duration-200 hover:bg-neutral-800 hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <svg className="h-4 w-4 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.25">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  <span>Request Withdrawal</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -702,7 +712,7 @@ export default function DesignerDashboard({
                 }
               }}
               aria-label="Become a Designer"
-              className="group relative flex h-[110px] sm:h-[120px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-[1.75rem] bg-black px-5 py-4 text-white shadow-md transition-all duration-300 hover:scale-[1.01] hover:shadow-xl active:scale-[0.99]"
+              className="group relative flex h-[110px] sm:h-[120px] xl:h-[130px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-[1.75rem] bg-black px-5 py-4 text-white shadow-md transition-all duration-300 hover:scale-[1.01] hover:shadow-xl active:scale-[0.99]"
             >
               {/* Background designer.png */}
               <img
@@ -740,31 +750,20 @@ export default function DesignerDashboard({
                 </svg>
               </div>
             </div>
-          ) : (
-            <div className="flex min-h-[110px] flex-col justify-center rounded-[1.75rem] bg-neutral-900 px-6 py-5 text-white">
-              <div className="flex items-center gap-2">
-                <span className="rounded-md border border-[#8B5CF6]/50 bg-[#8B5CF6]/20 px-2 py-0.5 font-inter text-[10px] font-bold uppercase tracking-wider text-[#c4b5fd]">
-                  {mode === 'designer' ? 'Designer Mode' : 'Creator Mode'}
-                </span>
-              </div>
-              <p className="mt-2 font-inter text-sm text-neutral-300">
-                Earn commissions on every product sold through your tagged posts & reels.
-              </p>
-            </div>
-          )}
+          ) : null}
         </div>
 
         {/* Right Column: 3 Metric Cards (Likes, Views, Posts) */}
-        <div className="flex shrink-0 flex-row sm:flex-col gap-3">
+        <div className="flex shrink-0 flex-row sm:flex-col gap-3 xl:gap-3.5">
           {data.summary.map((item) => (
             <div
               key={item.label}
-              className="flex flex-1 flex-col justify-center rounded-[1.25rem] bg-[#F5F5F7] px-4 py-3.5 sm:py-4"
+              className="flex flex-1 flex-col justify-center rounded-[1.25rem] bg-[#F5F5F7] px-4 py-3.5 sm:py-4 xl:px-5 xl:py-4 2xl:py-5"
             >
-              <p className="font-inter text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              <p className="font-inter text-[10px] xl:text-[11px] font-bold uppercase tracking-wider text-neutral-400">
                 {item.label}
               </p>
-              <p className="mt-1 font-inter text-xl sm:text-2xl font-bold leading-none text-black">
+              <p className="mt-1 font-inter text-xl sm:text-2xl xl:text-3xl font-bold leading-none text-black">
                 {metricsLoading && !data.hasLiveMetrics ? '…' : item.value}
               </p>
             </div>
@@ -807,7 +806,7 @@ export default function DesignerDashboard({
               const isPending = String(row.rawStatus || row.status).toLowerCase() === 'pending'
               const isCancelled = String(row.rawStatus || row.status).toLowerCase() === 'cancelled'
               return (
-                <li key={row.id || index} className="flex items-center gap-3 sm:gap-4 p-3 hover:bg-neutral-50/80 rounded-xl transition">
+                <li key={row.id || index} className="flex items-center gap-3 sm:gap-4 xl:gap-5 p-3 xl:p-4 hover:bg-neutral-50/80 rounded-xl transition">
                   <span className="w-4 shrink-0 font-inter text-xs font-semibold text-neutral-400 text-center">
                     {row.rank ?? index + 1}
                   </span>

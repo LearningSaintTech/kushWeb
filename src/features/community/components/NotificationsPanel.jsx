@@ -160,7 +160,7 @@ export default function NotificationsPanel({
   } = useNotification()
 
   const [tab, setTab] = useState('All')
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState(() => communityList || [])
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -180,37 +180,56 @@ export default function NotificationsPanel({
     }
   }, [communityList])
 
-  // Fetch initial community notifications when opened
-  const loadInitial = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const { items: communityOnly, lastPage, hasMore: more } =
-        await collectVisibleNotifications({
-          predicate: isVisibleCommunityNotification,
-          want: PAGE_SIZE,
-          startPage: 1,
-          apiLimit: PAGE_SIZE,
+  const applyFetched = useCallback((communityOnly, lastPage, more) => {
+    setItems(communityOnly)
+    apiPageRef.current = lastPage
+    setHasMore(more)
+  }, [])
+
+  const fetchCommunity = useCallback(
+    async ({ silent = false } = {}) => {
+      if (inFlightRef.current) return
+      inFlightRef.current = true
+      if (!silent) setLoading(true)
+      setError(null)
+      try {
+        const { items: communityOnly, lastPage, hasMore: more } =
+          await collectVisibleNotifications({
+            predicate: isVisibleCommunityNotification,
+            want: PAGE_SIZE,
+            startPage: 1,
+            apiLimit: PAGE_SIZE,
+            maxPages: 4,
+            params: { module: 'community' },
+          })
+        applyFetched(communityOnly, lastPage, more)
+        refreshUnreadCount?.().catch(() => {})
+        debugLog('[NotificationsPanel] community notifications load ok', {
+          count: communityOnly.length,
+          silent,
         })
-      setItems(communityOnly)
-      apiPageRef.current = lastPage
-      setHasMore(more)
-      refreshUnreadCount?.().catch(() => {})
-      debugLog('[NotificationsPanel] community notifications load ok', {
-        count: communityOnly.length,
-      })
-    } catch (err) {
-      debugError('[NotificationsPanel] load error', err?.message)
-      setError('Could not load notifications.')
-    } finally {
-      setLoading(false)
-    }
-  }, [refreshUnreadCount])
+      } catch (err) {
+        debugError('[NotificationsPanel] load error', err?.message)
+        if (!silent) setError('Could not load notifications.')
+      } finally {
+        inFlightRef.current = false
+        setLoading(false)
+      }
+    },
+    [applyFetched, refreshUnreadCount],
+  )
 
   useEffect(() => {
     if (!open) return undefined
-    loadInitial()
-  }, [open, loadInitial])
+    const hasSeed = Boolean(communityList?.length || items.length)
+    fetchCommunity({ silent: hasSeed })
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      fetchCommunity({ silent: true })
+    }, 30000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, fetchCommunity])
 
   // Close on Escape
   useEffect(() => {
@@ -234,7 +253,9 @@ export default function NotificationsPanel({
           want: PAGE_SIZE,
           startPage: apiPageRef.current,
           apiLimit: PAGE_SIZE,
+          maxPages: 4,
           excludeIds: items.map((n) => n._id || n.id),
+          params: { module: 'community' },
         })
 
       setItems((prev) => {
@@ -424,16 +445,16 @@ export default function NotificationsPanel({
 
         {/* Content list */}
         <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-6">
-          {loading ? (
+          {loading && items.length === 0 ? (
             <div className="py-16 text-center">
               <p className="font-inter text-sm text-neutral-400">Loading notifications…</p>
             </div>
-          ) : error ? (
+          ) : error && items.length === 0 ? (
             <div className="mx-4 mt-6 rounded-xl bg-amber-50 px-4 py-3 text-center">
               <p className="font-inter text-xs text-amber-900">{error}</p>
               <button
                 type="button"
-                onClick={loadInitial}
+                onClick={() => fetchCommunity({ silent: false })}
                 className="mt-2 cursor-pointer font-inter text-xs font-semibold text-amber-950 underline"
               >
                 Retry
