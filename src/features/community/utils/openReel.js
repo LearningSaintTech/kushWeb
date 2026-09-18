@@ -1,4 +1,5 @@
 import { getCommunityReelsPath } from '../../../utils/constants'
+import { setCommunityNav } from './communityNav'
 
 function mediaArray(item) {
   if (!item || typeof item !== 'object') return []
@@ -120,6 +121,7 @@ export function navigateToReel(navigate, { reelId, seed, playlist = [], source =
     playlist: nextPlaylist,
   }
   persistReelNavState(payload)
+  setCommunityNav('reels')
   navigate(getCommunityReelsPath(id), { state: payload })
   return true
 }

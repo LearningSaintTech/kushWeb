@@ -25,15 +25,8 @@ import { GiftCardPage } from '../../features/giftcard'
 import {
   CommunityPage,
   CommunityEnterPage,
+  CommunityFeedLayout,
 } from '../../features/community'
-import {
-  CommunityFeedHomeRoute,
-  CommunityFeedSearchRoute,
-  CommunityFeedReelsRoute,
-  CommunityFeedProfileRoute,
-  CommunityFeedCreateRoute,
-  CommunityFeedSavedRoute,
-} from '../../features/community/feed/CommunityFeedRoutes'
 import {
   RefundCancelPolicyPage,
   PaymentPolicyPage,
@@ -91,12 +84,8 @@ const router = createBrowserRouter([
       { path: 'giftcard', element: <GiftCardPage /> },
       { path: 'community', element: <CommunityPage /> },
       { path: 'community/enter', element: <CommunityEnterPage /> },
-      { path: 'community/feed/search', element: <CommunityFeedSearchRoute /> },
-      { path: 'community/feed/reels', element: <CommunityFeedReelsRoute /> },
-      { path: 'community/feed/profile', element: <CommunityFeedProfileRoute /> },
-      { path: 'community/feed/create', element: <CommunityFeedCreateRoute /> },
-      { path: 'community/feed/saved', element: <CommunityFeedSavedRoute /> },
-      { path: 'community/feed', element: <CommunityFeedHomeRoute /> },
+      { path: 'community/feed/*', element: <CommunityFeedLayout /> },
+      { path: 'community/feed', element: <CommunityFeedLayout /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/profile-update', element: <ProfileUpdatePage /> },
     ],

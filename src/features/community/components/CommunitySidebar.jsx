@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { ROUTES } from '../../../utils/constants'
+import { goCommunity } from '../utils/communityNav'
 import whiteKhush from '../../../assets/images/community/whitekhush.svg'
 import createCardBg from '../../../assets/images/community/black rectangle.png'
 import { getCapabilities } from '../capabilities'
@@ -104,7 +105,7 @@ export default function CommunitySidebar({
       return
     }
     event.preventDefault()
-    navigate(item.to)
+    goCommunity(navigate, item.id, item.to)
   }
 
   return (
@@ -118,11 +119,11 @@ export default function CommunitySidebar({
           {items.map((item) => {
             const isActive = item.id === activeId
             return (
-              <Link
+              <button
                 key={item.id}
-                to={item.to}
+                type="button"
                 onClick={(e) => handleNavClick(item, e)}
-                className={`flex items-center gap-3 rounded-full px-3 py-[7px] font-inter text-[10px] transition ${
+                className={`flex w-full items-center gap-3 rounded-full px-3 py-[7px] text-left font-inter text-[10px] transition ${
                   isActive
                     ? 'bg-neutral-100 font-semibold text-black'
                     : 'font-medium text-neutral-700 hover:bg-neutral-50'
@@ -135,7 +136,7 @@ export default function CommunitySidebar({
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 ) : null}
-              </Link>
+              </button>
             )
           })}
         </nav>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../app/context/AuthContext'
 import { useNotification } from '../../../app/context/NotificationContext'
@@ -31,16 +31,12 @@ import CommunityCreateJoin from '../feed/CommunityCreateJoin'
 import CommunitySavedFeed from '../feed/CommunitySavedFeed'
 import { SUGGESTED_CREATORS, TRENDING_HASHTAGS } from '../data/mockFeed'
 import { debugLog } from '../../../utils/debugLog'
-
-function resolveActiveNav(pathname) {
-  const path = String(pathname || '')
-  if (path.includes('/community/feed/saved')) return 'saved'
-  if (path.includes('/community/feed/search')) return 'search'
-  if (path.includes('/community/feed/reels')) return 'reels'
-  if (path.includes('/community/feed/create')) return 'create'
-  if (path.includes('/community/feed/profile')) return 'profile'
-  return 'home'
-}
+import {
+  getCommunityNav,
+  pathToCommunityNav,
+  setCommunityNav,
+  subscribeCommunityNav,
+} from '../utils/communityNav'
 
 /**
  * Shared community shell — same layout for user / creator / designer.
@@ -59,8 +55,12 @@ export default function CommunityFeedLayout({
   const [searchParams, setSearchParams] = useSearchParams()
   const profileIdParam = searchParams.get('profileId') || searchParams.get('userId')
   const postIdParam = searchParams.get('postId')
-  
-  const activeNav = resolveActiveNav(location.pathname)
+
+  const activeNav = useSyncExternalStore(
+    subscribeCommunityNav,
+    getCommunityNav,
+    getCommunityNav,
+  )
   const isSaved = activeNav === 'saved'
   const isSearch = activeNav === 'search'
   const isReels = activeNav === 'reels'
@@ -76,6 +76,13 @@ export default function CommunityFeedLayout({
   const { user, isAuthenticated, authChecked, openAuthModal } = useAuth()
   const { communityUnreadCount = 0 } = useNotification() ?? {}
   const askedLoginRef = useRef(false)
+
+  useEffect(() => {
+    setCommunityNav(pathToCommunityNav(window.location.pathname))
+    const onPop = () => setCommunityNav(pathToCommunityNav(window.location.pathname))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   // Community feed needs a session — open login when access token is missing
   useEffect(() => {
@@ -175,6 +182,7 @@ export default function CommunityFeedLayout({
 
     // Normal users / guests cannot post — send them to join chooser (same as Profile)
     if (!can(role, 'canPost')) {
+      setCommunityNav('create')
       navigate(ROUTES.COMMUNITY_CREATE_JOIN)
       return
     }
@@ -298,10 +306,12 @@ export default function CommunityFeedLayout({
       const kind = content?.type || payload?.kind || 'post'
 
       if (kind === 'reel' && id) {
+        setCommunityNav('reels')
         navigate(getCommunityReelsPath(id))
         return
       }
 
+      setCommunityNav('profile')
       navigate(ROUTES.COMMUNITY_PROFILE)
       if (id) {
         window.setTimeout(() => {
