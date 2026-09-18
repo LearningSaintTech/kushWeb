@@ -541,7 +541,7 @@ export default function CommunityFeedLayout({
                   : isSaved
                     ? 'w-full px-6 py-6 sm:px-8 lg:px-10'
                     : isProfileShell
-                      ? 'w-full max-w-[1360px] xl:max-w-[1520px] 2xl:max-w-[1720px] mx-auto px-4 py-4 sm:px-6 lg:px-8 lg:py-6 xl:px-10 2xl:px-12'
+                      ? 'w-full max-w-[1360px] xl:max-w-[1600px] 2xl:max-w-[1800px] mx-auto px-4 py-4 sm:px-6 lg:px-8 lg:py-6 xl:px-10 2xl:px-12'
                       : isCreateJoin
                         ? 'flex min-h-full w-full items-stretch px-4 py-6 sm:px-8 lg:px-12'
                         : isSearch

@@ -642,7 +642,7 @@ export default function DesignerDashboard({
       )}
 
       {/* 2-Column Dashboard Grid: Left (Hero Total Earnings + Banner) | Right (3 Stacked Metric Cards) */}
-      <div className="mt-5 grid grid-cols-1 sm:grid-cols-[1fr_130px] md:grid-cols-[1fr_145px] lg:grid-cols-[1fr_160px] xl:grid-cols-[1fr_190px] 2xl:grid-cols-[1fr_220px] items-stretch gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-[1fr_140px] md:grid-cols-[1fr_160px] lg:grid-cols-[1fr_180px] xl:grid-cols-[minmax(0,1fr)_220px] 2xl:grid-cols-[minmax(0,1fr)_260px] items-stretch gap-3 sm:gap-4 lg:gap-5 xl:gap-6">
         {/* Left Column: Total Earnings Hero Card + Banner */}
         <div className="flex flex-col justify-between gap-3 sm:gap-4">
           {/* Total Earnings Hero Card */}

@@ -13,6 +13,7 @@ export default function ReelCard({
   reel,
   active = false,
   warm = false,
+  shareLabel = 'Share',
   onProfileClick,
   onLike,
   onSave,
@@ -104,7 +105,7 @@ export default function ReelCard({
           />
         </div>
 
-        <div className="flex shrink-0 flex-col justify-end pb-2 sm:pb-4">
+        <div className="relative z-20 flex shrink-0 flex-col justify-end pb-2 sm:pb-4">
           <ReelActions
             likes={reel.likes}
             comments={reel.comments}
@@ -115,6 +116,7 @@ export default function ReelCard({
             onLike={onLike}
             onSave={onSave}
             onShare={onShare}
+            shareLabel={shareLabel}
             onComment={onComment}
           />
         </div>

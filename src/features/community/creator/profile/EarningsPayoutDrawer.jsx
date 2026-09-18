@@ -10,6 +10,7 @@ import {
   formToPayoutMethodBody,
   getDefaultPayoutMethod,
   getEarningsErrorMessage,
+  isValidUpiId,
   maskAccountNumber,
   normalizePayoutItems,
   normalizePayoutMethods,
@@ -158,6 +159,14 @@ const [payoutType, setPayoutType] = useState('bank')
       setError('Enter the IFSC code.')
       return
     }
+    if (!bankForm.upiId.trim()) {
+      setError('Enter your UPI ID.')
+      return
+    }
+    if (!isValidUpiId(bankForm.upiId)) {
+      setError('Enter a valid UPI ID (for example name@oksbi).')
+      return
+    }
 
     setLinking(true)
     try {
@@ -264,7 +273,7 @@ const [payoutType, setPayoutType] = useState('bank')
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="absolute inset-y-0 right-0 z-10 flex w-full max-w-[420px] flex-col bg-white shadow-[-16px_0_42px_rgba(0,0,0,0.12)] animate-[community-projects-in_300ms_cubic-bezier(0.22,1,0.36,1)]"
+        className="absolute inset-y-0 right-0 z-10 flex w-full max-w-[420px] flex-col bg-white shadow-[-16px_0_42px_rgba(0,0,0,0.12)] animate-[community-projects-in_300ms_cubic-bezier(0.22,1,0.36,1)] xl:max-w-[520px] 2xl:max-w-[580px]"
       >
         <header className="flex shrink-0 items-center gap-3 border-b border-neutral-100 px-4 py-3.5">
           <button
@@ -363,6 +372,11 @@ const [payoutType, setPayoutType] = useState('bank')
                       placeholder: 'Re-enter account number',
                     },
                     { key: 'ifsc', label: 'IFSC', placeholder: 'e.g. HDFC0001234' },
+                    {
+                      key: 'upiId',
+                      label: 'UPI ID',
+                      placeholder: 'e.g. yourname@oksbi',
+                    },
                   ].map((field) => (
                     <label key={field.key} className="block">
                       <span className="font-inter text-[11px] font-bold uppercase tracking-[0.08em] text-black">
@@ -414,6 +428,11 @@ const [payoutType, setPayoutType] = useState('bank')
                       <p className="mt-0.5 font-inter text-[11px] uppercase tracking-wide text-neutral-400">
                         IFSC {linkedMethod.ifsc || '—'}
                       </p>
+                      {linkedMethod.upiId || linkedMethod.upi || linkedMethod.vpa ? (
+                        <p className="mt-0.5 font-inter text-[11px] text-neutral-500">
+                          UPI {linkedMethod.upiId || linkedMethod.upi || linkedMethod.vpa}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 

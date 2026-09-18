@@ -6,8 +6,12 @@ function ActionButton({ label, onClick, tone = 'dark', compact = false, children
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`flex cursor-pointer flex-col items-center transition hover:opacity-80 ${
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onClick?.(e)
+      }}
+      className={`relative z-20 flex cursor-pointer flex-col items-center transition hover:opacity-80 ${
         compact ? 'gap-0.5' : 'gap-1'
       } ${isLight ? 'text-white' : 'text-black'}`}
     >
@@ -37,6 +41,7 @@ export default function ReelActions({
   tone = 'light',
   showLike = true,
   compact = false,
+  shareLabel = 'Share',
   onLike,
   onComment,
   onShare,
@@ -67,7 +72,7 @@ export default function ReelActions({
         <FaRegComment className={compact ? 'h-5 w-5' : 'h-5 w-5'} />
       </ActionButton>
 
-      <ActionButton label="Share" onClick={onShare} tone={tone} compact={compact}>
+      <ActionButton label={shareLabel} onClick={onShare} tone={tone} compact={compact}>
         <MdShare className={compact ? 'h-5 w-5' : 'h-5 w-5'} />
       </ActionButton>
 

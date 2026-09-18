@@ -52,7 +52,7 @@ export const earningsService = {
 
   getPayoutMethods: () => client.get(`${BASE}/payout-methods`),
 
-  /** Body: { type, bankName, accountHolderName, accountNumber, ifsc, isDefault } */
+  /** Body: { type, bankName, accountHolderName, accountNumber, ifsc, upiId, isDefault } */
   savePayoutMethod: (body) => client.post(`${BASE}/payout-methods`, body),
 
   deletePayoutMethod: (methodId) =>

@@ -4,14 +4,14 @@ import { ROUTES } from '../../utils/constants'
 export default function PolicyPageLayout({ title, children }) {
   return (
     <div className="min-h-screen bg-white text-black pt-24 pb-16">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 max-sm:pt-6">
-        <Link to={ROUTES.HOME} className="text-sm text-gray-500 hover:text-black uppercase tracking-wider mb-6 inline-block">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 xl:max-w-6xl 2xl:max-w-7xl xl:px-10">
+        <Link to={ROUTES.HOME} className="mb-6 inline-block text-sm uppercase tracking-wider text-gray-500 hover:text-black">
           ← Back to home
         </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold uppercase tracking-wider text-black mb-8">
+        <h1 className="mb-8 font-inter text-2xl font-bold uppercase tracking-wider text-black sm:text-3xl xl:text-4xl">
           {title}
         </h1>
-        <div className="prose prose-gray max-w-none text-gray-700 space-y-4">
+        <div className="max-w-none text-gray-700">
           {children}
         </div>
       </div>

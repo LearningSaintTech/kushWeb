@@ -26,7 +26,12 @@ export async function shareUrl({ url, title, text }) {
   if (!url) return { success: false, method: 'no_url' }
   const shareData = { title: title || 'Khush Community', text: text || '', url }
 
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+  const canNativeShare =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    (!navigator.canShare || navigator.canShare(shareData))
+
+  if (canNativeShare) {
     try {
       await navigator.share(shareData)
       return { success: true, method: 'native', url }

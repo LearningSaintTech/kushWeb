@@ -16,9 +16,11 @@ import {
 import { isAppEnvDev } from '../../../../utils/logLevel.js'
 import { debugError, debugLog } from '../../../../utils/debugLog.js'
 import { requestCommunityProfileRefresh } from '../../hooks/useCommunitySocialProfile'
+import PaymentEarningPolicyContent from '../../../policy/PaymentEarningPolicyContent'
 import {
   EMPTY_BANK_FORM,
   formToPayoutMethodBody,
+  isValidUpiId,
   normalizePayoutMethods,
   payoutMethodToForm,
 } from './earningsMappers'
@@ -26,6 +28,7 @@ import {
 const VIEWS = {
   MENU: 'menu',
   PAYMENT: 'payment',
+  POLICY: 'policy',
   DELETE: 'delete',
 }
 
@@ -143,6 +146,14 @@ export default function CreatorSettingsDrawer({
       setPaymentError('Enter the IFSC code.')
       return
     }
+    if (!payment.upiId.trim()) {
+      setPaymentError('Enter your UPI ID.')
+      return
+    }
+    if (!isValidUpiId(payment.upiId)) {
+      setPaymentError('Enter a valid UPI ID (for example name@oksbi).')
+      return
+    }
 
     if (!liveEnabled) {
       setView(VIEWS.MENU)
@@ -217,9 +228,11 @@ export default function CreatorSettingsDrawer({
   const headerTitle =
     view === VIEWS.PAYMENT
       ? 'Payment Details'
-      : view === VIEWS.DELETE
-        ? 'Delete Profile'
-        : `${roleLabel} Setting`
+      : view === VIEWS.POLICY
+        ? 'Payment Policy'
+        : view === VIEWS.DELETE
+          ? 'Delete Profile'
+          : `${roleLabel} Setting`
 
   return (
     <div className="fixed inset-0 z-[90]">
@@ -234,7 +247,7 @@ export default function CreatorSettingsDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="absolute inset-y-0 right-0 z-10 flex w-full max-w-[400px] flex-col bg-white shadow-[-16px_0_42px_rgba(0,0,0,0.12)] animate-[community-projects-in_300ms_cubic-bezier(0.22,1,0.36,1)]"
+        className="absolute inset-y-0 right-0 z-10 flex w-full max-w-[400px] flex-col bg-white shadow-[-16px_0_42px_rgba(0,0,0,0.12)] animate-[community-projects-in_300ms_cubic-bezier(0.22,1,0.36,1)] xl:max-w-[520px] 2xl:max-w-[580px]"
       >
         <header className="flex shrink-0 items-center gap-3 border-b border-neutral-100 px-4 py-3.5">
           <button
@@ -267,10 +280,10 @@ export default function CreatorSettingsDrawer({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                 </svg>
               </button>
-              <Link
-                to={ROUTES.PAYMENT_POLICY}
-                onClick={onClose}
-                className="flex w-full items-center justify-between border-b border-neutral-100 px-3 py-4 text-left transition hover:bg-neutral-50"
+              <button
+                type="button"
+                onClick={() => setView(VIEWS.POLICY)}
+                className="flex w-full cursor-pointer items-center justify-between border-b border-neutral-100 px-3 py-4 text-left transition hover:bg-neutral-50"
               >
                 <span className="font-inter text-xs font-semibold uppercase tracking-[0.06em] text-black">
                   Payment Policy
@@ -278,7 +291,7 @@ export default function CreatorSettingsDrawer({
                 <svg className="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                 </svg>
-              </Link>
+              </button>
             </nav>
 
             <div className="mt-auto p-4 pb-6">
@@ -327,6 +340,11 @@ export default function CreatorSettingsDrawer({
                   placeholder: 'Re-enter account number',
                 },
                 { key: 'ifsc', label: 'IFSC', placeholder: 'IFSC code' },
+                {
+                  key: 'upiId',
+                  label: 'UPI ID',
+                  placeholder: 'e.g. yourname@oksbi',
+                },
               ].map((field) => (
                 <label key={field.key} className="block">
                   <span className="font-inter text-[11px] font-bold uppercase tracking-[0.08em] text-black">
@@ -360,6 +378,12 @@ export default function CreatorSettingsDrawer({
               </button>
             </div>
           </form>
+        ) : null}
+
+        {view === VIEWS.POLICY ? (
+          <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6 xl:py-6">
+            <PaymentEarningPolicyContent />
+          </div>
         ) : null}
 
         {view === VIEWS.DELETE ? (

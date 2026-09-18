@@ -589,12 +589,18 @@ export function maskAccountNumber(method) {
   return `${'*'.repeat(Math.max(4, raw.length - 4))}${raw.slice(-4)}`
 }
 
+export function isValidUpiId(value) {
+  const v = String(value || '').trim()
+  return /^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(v)
+}
+
 export const EMPTY_BANK_FORM = {
   bankName: '',
   accountHolderName: '',
   accountNumber: '',
   confirmAccountNumber: '',
   ifsc: '',
+  upiId: '',
 }
 
 export function payoutMethodToForm(method) {
@@ -608,6 +614,7 @@ export function payoutMethodToForm(method) {
     accountNumber,
     confirmAccountNumber: accountNumber,
     ifsc: String(method.ifsc ?? method.ifscCode ?? ''),
+    upiId: String(method.upiId ?? method.upi ?? method.vpa ?? ''),
   }
 }
 
@@ -619,6 +626,7 @@ export function formToPayoutMethodBody(form) {
     accountHolderName: form.accountHolderName.trim(),
     accountNumber: form.accountNumber.trim(),
     ifsc: form.ifsc.trim().toUpperCase(),
+    upiId: String(form.upiId || '').trim(),
     isDefault: true,
   }
 }

@@ -12,6 +12,7 @@ import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { communityService } from '../../../services/community.service.js'
 import { mapContentToReel } from '../../../services/communityContent.mappers.js'
 import { extractReelPoster, extractReelVideo, readReelNavState } from '../utils/openReel'
+import { shareCommunityContent } from '../utils/shareProfile'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 
 /**
@@ -331,9 +332,19 @@ export default function CommunityReelsFeed() {
     [patchByAuthorId, social],
   )
 
+  const [shareHint, setShareHint] = useState('')
+
   const handleShare = useCallback(async (reel) => {
     try {
-      await shareCommunityContent({ ...reel, type: 'reel' })
+      const res = await shareCommunityContent({ ...reel, type: 'reel' })
+      if (res?.method === 'clipboard' && res.success) {
+        setShareHint(reel?.id || reel?._id || 'copied')
+        window.setTimeout(() => {
+          setShareHint((prev) => (prev === (reel?.id || reel?._id || 'copied') ? '' : prev))
+        }, 2000)
+      } else if (res?.method !== 'aborted' && !res?.success) {
+        debugError('[Community] reel share failed', res?.method)
+      }
     } catch (err) {
       if (err?.name !== 'AbortError') {
         debugError('[Community] reel share failed', err?.message)
@@ -446,6 +457,7 @@ export default function CommunityReelsFeed() {
                 onLike={() => handleLike(reel)}
                 onSave={() => handleSave(reel)}
                 onShare={() => handleShare(reel)}
+                shareLabel={shareHint && String(shareHint) === String(reel.id || reel._id) ? 'Copied' : 'Share'}
                 onComment={() => handleComment(reel)}
                 onFollow={() => handleFollow(reel)}
               />
