@@ -336,7 +336,11 @@ export default function PostDetailModal({
 
   const handleDelete = async () => {
     if (!post?.id || deleting || !isOwnPost) return
-    const ok = window.confirm('Delete this post? This cannot be undone.')
+    const ok = window.confirm(
+      post.type === 'reel'
+        ? 'Delete this reel? This cannot be undone.'
+        : 'Delete this post? This cannot be undone.',
+    )
     if (!ok) return
     setDeleting(true)
     setActionError('')
@@ -714,7 +718,11 @@ export default function PostDetailModal({
                         onClick={handleDelete}
                         className="flex w-full cursor-pointer items-center px-3 py-2.5 text-left font-inter text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
                       >
-                        {deleting ? 'Deleting…' : 'Delete post'}
+                        {deleting
+                          ? 'Deleting…'
+                          : post.type === 'reel'
+                            ? 'Delete reel'
+                            : 'Delete post'}
                       </button>
                     ) : (
                       <>
@@ -739,7 +747,11 @@ export default function PostDetailModal({
                             onClick={openReportContent}
                             className="flex w-full cursor-pointer items-center px-3 py-2.5 text-left font-inter text-xs font-semibold text-black transition hover:bg-neutral-50 disabled:opacity-50"
                           >
-                            {post.isReported ? 'Reported' : 'Report post'}
+                            {post.isReported
+                              ? 'Reported'
+                              : post.type === 'reel'
+                                ? 'Report reel'
+                                : 'Report post'}
                           </button>
                         ) : null}
                       </>

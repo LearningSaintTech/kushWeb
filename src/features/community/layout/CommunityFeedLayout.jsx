@@ -531,7 +531,7 @@ export default function CommunityFeedLayout({
             className={`min-h-0 min-w-0 flex-1 ${
               isReels
                 ? 'overflow-hidden flex items-center justify-center'
-                : 'overflow-y-auto scrollbar-hide'
+                : 'community-feed-scroll scrollbar-hide'
             }`}
           >
             <div

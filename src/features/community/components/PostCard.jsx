@@ -98,7 +98,11 @@ function PostCard({
   if (!post) return null
 
   return (
-    <article ref={rootRef} className="border-b border-neutral-100 pb-8 last:border-0">
+    <article
+      ref={rootRef}
+      className="border-b border-neutral-100 pb-8 last:border-0"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '0 780px' }}
+    >
       <header className="flex items-center gap-3">
         <button
           type="button"
@@ -107,7 +111,13 @@ function PostCard({
           className="h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-full bg-neutral-200 transition hover:opacity-80"
         >
           {author.avatar ? (
-            <img src={author.avatar} alt="" className="h-full w-full object-cover" />
+            <img
+              src={author.avatar}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
           ) : null}
         </button>
         <div className="min-w-0 flex-1">
@@ -145,7 +155,13 @@ function PostCard({
           aria-label="Open post"
         >
           {activeImage ? (
-            <img src={activeImage} alt="" className="aspect-[4/5] w-full object-cover" />
+            <img
+              src={activeImage}
+              alt=""
+              className="aspect-[4/5] w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
           ) : (
             <div className="aspect-[4/5] w-full bg-neutral-800" />
           )}

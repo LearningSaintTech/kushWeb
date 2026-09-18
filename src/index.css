@@ -59,6 +59,25 @@ body::-webkit-scrollbar,
   display: none;
 }
 
+.community-feed-scroll {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.community-reels-scroll {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.community-reels-slide {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
 /* Home hero header frost — on a sibling layer so dropdowns can blur the banner */
 /* Home hero header frost */
 .navbar-frosted-glass {

@@ -15,6 +15,7 @@ import { extractReelPoster, extractReelVideo, readReelNavState } from '../utils/
 import { shareCommunityContent } from '../utils/shareProfile'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 import { useAuth } from '../../../app/context/AuthContext'
+import { requestCommunityProfileRefresh } from '../hooks/useCommunitySocialProfile'
 
 /**
  * Fullscreen Shorts / Reels — one reel per viewport, snap scroll.
@@ -66,6 +67,7 @@ export default function CommunityReelsFeed() {
   const scrolledToStartRef = useRef(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [bootReel, setBootReel] = useState(null)
+  const [removedIds, setRemovedIds] = useState(() => new Set())
 
   const {
     items: feedReels,
@@ -160,6 +162,9 @@ export default function CommunityReelsFeed() {
   }, [startReelId, feedReels, useProfilePlaylist])
 
   const reels = useMemo(() => {
+    const drop = (list) =>
+      list.filter((r) => r?.id && !removedIds.has(String(r.id)))
+
     if (useProfilePlaylist) {
       const byId = new Map()
       for (const r of profilePlaylist) byId.set(String(r.id), r)
@@ -167,7 +172,7 @@ export default function CommunityReelsFeed() {
         const prev = byId.get(String(bootReel.id))
         byId.set(String(bootReel.id), prev ? { ...prev, ...bootReel } : bootReel)
       }
-      let list = Array.from(byId.values())
+      let list = drop(Array.from(byId.values()))
       if (startReelId) {
         const idx = list.findIndex((r) => String(r.id) === String(startReelId))
         if (idx > 0) {
@@ -178,10 +183,11 @@ export default function CommunityReelsFeed() {
       return list
     }
 
-    if (!bootReel) return feedReels
-    if (feedReels.some((r) => String(r.id) === String(bootReel.id))) return feedReels
-    return [bootReel, ...feedReels]
-  }, [useProfilePlaylist, profilePlaylist, bootReel, feedReels, startReelId])
+    const feed = drop(feedReels)
+    if (!bootReel || removedIds.has(String(bootReel.id))) return feed
+    if (feed.some((r) => String(r.id) === String(bootReel.id))) return feed
+    return [bootReel, ...feed]
+  }, [useProfilePlaylist, profilePlaylist, bootReel, feedReels, startReelId, removedIds])
 
   // Scroll / activate start reel once
   useEffect(() => {
@@ -257,7 +263,22 @@ export default function CommunityReelsFeed() {
       )
     }
     window.addEventListener('khush:community-user-blocked', onBlocked)
-    return () => window.removeEventListener('khush:community-user-blocked', onBlocked)
+    const onDeleted = (e) => {
+      const id = e?.detail?.id
+      if (!id) return
+      setBootReel((prev) => (prev && String(prev.id) === String(id) ? null : prev))
+      setRemovedIds((prev) => {
+        const next = new Set(prev)
+        next.add(String(id))
+        return next
+      })
+      setItems((prev) => prev.filter((item) => String(item.id) !== String(id)))
+    }
+    window.addEventListener('khush:community-content-deleted', onDeleted)
+    return () => {
+      window.removeEventListener('khush:community-user-blocked', onBlocked)
+      window.removeEventListener('khush:community-content-deleted', onDeleted)
+    }
   }, [setItems])
 
   const patchLocal = useCallback((id, patch) => {
@@ -361,14 +382,67 @@ export default function CommunityReelsFeed() {
     [openReelComments],
   )
 
+  const handleDelete = useCallback(
+    async (reel) => {
+      const id = reel?.id || reel?._id
+      if (!id) return
+      try {
+        await communityService.deleteContent(id)
+        setRemovedIds((prev) => {
+          const next = new Set(prev)
+          next.add(String(id))
+          return next
+        })
+        setBootReel((prev) => (prev && String(prev.id) === String(id) ? null : prev))
+        setItems((prev) => prev.filter((item) => String(item.id) !== String(id)))
+        window.dispatchEvent(
+          new CustomEvent('khush:community-content-deleted', {
+            detail: { id: String(id) },
+          }),
+        )
+        requestCommunityProfileRefresh()
+      } catch (err) {
+        debugError('[Community] reel delete failed', err?.message)
+        throw err
+      }
+    },
+    [setItems],
+  )
+
   const goTo = useCallback(
     (index) => {
       const clamped = Math.max(0, Math.min(reels.length - 1, index))
-      itemRefs.current[clamped]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const scroller = scrollerRef.current
+      const node = itemRefs.current[clamped]
+      if (scroller && node) {
+        scroller.scrollTo({ top: node.offsetTop, behavior: 'smooth' })
+      }
       setActiveIndex(clamped)
     },
     [reels.length],
   )
+
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return undefined
+    let locked = false
+    let acc = 0
+    const onWheel = (event) => {
+      event.preventDefault()
+      if (locked) return
+      acc += event.deltaY
+      if (Math.abs(acc) < 48) return
+      const dir = acc > 0 ? 1 : -1
+      acc = 0
+      locked = true
+      goTo(activeIndex + dir)
+      window.setTimeout(() => {
+        locked = false
+      }, 480)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [activeIndex, goTo])
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -422,12 +496,12 @@ export default function CommunityReelsFeed() {
     <div className="relative flex h-full min-h-0 w-full flex-col bg-black">
       <div
         ref={scrollerRef}
-        className="scrollbar-hide h-full min-h-0 snap-y snap-mandatory overflow-y-auto overscroll-y-contain"
+        className="community-reels-scroll scrollbar-hide h-full min-h-0"
         aria-label="Community reels"
       >
         {reels.map((reel, index) => {
           const dist = Math.abs(index - activeIndex)
-          if (dist > 2) {
+          if (dist > 3) {
             return (
               <section
                 key={reel.id}
@@ -435,7 +509,7 @@ export default function CommunityReelsFeed() {
                   itemRefs.current[index] = el
                 }}
                 data-reel-index={index}
-                className="box-border h-full min-h-full max-h-full w-full snap-start snap-always bg-black"
+                className="community-reels-slide box-border h-full min-h-full max-h-full w-full shrink-0 bg-black"
                 aria-hidden
               />
             )
@@ -448,7 +522,7 @@ export default function CommunityReelsFeed() {
                 itemRefs.current[index] = el
               }}
               data-reel-index={index}
-              className="box-border flex h-full min-h-full max-h-full w-full snap-start snap-always flex-col items-center justify-center overflow-hidden"
+              className="community-reels-slide box-border flex h-full min-h-full max-h-full w-full shrink-0 flex-col items-center justify-center overflow-hidden"
               aria-label={`Reel ${index + 1} of ${reels.length}`}
             >
               <ReelCard
@@ -462,6 +536,7 @@ export default function CommunityReelsFeed() {
                 shareLabel={shareHint && String(shareHint) === String(reel.id || reel._id) ? 'Copied' : 'Share'}
                 onComment={() => handleComment(reel)}
                 onFollow={() => handleFollow(reel)}
+                onDelete={handleDelete}
               />
             </section>
           )
