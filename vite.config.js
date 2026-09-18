@@ -277,6 +277,12 @@ console.log("🔥 devProxy =", devProxy)
       cspApiConnectSrcPlugin([
         apiOrigin,
         resolveApiOrigin({ VITE_API_URL: env.VITE_ASSET_URL }),
+        'https://*.amazonaws.com',
+        'https://*.s3.amazonaws.com',
+        'https://s3.ap-south-1.amazonaws.com',
+        'https://*.s3.ap-south-1.amazonaws.com',
+        'https://d2efmszmuu4pfy.cloudfront.net',
+        'https://*.cloudfront.net',
       ]),
       metaPixelPlugin,
       openaiPixelPlugin,

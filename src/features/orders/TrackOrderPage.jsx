@@ -110,36 +110,15 @@ const FALLBACK_RETURN_REASONS = [
     requiresUnboxingVideo: true,
   },
   {
-    key: "DAMAGED PRODUCT",
-    label: "Damage",
-    requiresUnboxingVideo: true,
-
-  },
-  {
-    key: "Wrong product delivered",
+    key: "WRONG_PRODUCT",
     label: "Wrong product delivered",
     requiresUnboxingVideo: false,
   },
-  {
-    key: "late delivery",
-    label: "Late delivery",
-    requiresUnboxingVideo: false,
-  },
-  {
-    key: "Changed of mind",
-    label: "Changed of mind",
-    requiresUnboxingVideo: false,
-  },
-  {
-    key: "  Design mismatch",
-    label: "Design mismatch",
-    requiresUnboxingVideo: false,
-  },
-  {
-    key: "Packaging issues",
-    label: "Packaging issues",
-    requiresUnboxingVideo: false,
-  }
+  { key: "LATE_DELIVERY", label: "Late delivery", requiresUnboxingVideo: false },
+  { key: "CHANGED_MIND", label: "Changed of mind", requiresUnboxingVideo: false },
+  { key: "DESIGN_MISMATCH", label: "Design mismatch", requiresUnboxingVideo: false },
+  { key: "PACKAGING_ISSUE", label: "Packaging issues", requiresUnboxingVideo: false },
+  { key: "DAMAGE", label: "Damage", requiresUnboxingVideo: true },
 ];
 
 
