@@ -78,7 +78,7 @@ function getPublicSiteOrigin() {
       const host = new URL(API_ORIGIN).hostname.toLowerCase();
       if (
         host === "api.khushpehno.com" ||
-        host === "api-dev.khushpehno.com" ||
+        host === "api-prod.khushpehno.com" ||
         host === "apidev.khushpehno.com"
       ) {
         return "https://khushpehno.com";
