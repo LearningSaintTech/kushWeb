@@ -84,7 +84,7 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
                 className="pointer-events-none absolute inset-0 -top-1 -bottom-1 w-1/3 bg-gradient-to-r from-transparent via-white/35 to-transparent animate-button-shine"
                 aria-hidden
               />
-              <span className="relative z-10">Explore Fashion</span>
+              <span className="relative z-10">Explore Fashions</span>
               <span className="relative z-10 text-sm font-light leading-none transition-transform duration-300 group-hover:translate-x-1" aria-hidden>
                 &rsaquo;
               </span>
