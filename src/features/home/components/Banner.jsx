@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { bannerService } from '../../../services/content.service.js'
 import { getPublicImageUrl } from '../../../services/config.js'
 import { ROUTES, getSearchPath } from '../../../utils/constants'
-import { useAuth } from '../../../app/context/AuthContext'
 import { debugLog } from '../../../utils/debugLog'
 import bannerDesktopPreview from '../../../assets/images/community/banners.jpeg'
 import bannerMobilePreview from '../../../assets/images/community/banner mobile.jpg.jpeg'
@@ -32,7 +31,7 @@ function DiamondDot({ active, onClick, label }) {
   )
 }
 
-function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFashion }) {
+function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide }) {
   const showDots = slideCount > 1
 
   return (
@@ -68,27 +67,6 @@ function FashionWeekOverlay({ slideCount, slideIndex, onSelectSlide, onExploreFa
                 <DiamondDot key={i} active={i === 0} label={`Indicator ${i + 1}`} />
               ))
             )}
-          </div>
-
-          <div className="mt-4 sm:mt-4.5">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onExploreFashion?.()
-              }}
-              className="group relative inline-flex cursor-pointer items-center gap-2 overflow-hidden rounded-full border-2 border-white bg-black/85 px-4.5 py-1.5 sm:px-5 sm:py-2 font-inter text-xs sm:text-[13px] font-medium text-white shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] hover:bg-black active:scale-95"
-            >
-              {/* Subtle looping shine line */}
-              <span
-                className="pointer-events-none absolute inset-0 -top-1 -bottom-1 w-1/3 bg-gradient-to-r from-transparent via-white/35 to-transparent animate-button-shine"
-                aria-hidden
-              />
-              <span className="relative z-10">Explore Fashions</span>
-              <span className="relative z-10 text-sm font-light leading-none transition-transform duration-300 group-hover:translate-x-1" aria-hidden>
-                &rsaquo;
-              </span>
-            </button>
           </div>
         </div>
       </div>
@@ -279,51 +257,11 @@ function SlideMedia({ slide, active, preferVideoAutoplay }) {
 
 const Banner = () => {
   const navigate = useNavigate()
-  const { isAuthenticated, authChecked, openAuthModal } = useAuth()
   const [slides, setSlides] = useState([])
   const [slideIndex, setSlideIndex] = useState(0)
   const [loaded, setLoaded] = useState(false)
   /** Bump after rotate so Samsung browsers recompute aspect/object-fit (avoids sticky distortion). */
   const [layoutEpoch, setLayoutEpoch] = useState(0)
-
-  const handleExploreFashion = () => {
-    debugLog('[CommunityProfile] Explore Fashion clicked')
-    const userAgent =
-      typeof navigator !== 'undefined'
-        ? navigator.userAgent || navigator.vendor || window.opera || ''
-        : ''
-    const isMobile =
-      /android|iPad|iPhone|iPod|windows phone/i.test(userAgent) ||
-      (typeof window !== 'undefined' && window.innerWidth < 768)
-
-    if (isMobile) {
-      if (/android/i.test(userAgent)) {
-        window.location.href =
-          'https://play.google.com/store/apps/details?id=com.khushpehno.app'
-        return
-      }
-      if (/iPad|iPhone|iPod/.test(userAgent)) {
-        window.location.href =
-          'https://apps.apple.com/in/app/khush-fashion-shopping-app/id6761365897'
-        return
-      }
-      // General mobile fallback
-      window.location.href =
-        'https://play.google.com/store/apps/details?id=com.khushpehno.app'
-      return
-    }
-
-    // Desktop / laptop: if registered/authenticated with profile, navigate directly to feed
-    if (isAuthenticated) {
-      navigate(ROUTES.COMMUNITY_FEED)
-      return
-    }
-    if (!authChecked) {
-      navigate(ROUTES.COMMUNITY_ENTER)
-      return
-    }
-    openAuthModal(ROUTES.COMMUNITY_FEED)
-  }
 
   const handleBannerClick = () => {
     const slide = slides[Math.min(slideIndex, slides.length - 1)]
@@ -437,7 +375,6 @@ const Banner = () => {
           slideCount={1}
           slideIndex={0}
           onSelectSlide={setSlideIndex}
-          onExploreFashion={handleExploreFashion}
         />
       </div>
     )
@@ -460,7 +397,6 @@ const Banner = () => {
           slideCount={0}
           slideIndex={0}
           onSelectSlide={setSlideIndex}
-          onExploreFashion={handleExploreFashion}
         />
       </div>
     )
@@ -508,7 +444,6 @@ const Banner = () => {
         slideCount={slides.length}
         slideIndex={activeIndex}
         onSelectSlide={setSlideIndex}
-        onExploreFashion={handleExploreFashion}
       />
     </div>
   )

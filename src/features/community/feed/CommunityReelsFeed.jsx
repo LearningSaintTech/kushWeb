@@ -422,27 +422,43 @@ export default function CommunityReelsFeed() {
     [reels.length],
   )
 
+  const activeIndexRef = useRef(0)
+  activeIndexRef.current = activeIndex
+
   useEffect(() => {
     const el = scrollerRef.current
     if (!el) return undefined
     let locked = false
     let acc = 0
+    let unlockTimer = 0
+    const unlock = () => {
+      locked = false
+      acc = 0
+    }
     const onWheel = (event) => {
       event.preventDefault()
       if (locked) return
       acc += event.deltaY
-      if (Math.abs(acc) < 48) return
+      if (Math.abs(acc) < 110) return
       const dir = acc > 0 ? 1 : -1
       acc = 0
       locked = true
-      goTo(activeIndex + dir)
-      window.setTimeout(() => {
-        locked = false
-      }, 480)
+      goTo(activeIndexRef.current + dir)
+      window.clearTimeout(unlockTimer)
+      unlockTimer = window.setTimeout(unlock, 900)
+    }
+    const onScrollEnd = () => {
+      window.clearTimeout(unlockTimer)
+      unlockTimer = window.setTimeout(unlock, 120)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [activeIndex, goTo])
+    el.addEventListener('scrollend', onScrollEnd)
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('scrollend', onScrollEnd)
+      window.clearTimeout(unlockTimer)
+    }
+  }, [goTo])
 
   useEffect(() => {
     const onKeyDown = (event) => {

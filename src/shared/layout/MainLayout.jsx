@@ -3,6 +3,8 @@ import { useLocation } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
+import ExploreFashionButton from '../components/ExploreFashionButton.jsx'
+import CommunityAppRedirect from '../components/CommunityAppRedirect.jsx'
 import MadeInIndiaMarquee from '../components/MadeInIndiaMarquee'
 import ScrollToTop from '../components/ScrollToTop'
 import FoldScrollSafety from '../components/FoldScrollSafety'
@@ -16,6 +18,7 @@ function MainLayout() {
   const location = useLocation();
   const { openSupportChat } = useSupportChat();
   const isCommunityFeed = location.pathname.startsWith('/community/feed');
+  const showExploreFashion = !isCommunityFeed;
   const isFirstRoute = useRef(true);
   const prevPath = useRef('');
 
@@ -50,6 +53,11 @@ function MainLayout() {
       </main>
       {!isCommunityFeed ? (
         <>
+          {showExploreFashion ? (
+            <div className="fixed bottom-5 left-4 z-40 sm:bottom-6 sm:left-6">
+              <ExploreFashionButton floating />
+            </div>
+          ) : null}
           <div className="fixed bottom-5 right-4 z-40 flex flex-col items-center gap-2 sm:bottom-6 sm:right-6">
             <button
               type="button"
@@ -73,6 +81,7 @@ function MainLayout() {
         </>
       ) : null}
       <AuthModal />
+      <CommunityAppRedirect />
     </div>
   );
 }

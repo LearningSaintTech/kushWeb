@@ -390,7 +390,7 @@ export default function ReelPlayer({
 
       <div
         data-reel-ui
-        className="absolute inset-x-0 bottom-0 z-10 p-3 sm:p-4"
+        className="absolute inset-x-0 bottom-0 z-10 max-w-full p-3 pr-14 sm:p-4 sm:pr-16"
         onClick={(e) => e.stopPropagation()}
       >
         {hasProducts && showTagged ? (
@@ -405,7 +405,7 @@ export default function ReelPlayer({
           </div>
         ) : null}
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             data-reel-ui
@@ -435,7 +435,7 @@ export default function ReelPlayer({
               type="button"
               data-reel-ui
               onClick={onFollow}
-              className="shrink-0 cursor-pointer rounded-full border border-white/70 bg-black/35 px-3 py-1.5 font-inter text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
+              className="shrink-0 cursor-pointer rounded-full border border-white/70 bg-black/35 px-2.5 py-1 font-inter text-[11px] font-semibold text-white backdrop-blur-sm transition hover:bg-white/15 sm:px-3 sm:py-1.5 sm:text-xs"
             >
               {following ? 'Following' : 'Follow'}
             </button>
