@@ -1,4 +1,4 @@
-/** Mirrors KhushBackend analyticsEvent.catalog.js */
+/** Mirrors KhushBahhhckend analyticsEvent.catalog.js */
 export const ANALYTICS_EVENTS = Object.freeze({
   SESSION_START: "session_start",
   SESSION_END: "session_end",
