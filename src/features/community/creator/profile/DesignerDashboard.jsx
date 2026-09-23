@@ -29,6 +29,7 @@ import { useCommunityProfile } from '../../context/CommunityProfileContext'
 import { isDesignerRoleReady } from '../../../../services/communityProfile.service'
 import RegistrationWizard from '../../registration/RegistrationWizard'
 import designerBannerImg from '../../../../assets/images/community/designer.png'
+import { IoSettingsOutline } from 'react-icons/io5'
 
 function FeatherIllustration({ className = 'h-14 w-14 sm:h-16 sm:w-16' }) {
   return (
@@ -540,11 +541,7 @@ export default function DesignerDashboard({
             aria-label={`${mode === 'designer' ? 'Designer' : 'Creator'} settings`}
             className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-600"
           >
-            <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-              <circle cx="12" cy="12" r="9" />
-              <path strokeLinecap="round" d="M12 11v5.5" />
-              <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
-            </svg>
+            <IoSettingsOutline className="h-[18px] w-[18px]" aria-hidden />
           </button>
         </div>
       </div>
