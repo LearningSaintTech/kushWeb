@@ -18,6 +18,8 @@ import { dispatchContentReported,
   resolveCanReport,
 } from '../utils/moderation'
 import { shareCommunityContent } from '../utils/shareProfile'
+import { useCommunitySocial } from '../context/CommunitySocialContext'
+import ExpandableCaption from './ExpandableCaption'
 
 const TAGGED_PRODUCTS_LIMIT = 10
 
@@ -161,6 +163,7 @@ export default function PostDetailModal({
   onDeleted,
 }) {
   const { user } = useAuth()
+  const social = useCommunitySocial()
   const [detailPost, setDetailPost] = useState(() => normalizeDetail(rawPost))
   const [detailLoading, setDetailLoading] = useState(false)
   const [imageIndex, setImageIndex] = useState(0)
@@ -185,6 +188,8 @@ export default function PostDetailModal({
   const canBlockPost = Boolean(post) && resolveCanBlock(post, isOwnPost)
   const canReportPost = Boolean(post) && resolveCanReport(post, isOwnPost)
   const showPostMenu = Boolean(post) && (isOwnPost || canBlockPost || canReportPost)
+  const postId = post?.id || post?._id
+  const isSaved = social.isSavedContent(postId, post?.isSaved)
 
   useEffect(() => {
     setDetailPost(normalizeDetail(rawPost))
@@ -419,6 +424,18 @@ export default function PostDetailModal({
       setActionSuccess('Link copied')
     } else if (res?.method !== 'aborted' && !res?.success) {
       setActionError('Could not share this post.')
+    }
+  }
+
+  const handleSave = async () => {
+    if (!postId) return
+    setActionError('')
+    const current = Boolean(isSaved)
+    try {
+      await social.toggleSave(postId, current)
+      setDetailPost((prev) => (prev ? { ...prev, isSaved: !current } : prev))
+    } catch (err) {
+      setActionError(getCommunityErrorMessage(err, 'Could not save this post.'))
     }
   }
 
@@ -775,7 +792,11 @@ export default function PostDetailModal({
                 <p className="font-inter text-xs text-neutral-400">Loading post…</p>
               ) : null}
               {post.caption ? (
-                <p className="font-inter text-sm leading-relaxed text-neutral-800">{post.caption}</p>
+                <ExpandableCaption
+                  text={post.caption}
+                  className="font-inter text-sm leading-relaxed text-neutral-800"
+                  collapsedClassName="line-clamp-4"
+                />
               ) : null}
 
               {products.length ? (
@@ -855,6 +876,31 @@ export default function PostDetailModal({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                 </svg>
                 <span className="font-inter text-xs font-medium">Share</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="ml-auto inline-flex cursor-pointer items-center gap-1.5 text-black transition hover:opacity-70"
+                aria-label={isSaved ? 'Unsave post' : 'Save post'}
+                aria-pressed={Boolean(isSaved)}
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill={isSaved ? 'currentColor' : 'none'}
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"
+                  />
+                </svg>
+                <span className="font-inter text-xs font-medium">
+                  {isSaved ? 'Saved' : 'Save'}
+                </span>
               </button>
             </div>
             {post.date ? (

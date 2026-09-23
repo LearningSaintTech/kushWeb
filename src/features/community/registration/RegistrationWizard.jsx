@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import WizardShell from './WizardShell'
 import {
   INITIAL_FORM_DATA,
@@ -68,6 +69,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [bootstrapped, setBootstrapped] = useState(false)
+  const completedRef = useRef(null)
 
   const reset = useCallback(() => {
     setStep(1)
@@ -78,9 +80,13 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
   }, [])
 
   const handleClose = useCallback(() => {
+    const finished = completedRef.current
+    completedRef.current = null
     reset()
+    if (finished) applyProfile(finished)
+    else refresh()
     onClose?.()
-  }, [onClose, reset])
+  }, [onClose, reset, applyProfile, refresh])
 
   useEffect(() => {
     if (!open) return undefined
@@ -136,16 +142,19 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
         }
 
         if (
+          !forceFresh &&
+          !isCommunityProfileDeleted(latest) &&
+          latest?.isDesigner &&
+          latest?.designerOnboardingStep &&
+          latest.designerOnboardingStep !== 'not_started'
+        ) {
+          // Resume saved onboarding — do not selectRole until Continue/Skip persists.
+        } else if (
           !latest?.isDesigner ||
           !latest?.designerOnboardingStep ||
           latest?.designerOnboardingStep === 'not_started'
         ) {
-          try {
-            const roleRes = await communityProfileService.selectRole('designer')
-            if (roleRes) Object.assign(latest, roleRes)
-          } catch (roleErr) {
-            debugLog('[CommunityProfile] auto selectRole designer error', roleErr)
-          }
+          debugLog('[CommunityProfile] designer wizard start without promoting role yet')
         }
         const isRejected = isDesignerRejected(latest)
         const nextForm =
@@ -257,6 +266,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
     }
     if (step === 7) {
       await communityProfileService.patchDesignerLinks(buildDesignerLinksBody(formData))
+      let updated
       if (
         isDesignerRejected(profile) ||
         String(profile?.designerVerificationStatus || '').toLowerCase() === 'rejected' ||
@@ -264,28 +274,22 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
       ) {
         try {
           debugLog('[CommunityProfile] re-submitting rejected designer in wizard')
-          return applyProfile(await communityProfileService.resubmitDesigner())
+          updated = await communityProfileService.resubmitDesigner()
         } catch (resubErr) {
           debugLog('[CommunityProfile] resubmitDesigner fallback in wizard', resubErr)
-          return applyProfile(await communityProfileService.completeDesigner())
+          updated = await communityProfileService.completeDesigner()
         }
+      } else {
+        updated = await communityProfileService.completeDesigner()
       }
-      return applyProfile(await communityProfileService.completeDesigner())
+      completedRef.current = updated
+      return updated
     }
     return profile
   }
 
-  const advanceAfterSave = (updated) => {
-    if (step >= FORM_STEPS) {
-      setStep(TOTAL_STEPS)
-      return
-    }
-    if (isDesignerRejected(profile) || isDesignerRejected(updated)) {
-      setStep(step + 1)
-      return
-    }
-    const fromApi = designerStepIndex(updated)
-    setStep(Math.max(step + 1, fromApi))
+  const goForwardOneStep = () => {
+    setStep((current) => (current >= FORM_STEPS ? TOTAL_STEPS : current + 1))
   }
 
   const handleContinue = async () => {
@@ -308,7 +312,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
         designerOnboardingStep: updated?.designerOnboardingStep,
         designerVerificationStatus: updated?.designerVerificationStatus,
       })
-      advanceAfterSave(updated)
+      goForwardOneStep()
       if (step >= FORM_STEPS) await refresh()
     } catch (e) {
       setError(getCommunityProfileErrorMessage(e))
@@ -325,9 +329,10 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
       const updated = applyProfile(await communityProfileService.skipDesignerStep())
       debugLog('[CommunityProfile] designer skip', {
         uiStep: step,
+        nextStep: step + 1,
         designerOnboardingStep: updated?.designerOnboardingStep,
       })
-      advanceAfterSave(updated)
+      goForwardOneStep()
     } catch (e) {
       setError(getCommunityProfileErrorMessage(e))
     } finally {
@@ -348,8 +353,8 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
 
   const StepComponent = STEP_COMPONENTS[step]
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+  return createPortal(
+    <div className="fixed inset-0 z-[310] flex items-center justify-center p-4 sm:p-6">
       <button
         type="button"
         aria-label="Close registration"
@@ -361,6 +366,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
           step={step}
           onBack={handleBack}
           onSkip={handleSkip}
+          onClose={handleClose}
           onContinue={handleContinue}
           continueLabel={
             saving ? 'Saving…' : step === TOTAL_STEPS ? 'Got it' : 'Continue'
@@ -372,6 +378,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
           <StepComponent data={formData} onChange={patchForm} />
         </WizardShell>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

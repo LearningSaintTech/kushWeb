@@ -30,6 +30,20 @@ export function isCommunityAuthError(err) {
   );
 }
 
+function friendlyCommunityError(msg) {
+  const text = String(msg || '').trim();
+  if (!text) return '';
+  if (
+    /mime\s*type/i.test(text) ||
+    /upload required video/i.test(text) ||
+    /required to upload reel/i.test(text) ||
+    /required video/i.test(text)
+  ) {
+    return 'Please upload a video type';
+  }
+  return text;
+}
+
 export function getCommunityErrorMessage(err, fallback = 'Something went wrong.') {
   if (isCommunityAuthError(err)) {
     triggerAuthRequired();
@@ -37,7 +51,9 @@ export function getCommunityErrorMessage(err, fallback = 'Something went wrong.'
   }
   const data = err?.response?.data;
   const msg = data?.message;
-  if (typeof msg === 'string' && msg.trim()) return msg.trim();
+  if (typeof msg === 'string' && msg.trim()) {
+    return friendlyCommunityError(msg) || fallback;
+  }
   const errors = data?.errors;
   if (Array.isArray(errors) && errors.length) {
     const first = errors[0];
@@ -47,9 +63,11 @@ export function getCommunityErrorMessage(err, fallback = 'Something went wrong.'
       first?.msg ||
       (first?.path && first?.message) ||
       null;
-    if (detail) return String(detail).trim();
+    if (detail) return friendlyCommunityError(detail) || fallback;
   }
-  if (typeof err?.message === 'string' && err.message.trim()) return err.message.trim();
+  if (typeof err?.message === 'string' && err.message.trim()) {
+    return friendlyCommunityError(err.message) || fallback;
+  }
   return fallback;
 }
 

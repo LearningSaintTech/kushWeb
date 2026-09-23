@@ -53,7 +53,8 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
   const handleClose = useCallback(() => {
     reset()
     onClose?.()
-  }, [onClose, reset])
+    refresh()
+  }, [onClose, reset, refresh])
 
   useEffect(() => {
     if (!open) return undefined
@@ -173,13 +174,8 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
     return profile
   }
 
-  const advanceAfterSave = (updated) => {
-    if (step >= TOTAL_STEPS) {
-      setStep(SUCCESS_STEP)
-      return
-    }
-    const nextFromApi = creatorStepIndex(updated)
-    setStep(Math.max(step + 1, nextFromApi))
+  const goForwardOneStep = () => {
+    setStep((current) => (current >= TOTAL_STEPS ? SUCCESS_STEP : current + 1))
   }
 
   const handleContinue = async () => {
@@ -202,7 +198,7 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
         uiStep: step,
         creatorOnboardingStep: updated?.creatorOnboardingStep,
       })
-      advanceAfterSave(updated)
+      goForwardOneStep()
       if (step >= TOTAL_STEPS) await refresh()
     } catch (err) {
       setError(getCommunityProfileErrorMessage(err))
@@ -220,9 +216,10 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
       const updated = applyProfile(await communityProfileService.skipCreatorStep())
       debugLog('[CommunityProfile] creator skip', {
         uiStep: step,
+        nextStep: step + 1,
         creatorOnboardingStep: updated?.creatorOnboardingStep,
       })
-      advanceAfterSave(updated)
+      goForwardOneStep()
     } catch (err) {
       setError(getCommunityProfileErrorMessage(err))
     } finally {

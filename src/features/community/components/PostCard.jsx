@@ -3,6 +3,7 @@ import { useAuth } from '../../../app/context/AuthContext'
 import { communityService } from '../../../services/community.service.js'
 import { debugError } from '../../../utils/debugLog.js'
 import TaggedProductsCarousel from './reels/TaggedProductsCarousel'
+import ExpandableCaption from './ExpandableCaption'
 import { isSameCommunityUser } from '../utils/userIds'
 
 /** Session-level dedupe for POST /community/content/:id/view */
@@ -283,16 +284,21 @@ function PostCard({
       </div>
 
       <div className="mt-3 font-inter text-sm leading-relaxed text-neutral-800">
-        <p>
-          <button
-            type="button"
-            onClick={onProfileClick}
-            className="cursor-pointer font-semibold text-black transition hover:opacity-65"
-          >
-            {author.name}
-          </button>{' '}
-          {body}
-        </p>
+        <ExpandableCaption
+          text={body}
+          className="font-inter text-sm leading-relaxed text-neutral-800"
+          prefix={
+            <>
+              <button
+                type="button"
+                onClick={onProfileClick}
+                className="cursor-pointer font-semibold text-black transition hover:opacity-65"
+              >
+                {author.name}
+              </button>{' '}
+            </>
+          }
+        />
         {tags.length ? (
           <p className="mt-1">
             {tags.map((tag) => (

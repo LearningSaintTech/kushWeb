@@ -491,6 +491,9 @@ export async function createReelFast({
 
   if (!primaryId) throw new Error('Pick a purchased product before posting');
   if (!videoFile) throw new Error('Add a video');
+  if (!String(videoFile.type || '').startsWith('video/')) {
+    throw new Error('Please upload a video type');
+  }
 
   onProgress?.(5, 'upload-video');
   const video = await uploadCommunityFile(videoFile, {

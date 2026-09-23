@@ -210,12 +210,22 @@ export default function CommunityFeedLayout({
       : fileOrFiles
         ? [fileOrFiles]
         : []
+    const accepted =
+      createKind === 'reel'
+        ? files.filter((f) => f?.type?.startsWith('video/'))
+        : files
+    if (createKind === 'reel' && !accepted.length) {
+      debugLog('[Community] media rejected — video type required', {
+        names: files.map((f) => f?.name),
+      })
+      return
+    }
     debugLog('[Community] media picked for create', {
       kind: createKind,
-      count: files.length,
-      names: files.map((f) => f?.name),
+      count: accepted.length,
+      names: accepted.map((f) => f?.name),
     })
-    setCreateMediaFile(files.length <= 1 ? files[0] || null : files)
+    setCreateMediaFile(accepted.length <= 1 ? accepted[0] || null : accepted)
     setMediaSheetOpen(false)
     setCreateTypeOpen(false)
     setComposerOpen(true)

@@ -652,6 +652,24 @@ export function mapSocialProfile(raw) {
   return profile;
 }
 
+/** Deduped people from explore search: data.profiles + data.creators */
+export function extractFeedPeople(data) {
+  const raw = [
+    ...(Array.isArray(data?.profiles) ? data.profiles : []),
+    ...(Array.isArray(data?.creators) ? data.creators : []),
+  ];
+  const seen = new Set();
+  const people = [];
+  raw.forEach((row) => {
+    const mapped = mapSocialProfile(row);
+    const id = mapped?.id ? String(mapped.id) : '';
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    people.push(mapped);
+  });
+  return people;
+}
+
 const PROJECT_FALLBACK_STYLES = [
   'bg-[linear-gradient(145deg,#a23eea_0%,#e94cc1_34%,#00c3e8_68%,#086acf_100%)]',
   'bg-[linear-gradient(155deg,#1b7cc1_0%,#2ad3d1_45%,#7356e8_100%)]',

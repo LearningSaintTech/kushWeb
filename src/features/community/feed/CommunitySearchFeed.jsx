@@ -10,6 +10,38 @@ import { SearchCardSkeleton } from '../components/PostCardSkeleton'
 import { openCommunityMedia, playlistFromGrid } from '../utils/openReel'
 import { useAuth } from '../../../app/context/AuthContext'
 
+function SearchPersonRow({ person, onOpen }) {
+  const name = person?.name || person?.handle || 'Creator'
+  const handle = person?.handle ? `@${String(person.handle).replace(/^@/, '')}` : ''
+  const roleLabel = person?.isDesigner ? 'Designer' : person?.isCreator ? 'Creator' : 'Member'
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(person)}
+      className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-1 py-2 text-left transition hover:bg-neutral-50"
+    >
+      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-neutral-200">
+        {person?.avatar || person?.profileImage ? (
+          <img
+            src={person.avatar || person.profileImage}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : null}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-inter text-sm font-semibold text-black">{name}</p>
+        <p className="truncate font-inter text-xs text-neutral-500">
+          {handle}
+          {handle ? ' · ' : ''}
+          {roleLabel}
+        </p>
+      </div>
+    </button>
+  )
+}
+
 function SearchResultCard({ item, onOpen }) {
   return (
     <button
@@ -18,11 +50,19 @@ function SearchResultCard({ item, onOpen }) {
       className="mb-4 block w-full break-inside-avoid cursor-pointer text-left"
     >
       <div className="overflow-hidden rounded-2xl bg-neutral-100 aspect-[3/4]">
-        {item.image ? (
+        {item.image || item.poster ? (
           <img
-            src={item.image}
+            src={item.image || item.poster}
             alt=""
             className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]"
+          />
+        ) : item.videoUrl || item.video ? (
+          <video
+            src={item.videoUrl || item.video}
+            muted
+            playsInline
+            preload="metadata"
+            className="h-full w-full object-cover"
           />
         ) : null}
       </div>
@@ -59,7 +99,7 @@ export default function CommunitySearchFeed() {
   const [debouncedQ, setDebouncedQ] = useState('')
   const [filter, setFilter] = useState('All')
   const [chips, setChips] = useState([])
-  const { openPost } = useCommunityFeedUi()
+  const { openPost, openProfile } = useCommunityFeedUi()
   const navigate = useNavigate()
   const sentinelRef = useRef(null)
 
@@ -91,9 +131,15 @@ export default function CommunitySearchFeed() {
   }, [])
 
   const feedType = filter === 'Reels' ? 'reel' : filter === 'Posts' ? 'post' : 'all'
+  const chipKeyword =
+    filter !== 'All' && filter !== 'Reels' && filter !== 'Posts'
+      ? filter.replace(/^#/, '')
+      : ''
+  const searchQ = (debouncedQ || chipKeyword || '').trim() || undefined
 
   const {
     items,
+    people,
     loading,
     loadingMore,
     hasMore,
@@ -103,8 +149,7 @@ export default function CommunitySearchFeed() {
   } = useCommunityFeed({
     scope: 'explore',
     type: feedType === 'all' ? 'all' : feedType,
-    q: debouncedQ || undefined,
-    hashtag: filter !== 'All' && filter !== 'Reels' && filter !== 'Posts' ? filter.replace(/^#/, '') : undefined,
+    q: searchQ,
     enabled: isAuthenticated,
   })
 
@@ -134,6 +179,8 @@ export default function CommunitySearchFeed() {
   }, [chips])
 
   const results = items
+  const showPeople = filter === 'All' && people.length > 0
+  const hasResults = results.length > 0 || showPeople
   const reelPlaylist = useMemo(
     () => playlistFromGrid(results.filter((row) => String(row?.type || '').toLowerCase() === 'reel')),
     [results],
@@ -150,6 +197,11 @@ export default function CommunitySearchFeed() {
     })
   }
 
+  const handleOpenPerson = (person) => {
+    logCommunity('SearchFeed open profile', { id: person?.id, username: person?.handle })
+    openProfile?.(person)
+  }
+
   return (
     <div className="pb-8">
       <label className="relative block">
@@ -162,6 +214,12 @@ export default function CommunitySearchFeed() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              setDebouncedQ(query.trim())
+            }
+          }}
           placeholder="Search style, creators, or collections..."
           className="w-full rounded-lg border border-neutral-200 bg-white py-3.5 pl-12 pr-4 font-inter text-sm text-black outline-none transition placeholder:text-neutral-400 focus:border-neutral-400"
         />
@@ -208,6 +266,21 @@ export default function CommunitySearchFeed() {
         </div>
       ) : null}
 
+      {!loading && showPeople ? (
+        <div className="mt-6">
+          <h2 className="mb-2 font-inter text-sm font-semibold text-black">People</h2>
+          <div className="divide-y divide-neutral-100">
+            {people.map((person) => (
+              <SearchPersonRow
+                key={person.id}
+                person={person}
+                onOpen={handleOpenPerson}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {!loading && results.length > 0 ? (
         <div className="mt-6 columns-2 gap-4 md:columns-3">
           {results.map((item) => (
@@ -229,7 +302,7 @@ export default function CommunitySearchFeed() {
         </div>
       ) : null}
 
-      {!loading && !results.length ? (
+      {!loading && !hasResults ? (
         <p className="mt-16 text-center font-inter text-sm text-neutral-400">
           No results for this search.
         </p>

@@ -1,10 +1,14 @@
 import { useAuth } from '../../../app/context/AuthContext'
 import { useCommunityProfile } from '../context/CommunityProfileContext'
 import { COMMUNITY_ROLES } from '../capabilities'
+import {
+  isCommunityProfileDeleted,
+  isDesignerRoleReady,
+} from '../../../services/communityProfile.service'
 
 /**
- * Resolve community role from community profile flags (isDesigner / isCreator).
- * Dev override: localStorage.setItem('khushCommunityRole', 'creator' | 'designer' | 'user')
+ * Resolve community role from the latest community profile.
+ * Designer chrome (tabs/badge) only after designer onboarding is actually ready.
  */
 export function useCommunityRole() {
   const { user, isAuthenticated } = useAuth()
@@ -19,9 +23,12 @@ export function useCommunityRole() {
 
   if (!isAuthenticated || !user) return COMMUNITY_ROLES.GUEST
 
-  // Prefer community-profile flags (designer implies creator on backend)
-  if (profile?.isDesigner) return COMMUNITY_ROLES.DESIGNER
-  if (profile?.isCreator) return COMMUNITY_ROLES.CREATOR
+  if (profile) {
+    if (isCommunityProfileDeleted(profile)) return COMMUNITY_ROLES.USER
+    if (isDesignerRoleReady(profile)) return COMMUNITY_ROLES.DESIGNER
+    if (profile.isCreator === true) return COMMUNITY_ROLES.CREATOR
+    return COMMUNITY_ROLES.USER
+  }
 
   if (user.isDesigner || user.is_designer) return COMMUNITY_ROLES.DESIGNER
   if (user.isCreator || user.is_creator) return COMMUNITY_ROLES.CREATOR

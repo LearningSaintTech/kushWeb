@@ -12,6 +12,7 @@ import {
   mapContentToReel,
   mapSaveItem,
   extractSavesList,
+  extractFeedPeople,
 } from '../../../services/communityContent.mappers.js';
 import { useCommunitySocial } from '../context/CommunitySocialContext';
 
@@ -32,6 +33,7 @@ export function useCommunityFeed(options = {}) {
 
   const { seedFromContentItems, withSocial } = useCommunitySocial();
   const [items, setItems] = useState([]);
+  const [people, setPeople] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -53,8 +55,8 @@ export function useCommunityFeed(options = {}) {
     async ({ cursor = null, append = false } = {}) => {
       if (!enabled) return;
 
-      // Prevent concurrent duplicate requests
-      if (inFlightRef.current) {
+      // Append can wait; a new query/filter must replace in-flight results.
+      if (append && inFlightRef.current) {
         logCommunity('useCommunityFeed.skip_in_flight', { cursor, append });
         return;
       }
@@ -65,6 +67,7 @@ export function useCommunityFeed(options = {}) {
         return;
       }
 
+      const id = ++reqId.current;
       inFlightRef.current = true;
       if (append) {
         lastCursorRef.current = cursor;
@@ -75,7 +78,6 @@ export function useCommunityFeed(options = {}) {
       }
       setError(null);
 
-      const id = ++reqId.current;
       logCommunity('useCommunityFeed.fetch', { scope, type, q, hashtag, cursor, append });
 
       try {
@@ -95,9 +97,26 @@ export function useCommunityFeed(options = {}) {
         const mapped =
           type === 'reel'
             ? rawItems.map(mapContentToReel).filter(Boolean)
-            : rawItems.map(mapContentToPost).filter(Boolean);
+            : rawItems.map((row) =>
+                String(row?.type || '').toLowerCase() === 'reel'
+                  ? mapContentToReel(row)
+                  : mapContentToPost(row),
+              ).filter(Boolean);
 
         seedRef.current?.(mapped);
+
+        const foundPeople = extractFeedPeople(data);
+        setPeople((prev) => {
+          if (!append) return foundPeople;
+          const existingIds = new Set(prev.map((p) => String(p.id)));
+          const uniqueNew = foundPeople.filter((p) => {
+            const id = String(p.id || '');
+            if (!id || existingIds.has(id)) return false;
+            existingIds.add(id);
+            return true;
+          });
+          return [...prev, ...uniqueNew];
+        });
 
         setItems((prev) => {
           if (!append) return mapped;
@@ -119,15 +138,20 @@ export function useCommunityFeed(options = {}) {
 
         logCommunity('useCommunityFeed.ok', {
           count: mapped.length,
+          people: foundPeople.length,
           hasMore: newHasMore,
           nextCursor: newCursor,
+          q,
         });
       } catch (err) {
         if (id !== reqId.current) return;
         const message = getCommunityErrorMessage(err, 'Failed to load feed');
         debugError('[Community] useCommunityFeed error', message);
         setError(message);
-        if (!append) setItems([]);
+        if (!append) {
+          setItems([]);
+          setPeople([]);
+        }
       } finally {
         if (id === reqId.current) {
           setLoading(false);
@@ -199,6 +223,7 @@ export function useCommunityFeed(options = {}) {
 
   return {
     items: socialItems,
+    people,
     loading,
     loadingMore,
     error,
