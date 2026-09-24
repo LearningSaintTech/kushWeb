@@ -5,7 +5,7 @@ import {
   useCommunitySocialProfile,
   requestCommunityProfileRefresh,
 } from '../../hooks/useCommunitySocialProfile'
-import { communityProfileService } from '../../../../services/communityProfile.service'
+import { communityProfileService, isDesignerRoleReady } from '../../../../services/communityProfile.service'
 import { debugError, debugLog } from '../../../../utils/debugLog'
 import { shareCommunityProfile } from '../../utils/shareProfile'
 import { playlistFromGrid } from '../../utils/openReel'
@@ -146,7 +146,7 @@ export default function DesignerProfileCard({
       onboarding?.shortBio ||
       '',
     cover: getPublicImageUrl(rawCover),
-    badge: social?.isDesigner || onboarding?.isDesigner ? 'DESIGNER' : 'CREATOR',
+    badge: isDesignerRoleReady(social) || isDesignerRoleReady(onboarding) ? 'DESIGNER' : 'CREATOR',
     openToWork: Boolean(onboarding?.openToWork),
     stats: {
       followers: social?.stats?.followers ?? '0',

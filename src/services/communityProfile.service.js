@@ -273,6 +273,7 @@ export {
   isDesignerVerified,
   isDesignerPending,
   isDesignerRejected,
+  isDesignerRoleReady,
   isDesignerOnboardingIncomplete,
   isCreatorOnboardingIncomplete,
 } from './communityProfile.mappers.js';

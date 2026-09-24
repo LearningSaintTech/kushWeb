@@ -67,9 +67,12 @@ export default function CommunityPage() {
     setJoining(role)
     try {
       debugLog('[CommunityProfile] landing join', { role })
+      if (role === 'designer') {
+        setShowRegister(true)
+        return
+      }
       await selectRole(role)
-      if (role === 'designer') setShowRegister(true)
-      else setShowCreatorJoin(true)
+      setShowCreatorJoin(true)
     } catch (err) {
       setJoinError(getCommunityProfileErrorMessage(err))
     } finally {

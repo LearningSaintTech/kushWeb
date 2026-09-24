@@ -16,10 +16,12 @@ export default function AddMediaSheet({
 }) {
   const galleryInputRef = useRef(null)
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [pickError, setPickError] = useState(null)
 
   useEffect(() => {
     if (!open) {
       setCameraOpen(false)
+      setPickError(null)
       return undefined
     }
     const onKeyDown = (event) => {
@@ -41,7 +43,13 @@ export default function AddMediaSheet({
     event.target.value = ''
     if (!list.length) return
     if (isReel) {
-      onGallery?.(list[0])
+      const video = list.find((f) => f.type?.startsWith('video/'))
+      if (!video) {
+        setPickError('Please upload a video type')
+        return
+      }
+      setPickError(null)
+      onGallery?.(video)
       return
     }
     const images = list
@@ -92,6 +100,13 @@ export default function AddMediaSheet({
               <p className="mt-1.5 text-center font-inter text-xs text-neutral-400">
                 Select multiple photos for a carousel post
               </p>
+            ) : (
+              <p className="mt-1.5 text-center font-inter text-xs text-neutral-400">
+                Video type required
+              </p>
+            )}
+            {pickError ? (
+              <p className="mt-2 text-center font-inter text-xs text-red-600">{pickError}</p>
             ) : null}
           </div>
 

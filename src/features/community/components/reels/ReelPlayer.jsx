@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import TaggedProductsCarousel from './TaggedProductsCarousel'
+import ExpandableCaption from '../ExpandableCaption'
 
 function PlayIcon({ className }) {
   return (
@@ -457,9 +458,14 @@ export default function ReelPlayer({
         </div>
 
         {caption ? (
-          <p className="mt-2.5 line-clamp-2 font-inter text-sm leading-relaxed text-white/95">
-            {caption}
-          </p>
+          <div className="mt-2.5" data-reel-ui>
+            <ExpandableCaption
+              text={caption}
+              className="font-inter text-sm leading-relaxed text-white/95"
+              collapsedClassName="line-clamp-2"
+              buttonClassName="mt-1 cursor-pointer font-inter text-xs font-semibold text-white/80 transition hover:text-white"
+            />
+          </div>
         ) : null}
       </div>
     </div>

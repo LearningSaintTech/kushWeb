@@ -12,21 +12,24 @@ import {
   isCommunityProfileDeleted,
   isDesignerOnboardingIncomplete,
   isCreatorOnboardingIncomplete,
+  isDesignerRoleReady,
 } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
 /**
  * Profile entry — joins for normal users; creator / designer dashboards by role.
- * Incomplete onboarding resumes the matching wizard once per visit.
+ * Designer dashboard only after onboarding is complete. Incomplete designer
+ * flow stays on creator/join and can resume the wizard.
  */
 export default function CommunityProfilePage() {
   const outletCtx = useCommunityFeedUi()
   const role = useCommunityRole()
-  const { profile } = useCommunityProfile()
+  const { profile, refresh } = useCommunityProfile()
   const [resumeCreator, setResumeCreator] = useState(false)
   const [resumeDesigner, setResumeDesigner] = useState(false)
   const autoResumeDoneRef = useRef(false)
   const profileDeleted = isCommunityProfileDeleted(profile)
+  const designerReady = isDesignerRoleReady(profile)
 
   useEffect(() => {
     if (!profile || autoResumeDoneRef.current || profileDeleted) return
@@ -34,7 +37,7 @@ export default function CommunityProfilePage() {
     const designerIncomplete = isDesignerOnboardingIncomplete(profile)
     const creatorIncomplete = isCreatorOnboardingIncomplete(profile)
 
-    if (designerIncomplete) {
+    if (designerIncomplete && !designerReady) {
       debugLog('[CommunityProfile] resume designer onboarding', {
         step: profile.designerOnboardingStep,
         status: profile.designerVerificationStatus,
@@ -51,28 +54,56 @@ export default function CommunityProfilePage() {
       autoResumeDoneRef.current = true
       setResumeCreator(true)
     }
-  }, [profile, profileDeleted])
+  }, [profile, profileDeleted, designerReady])
 
-  if (role === COMMUNITY_ROLES.DESIGNER) {
+  const handleDesignerWizardClose = () => {
+    setResumeDesigner(false)
+    refresh()
+  }
+
+  const handleCreatorWizardClose = () => {
+    setResumeCreator(false)
+    refresh()
+  }
+
+  const wizard = (
+    <>
+      <RegistrationWizard open={resumeDesigner} onClose={handleDesignerWizardClose} />
+      <CreatorWizard open={resumeCreator} onClose={handleCreatorWizardClose} />
+    </>
+  )
+
+  if (profileDeleted) {
+    return (
+      <>
+        <CommunityProfileJoin />
+        {wizard}
+      </>
+    )
+  }
+
+  if (designerReady || role === COMMUNITY_ROLES.DESIGNER) {
     return (
       <>
         <CommunityDesignerProfile {...outletCtx} />
-        <RegistrationWizard
-          open={resumeDesigner}
-          onClose={() => setResumeDesigner(false)}
-        />
+        {wizard}
       </>
     )
   }
 
-  if (can(role, 'canPost')) {
+  if (can(role, 'canPost') || profile?.isCreator) {
     return (
       <>
         <CommunityCreatorProfile {...outletCtx} />
-        <CreatorWizard open={resumeCreator} onClose={() => setResumeCreator(false)} />
+        {wizard}
       </>
     )
   }
 
-  return <CommunityProfileJoin />
+  return (
+    <>
+      <CommunityProfileJoin />
+      {wizard}
+    </>
+  )
 }

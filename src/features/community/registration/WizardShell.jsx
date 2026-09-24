@@ -5,6 +5,7 @@ export default function WizardShell({
   step,
   onBack,
   onSkip,
+  onClose,
   onContinue,
   continueLabel = 'Continue',
   continueDisabled = false,
@@ -26,8 +27,21 @@ export default function WizardShell({
       aria-modal="true"
       aria-labelledby="reg-wizard-title"
     >
+      {onClose ? (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      ) : null}
+
       {!isSuccess ? (
-        <div className="flex items-center justify-between px-4 pt-4 sm:px-5 sm:pt-5">
+        <div className="flex items-center justify-between px-4 pt-4 pr-12 sm:px-5 sm:pt-5 sm:pr-14">
           <button
             type="button"
             onClick={onBack}

@@ -18,9 +18,11 @@ import topSvg from '../../../../assets/images/community/top.svg'
 
 const SUGGESTED_TAGS = ['#Minimalist', '#LinenLove', '#SummerLook', '#KhushStyle']
 const PURCHASED_PAGE_SIZE = 6
+const PURCHASED_FETCH_LIMIT = 50
 const SEARCH_DEBOUNCE_MS = 300
 const MAX_POST_IMAGES = 10
 const MAX_TAGGED_PRODUCTS = 10
+const VIDEO_TYPE_MESSAGE = 'Please upload a video type'
 
 function formatDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds <= 0) return '0:30'
@@ -34,6 +36,12 @@ function normalizeIncomingMedia(mediaFile) {
   if (!mediaFile) return []
   if (Array.isArray(mediaFile)) return mediaFile.filter(Boolean)
   return [mediaFile]
+}
+
+function mergePurchased(prev, next) {
+  const seen = new Set(prev.map((item) => String(item.id)))
+  const extra = next.filter((item) => !seen.has(String(item.id)))
+  return extra.length ? [...prev, ...extra] : prev
 }
 
 function extractPurchasedPage(data, requestedPage) {
@@ -92,10 +100,6 @@ export default function CreatePostComposer({
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [catalogError, setCatalogError] = useState(null)
   const [catalogPage, setCatalogPage] = useState(1)
-  const [catalogCursor, setCatalogCursor] = useState(null)
-  const [catalogHasMore, setCatalogHasMore] = useState(false)
-  const [catalogTotalPages, setCatalogTotalPages] = useState(1)
-  const [cursorByPage, setCursorByPage] = useState({ 1: null })
   const [tagged, setTagged] = useState([])
   const [previewUrls, setPreviewUrls] = useState([])
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
@@ -125,51 +129,57 @@ export default function CreatePostComposer({
   const taggedIds = new Set(tagged.map((t) => String(t.id)))
   const suggestions = catalog.filter((p) => !taggedIds.has(String(p.id)))
   const canTagMore = tagged.length < MAX_TAGGED_PRODUCTS
+  const catalogTotalPages = Math.max(
+    1,
+    Math.ceil(suggestions.length / PURCHASED_PAGE_SIZE) || 1,
+  )
+  const safePage = Math.min(catalogPage, catalogTotalPages)
+  const pageItems = suggestions.slice(
+    (safePage - 1) * PURCHASED_PAGE_SIZE,
+    safePage * PURCHASED_PAGE_SIZE,
+  )
 
   const loadPurchasedItems = useCallback(
-    async ({ q = '', page = 1, cursor = null } = {}) => {
+    async ({ q = '' } = {}) => {
       const reqId = ++searchReqId.current
       setCatalogLoading(true)
       setCatalogError(null)
 
-      logCommunity('CreatePostComposer purchased-items', { q, page, cursor })
+      logCommunity('CreatePostComposer purchased-items', { q })
       try {
-        const data = await communityService.getPurchasedItems({
-          limit: PURCHASED_PAGE_SIZE,
-          page,
-          ...(q ? { q } : {}),
-          ...(cursor ? { cursor } : {}),
-        })
-        if (reqId !== searchReqId.current) return
+        let page = 1
+        let collected = []
+        let keepFetching = true
 
-        const {
-          mapped,
-          nextCursor,
-          page: resPage,
-          hasMore,
-          totalPages,
-        } = extractPurchasedPage(data, page)
+        while (keepFetching && page <= 20) {
+          const data = await communityService.getPurchasedItems({
+            limit: PURCHASED_FETCH_LIMIT,
+            page,
+            ...(q ? { q } : {}),
+          })
+          if (reqId !== searchReqId.current) return
 
-        setCatalog(mapped)
-        setCatalogPage(resPage || page)
-        setCatalogCursor(nextCursor)
-        setCatalogHasMore(hasMore)
-        setCatalogTotalPages(Math.max(1, totalPages))
-        setCursorByPage((prev) => ({
-          ...prev,
-          [resPage || page]: cursor || null,
-          [(resPage || page) + 1]: nextCursor,
-        }))
+          const { mapped, hasMore } = extractPurchasedPage(data, page)
+          const before = collected.length
+          collected = mergePurchased(collected, mapped)
+          keepFetching =
+            Boolean(hasMore) &&
+            mapped.length > 0 &&
+            collected.length > before
+          page += 1
+          if (mapped.length < PURCHASED_FETCH_LIMIT) keepFetching = false
+        }
+
+        setCatalog(collected)
+        setCatalogPage(1)
 
         logCommunity('CreatePostComposer purchased-items ok', {
-          count: mapped.length,
-          hasMore,
-          page: resPage || page,
+          count: collected.length,
           q,
         })
 
-        if (!q && mapped.length === 1 && page === 1) {
-          setTagged([mapped[0]])
+        if (!q && collected.length === 1) {
+          setTagged([collected[0]])
         }
       } catch (err) {
         if (reqId !== searchReqId.current) return
@@ -177,7 +187,6 @@ export default function CreatePostComposer({
         debugError('[Community] purchased-items failed', message)
         setCatalogError(message)
         setCatalog([])
-        setCatalogHasMore(false)
       } finally {
         if (reqId === searchReqId.current) setCatalogLoading(false)
       }
@@ -203,10 +212,6 @@ export default function CreatePostComposer({
     setCatalogError(null)
     setCatalog([])
     setCatalogPage(1)
-    setCatalogCursor(null)
-    setCatalogHasMore(false)
-    setCatalogTotalPages(1)
-    setCursorByPage({ 1: null })
     setPickerOpen(true)
     return undefined
   }, [open])
@@ -223,8 +228,7 @@ export default function CreatePostComposer({
     const t = window.setTimeout(() => {
       const q = productQuery.trim()
       setDebouncedQuery(q)
-      setCursorByPage({ 1: null })
-      loadPurchasedItems({ q, page: 1, cursor: null })
+      loadPurchasedItems({ q })
     }, delay)
     return () => window.clearTimeout(t)
   }, [open, productQuery, loadPurchasedItems])
@@ -255,16 +259,14 @@ export default function CreatePostComposer({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  useEffect(() => {
+    if (catalogPage > catalogTotalPages) setCatalogPage(catalogTotalPages)
+  }, [catalogPage, catalogTotalPages])
+
   const goToProductPage = (nextPage) => {
     if (catalogLoading) return
-    if (nextPage < 1) return
-    if (nextPage > catalogPage && !catalogHasMore && nextPage > catalogTotalPages) return
-    const cursor = cursorByPage[nextPage] ?? (nextPage === catalogPage + 1 ? catalogCursor : null)
-    loadPurchasedItems({
-      q: debouncedQuery,
-      page: nextPage,
-      cursor: nextPage === 1 ? null : cursor,
-    })
+    if (nextPage < 1 || nextPage > catalogTotalPages) return
+    setCatalogPage(nextPage)
   }
 
   const appendHashtag = (tag) => {
@@ -305,7 +307,12 @@ export default function CreatePostComposer({
     if (!picked.length) return
 
     if (kind === 'reel') {
-      const video = picked.find((f) => f.type?.startsWith('video/')) || picked[0]
+      const video = picked.find((f) => f.type?.startsWith('video/'))
+      if (!video) {
+        setPostError(VIDEO_TYPE_MESSAGE)
+        return
+      }
+      setPostError(null)
       setLocalFiles([video])
       setMediaReady(true)
       setActiveMediaIndex(0)
@@ -334,6 +341,11 @@ export default function CreatePostComposer({
       setPostError('Add media before posting')
       return
     }
+    const primary = mediaFiles[0]
+    if (kind === 'reel' && !primary?.type?.startsWith('video/')) {
+      setPostError(VIDEO_TYPE_MESSAGE)
+      return
+    }
     const itemIds = tagged
       .map((p) => p.itemId || p.id)
       .filter(Boolean)
@@ -354,7 +366,6 @@ export default function CreatePostComposer({
 
     const captionText = caption.trim()
     const hashtags = extractHashtagsFromCaption(captionText)
-    const primary = mediaFiles[0]
 
     debugLog('[Community] Post to Community (fast upload)', {
       kind,
@@ -374,6 +385,9 @@ export default function CreatePostComposer({
 
       let result
       if (kind === 'reel' || primary?.type?.startsWith('video/')) {
+        if (!primary?.type?.startsWith('video/')) {
+          throw new Error(VIDEO_TYPE_MESSAGE)
+        }
         result = await createReelFast({
           itemId: itemIds[0],
           itemIds,
@@ -408,9 +422,13 @@ export default function CreatePostComposer({
         content: result,
       })
     } catch (err) {
-      const message = isDesignerNotVerifiedError(err)
+      const raw = isDesignerNotVerifiedError(err)
         ? 'Designer account must be verified before creating posts'
         : getCommunityErrorMessage(err, 'Failed to publish')
+      const message =
+        /mime|video type|required video/i.test(String(raw))
+          ? VIDEO_TYPE_MESSAGE
+          : raw
       debugError('[Community] Post to Community failed', message)
       setPostError(message)
       setPosting(false)
@@ -430,13 +448,12 @@ export default function CreatePostComposer({
           : 'Posting…'
 
   const previewUrl = previewUrls[activeMediaIndex] || previewUrls[0] || ''
-  const canGoPrevPage = catalogPage > 1 && !catalogLoading
-  const canGoNextPage =
-    (catalogHasMore || catalogPage < catalogTotalPages) && !catalogLoading
+  const canGoPrevPage = safePage > 1 && !catalogLoading
+  const canGoNextPage = safePage < catalogTotalPages && !catalogLoading
   const pageLabel =
     catalogTotalPages > 1
-      ? `${catalogPage} / ${catalogTotalPages}`
-      : `Page ${catalogPage}`
+      ? `${safePage} / ${catalogTotalPages}`
+      : `Page ${safePage}`
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-black/50 px-3 py-6 sm:px-8 sm:py-10 lg:px-12 lg:py-12">
@@ -591,7 +608,7 @@ export default function CreatePostComposer({
                       <p className="px-4 py-8 text-center font-inter text-xs text-neutral-400">
                         Loading products…
                       </p>
-                    ) : suggestions.length === 0 ? (
+                    ) : pageItems.length === 0 ? (
                       <p className="px-4 py-8 text-center font-inter text-xs text-neutral-400">
                         {debouncedQuery
                           ? 'No purchased products match your search.'
@@ -601,7 +618,7 @@ export default function CreatePostComposer({
                       </p>
                     ) : (
                       <ul className="divide-y divide-neutral-100">
-                        {suggestions.map((item) => (
+                        {pageItems.map((item) => (
                           <li key={item.id}>
                             <button
                               type="button"
@@ -635,7 +652,7 @@ export default function CreatePostComposer({
                   <div className="flex items-center justify-between gap-3 border-t border-neutral-100 px-3 py-2.5">
                     <button
                       type="button"
-                      onClick={() => goToProductPage(catalogPage - 1)}
+                      onClick={() => goToProductPage(safePage - 1)}
                       disabled={!canGoPrevPage}
                       className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-neutral-200 text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="Previous products page"
@@ -649,7 +666,7 @@ export default function CreatePostComposer({
                     </span>
                     <button
                       type="button"
-                      onClick={() => goToProductPage(catalogPage + 1)}
+                      onClick={() => goToProductPage(safePage + 1)}
                       disabled={!canGoNextPage}
                       className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-neutral-200 text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="Next products page"

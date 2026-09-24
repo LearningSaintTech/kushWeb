@@ -33,7 +33,7 @@ const VIEWS = {
 }
 
 /**
- * Side drawer — Creator/Designer settings from profile dashboard info icon.
+ * Side drawer — Creator/Designer settings from profile dashboard settings icon.
  * Views: menu → payment details | delete confirm
  * Payout methods API is used only when VITE_APP_ENV=dev.
  */

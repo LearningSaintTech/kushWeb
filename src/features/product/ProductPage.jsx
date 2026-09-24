@@ -1090,18 +1090,18 @@ function ProductPage() {
 
             <div className="mt-3 sm:mt-4 md:mt-4 lg:mt-[30px] border-b border-gray-300" />
 
-            {/* DETAILS */}
+            {/* DETAILS / CARE / RETURN — shared mobile + desktop type scale */}
             <div className="border-b border-gray-300">
               <button
                 type="button"
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("details")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium  uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
+                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px]">
                   <RiFileList2Line className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Details</span>
                 </span>
-                <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
+                <span className="inline-flex shrink-0 text-lg text-gray-500 transition-transform duration-200 ease-out sm:text-xl md:text-lg lg:text-[22px]">
                   {expandedSection === "details" ? (
                     <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
                   ) : (
@@ -1119,9 +1119,9 @@ function ProductPage() {
                 }}
               >
                 <div className="overflow-hidden">
-                  <div className="px-0 pb-3 sm:pb-4 md:pb-3 pt-0 lg:pb-4">
+                  <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
                     <p
-                      className={`text-xs sm:text-sm md:text-sm lg:text-base text-gray-700 wrap-break-word ${
+                      className={`wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base ${
                         longDescNeedsMore && !longDescExpanded
                           ? "product-desc-clamp-long whitespace-normal"
                           : "whitespace-pre-wrap"
@@ -1150,11 +1150,11 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("care")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
+                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px]">
                   <RiTShirtAirLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Care</span>
                 </span>
-                <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-[20px] sm:text-xl md:text-lg lg:text-[22px]">
+                <span className="inline-flex shrink-0 text-lg text-gray-500 transition-transform duration-200 ease-out sm:text-xl md:text-lg lg:text-[22px]">
                   {expandedSection === "care" ? (
                     <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
                   ) : (
@@ -1169,35 +1169,16 @@ function ProductPage() {
                 }}
               >
                 <div className="overflow-hidden">
-                  <div className="pt-0 pb-3">
-                    {" "}
-                    <div className="shrink-0 text-gray-500">
-                       {/* <RiTruckLine
-                        className="h-4 w-4 sm:h-5 sm:w-5 md:h-4 md:w-4 lg:h-6 lg:w-6"
-                        aria-hidden
-                      />  */}
-                    </div>
-                    <div className="min-w-0">
-                       {/* <p className="text-xs sm:text-sm md:text-sm lg:text-base xl:text-[16px] text-gray-800">
-                        {item.shipping?.title || "Free Flat Rate Shipping"}
-                      </p>  */}
-                       {/* <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs md:text-xs lg:text-sm xl:text-[15px] text-gray-500">
-                        {item.shipping?.estimatedDelivery ||
-                          "Estimated delivery based on your pincode."}
-                      </p>  */}
-                      {careBulletPoints.length > 0 && (
-                        <ul
-                          className="mt-2 list-disc space-y-1 pl-5 text-lg
-                         text-gray-600"
-                        >
-                          {careBulletPoints.map((point, idx) => (
-                            <li key={`${point.slice(0, 20)}-${idx}`}>
-                              {point}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                  <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
+                    {careBulletPoints.length > 0 && (
+                      <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-gray-700 wrap-break-word sm:pl-5 sm:text-sm md:text-sm lg:text-base">
+                        {careBulletPoints.map((point, idx) => (
+                          <li key={`${point.slice(0, 20)}-${idx}`}>
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1308,11 +1289,11 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("return")}
               >
-                <span className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium uppercase tracking-wider sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px] min-w-0 font-[Raleway]">
+                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px]">
                   <RiRefreshLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Return Policy</span>
                 </span>
-                <span className="inline-flex shrink-0 text-gray-500 transition-transform duration-200 ease-out text-lg sm:text-xl md:text-lg lg:text-[22px]">
+                <span className="inline-flex shrink-0 text-lg text-gray-500 transition-transform duration-200 ease-out sm:text-xl md:text-lg lg:text-[22px]">
                   {expandedSection === "return" ? (
                     <FaChevronUp className="h-5 w-5 sm:h-6 sm:w-6 md:h-5 md:w-5" />
                   ) : (
@@ -1330,13 +1311,13 @@ function ProductPage() {
                 }}
               >
                 <div className="overflow-hidden">
-                  <div className="px-0 pb-3 sm:pb-4 md:pb-3 pt-0 lg:pb-4">
+                  <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
                     {item.returnPolicy?.text ? (
-                      <p className="text-xs sm:text-sm md:text-sm lg:text-base text-gray-600 wrap-break-word mb-2">
+                      <p className="mb-2 wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base">
                         {item.returnPolicy.text}
                       </p>
                     ) : null}
-                    <ul className="list-disc space-y-1.5 pl-4 sm:pl-5 text-xs sm:text-sm md:text-sm lg:text-base text-gray-700">
+                    <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-gray-700 wrap-break-word sm:pl-5 sm:text-sm md:text-sm lg:text-base">
                       <li>Return requests must be raised within 7 days of delivery.</li>
                       <li>Items must be unused, unwashed, undamaged, and have their original tags attached.</li>
                       <li>Once the return is approved, the refund amount will be credited to your Bank Account.</li>

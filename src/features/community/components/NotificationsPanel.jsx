@@ -5,8 +5,10 @@ import {
   isVisibleCommunityNotification,
   collectVisibleNotifications,
 } from '../../../app/context/NotificationContext'
-import { ROUTES } from '../../../utils/constants'
-import { navigateToReel } from '../utils/openReel'
+import {
+  openCommunityNotification,
+  notificationHasDestination,
+} from '../utils/openNotificationTarget'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 import girlImg from '../../../assets/images/community/communitygirl.jpg'
 
@@ -117,7 +119,7 @@ function NotificationRow({ item, onClick }) {
           </p>
         ) : null}
 
-        {item.referenceId ? (
+        {notificationHasDestination(item) ? (
           <span className="mt-1 inline-block font-inter text-[11px] font-semibold text-[#2563EB]">
             View details →
           </span>
@@ -285,54 +287,13 @@ export default function NotificationsPanel({
 
     onClose?.()
 
-    const templateKey = item.templateKey || ''
-    const contentType = item.metadata?.contentType
-    const referenceId = item.referenceId
-
-    // 1. Like event -> Post / Reel detail
-    if (templateKey === 'COMMUNITY_CONTENT_LIKED') {
-      if (referenceId) {
-        if (contentType === 'reel') {
-          navigateToReel(navigate, { reelId: referenceId })
-        } else {
-          onOpenPost?.({ id: referenceId })
-        }
-      }
-      return
-    }
-
-    // 2. Comment event -> Comments
-    if (templateKey === 'COMMUNITY_CONTENT_COMMENTED') {
-      if (referenceId) {
-        if (contentType === 'reel') {
-          if (onOpenReelComments) {
-            onOpenReelComments({ id: referenceId, type: 'reel' })
-          } else {
-            navigateToReel(navigate, { reelId: referenceId })
-          }
-        } else {
-          onOpenPost?.({ id: referenceId })
-        }
-      }
-      return
-    }
-
-    // 3. Project approved -> Designer projects / profile
-    if (templateKey === 'COMMUNITY_PROJECT_APPROVED') {
-      navigate(ROUTES.COMMUNITY_PROFILE)
-      return
-    }
-
-    // 4. Designer verified -> Designer profile
-    if (templateKey === 'COMMUNITY_DESIGNER_APPROVED') {
-      navigate(ROUTES.COMMUNITY_PROFILE)
-      return
-    }
-
-    // 5. Generic community fallback
-    if (referenceId) {
-      onOpenPost?.({ id: referenceId })
-    }
+    await openCommunityNotification({
+      item,
+      navigate,
+      openPost: onOpenPost,
+      openProfile: onOpenProfile,
+      onOpenReelComments,
+    })
   }
 
   const handleMarkAllRead = async () => {

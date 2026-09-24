@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CREATOR_DASHBOARD, DESIGNER_DASHBOARD } from '../../data/mockCreator'
 import { useAuth } from '../../../../app/context/AuthContext.jsx'
 import { communityService } from '../../../../services/community.service.js'
@@ -25,8 +26,10 @@ import {
 import CreatorSettingsDrawer from './CreatorSettingsDrawer'
 import EarningsPayoutDrawer from './EarningsPayoutDrawer'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
+import { isDesignerRoleReady } from '../../../../services/communityProfile.service'
 import RegistrationWizard from '../../registration/RegistrationWizard'
 import designerBannerImg from '../../../../assets/images/community/designer.png'
+import { IoSettingsOutline } from 'react-icons/io5'
 
 function FeatherIllustration({ className = 'h-14 w-14 sm:h-16 sm:w-16' }) {
   return (
@@ -89,58 +92,57 @@ function BecomeDesignerModal({ open, onClose, onConfirm }) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/55 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.()
       }}
     >
-      <div className="relative w-full max-w-[490px] rounded-[1.75rem] bg-[#FFF5F5] p-6 sm:p-8 shadow-2xl border border-red-100/90 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-[520px] rounded-[28px] border border-black/[0.04] bg-[#FFF6F4] px-7 py-7 shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:px-8 sm:py-8">
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-4 top-4 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-neutral-400 transition hover:bg-black/5 hover:text-black"
+          className="absolute right-5 top-5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-neutral-400 transition hover:bg-black/5 hover:text-black"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
 
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-black">
-            <WarningTriangleIcon className="h-7 w-7 text-black" />
-          </div>
-          <h2 className="font-inter text-2xl font-bold tracking-tight text-black">
+        <div className="flex items-center gap-3 pr-8">
+          <WarningTriangleIcon className="h-8 w-8 shrink-0 text-black" />
+          <h2 className="font-inter text-[1.65rem] font-bold leading-none tracking-tight text-black">
             Important Notice
           </h2>
         </div>
 
-        <p className="mt-4 font-inter text-base leading-relaxed text-neutral-800">
+        <p className="mt-5 font-inter text-[15px] leading-relaxed text-neutral-800">
           Once you become a Designer, you cannot return to your Creator profile. This action requires permanent account deletion if you wish to revert. Please consider carefully before proceeding.
         </p>
 
-        <div className="mt-7 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+        <div className="mt-8 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-5 py-2.5 font-inter text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:text-black"
+            className="cursor-pointer rounded-full border border-neutral-300 bg-white px-6 py-2.5 font-inter text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="cursor-pointer rounded-xl bg-black px-6 py-2.5 font-inter text-xs font-semibold text-white shadow-md transition hover:bg-neutral-800"
+            className="cursor-pointer rounded-full bg-black px-6 py-2.5 font-inter text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
           >
             Become a Designer
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -188,7 +190,7 @@ export default function DesignerDashboard({
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [wizardOpen, setWizardOpen] = useState(false)
 
-  const { profile: communityContextProfile, selectRole } = useCommunityProfile()
+  const { profile: communityContextProfile, refresh } = useCommunityProfile()
   
   const rawDesignerStatus = String(
     communityContextProfile?.designerVerificationStatus ||
@@ -213,20 +215,7 @@ export default function DesignerDashboard({
     rawDesignerStatus === 'approved' ||
     Boolean(communityContextProfile?.isDesignerVerified || profileMe?.isDesignerVerified)
 
-  const isUserDesigner = Boolean(
-    isDesignerApproved ||
-    isDesignerPending ||
-    isDesignerRejected ||
-    communityContextProfile?.isDesigner ||
-    (Array.isArray(communityContextProfile?.roles) && communityContextProfile.roles.includes('designer')) ||
-    profileMe?.isDesigner ||
-    profileMe?.roles?.includes?.('designer') ||
-    profileMe?.user?.isDesigner ||
-    authUser?.isDesigner ||
-    authUser?.is_designer ||
-    authUser?.role === 'designer' ||
-    (Array.isArray(authUser?.roles) && authUser.roles.includes('designer'))
-  )
+  const isUserDesigner = isDesignerRoleReady(communityContextProfile)
 
   const designerRejectionReason =
     communityContextProfile?.designerRejectionReason ||
@@ -237,20 +226,17 @@ export default function DesignerDashboard({
     authUser?.rejectionReason ||
     ''
 
-  const handleConfirmBecomeDesigner = async () => {
+  const handleConfirmBecomeDesigner = () => {
     setNoticeOpen(false)
-    try {
-      if (selectRole) {
-        await selectRole('designer')
-      } else {
-        await communityProfileService.selectRole('designer')
-      }
-    } catch (e) {
-      console.error('Failed to select designer role', e)
-    }
     onBecomeDesigner?.()
-    onModeChange?.('designer')
     setWizardOpen(true)
+  }
+
+  const handleWizardClose = async () => {
+    setWizardOpen(false)
+    const latest = await refresh()
+    if (isDesignerRoleReady(latest)) onModeChange?.('designer')
+    else onModeChange?.('creator')
   }
 
   const userId = resolveDashboardUserId(authUser, profileMe)
@@ -555,11 +541,7 @@ export default function DesignerDashboard({
             aria-label={`${mode === 'designer' ? 'Designer' : 'Creator'} settings`}
             className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-600"
           >
-            <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-              <circle cx="12" cy="12" r="9" />
-              <path strokeLinecap="round" d="M12 11v5.5" />
-              <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
-            </svg>
+            <IoSettingsOutline className="h-[18px] w-[18px]" aria-hidden />
           </button>
         </div>
       </div>
@@ -919,7 +901,7 @@ export default function DesignerDashboard({
       />
       <RegistrationWizard
         open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
+        onClose={handleWizardClose}
       />
     </aside>
   )

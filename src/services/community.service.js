@@ -295,13 +295,16 @@ export const communityService = {
 
   /**
    * GET /community/feed
+   * Search: GET /community/feed?scope=explore&q=<query>&limit=20
    * @param {{ scope?: 'following'|'explore', type?: 'all'|'post'|'reel', q?: string, hashtag?: string, itemId?: string, limit?: number, cursor?: string }} params
    */
   getFeed: (params = {}) => {
+    const searchQuery = String(params.q ?? params.keyword ?? params.search ?? '').trim();
+    const type = params.type && params.type !== 'all' ? params.type : undefined;
     const query = qs({
       scope: params.scope ?? 'following',
-      type: params.type ?? 'all',
-      q: params.q ?? params.keyword ?? params.search,
+      type,
+      q: searchQuery || undefined,
       hashtag: params.hashtag,
       itemId: params.itemId,
       limit: params.limit ?? 20,
@@ -552,6 +555,7 @@ export {
   extractSavesList,
   extractHashtagsFromCaption,
   mapSocialProfile,
+  extractFeedPeople,
   mapComment,
   extractCommentsList,
   mapProject,

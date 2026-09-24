@@ -196,6 +196,18 @@ export function isDesignerRejected(profile) {
   return status === 'rejected' || status === 'declined';
 }
 
+/** True when the user should be shown as a Designer (tab, badge, designer dashboard). */
+export function isDesignerRoleReady(profile) {
+  if (!profile || typeof profile !== 'object') return false;
+  if (isCommunityProfileDeleted(profile)) return false;
+  if (profile.isDesigner !== true) return false;
+  if (isDesignerVerified(profile) || isDesignerPending(profile) || isDesignerRejected(profile)) {
+    return true;
+  }
+  const step = String(profile.designerOnboardingStep || '').toLowerCase();
+  return step === 'completed';
+}
+
 /** Check if designer onboarding is incomplete and should be resumed */
 export function isDesignerOnboardingIncomplete(profile) {
   if (!profile || typeof profile !== 'object' || !profile.isDesigner) return false;

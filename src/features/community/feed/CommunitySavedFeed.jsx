@@ -151,11 +151,7 @@ export default function CommunitySavedFeed() {
                     {isReel ? 'Reel' : 'Post'}
                   </span>
                 )}
-                {isReel ? (
-                  <span className="pointer-events-none absolute right-1.5 top-1.5 rounded bg-black/55 px-1.5 py-0.5 font-inter text-[9px] font-semibold uppercase tracking-wide text-white">
-                    Reel
-                  </span>
-                ) : null}
+                
               </button>
             )
           })}

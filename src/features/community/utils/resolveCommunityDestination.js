@@ -4,11 +4,17 @@ import {
   isCommunityProfileDeleted,
   isDesignerOnboardingIncomplete,
   isCreatorOnboardingIncomplete,
+  isDesignerRoleReady,
 } from '../../../services/communityProfile.mappers.js'
 
 function roleFromProfile(profile, fallbackRole) {
-  if (profile?.isDesigner) return COMMUNITY_ROLES.DESIGNER
-  if (profile?.isCreator) return COMMUNITY_ROLES.CREATOR
+  if (profile) {
+    if (isDesignerRoleReady(profile)) return COMMUNITY_ROLES.DESIGNER
+    if (profile.isCreator === true && !isCommunityProfileDeleted(profile)) {
+      return COMMUNITY_ROLES.CREATOR
+    }
+    return COMMUNITY_ROLES.USER
+  }
   if (
     fallbackRole === COMMUNITY_ROLES.DESIGNER ||
     fallbackRole === COMMUNITY_ROLES.CREATOR

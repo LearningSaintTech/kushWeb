@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../../../app/context/AuthContext'
 import { useCommunityProfile } from '../../context/CommunityProfileContext'
-import { useCommunityRole } from '../../hooks/useCommunityRole'
 import {
   useCommunitySocialProfile,
   requestCommunityProfileRefresh,
 } from '../../hooks/useCommunitySocialProfile'
-import { communityProfileService } from '../../../../services/communityProfile.service'
+import { communityProfileService, isDesignerRoleReady } from '../../../../services/communityProfile.service'
 import { playlistFromGrid } from '../../utils/openReel'
 import { shareCommunityProfile } from '../../utils/shareProfile'
 import { getPublicImageUrl } from '../../../../services/config.js'
@@ -51,7 +50,6 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
   const avatarInputRef = useRef(null)
 
   const { user } = useAuth()
-  const role = useCommunityRole()
   const {
     profile: onboarding,
     applyProfile,
@@ -104,7 +102,7 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
       following: social?.stats?.following ?? '0',
     },
   }
-  const roleBadge = role === 'designer' ? 'DESIGNER' : 'CREATOR'
+  const roleBadge = isDesignerRoleReady(onboarding) ? 'DESIGNER' : 'CREATOR'
   const media = social?.mediaByTab?.[tab] ?? []
 
   const handleShare = async () => {

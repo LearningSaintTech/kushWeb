@@ -153,9 +153,12 @@ export default function CommunityProfileJoin() {
     setJoining(role)
     try {
       debugLog('[CommunityProfile] join from profile page', { role })
+      if (role === 'designer') {
+        setShowDesigner(true)
+        return
+      }
       await selectRole(role)
-      if (role === 'designer') setShowDesigner(true)
-      else setShowCreator(true)
+      setShowCreator(true)
     } catch (err) {
       setJoinError(getCommunityProfileErrorMessage(err))
     } finally {
