@@ -1087,6 +1087,7 @@ export default function TrackOrderPage() {
   const [returnReasonKey, setReturnReasonKey] = useState("SIZE");
   const [returnDescription, setReturnDescription] = useState("");
   const [returnVideoFile, setReturnVideoFile] = useState(null);
+  const [returnImages, setReturnImages] = useState([]);
   const [returnSubmitting, setReturnSubmitting] = useState(false);
   const [returnError, setReturnError] = useState(null);
   const [returnPolicyAccepted, setReturnPolicyAccepted] = useState(false);
@@ -1434,6 +1435,7 @@ export default function TrackOrderPage() {
     setReturnPolicyAccepted(false);
     setReturnDescription("");
     setReturnVideoFile(null);
+    setReturnImages([]);
     setReturnStep(1);
     const first = returnReasonOptions[0];
     setReturnReasonKey(first?.key || "SIZE");
@@ -1444,6 +1446,7 @@ export default function TrackOrderPage() {
     setReturnStep(0);
     setReturnError(null);
     setReturnVideoFile(null);
+    setReturnImages([]);
     if (wasSuccess) {
       orderService
         .getOrderItemById(orderId, itemId)
@@ -1463,8 +1466,16 @@ export default function TrackOrderPage() {
       return;
     }
     if (returnStep === 2) {
+      if (returnImages.length < 3) {
+        setReturnError("Please upload at least 3 product evidence images.");
+        return;
+      }
+      if (returnImages.length > 5) {
+        setReturnError("Maximum 5 product evidence images allowed.");
+        return;
+      }
       if (selectedReturnReason?.requiresUnboxingVideo && !returnVideoFile) {
-        setReturnError("Please upload an uncut unboxing video/images for this reason.");
+        setReturnError("Please upload an uncut unboxing video for this reason.");
         return;
       }
       setReturnError(null);
@@ -1478,6 +1489,7 @@ export default function TrackOrderPage() {
             description: returnDescription,
           },
           returnVideoFile,
+          returnImages,
         )
         .then(() => {
           setReturnStep(3);
@@ -3037,6 +3049,45 @@ export default function TrackOrderPage() {
                         placeholder="Tell us more about the issue"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-gray-700 mb-1">
+                        Product evidence images * (3–5)
+                      </label>
+                      <p className="text-[10px] text-gray-500 mb-2">
+                        Upload clear photos of the product for return verification.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                          <div
+                            key={i}
+                            className="aspect-square min-h-38 rounded-lg bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center p-2"
+                          >
+                            {returnImages[i] ? (
+                              <img
+                                src={URL.createObjectURL(returnImages[i])}
+                                alt=""
+                                className="max-h-full max-w-full object-contain object-center"
+                              />
+                            ) : (
+                              <span className="text-gray-400 text-sm">Photo {i + 1}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []).slice(0, 5);
+                          setReturnImages(files);
+                        }}
+                        className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-3 file:border file:border-gray-300 file:rounded file:text-xs file:font-semibold file:uppercase file:bg-white file:text-black hover:file:bg-gray-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Min 3, max 5 images. You have {returnImages.length} selected.
+                      </p>
+                    </div>
                     {selectedReturnReason?.requiresUnboxingVideo ? (
                       <div>
                         <label className="block text-xs font-semibold uppercase text-gray-700 mb-1">
@@ -3103,7 +3154,11 @@ export default function TrackOrderPage() {
                     <button
                       type="button"
                       onClick={returnModalContinue}
-                      disabled={returnSubmitting || !returnPolicyAccepted}
+                      disabled={
+                        returnSubmitting ||
+                        !returnPolicyAccepted ||
+                        returnImages.length < 3
+                      }
                       className="flex-1 bg-black text-white py-3 text-sm font-bold uppercase hover:bg-gray-800 disabled:opacity-50"
                     >
                       {returnSubmitting ? "Submitting..." : "Submit return"}
