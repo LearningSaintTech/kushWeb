@@ -12,8 +12,9 @@ export const returnService = {
    * Create return request.
    * @param {{ orderId: string, itemId: string, reason: string, description?: string }} fields
    * @param {File | null} unboxingVideo
+   * @param {File[]} evidenceImages - 3 to 5 product evidence images
    */
-  createReturnRequest: (fields, unboxingVideo = null) => {
+  createReturnRequest: (fields, unboxingVideo = null, evidenceImages = []) => {
     const form = new FormData();
     form.append('orderId', fields.orderId);
     form.append('itemId', fields.itemId);
@@ -24,6 +25,12 @@ export const returnService = {
     if (unboxingVideo instanceof File) {
       form.append('unboxingVideo', unboxingVideo);
     }
+    (Array.isArray(evidenceImages) ? evidenceImages : [])
+      .filter((f) => f instanceof File)
+      .slice(0, 5)
+      .forEach((file) => {
+        form.append('images', file);
+      });
     return client.post(`${BASE}/create`, form);
   },
 
