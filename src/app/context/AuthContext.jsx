@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
 import { authService } from '../../services/auth.service.js'
 import { setAccessTokenGetter, getCurrentAccessToken, setOnAuthRequired } from '../../services/axiosClient.js'
-import { getMemoryToken, setMemoryToken, subscribeMemoryToken, clearMemoryToken } from '../../utils/tokenMemory.js'
+import { getMemoryToken, setMemoryToken, subscribeMemoryToken, hydrateMemoryTokenFromSession } from '../../utils/tokenMemory.js'
 import { getValidAccessToken, isTokenExpired } from '../../utils/authToken.js'
 import { refreshUserAccessToken, rememberRefreshTokenFromAuthPayload } from '../../utils/authSession.js'
 import { performLogout, clearLegacyAuthStorage } from '../../utils/sessionLogout.js'
 import { hasSessionHint, setSessionHint } from '../../utils/sessionHint.js'
+import { getStoredRefreshToken, setStoredRefreshToken } from '../../utils/refreshTokenStore.js'
 import { getOrCreateDeviceId } from '../../utils/deviceId.js'
 import {
   buildMinimalUser,
@@ -25,6 +26,8 @@ if (import.meta.hot) {
 
 /** Routes where guests can browse freely — never force the login modal from 401s. */
 function isPublicBrowsePath(pathname = '') {
+  // Address / account / orders / community / giftcard need login when session dies.
+  // Keep storefront browse public.
   const path = String(pathname || '')
   if (path === '/' || path === '') return true
   return (
@@ -34,6 +37,7 @@ function isPublicBrowsePath(pathname = '') {
     path.startsWith('/shaktiman') ||
     path.startsWith('/cart') ||
     path.startsWith('/wishlist') ||
+    path.startsWith('/collections') ||
     path.startsWith('/about-us') ||
     path.startsWith('/contact-us') ||
     path.startsWith('/faqs') ||
@@ -48,7 +52,7 @@ function isPublicBrowsePath(pathname = '') {
 }
 
 export function AuthProvider({ children }) {
-  const [token, setTokenState] = useState(() => getMemoryToken())
+  const [token, setTokenState] = useState(() => hydrateMemoryTokenFromSession() || getMemoryToken())
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -109,33 +113,52 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    let cancelled = false
+    let alive = true
 
     ;(async () => {
       clearLegacyAuthStorage()
 
+      // Restore access JWT from local/session storage first (survives F5).
+      hydrateMemoryTokenFromSession()
       let currentToken = getMemoryToken()
-      if (!currentToken || isTokenExpired(currentToken)) {
+      if (currentToken && !isTokenExpired(currentToken)) {
+        setMemoryToken(currentToken)
+        setSessionHint()
+        if (alive) setTokenState(currentToken)
+      } else {
         try {
-          const refreshed = await refreshUserAccessToken()
+          let refreshed = await refreshUserAccessToken()
+          if (!refreshed && (hasSessionHint() || getStoredRefreshToken())) {
+            await new Promise((r) => setTimeout(r, 350))
+            refreshed = await refreshUserAccessToken()
+          }
           if (refreshed) {
             currentToken = refreshed
-            if (!cancelled) {
-              setMemoryToken(refreshed)
-              setTokenState(refreshed)
+            // Always write persistence — even if this Strict Mode effect was cleaned up.
+            setMemoryToken(refreshed)
+            setSessionHint()
+            if (alive) setTokenState(refreshed)
+          } else {
+            // Soft miss: keep persisted AT/RT/hint. Never clear here —
+            // cancelled Strict Mode mounts must not wipe a sibling boot that succeeded.
+            currentToken = getMemoryToken()
+            if (currentToken && isTokenExpired(currentToken)) {
+              currentToken = null
             }
+            if (alive && !currentToken) setTokenState(null)
           }
         } catch {
-          if (!cancelled) {
-            clearMemoryToken()
-            setTokenState(null)
-          }
+          currentToken = getMemoryToken()
+          if (currentToken && isTokenExpired(currentToken)) currentToken = null
+          if (alive && !currentToken) setTokenState(null)
         }
       }
 
-      if (cancelled) return
+      if (!alive) return
 
       if (!currentToken || isTokenExpired(currentToken)) {
+        // Soft miss: keep hint/stored refresh so a later navigation can recover.
+        // Only a real 401 inside refreshUserAccessToken clears the session.
         setUser(null)
         setAuthChecked(true)
         return
@@ -145,19 +168,32 @@ export function AuthProvider({ children }) {
         const profileData = await fetchUserProfileWithRetry(() =>
           authService.getProfile(),
         )
-        if (!cancelled) setUser(profileData ?? null)
+        if (alive) setUser(profileData ?? null)
       } catch (err) {
-        if (!cancelled) {
-          if (isProfileNotFoundError(err)) {
-            const minimal = buildMinimalUser(currentToken)
-            if (minimal) setUser(minimal)
-          } else {
-            // Keep session on transient profile failures (5xx/network) and on
-            // 403 (eligibility / permission — not "session dead").
-            // Only clear client session when the token itself is rejected (401).
-            // Never call server logout here — that wipes Redis and kicks devices.
-            const status = err?.response?.status
-            if (status === 401) {
+        if (!alive) return
+        if (isProfileNotFoundError(err)) {
+          const minimal = buildMinimalUser(currentToken)
+          if (minimal) setUser(minimal)
+        } else {
+          const status = err?.response?.status
+          if (status === 401) {
+            // Do not wipe session on a single profile 401 — try one refresh first.
+            // (Stale AT + valid RT is common right after F5.)
+            const recovered = await refreshUserAccessToken()
+            if (recovered) {
+              setMemoryToken(recovered)
+              setTokenState(recovered)
+              const minimal = buildMinimalUser(recovered)
+              if (minimal) setUser(minimal)
+              try {
+                const profileData = await fetchUserProfileWithRetry(() =>
+                  authService.getProfile(),
+                )
+                if (alive && profileData) setUser(profileData)
+              } catch {
+                /* keep minimal user */
+              }
+            } else if (!hasSessionHint() && !getStoredRefreshToken()) {
               await performLogout({ server: false })
               setTokenState(null)
               setUser(null)
@@ -165,15 +201,18 @@ export function AuthProvider({ children }) {
               const minimal = buildMinimalUser(currentToken)
               if (minimal) setUser(minimal)
             }
+          } else {
+            const minimal = buildMinimalUser(currentToken)
+            if (minimal) setUser(minimal)
           }
         }
       } finally {
-        if (!cancelled) setAuthChecked(true)
+        if (alive) setAuthChecked(true)
       }
     })()
 
     return () => {
-      cancelled = true
+      alive = false
     }
   }, [])
 
@@ -191,11 +230,34 @@ export function AuthProvider({ children }) {
     const { registrationName, authFlow, ...otpPayload } = payload ?? {}
     const res = await authService.verifyOtp(otpPayload)
     const data = unwrapApiData(res)
-    const accessToken = data?.accessToken ?? data?.access_token
+    // OTP verify shape: { success, data: { userId, accessToken, refreshToken } }
+    const accessToken =
+      data?.accessToken ??
+      data?.access_token ??
+      res?.data?.data?.accessToken ??
+      res?.data?.accessToken
+    const refreshToken =
+      data?.refreshToken ??
+      data?.refresh_token ??
+      data?.refereshToken ??
+      res?.data?.data?.refreshToken ??
+      res?.data?.refreshToken
+
+    // Persist both tokens BEFORE profile fetch so an F5 mid-login still recovers.
+    if (refreshToken) {
+      setStoredRefreshToken(refreshToken)
+    } else {
+      rememberRefreshTokenFromAuthPayload(data)
+      rememberRefreshTokenFromAuthPayload(res?.data)
+    }
     if (accessToken) {
       setSessionHint()
-      rememberRefreshTokenFromAuthPayload(data)
       setToken(accessToken)
+    } else if (refreshToken) {
+      setSessionHint()
+    }
+
+    if (accessToken) {
       const userFromVerify = extractAuthUser(data)
       if (userFromVerify) {
         setUser(userFromVerify)

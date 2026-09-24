@@ -606,10 +606,17 @@ function ProductPage() {
 
   const careBulletPoints = useMemo(() => {
     const raw = item?.care?.description ?? "";
-    return String(raw)
+    const withBreaks = String(raw)
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|li|div)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/[•●▪◦]/g, "\n")
       .replace(/\r/g, "")
-      .split(/[\n•]+|(?<=\.)\s+/)
-      .map((x) => x.replace(/^[\-\s•]+|[\s.]+$/g, "").trim())
+      .replace(/(?=(?:Wash|Dry|Iron|Avoid|Bleach)\s*:)/gi, "\n");
+    return withBreaks
+      .split(/\n+/)
+      .map((x) => x.replace(/^[\-\s•]+|[\s]+$/g, "").replace(/\s+/g, " ").trim())
       .filter(Boolean);
   }, [item?.care?.description]);
 
@@ -1121,7 +1128,7 @@ function ProductPage() {
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
                     <p
-                      className={`wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base ${
+                      className={`font-inter font-normal wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base ${
                         longDescNeedsMore && !longDescExpanded
                           ? "product-desc-clamp-long whitespace-normal"
                           : "whitespace-pre-wrap"
@@ -1171,10 +1178,19 @@ function ProductPage() {
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
                     {careBulletPoints.length > 0 && (
-                      <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-gray-700 wrap-break-word sm:pl-5 sm:text-sm md:text-sm lg:text-base">
+                      <ul className="space-y-1.5 font-inter font-normal text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base">
                         {careBulletPoints.map((point, idx) => (
-                          <li key={`${point.slice(0, 20)}-${idx}`}>
-                            {point}
+                          <li
+                            key={`${point.slice(0, 20)}-${idx}`}
+                            className="flex gap-2"
+                          >
+                            <span
+                              className="mt-[0.45em] h-1 w-1 shrink-0 rounded-full bg-gray-700"
+                              aria-hidden
+                            />
+                            <span className="min-w-0 flex-1 break-words">
+                              {point}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -1313,11 +1329,11 @@ function ProductPage() {
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
                     {item.returnPolicy?.text ? (
-                      <p className="mb-2 wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base">
+                      <p className="mb-2 font-inter font-normal wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base">
                         {item.returnPolicy.text}
                       </p>
                     ) : null}
-                    <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-gray-700 wrap-break-word sm:pl-5 sm:text-sm md:text-sm lg:text-base">
+                    <ul className="list-disc space-y-1.5 pl-4 font-inter font-normal text-xs leading-relaxed text-gray-700 wrap-break-word sm:pl-5 sm:text-sm md:text-sm lg:text-base">
                       <li>Return requests must be raised within 7 days of delivery.</li>
                       <li>Items must be unused, unwashed, undamaged, and have their original tags attached.</li>
                       <li>Once the return is approved, the refund amount will be credited to your Bank Account.</li>

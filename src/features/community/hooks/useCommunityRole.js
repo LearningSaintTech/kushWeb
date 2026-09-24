@@ -4,6 +4,7 @@ import { COMMUNITY_ROLES } from '../capabilities'
 import {
   isCommunityProfileDeleted,
   isDesignerRoleReady,
+  isCreatorRoleReady,
 } from '../../../services/communityProfile.service'
 
 /**
@@ -26,7 +27,7 @@ export function useCommunityRole() {
   if (profile) {
     if (isCommunityProfileDeleted(profile)) return COMMUNITY_ROLES.USER
     if (isDesignerRoleReady(profile)) return COMMUNITY_ROLES.DESIGNER
-    if (profile.isCreator === true) return COMMUNITY_ROLES.CREATOR
+    if (isCreatorRoleReady(profile)) return COMMUNITY_ROLES.CREATOR
     return COMMUNITY_ROLES.USER
   }
 

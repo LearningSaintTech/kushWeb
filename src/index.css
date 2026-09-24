@@ -366,6 +366,16 @@ body::-webkit-scrollbar,
   animation: news-press-marquee 32s linear infinite;
   will-change: transform;
 }
+@media (min-width: 1280px) {
+  .news-press-marquee-track {
+    animation-duration: 42s;
+  }
+}
+@media (min-width: 1536px) {
+  .news-press-marquee-track {
+    animation-duration: 52s;
+  }
+}
 .group\/news-marquee:hover .news-press-marquee-track,
 .news-press-marquee-track:hover {
   animation-play-state: paused;

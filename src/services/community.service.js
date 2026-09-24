@@ -562,4 +562,5 @@ export {
   extractProjectsList,
   unwrapProject,
   extractProjectCategoryNames,
+  overlayViewerAuthor,
 } from './communityContent.mappers.js';

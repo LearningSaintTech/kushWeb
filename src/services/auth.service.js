@@ -84,4 +84,8 @@ export const authService = {
     ),
 
   getProfile: () => wrapAuthCall('GET', `${BASE}/getProfile`, client.get(`${BASE}/getProfile`)),
+
+  /** DELETE /delete-account/me — permanently delete the signed-in account */
+  deleteAccount: () =>
+    wrapAuthCall('DELETE', '/delete-account/me', client.delete('/delete-account/me')),
 };

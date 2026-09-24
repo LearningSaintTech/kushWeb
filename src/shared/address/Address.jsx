@@ -59,7 +59,7 @@ function EditIcon({ className }) {
 
 export default function Address() {
   const dispatch = useDispatch();
-  const { isAuthenticated, openAuthModal, user } = useAuth();
+  const { isAuthenticated, authChecked, openAuthModal, user } = useAuth();
 
   const [addresses, setAddresses] = useState([]);
   const [page, setPage] = useState(1);
@@ -98,6 +98,7 @@ export default function Address() {
 
 
   const loadAddresses = useCallback(async () => {
+    if (!authChecked) return;
     if (!isAuthenticated) {
       setLoading(false);
       return;
@@ -123,17 +124,23 @@ export default function Address() {
       setAddresses(arr);
       setDefaultAddressId(defaultData?._id ?? null);
     } catch (err) {
-      setError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Failed to load addresses",
-      );
+      const status = err?.response?.status;
+      const msg = String(err?.response?.data?.message ?? err?.message ?? '');
+      if (
+        status === 401 ||
+        /access token|sign in|unauthorized|please sign in/i.test(msg)
+      ) {
+        openAuthModal('/address');
+        setError(null);
+      } else {
+        setError(msg || 'Failed to load addresses');
+      }
       setAddresses([]);
       setDefaultAddressId(null);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, page]);
+  }, [authChecked, isAuthenticated, page, openAuthModal]);
 
   useEffect(() => {
     loadAddresses();
@@ -499,6 +506,16 @@ export default function Address() {
     }
   };
 
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-gray-50 pt-20 sm:pt-24 pb-12">
+        <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center text-sm text-gray-500">
+          Loading…
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pt-20 sm:pt-24 pb-12">
@@ -511,7 +528,7 @@ export default function Address() {
           </p>
           <button
             type="button"
-            onClick={() => openAuthModal()}
+            onClick={() => openAuthModal('/address')}
             className="mt-6 inline-block px-6 py-3 bg-black text-white text-sm font-medium uppercase hover:bg-gray-800 transition-colors"
           >
             Sign in

@@ -13,7 +13,7 @@ const DEFAULT_PRESS_ITEMS = [
     _id: 'press-vogue',
     name: 'Vogue India',
     fontStyle:
-      'font-serif font-black tracking-widest text-lg sm:text-xl md:text-2xl',
+      'font-serif font-black tracking-widest text-lg sm:text-xl md:text-2xl xl:text-3xl',
     logoText: 'VOGUE',
     subText: 'INDIA',
     links: ['https://www.vogue.in'],
@@ -22,7 +22,7 @@ const DEFAULT_PRESS_ITEMS = [
     _id: 'press-idiva',
     name: 'iDIVA',
     fontStyle:
-      'font-sans font-black tracking-tight text-xl sm:text-2xl md:text-3xl italic',
+      'font-sans font-black tracking-tight text-xl sm:text-2xl md:text-3xl xl:text-4xl italic',
     logoText: 'iDIVA',
     links: ['https://www.idiva.com'],
   },
@@ -30,7 +30,7 @@ const DEFAULT_PRESS_ITEMS = [
     _id: 'press-femina',
     name: 'FEMINA',
     fontStyle:
-      'font-serif font-bold tracking-[0.22em] text-lg sm:text-xl md:text-2xl',
+      'font-serif font-bold tracking-[0.22em] text-lg sm:text-xl md:text-2xl xl:text-3xl',
     logoText: 'FEMINA',
     links: ['https://www.femina.in'],
   },
@@ -38,7 +38,7 @@ const DEFAULT_PRESS_ITEMS = [
     _id: 'press-forbes',
     name: 'Forbes India',
     fontStyle:
-      'font-serif font-black tracking-tight text-lg sm:text-xl md:text-2xl',
+      'font-serif font-black tracking-tight text-lg sm:text-xl md:text-2xl xl:text-3xl',
     logoText: 'Forbes',
     subText: 'INDIA',
     links: ['https://www.forbesindia.com'],
@@ -47,7 +47,7 @@ const DEFAULT_PRESS_ITEMS = [
     _id: 'press-elle',
     name: 'ELLE',
     fontStyle:
-      'font-serif font-light tracking-[0.35em] text-lg sm:text-xl md:text-2xl',
+      'font-serif font-light tracking-[0.35em] text-lg sm:text-xl md:text-2xl xl:text-3xl',
     logoText: 'E L L E',
     links: ['https://elle.in'],
   },
@@ -70,108 +70,44 @@ function NewsLogoItem({ item }) {
     link &&
       typeof link === 'string' &&
       link.trim() &&
-      !link.includes('undefined')
+      !link.includes('undefined'),
   )
 
   const content = (
-    <div
-      className="
-        relative
-        flex
-        h-14
-        sm:h-16
-        md:h-20
-        items-center
-        justify-center
-        px-6
-        sm:px-10
-        md:px-14
-        select-none
-      "
-    >
-      {/* Actual Logo */}
+    <div className="relative flex h-14 items-center justify-center px-5 select-none sm:h-16 sm:px-8 md:h-20 md:px-10 lg:h-24 lg:px-12 xl:h-28 xl:px-14 2xl:h-32 2xl:px-16">
       {logoSrc && !imgError ? (
         <img
-  src={logoSrc}
-  alt={item.name || 'Press Logo'}
-  loading="lazy"
-  referrerPolicy="no-referrer"
-  onError={() => setImgError(true)}
-  className="
-    h-10
-    sm:h-12
-    md:h-16
-    lg:h-20
-    w-auto
-    max-w-[180px]
-    sm:max-w-[220px]
-    md:max-w-[280px]
-    lg:max-w-[320px]
-    object-contain
-  "
-/>
+          src={logoSrc}
+          alt={item.name || 'Press Logo'}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImgError(true)}
+          className="h-10 w-auto max-w-[160px] object-contain sm:h-12 sm:max-w-[200px] md:h-16 md:max-w-[240px] lg:h-20 lg:max-w-[280px] xl:h-24 xl:max-w-[320px] 2xl:h-28 2xl:max-w-[360px]"
+        />
       ) : (
-        /* Text fallback */
         <div className="flex flex-col items-center justify-center text-center text-[#171717]">
           <span
             className={
               item.fontStyle ||
-              'font-serif text-base sm:text-lg md:text-xl font-bold tracking-wider text-black'
+              'font-serif text-base font-bold tracking-wider text-black sm:text-lg md:text-xl xl:text-2xl'
             }
           >
             {item.logoText || item.name}
           </span>
 
-          {item.subText && (
-            <span
-              className="
-                mt-0.5
-                font-sans
-                text-[8px]
-                sm:text-[9px]
-                font-bold
-                tracking-[0.25em]
-                text-[#737373]
-                uppercase
-              "
-            >
+          {item.subText ? (
+            <span className="mt-0.5 font-sans text-[8px] font-bold uppercase tracking-[0.25em] text-[#737373] sm:text-[9px] xl:text-[11px]">
               {item.subText}
             </span>
-          )}
+          ) : null}
         </div>
       )}
 
-      {/* Tooltip */}
-      {item.name && (
-        <span
-          className="
-            pointer-events-none
-            absolute
-            -bottom-2.5
-            left-1/2
-            -translate-x-1/2
-            scale-0
-            whitespace-nowrap
-            rounded
-            bg-black/90
-            px-2
-            py-0.5
-            font-inter
-            text-[10px]
-            font-medium
-            text-white
-            opacity-0
-            shadow-sm
-            transition-all
-            duration-200
-            group-hover/item:scale-100
-            group-hover/item:opacity-100
-            z-20
-          "
-        >
+      {item.name ? (
+        <span className="pointer-events-none absolute -bottom-2.5 left-1/2 z-20 -translate-x-1/2 scale-0 whitespace-nowrap rounded bg-black/90 px-2 py-0.5 font-inter text-[10px] font-medium text-white opacity-0 shadow-sm transition-all duration-200 group-hover/item:scale-100 group-hover/item:opacity-100 xl:text-xs">
           {item.name}
         </span>
-      )}
+      ) : null}
     </div>
   )
 
@@ -182,14 +118,7 @@ function NewsLogoItem({ item }) {
         target="_blank"
         rel="noopener noreferrer"
         title={`Read about Khush on ${item.name || 'Press'}`}
-        className="
-          inline-flex
-          shrink-0
-          items-center
-          justify-center
-          cursor-pointer
-          focus:outline-hidden
-        "
+        className="group/item inline-flex shrink-0 items-center justify-center focus:outline-hidden"
       >
         {content}
       </a>
@@ -197,7 +126,7 @@ function NewsLogoItem({ item }) {
   }
 
   return (
-    <div className="inline-flex shrink-0 items-center justify-center">
+    <div className="group/item inline-flex shrink-0 items-center justify-center">
       {content}
     </div>
   )
@@ -210,10 +139,6 @@ export default function NewsMarquee() {
   const scrollContainerRef = useRef(null)
   const isManuallyScrollingRef = useRef(false)
 
-  // ============================================================
-  // GET ACTIVE PRESS / NEWS ITEMS
-  // ============================================================
-
   useEffect(() => {
     let cancelled = false
 
@@ -224,44 +149,25 @@ export default function NewsMarquee() {
       .then((res) => {
         if (cancelled) return
 
-        debugLog(
-          '[NewsMarquee] active news response:',
-          res?.data
-        )
+        debugLog('[NewsMarquee] active news response:', res?.data)
 
-        const raw =
-          res?.data?.data ??
-          res?.data?.items ??
-          res?.data ??
-          []
+        const raw = res?.data?.data ?? res?.data?.items ?? res?.data ?? []
 
         const activeList = Array.isArray(raw)
-          ? raw.filter(
-              (item) =>
-                item &&
-                item.isActive !== false
-            )
+          ? raw.filter((item) => item && item.isActive !== false)
           : []
 
         if (activeList.length > 0) {
-          // Sort according to sortOrder
           const sorted = [...activeList].sort(
-            (a, b) =>
-              (a.sortOrder ?? 0) -
-              (b.sortOrder ?? 0)
+            (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
           )
-
           setNewsItems(sorted)
         } else {
-          // Use fallback press logos
           setNewsItems(DEFAULT_PRESS_ITEMS)
         }
       })
       .catch((err) => {
-        debugError(
-          '[NewsMarquee] active news API error, using fallbacks:',
-          err
-        )
+        debugError('[NewsMarquee] active news API error, using fallbacks:', err)
 
         if (!cancelled) {
           setNewsItems(DEFAULT_PRESS_ITEMS)
@@ -278,44 +184,22 @@ export default function NewsMarquee() {
     }
   }, [])
 
-  // ============================================================
-  // PREPARE MARQUEE ITEMS
-  // ============================================================
-
-  const displayItems =
-    newsItems.length > 0
-      ? newsItems
-      : DEFAULT_PRESS_ITEMS
+  const displayItems = newsItems.length > 0 ? newsItems : DEFAULT_PRESS_ITEMS
 
   /*
-   * Make sure there are enough items
-   * for a smooth infinite marquee.
+   * Enough copies for a smooth infinite marquee on wide screens.
    */
-  const multiplier = Math.max(
-    1,
-    Math.ceil(
-      8 / Math.max(1, displayItems.length)
-    )
-  )
+  const multiplier = Math.max(2, Math.ceil(12 / Math.max(1, displayItems.length)))
 
-  const repeatedItems = Array.from(
-    { length: multiplier },
-    () => displayItems
-  ).flat()
-
-  // ============================================================
-  // MANUAL SCROLL
-  // ============================================================
+  const repeatedItems = Array.from({ length: multiplier }, () => displayItems).flat()
 
   const handleScroll = (direction) => {
     if (!scrollContainerRef.current) return
 
     isManuallyScrollingRef.current = true
 
-    const scrollAmount =
-      direction === 'left'
-        ? -280
-        : 280
+    const width = scrollContainerRef.current.clientWidth || 320
+    const scrollAmount = direction === 'left' ? -Math.max(280, width * 0.45) : Math.max(280, width * 0.45)
 
     scrollContainerRef.current.scrollBy({
       left: scrollAmount,
@@ -327,141 +211,47 @@ export default function NewsMarquee() {
     }, 400)
   }
 
-  // ============================================================
-  // UI
-  // ============================================================
+  if (loading && newsItems.length === 0) {
+    return (
+      <section
+        aria-label="As Featured In Press"
+        className="w-full bg-white py-6 sm:py-8 md:py-10 lg:py-12 xl:py-14"
+      >
+        <div className="mx-auto h-14 w-full max-w-[1920px] animate-pulse rounded bg-neutral-100 sm:h-16 md:h-20 lg:h-24 xl:h-28" />
+      </section>
+    )
+  }
 
   return (
     <section
       aria-label="As Featured In Press"
-      className="
-        group/news-marquee
-        relative
-        w-full
-        overflow-hidden
-        
-        bg-white
-        py-6
-        sm:py-8
-        md:py-10
-      "
+      className="group/news-marquee relative w-full overflow-hidden bg-white py-6 sm:py-8 md:py-10 lg:py-12 xl:py-14 2xl:py-16"
     >
-      <div
-        className="
-          mx-auto
-          flex
-          w-full
-          max-w-[1440px]
-          items-center
-          justify-between
-          px-3
-          sm:px-6
-          md:px-8
-        "
-      >
-        {/* =====================================================
-            LEFT ARROW
-        ===================================================== */}
-
+      <div className="mx-auto flex w-full max-w-[1920px] items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6 md:px-8 lg:gap-4 lg:px-10 xl:px-12 2xl:px-16">
         <button
           type="button"
           onClick={() => handleScroll('left')}
           aria-label="Previous press logo"
-          className="
-            relative
-            z-20
-            hidden
-            sm:flex
-            h-9
-            w-9
-            md:h-10
-            md:w-10
-            shrink-0
-            cursor-pointer
-            items-center
-            justify-center
-            rounded-full
-            border
-            border-[#D4D4D4]
-            bg-white
-            text-[#737373]
-            shadow-xs
-            transition-all
-            duration-200
-            hover:border-black
-            hover:text-black
-            hover:scale-105
-            active:scale-95
-            focus:outline-hidden
-          "
+          className="relative z-20 hidden h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#D4D4D4] bg-white text-[#737373] shadow-xs transition-all duration-200 hover:scale-105 hover:border-black hover:text-black focus:outline-hidden active:scale-95 sm:flex md:h-10 md:w-10 lg:h-11 lg:w-11 xl:h-12 xl:w-12"
         >
-          <IoChevronBack className="h-4 w-4 md:h-4.5 md:w-4.5" />
+          <IoChevronBack className="h-4 w-4 lg:h-5 lg:w-5" />
         </button>
 
-        {/* =====================================================
-            MARQUEE VIEWPORT
-        ===================================================== */}
-
-        <div className="relative flex-1 overflow-hidden">
-          {/* Left Fade */}
-
+        <div className="relative min-w-0 flex-1 overflow-hidden">
           <div
-            className="
-              pointer-events-none
-              absolute
-              inset-y-0
-              left-0
-              z-10
-              w-10
-              sm:w-16
-              md:w-24
-              bg-gradient-to-r
-              from-white
-              via-white/80
-              to-transparent
-            "
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white via-white/80 to-transparent sm:w-12 md:w-16 lg:w-20 xl:w-24"
             aria-hidden="true"
           />
-
-          {/* Right Fade */}
-
           <div
-            className="
-              pointer-events-none
-              absolute
-              inset-y-0
-              right-0
-              z-10
-              w-10
-              sm:w-16
-              md:w-24
-              bg-gradient-to-l
-              from-white
-              via-white/80
-              to-transparent
-            "
+            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-white via-white/80 to-transparent sm:w-12 md:w-16 lg:w-20 xl:w-24"
             aria-hidden="true"
           />
-
-          {/* ===================================================
-              SCROLL CONTAINER
-          =================================================== */}
 
           <div
             ref={scrollContainerRef}
-            className="
-              scrollbar-hide
-              flex
-              w-full
-              overflow-x-auto
-              select-none
-            "
+            className="scrollbar-hide flex w-full overflow-x-auto select-none"
           >
             <div className="news-press-marquee-track flex items-center">
-              {/* =================================================
-                  PRIMARY TRACK
-              ================================================= */}
-
               <div className="flex shrink-0 items-center">
                 {repeatedItems.map((item, idx) => (
                   <NewsLogoItem
@@ -471,14 +261,7 @@ export default function NewsMarquee() {
                 ))}
               </div>
 
-              {/* =================================================
-                  DUPLICATE TRACK
-              ================================================= */}
-
-              <div
-                className="flex shrink-0 items-center"
-                aria-hidden="true"
-              >
+              <div className="flex shrink-0 items-center" aria-hidden="true">
                 {repeatedItems.map((item, idx) => (
                   <NewsLogoItem
                     key={`press-item-dup-${item._id || idx}-${idx}`}
@@ -490,43 +273,13 @@ export default function NewsMarquee() {
           </div>
         </div>
 
-        {/* =====================================================
-            RIGHT ARROW
-        ===================================================== */}
-
         <button
           type="button"
           onClick={() => handleScroll('right')}
           aria-label="Next press logo"
-          className="
-            relative
-            z-20
-            hidden
-            sm:flex
-            h-9
-            w-9
-            md:h-10
-            md:w-10
-            shrink-0
-            cursor-pointer
-            items-center
-            justify-center
-            rounded-full
-            border
-            border-[#D4D4D4]
-            bg-white
-            text-[#737373]
-            shadow-xs
-            transition-all
-            duration-200
-            hover:border-black
-            hover:text-black
-            hover:scale-105
-            active:scale-95
-            focus:outline-hidden
-          "
+          className="relative z-20 hidden h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#D4D4D4] bg-white text-[#737373] shadow-xs transition-all duration-200 hover:scale-105 hover:border-black hover:text-black focus:outline-hidden active:scale-95 sm:flex md:h-10 md:w-10 lg:h-11 lg:w-11 xl:h-12 xl:w-12"
         >
-          <IoChevronForward className="h-4 w-4 md:h-4.5 md:w-4.5" />
+          <IoChevronForward className="h-4 w-4 lg:h-5 lg:w-5" />
         </button>
       </div>
     </section>
