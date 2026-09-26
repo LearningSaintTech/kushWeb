@@ -275,6 +275,7 @@ export {
   isDesignerRejected,
   isDesignerRoleReady,
   isDesignerOnboardingIncomplete,
+  isCreatorRoleReady,
   isCreatorOnboardingIncomplete,
 } from './communityProfile.mappers.js';
 

@@ -10,7 +10,7 @@ import {
 } from '../hooks/useCommunityFeed'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import { communityService } from '../../../services/community.service.js'
-import { mapContentToReel } from '../../../services/communityContent.mappers.js'
+import { mapContentToReel, overlayViewerAuthor } from '../../../services/communityContent.mappers.js'
 import { extractReelPoster, extractReelVideo, readReelNavState } from '../utils/openReel'
 import { shareCommunityContent } from '../utils/shareProfile'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
@@ -23,7 +23,7 @@ import { requestCommunityProfileRefresh } from '../hooks/useCommunitySocialProfi
  * Profile open: location.state.playlist = that user's reels
  */
 export default function CommunityReelsFeed() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const { openProfile, openReelComments } = useCommunityFeedUi()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -120,7 +120,10 @@ export default function CommunityReelsFeed() {
       .getContent(startReelId)
       .then((raw) => {
         if (cancelled) return
-        const mapped = mapContentToReel(raw?.content || raw?.item || raw)
+        const mapped = overlayViewerAuthor(
+          mapContentToReel(raw?.content || raw?.item || raw),
+          user,
+        )
         if (!mapped) return
         setBootReel(mapped)
       })
@@ -131,7 +134,7 @@ export default function CommunityReelsFeed() {
     return () => {
       cancelled = true
     }
-  }, [startReelId, profilePlaylist, profileSeed])
+  }, [startReelId, profilePlaylist, profileSeed, user])
 
   // Fetch missing deep-linked reel only for explore mode
   useEffect(() => {
@@ -149,7 +152,10 @@ export default function CommunityReelsFeed() {
       .getContent(startReelId)
       .then((raw) => {
         if (cancelled) return
-        const mapped = mapContentToReel(raw?.content || raw?.item || raw)
+        const mapped = overlayViewerAuthor(
+          mapContentToReel(raw?.content || raw?.item || raw),
+          user,
+        )
         if (mapped) setBootReel(mapped)
       })
       .catch((err) => {
@@ -159,7 +165,7 @@ export default function CommunityReelsFeed() {
     return () => {
       cancelled = true
     }
-  }, [startReelId, feedReels, useProfilePlaylist])
+  }, [startReelId, feedReels, useProfilePlaylist, user])
 
   const reels = useMemo(() => {
     const drop = (list) =>
@@ -183,11 +189,11 @@ export default function CommunityReelsFeed() {
       return list
     }
 
-    const feed = drop(feedReels)
+    const feed = drop(feedReels).map((r) => overlayViewerAuthor(r, user))
     if (!bootReel || removedIds.has(String(bootReel.id))) return feed
     if (feed.some((r) => String(r.id) === String(bootReel.id))) return feed
     return [bootReel, ...feed]
-  }, [useProfilePlaylist, profilePlaylist, bootReel, feedReels, startReelId, removedIds])
+  }, [useProfilePlaylist, profilePlaylist, bootReel, feedReels, startReelId, removedIds, user])
 
   // Scroll / activate start reel once
   useEffect(() => {

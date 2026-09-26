@@ -101,46 +101,72 @@ function mapTaggedProducts(content) {
   return chip ? [chip] : [];
 }
 
+function collectProductNames(content) {
+  const names = new Set();
+  const add = (value) => {
+    const trimmed = String(value || '').trim().toLowerCase();
+    if (trimmed) names.add(trimmed);
+  };
+  add(content?.itemName);
+  add(content?.item?.name);
+  add(content?.productName);
+  add(content?.product?.name);
+  const lists = [content?.items, content?.taggedProducts, content?.taggedItems];
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const row of list) add(row?.name);
+  }
+  return names;
+}
+
+function pickAuthorLabel(value, productNames) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  if (lower === 'member' || productNames.has(lower)) return '';
+  return trimmed;
+}
+
 export function resolveAuthorName(content) {
   if (!content) return 'Creator';
   const authorObj = typeof content.author === 'object' && content.author !== null ? content.author : null;
   const userObj = typeof content.user === 'object' && content.user !== null ? content.user : null;
   const creatorObj = typeof content.creator === 'object' && content.creator !== null ? content.creator : null;
   const postedByObj = typeof content.postedBy === 'object' && content.postedBy !== null ? content.postedBy : null;
+  const productNames = collectProductNames(content);
 
-  const rawName =
-    content.authorName ||
-    authorObj?.name ||
-    authorObj?.fullName ||
-    authorObj?.displayName ||
-    userObj?.name ||
-    userObj?.fullName ||
-    userObj?.displayName ||
-    creatorObj?.name ||
-    creatorObj?.fullName ||
-    creatorObj?.displayName ||
-    postedByObj?.name ||
-    postedByObj?.fullName ||
-    postedByObj?.displayName ||
-    content.authorFullName ||
-    content.authorDisplayName ||
-    content.creatorName ||
-    content.userName ||
-    content.fullName ||
-    content.displayName ||
-    content.name ||
-    authorObj?.username ||
-    userObj?.username ||
-    creatorObj?.username ||
-    postedByObj?.username ||
-    content.authorUsername ||
-    content.username ||
-    content.handle ||
-    '';
+  const candidates = [
+    content.authorName,
+    authorObj?.name,
+    authorObj?.fullName,
+    authorObj?.displayName,
+    userObj?.name,
+    userObj?.fullName,
+    userObj?.displayName,
+    creatorObj?.name,
+    creatorObj?.fullName,
+    creatorObj?.displayName,
+    postedByObj?.name,
+    postedByObj?.fullName,
+    postedByObj?.displayName,
+    content.authorFullName,
+    content.authorDisplayName,
+    content.creatorName,
+    content.userName,
+    content.fullName,
+    // Do not use content.name / content.displayName — create payload often puts the tagged product there.
+    authorObj?.username,
+    userObj?.username,
+    creatorObj?.username,
+    postedByObj?.username,
+    content.authorUsername,
+    content.username,
+    content.handle,
+  ];
 
-  const trimmed = String(rawName).trim();
-  if (trimmed && trimmed.toLowerCase() !== 'member') {
-    return trimmed;
+  for (const candidate of candidates) {
+    const picked = pickAuthorLabel(candidate, productNames);
+    if (picked) return picked;
   }
 
   const rawHandle =
@@ -157,6 +183,52 @@ export function resolveAuthorName(content) {
   }
 
   return 'Creator';
+}
+
+export function overlayViewerAuthor(post, viewer) {
+  if (!post || !viewer) return post;
+  const viewerName = String(
+    viewer.name || viewer.fullName || [viewer.firstName, viewer.lastName].filter(Boolean).join(' '),
+  ).trim();
+  if (!viewerName) return post;
+
+  const productNames = new Set(
+    (post.taggedProducts || [])
+      .map((p) => String(p?.name || '').trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const current = String(post.author?.name || '').trim();
+  const currentLower = current.toLowerCase();
+  const looksWrong =
+    !current ||
+    currentLower === 'creator' ||
+    currentLower === 'member' ||
+    productNames.has(currentLower);
+
+  if (!looksWrong) return post;
+
+  const authorId = String(post.author?.id || '');
+  const viewerId = String(viewer.id || viewer._id || '');
+  const own =
+    post.raw?.isOwn === true ||
+    post.isOwn === true ||
+    (authorId && viewerId && authorId === viewerId) ||
+    !authorId;
+  if (!own) return post;
+
+  return {
+    ...post,
+    author: {
+      ...post.author,
+      name: viewerName,
+      handle: post.author?.handle || viewer.username || '',
+      avatar:
+        post.author?.avatar ||
+        viewer.profileImage ||
+        viewer.avatar ||
+        '',
+    },
+  };
 }
 
 export function resolveAuthorHandle(content) {
@@ -254,7 +326,7 @@ export function mapContentToPost(rawContent) {
 
   const authorName = resolveAuthorName(content);
   const authorHandle = resolveAuthorHandle(content);
-  const authorAvatar = resolveAuthorAvatar(content, image);
+  const authorAvatar = resolveAuthorAvatar(content, '');
 
   const post = {
     id: content._id || content.id ? String(content._id || content.id) : '',

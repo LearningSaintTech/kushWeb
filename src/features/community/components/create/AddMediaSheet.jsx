@@ -45,7 +45,7 @@ export default function AddMediaSheet({
     if (isReel) {
       const video = list.find((f) => f.type?.startsWith('video/'))
       if (!video) {
-        setPickError('Please upload a video type')
+        setPickError('Please upload a video type file')
         return
       }
       setPickError(null)

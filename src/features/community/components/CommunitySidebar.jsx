@@ -13,7 +13,7 @@ const NAV_ITEMS = [
     label: 'Home',
     to: ROUTES.COMMUNITY_FEED,
     icon: (
-      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
       </svg>
     ),
@@ -23,7 +23,7 @@ const NAV_ITEMS = [
     label: 'Search',
     to: ROUTES.COMMUNITY_SEARCH,
     icon: (
-      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
       </svg>
     ),
@@ -33,7 +33,7 @@ const NAV_ITEMS = [
     label: 'Reels',
     to: ROUTES.COMMUNITY_REELS,
     icon: (
-      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
       </svg>
     ),
@@ -43,7 +43,7 @@ const NAV_ITEMS = [
     label: 'Notifications',
     to: ROUTES.COMMUNITY_FEED,
     icon: (
-      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
       </svg>
     ),
@@ -53,7 +53,7 @@ const NAV_ITEMS = [
     label: 'Create',
     to: ROUTES.COMMUNITY_CREATE_JOIN,
     icon: (
-      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
     ),
@@ -63,7 +63,7 @@ const NAV_ITEMS = [
     label: 'Profile',
     to: ROUTES.COMMUNITY_PROFILE,
     icon: (
-      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
       </svg>
     ),
@@ -73,7 +73,7 @@ const NAV_ITEMS = [
     label: 'Saved',
     to: ROUTES.COMMUNITY_SAVED,
     icon: (
-      <svg className="h-[15px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
       </svg>
     ),
@@ -110,13 +110,13 @@ export default function CommunitySidebar({
   }
 
   return (
-    <aside className="flex h-full min-h-0 w-[220px] shrink-0 flex-col overflow-hidden bg-white px-3 py-4">
+    <aside className="flex h-full min-h-0 w-[248px] shrink-0 flex-col overflow-hidden bg-white px-3 py-4">
       <div className="shrink-0">
-        <p className="px-2 font-inter text-base font-bold tracking-[0.12em] text-black">
+        <p className="px-2 font-inter text-lg font-bold tracking-[0.12em] text-black">
           COMMUNITY
         </p>
 
-        <nav className="mt-4 flex flex-col gap-0.5" aria-label="Community">
+        <nav className="mt-4 flex flex-col gap-1" aria-label="Community">
           {items.map((item) => {
             const isActive = item.id === activeId
             return (
@@ -124,7 +124,7 @@ export default function CommunitySidebar({
                 key={item.id}
                 type="button"
                 onClick={(e) => handleNavClick(item, e)}
-                className={`flex w-full items-center gap-3 rounded-full px-3 py-[7px] text-left font-inter text-[10px] transition ${
+                className={`flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-left font-inter text-sm transition ${
                   isActive
                     ? 'bg-neutral-100 font-semibold text-black'
                     : 'font-medium text-neutral-700 hover:bg-neutral-50'
@@ -133,7 +133,7 @@ export default function CommunitySidebar({
                 <span className="text-black">{item.icon}</span>
                 <span className="flex-1">{item.label}</span>
                 {item.id === 'notifications' && unreadCount > 0 ? (
-                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f07a3a] px-1.5 font-inter text-[10px] font-bold text-white">
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f07a3a] px-1.5 font-inter text-[11px] font-bold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 ) : null}
@@ -147,13 +147,13 @@ export default function CommunitySidebar({
         <button
           type="button"
           onClick={() => navigateApp(ROUTES.CART)}
-          className="flex h-[36px] w-[120px] items-center justify-center gap-2 rounded-full bg-black px-3 font-inter text-[10px] font-medium text-white transition hover:bg-neutral-900"
+          className="flex h-10 w-[140px] items-center justify-center gap-2 rounded-full bg-black px-3 font-inter text-sm font-medium text-white transition hover:bg-neutral-900"
         >
           <span>Go to cart</span>
 
           <span className="relative flex items-center justify-center">
             <svg
-              className="h-[20px] w-[20px]"
+              className="h-5 w-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -178,7 +178,7 @@ export default function CommunitySidebar({
         <button
           type="button"
           onClick={() => navigateApp(ROUTES.HOME)}
-          className="inline-flex items-center gap-2 px-2 font-inter text-sm font-medium text-black transition hover:opacity-70"
+          className="inline-flex items-center gap-2 px-2 font-inter text-base font-medium text-black transition hover:opacity-70"
         >
           <svg
             className="h-4 w-4"
@@ -194,11 +194,11 @@ export default function CommunitySidebar({
         </button>
 
         {caps.showCreateCard && !hasPosts ? (
-          <div className="relative overflow-hidden rounded-xl">
+          <div className="relative w-full overflow-hidden rounded-xl">
             <img
               src={createCardBg}
               alt=""
-              className="block h-[110px] w-[214px] object-cover"
+              className="block h-[110px] w-full object-cover"
               aria-hidden
             />
             <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
@@ -231,7 +231,7 @@ export default function CommunitySidebar({
               <img src={userAvatar} alt="" className="h-full w-full object-cover" />
             ) : null}
           </div>
-          <p className="min-w-0 flex-1 truncate font-inter text-sm font-semibold text-black">
+          <p className="min-w-0 flex-1 truncate font-inter text-base font-semibold text-black">
             {userName}
           </p>
           <button

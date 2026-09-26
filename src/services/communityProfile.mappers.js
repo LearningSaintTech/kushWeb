@@ -147,9 +147,11 @@ export function normalizeUsername(value) {
 export function isCommunityProfileDeleted(profile) {
   if (!profile || typeof profile !== 'object') return false;
   const status = String(profile.communityProfileStatus || '').toLowerCase();
+  // Do NOT treat requiresOnboarding alone as deleted — shoppers often have that
+  // flag and must still browse the community feed.
   return (
     profile.deleted === true ||
-    profile.requiresOnboarding === true ||
+    profile.alreadyDeleted === true ||
     status === 'deleted'
   );
 }
@@ -221,20 +223,24 @@ export function isDesignerOnboardingIncomplete(profile) {
   return Boolean(step && step !== 'completed' && step !== 'not_started');
 }
 
+/** True when creator onboarding is finished and the creator dashboard may show. */
+export function isCreatorRoleReady(profile) {
+  if (!profile || typeof profile !== 'object') return false;
+  if (isCommunityProfileDeleted(profile)) return false;
+  if (profile.isCreator !== true) return false;
+  const step = String(profile.creatorOnboardingStep || '').toLowerCase();
+  return profile.creatorProfileCompleted === true || step === 'completed';
+}
+
 /** Check if creator onboarding is incomplete and should be resumed */
 export function isCreatorOnboardingIncomplete(profile) {
-  if (!profile || typeof profile !== 'object' || !profile.isCreator || profile.isDesigner) return false;
+  if (!profile || typeof profile !== 'object') return false;
+  if (profile.isCreator !== true) return false;
   if (isCommunityProfileDeleted(profile)) return false;
-  if (
-    profile.creatorProfileCompleted === true ||
-    profile.isCreatorVerified === true ||
-    profile.isVerified === true
-  ) {
-    return false;
-  }
+  if (isCreatorRoleReady(profile)) return false;
 
-  const step = profile.creatorOnboardingStep;
-  return Boolean(step && step !== 'completed' && step !== 'not_started');
+  const step = String(profile.creatorOnboardingStep || '').toLowerCase();
+  return Boolean(step && step !== 'completed');
 }
 
 /**

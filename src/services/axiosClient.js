@@ -52,6 +52,31 @@ function notifyAuthRequired() {
   }
 }
 
+function isAccessTokenMissingMessage(msg) {
+  return /access token is missing|missing access token|no token provided|jwt expired|invalid access token|token expired|authorization.*(missing|required)/i.test(
+    String(msg || ''),
+  );
+}
+
+function sanitizeAuthErrorMessage(message) {
+  if (isAccessTokenMissingMessage(message)) {
+    return 'Please sign in to continue.';
+  }
+  return message;
+}
+
+export function getFriendlyAuthErrorMessage(err, fallback = 'Please sign in to continue.') {
+  const raw =
+    err?.response?.data?.message ??
+    (typeof err?.message === 'string' ? err.message : '') ??
+    '';
+  if (isAccessTokenMissingMessage(raw) || err?.response?.status === 401) {
+    return fallback;
+  }
+  if (typeof raw === 'string' && raw.trim()) return sanitizeAuthErrorMessage(raw);
+  return fallback;
+}
+
 /** Open login modal without logging out other devices. */
 export function triggerAuthRequired() {
   notifyAuthRequired();
@@ -132,9 +157,11 @@ client.interceptors.request.use(
     config.metadata = { ...(config.metadata || {}), startedAt: Date.now() };
 
     let token = getAccessToken();
+    // Memory token is cleared on full page refresh. If a session hint exists,
+    // mint a new access token before protected calls so APIs never see
+    // "Access token is missing" while the user still has a valid session.
     if (
-      token &&
-      isTokenExpired(token) &&
+      (!token || isTokenExpired(token)) &&
       hasSessionHint() &&
       !isAuthRequestUrl(config.url)
     ) {
@@ -209,18 +236,25 @@ client.interceptors.response.use(
       message: error.message,
     });
 
+    const rawApiMessage = String(
+      response?.data?.message ?? error?.message ?? '',
+    );
+    const looksLikeMissingToken = isAccessTokenMissingMessage(rawApiMessage);
+
     if (isRateLimitedStatus(status) && response?.data) {
       const data = { ...response.data };
       data.message = RATE_LIMIT_MESSAGE;
       error.response = { ...response, data };
     } else if (response?.data?.message) {
       const data = { ...response.data };
-      data.message = normalizeRateLimitMessage(data.message, status);
+      data.message = sanitizeAuthErrorMessage(
+        normalizeRateLimitMessage(data.message, status),
+      );
       error.response = { ...response, data };
     }
 
     const canRetry =
-      status === 401 &&
+      (status === 401 || looksLikeMissingToken) &&
       originalConfig &&
       !originalConfig._authRetry &&
       !isAuthRequestUrl(originalConfig.url) &&
@@ -247,17 +281,33 @@ client.interceptors.response.use(
     }
 
     if (
-      status === 401 &&
+      (status === 401 || looksLikeMissingToken) &&
       originalConfig &&
       !isAuthRequestUrl(originalConfig.url) &&
       !isPublicApiUrl(originalConfig.url)
     ) {
+      // Only clear local session when refresh already wiped the hint (true expiry).
+      // Never logout solely because one API returned 401 while RT/hint still exist.
       if (requestHadAuth(originalConfig) && !hasSessionHint()) {
-        // Refresh already rejected this device's session. Clear local only —
-        // never POST /logout here (that would kick other devices).
         await performLogout({ server: false });
       }
-      notifyAuthRequired();
+      if (!hasSessionHint()) {
+        notifyAuthRequired();
+      }
+    }
+
+    // Ensure callers never surface raw "Access token is missing" text.
+    if (looksLikeMissingToken && error.response?.data) {
+      error.response = {
+        ...error.response,
+        data: {
+          ...error.response.data,
+          message: 'Please sign in to continue.',
+        },
+      };
+    }
+    if (looksLikeMissingToken && typeof error.message === 'string') {
+      error.message = 'Please sign in to continue.';
     }
 
     return Promise.reject(error);

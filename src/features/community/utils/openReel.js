@@ -1,4 +1,5 @@
-import { getCommunityReelsPath } from '../../../utils/constants'
+import { getCommunityReelsPath, getProductPath } from '../../../utils/constants'
+import { navigateApp } from '../../../app/navigateApp.js'
 import { setCommunityNav } from './communityNav'
 
 function mediaArray(item) {
@@ -138,6 +139,26 @@ export function openCommunityMedia({
   source = 'profile',
 } = {}) {
   if (!item) return false
+
+  const tabKey = String(tab || '').toLowerCase()
+  const isTaggedProduct =
+    tabKey === 'tagged' ||
+    String(item.type || '').toLowerCase() === 'tagged'
+
+  // Profile Tagged tab = product tiles only (no post/reel like/comment UI)
+  if (isTaggedProduct) {
+    const productId =
+      item.itemId ||
+      item.id ||
+      item._id ||
+      item.raw?.itemId ||
+      item.raw?._id
+    if (!productId) return false
+    const slugSource = item.name || item.itemName || item.raw?.name || ''
+    navigateApp(getProductPath(productId, slugSource))
+    return true
+  }
+
   const id = resolveMediaId(item)
   if (!id) return false
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useCommunityFeedUi } from '../context/CommunityFeedUiContext'
 import { useCommunityRole } from '../hooks/useCommunityRole'
 import { useCommunityProfile } from '../context/CommunityProfileContext'
-import { can, COMMUNITY_ROLES } from '../capabilities'
+import { COMMUNITY_ROLES } from '../capabilities'
 import CommunityProfileJoin from './CommunityProfileJoin'
 import CommunityCreatorProfile from './CommunityCreatorProfile'
 import CommunityDesignerProfile from './CommunityDesignerProfile'
@@ -13,13 +13,13 @@ import {
   isDesignerOnboardingIncomplete,
   isCreatorOnboardingIncomplete,
   isDesignerRoleReady,
+  isCreatorRoleReady,
 } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
 
 /**
- * Profile entry — joins for normal users; creator / designer dashboards by role.
- * Designer dashboard only after onboarding is complete. Incomplete designer
- * flow stays on creator/join and can resume the wizard.
+ * Profile entry — joins for normal users; creator / designer dashboards only
+ * after every onboarding step is complete.
  */
 export default function CommunityProfilePage() {
   const outletCtx = useCommunityFeedUi()
@@ -30,12 +30,13 @@ export default function CommunityProfilePage() {
   const autoResumeDoneRef = useRef(false)
   const profileDeleted = isCommunityProfileDeleted(profile)
   const designerReady = isDesignerRoleReady(profile)
+  const creatorReady = isCreatorRoleReady(profile)
+  const creatorIncomplete = isCreatorOnboardingIncomplete(profile)
 
   useEffect(() => {
     if (!profile || autoResumeDoneRef.current || profileDeleted) return
 
     const designerIncomplete = isDesignerOnboardingIncomplete(profile)
-    const creatorIncomplete = isCreatorOnboardingIncomplete(profile)
 
     if (designerIncomplete && !designerReady) {
       debugLog('[CommunityProfile] resume designer onboarding', {
@@ -47,14 +48,14 @@ export default function CommunityProfilePage() {
       return
     }
 
-    if (creatorIncomplete) {
+    if (creatorIncomplete && !creatorReady) {
       debugLog('[CommunityProfile] resume creator onboarding', {
         step: profile.creatorOnboardingStep,
       })
       autoResumeDoneRef.current = true
       setResumeCreator(true)
     }
-  }, [profile, profileDeleted, designerReady])
+  }, [profile, profileDeleted, designerReady, creatorReady, creatorIncomplete])
 
   const handleDesignerWizardClose = () => {
     setResumeDesigner(false)
@@ -91,7 +92,7 @@ export default function CommunityProfilePage() {
     )
   }
 
-  if (can(role, 'canPost') || profile?.isCreator) {
+  if (creatorReady) {
     return (
       <>
         <CommunityCreatorProfile {...outletCtx} />

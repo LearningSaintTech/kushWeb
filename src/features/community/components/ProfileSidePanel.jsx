@@ -359,11 +359,20 @@ export default function ProfileSidePanel({ profile: seed, onClose, onOpenPost })
                   key={item.id}
                   type="button"
                   onClick={() => handleOpenMedia(item)}
-                  className="aspect-square cursor-pointer overflow-hidden bg-neutral-200"
-                  aria-label={`Open ${item.type}`}
+                  className="relative aspect-square cursor-pointer overflow-hidden bg-neutral-200"
+                  aria-label={
+                    activeTab === 'Tagged'
+                      ? `Open product ${item.name || ''}`.trim()
+                      : `Open ${item.type}`
+                  }
                 >
                   {item.image ? (
                     <img src={item.image} alt="" className="h-full w-full object-cover" />
+                  ) : null}
+                  {activeTab === 'Tagged' && item.name ? (
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1.5 pt-5 text-left font-inter text-[10px] font-medium leading-tight text-white line-clamp-2">
+                      {item.name}
+                    </span>
                   ) : null}
                 </button>
               ))

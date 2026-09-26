@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { debugLog } from '../../utils/debugLog.js';
 import { useSelector } from "react-redux";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -61,6 +61,8 @@ import {
   Download,
   Star,
   X,
+  ImagePlus,
+  Plus,
 } from "lucide-react";
 
 const QUANTITY_LABELS = {
@@ -91,6 +93,9 @@ const FALLBACK_CANCEL_REASONS = [
   "Delivery too late",
   "Other",
 ];
+
+const EXCHANGE_IMAGE_MIN = 3;
+const EXCHANGE_IMAGE_MAX = 3;
 
 const FALLBACK_EXCHANGE_REASONS = [
   "Wrong size",
@@ -1071,6 +1076,7 @@ export default function TrackOrderPage() {
   const [exchangeItemDetails, setExchangeItemDetails] = useState(null);
   const [exchangeItemLoading, setExchangeItemLoading] = useState(false);
   const [exchangeImages, setExchangeImages] = useState([]);
+  const exchangeImageInputRef = useRef(null);
   const [exchangeSubmitting, setExchangeSubmitting] = useState(false);
   const [exchangeError, setExchangeError] = useState(null);
   const [exchangePolicyAccepted, setExchangePolicyAccepted] = useState(false);
@@ -1513,6 +1519,27 @@ export default function TrackOrderPage() {
     setExchangeImages([]);
   };
 
+  const addExchangeImageFiles = (fileList) => {
+    const incoming = Array.from(fileList || []).filter((file) =>
+      String(file.type || "").startsWith("image/"),
+    );
+    if (!incoming.length) return;
+    setExchangeImages((prev) => {
+      const next = [...prev];
+      for (const file of incoming) {
+        if (next.length >= EXCHANGE_IMAGE_MAX) break;
+        next.push(file);
+      }
+      return next;
+    });
+    setExchangeError(null);
+  };
+
+  const removeExchangeImageAt = (index) => {
+    setExchangeImages((prev) => prev.filter((_, i) => i !== index));
+    setExchangeError(null);
+  };
+
   const closeExchangeModal = () => {
     const wasSuccess = exchangeStep === 5;
     setExchangeStep(0);
@@ -1547,12 +1574,12 @@ export default function TrackOrderPage() {
       return;
     }
     if (exchangeStep === 4) {
-      if (exchangeImages.length < 3) {
-        setExchangeError("Please upload at least 3 images.");
+      if (exchangeImages.length < EXCHANGE_IMAGE_MIN) {
+        setExchangeError(`Please upload ${EXCHANGE_IMAGE_MIN} images.`);
         return;
       }
-      if (exchangeImages.length > 5) {
-        setExchangeError("Maximum 5 images allowed.");
+      if (exchangeImages.length > EXCHANGE_IMAGE_MAX) {
+        setExchangeError(`Maximum ${EXCHANGE_IMAGE_MAX} images allowed.`);
         return;
       }
       setExchangeError(null);
@@ -3517,45 +3544,71 @@ export default function TrackOrderPage() {
                   </div>
                   <div className="p-4">
                     <p className="text-xs text-gray-600 mb-3">
-                      Upload 3 to 5 images of the item (required for exchange).
+                      Upload 3 photos of the item. Add them one by one, or select
+                      several at once.
                     </p>
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3">
-                      {[0, 1, 2, 3, 4].map((i) => (
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      {Array.from({ length: EXCHANGE_IMAGE_MAX }).map((_, i) => (
                         <div
                           key={i}
-                          className="aspect-square min-h-38 rounded-lg bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center p-2"
+                          className="relative aspect-square min-h-24 rounded-lg bg-gray-50 border border-gray-200 overflow-hidden"
                         >
                           {exchangeImages[i] ? (
-                            <img
-                              src={URL.createObjectURL(exchangeImages[i])}
-                              alt=""
-                              className="max-h-full max-w-full object-contain object-center"
-                            />
+                            <>
+                              <img
+                                src={URL.createObjectURL(exchangeImages[i])}
+                                alt=""
+                                className="h-full w-full object-contain object-center p-1"
+                              />
+                              <button
+                                type="button"
+                                aria-label={`Remove photo ${i + 1}`}
+                                onClick={() => removeExchangeImageAt(i)}
+                                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
+                              >
+                                <X className="h-3.5 w-3.5" aria-hidden />
+                              </button>
+                            </>
                           ) : (
-                            <span className="text-gray-400 text-2xl">ðŸ“·</span>
+                            <button
+                              type="button"
+                              onClick={() => exchangeImageInputRef.current?.click()}
+                              className="flex h-full w-full flex-col items-center justify-center gap-1 text-gray-400 hover:bg-gray-100"
+                            >
+                              <Plus className="h-6 w-6" aria-hidden />
+                              <span className="text-[10px] font-medium uppercase">
+                                Add
+                              </span>
+                            </button>
                           )}
                         </div>
                       ))}
                     </div>
-                    <label className="block">
-                      <span className="sr-only">Upload images</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []).slice(
-                            0,
-                            5,
-                          );
-                          setExchangeImages(files);
-                        }}
-                        className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:border file:border-gray-300 file:rounded file:text-xs file:font-semibold file:uppercase file:bg-white file:text-black hover:file:bg-gray-50"
-                      />
-                    </label>
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      Min 3, max 5 images. You have {exchangeImages.length}{" "}
-                      selected.
+                    <input
+                      ref={exchangeImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        addExchangeImageFiles(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => exchangeImageInputRef.current?.click()}
+                      disabled={exchangeImages.length >= EXCHANGE_IMAGE_MAX}
+                      className="flex w-full items-center justify-center gap-2 border border-gray-300 py-2.5 text-xs font-semibold uppercase text-black hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ImagePlus className="h-4 w-4" aria-hidden />
+                      {exchangeImages.length >= EXCHANGE_IMAGE_MAX
+                        ? "3 photos added"
+                        : "Add photos"}
+                    </button>
+                    <p className="text-[10px] text-gray-500 mt-2">
+                      {exchangeImages.length} of {EXCHANGE_IMAGE_MAX} selected.
+                      You can pick one file at a time or several together.
                     </p>
                   </div>
                   {exchangeError && (
@@ -3565,7 +3618,10 @@ export default function TrackOrderPage() {
                     <button
                       type="button"
                       onClick={exchangeModalContinue}
-                      disabled={exchangeSubmitting || exchangeImages.length < 3}
+                      disabled={
+                        exchangeSubmitting ||
+                        exchangeImages.length < EXCHANGE_IMAGE_MIN
+                      }
                       className="w-full bg-black text-white py-3 text-xs font-semibold uppercase hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {exchangeSubmitting ? "Submitting..." : "Exchange order"}

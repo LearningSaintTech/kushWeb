@@ -22,7 +22,7 @@ import AddMediaSheet from '../components/create/AddMediaSheet'
 import CreatePostComposer from '../components/create/CreatePostComposer'
 import { CommunitySocialProvider } from '../context/CommunitySocialContext'
 import { CommunityFeedUiContext } from '../context/CommunityFeedUiContext'
-import { communityService, mapContentToPost } from '../../../services/community.service.js'
+import { communityService, mapContentToPost, mapContentToReel, overlayViewerAuthor } from '../../../services/community.service.js'
 import CommunityFeedHome from '../feed/CommunityFeedHome'
 import CommunitySearchFeed from '../feed/CommunitySearchFeed'
 import CommunityReelsFeed from '../feed/CommunityReelsFeed'
@@ -317,7 +317,19 @@ export default function CommunityFeedLayout({
 
       if (kind === 'reel' && id) {
         setCommunityNav('reels')
-        navigate(getCommunityReelsPath(id))
+        navigate(getCommunityReelsPath(id), {
+          state: {
+            startReelId: id,
+            seed: overlayViewerAuthor(
+              mapContentToReel({
+                ...content,
+                authorName: content.authorName || userName,
+                authorAvatar: content.authorAvatar || userAvatar,
+              }),
+              { ...user, name: userName, profileImage: userAvatar },
+            ),
+          },
+        })
         return
       }
 
@@ -356,7 +368,7 @@ export default function CommunityFeedLayout({
         }, 400)
       }
     },
-    [closeCreateFlow, navigate, openPost, userAvatar, userName],
+    [closeCreateFlow, navigate, openPost, user, userAvatar, userName],
   )
 
   const shellRole = role === 'guest' ? 'user' : role

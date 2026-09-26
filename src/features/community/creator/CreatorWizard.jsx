@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import CreatorShell from './CreatorShell'
 import StepPhoto from './steps/StepPhoto'
 import StepBasicInfo from './steps/StepBasicInfo'
@@ -25,6 +26,8 @@ import {
   isCommunityProfileDeleted,
 } from '../../../services/communityProfile.service'
 import { debugLog } from '../../../utils/debugLog'
+import { ROUTES } from '../../../utils/constants'
+import { setCommunityNav } from '../utils/communityNav'
 
 const STEP_COMPONENTS = {
   1: StepPhoto,
@@ -35,6 +38,7 @@ const STEP_COMPONENTS = {
 }
 
 export default function CreatorWizard({ open, onClose, forceFresh = false }) {
+  const navigate = useNavigate()
   const { profile, refresh, applyProfile } = useCommunityProfile()
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState(INITIAL_FORM_DATA)
@@ -50,11 +54,22 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
     setBootstrapped(false)
   }, [])
 
+  const goToExploreFeed = useCallback(() => {
+    setCommunityNav('home')
+    navigate(ROUTES.COMMUNITY_FEED)
+  }, [navigate])
+
   const handleClose = useCallback(() => {
+    const finished = step === SUCCESS_STEP
     reset()
     onClose?.()
     refresh()
-  }, [onClose, reset, refresh])
+    if (finished) goToExploreFeed()
+  }, [goToExploreFeed, onClose, refresh, reset, step])
+
+  const finishCreator = async () => {
+    return applyProfile(await communityProfileService.completeCreator())
+  }
 
   useEffect(() => {
     if (!open) return undefined
@@ -169,7 +184,7 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
     }
     if (step === 4) {
       await communityProfileService.patchCreatorPrivate(buildCreatorPrivateBody(formData))
-      return applyProfile(await communityProfileService.completeCreator())
+      return finishCreator()
     }
     return profile
   }
@@ -209,10 +224,17 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
 
   /** POST /user/community-profile/creator/skip — advance current onboarding step */
   const handleSkip = async () => {
-    if (step >= TOTAL_STEPS || step === SUCCESS_STEP || saving) return
+    if (step === SUCCESS_STEP || saving) return
     setSaving(true)
     setError(null)
     try {
+      if (step >= TOTAL_STEPS) {
+        await finishCreator()
+        debugLog('[CommunityProfile] creator skip completed last step')
+        setStep(SUCCESS_STEP)
+        await refresh()
+        return
+      }
       const updated = applyProfile(await communityProfileService.skipCreatorStep())
       debugLog('[CommunityProfile] creator skip', {
         uiStep: step,
@@ -240,7 +262,7 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
 
   const StepComponent = STEP_COMPONENTS[step]
   const isSuccess = step === SUCCESS_STEP
-  const canSkip = !isSuccess && step < TOTAL_STEPS
+  const canSkip = !isSuccess
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80 p-3 sm:p-6">
@@ -261,24 +283,14 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
             saving
               ? 'Saving…'
               : isSuccess
-                ? 'Go to Profile'
+                ? 'Explore Feed'
                 : STEPS[step - 1].continueLabel
           }
           continueDisabled={saving}
           skipDisabled={saving}
           showSkip={canSkip}
           error={error}
-          footerExtra={
-            isSuccess ? (
-              <button
-                type="button"
-                onClick={handleClose}
-                className="mt-4 w-full cursor-pointer font-inter text-sm font-semibold text-black transition hover:text-black"
-              >
-                Explore Feed
-              </button>
-            ) : null
-          }
+          footerExtra={null}
         >
           <StepComponent data={formData} onChange={patchForm} />
         </CreatorShell>

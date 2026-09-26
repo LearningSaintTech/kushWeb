@@ -5,12 +5,13 @@ import {
   isDesignerOnboardingIncomplete,
   isCreatorOnboardingIncomplete,
   isDesignerRoleReady,
+  isCreatorRoleReady,
 } from '../../../services/communityProfile.mappers.js'
 
 function roleFromProfile(profile, fallbackRole) {
   if (profile) {
     if (isDesignerRoleReady(profile)) return COMMUNITY_ROLES.DESIGNER
-    if (profile.isCreator === true && !isCommunityProfileDeleted(profile)) {
+    if (isCreatorRoleReady(profile) && !isCommunityProfileDeleted(profile)) {
       return COMMUNITY_ROLES.CREATOR
     }
     return COMMUNITY_ROLES.USER
@@ -26,10 +27,10 @@ function roleFromProfile(profile, fallbackRole) {
 
 /**
  * Pick the community destination from auth + community-profile flags.
- * - Deleted / requires onboarding → create/join (re-onboard)
- * - Incomplete onboarding → profile (wizard resumes)
- * - Creator / designer → profile dashboard
- * - Normal user → feed home
+ * - Soft-deleted community profile → create/join (re-onboard)
+ * - Incomplete creator/designer onboarding → profile (wizard resumes)
+ * - Ready creator / designer → profile dashboard
+ * - Normal user (shopper) → explore feed (browse/search/reels; cannot post)
  */
 export function resolveCommunityDestination(profile, fallbackRole) {
   if (isCommunityProfileDeleted(profile)) {

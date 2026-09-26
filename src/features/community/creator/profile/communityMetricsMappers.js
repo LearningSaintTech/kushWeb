@@ -65,7 +65,7 @@ export function mapCommunityDashboardMetrics(stats, profile, mode = 'creator') {
   const profileObj = unwrapMetricsPayload(profile)
   const counts = profileObj?.counts || profileObj?.statsRaw || {}
   const statsRaw = profileObj?.statsRaw || {}
-  const contentLabel = mode === 'designer' ? 'Designs' : 'Posts'
+  const contentLabel = mode === 'designer' ? 'Posts' : 'Posts'
 
   const profilePosts = asList(profileObj.posts).length
     ? asList(profileObj.posts)

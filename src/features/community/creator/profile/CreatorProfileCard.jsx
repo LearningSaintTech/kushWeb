@@ -291,13 +291,22 @@ export default function CreatorProfileCard({ onOpenMedia, onEditProfile }) {
                     playlist: playlistFromGrid(social?.mediaByTab?.Reels || []),
                   })
                 }
-                className={`cursor-pointer overflow-hidden bg-neutral-200 ${
+                className={`relative cursor-pointer overflow-hidden bg-neutral-200 ${
                   tab === 'Reels' ? 'aspect-[3/4]' : 'aspect-square'
                 }`}
-                aria-label={`Open ${item.type}`}
+                aria-label={
+                  tab === 'Tagged'
+                    ? `Open product ${item.name || ''}`.trim()
+                    : `Open ${item.type}`
+                }
               >
                 {item.image ? (
                   <img src={item.image} alt="" className="h-full w-full object-cover" />
+                ) : null}
+                {tab === 'Tagged' && item.name ? (
+                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1.5 pt-5 text-left font-inter text-[10px] font-medium leading-tight text-white line-clamp-2">
+                    {item.name}
+                  </span>
                 ) : null}
               </button>
             ))
