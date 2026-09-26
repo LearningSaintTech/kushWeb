@@ -96,14 +96,24 @@ function extractPagination(txData, txList, requestedPage) {
   const hasNextExplicit =
     pag?.hasNextPage ?? pag?.hasNext ?? pag?.has_next ?? txData?.hasNextPage ?? null
 
-  const hasNextPage =
+  // Prefer API flags; otherwise a full page means there may be another.
+  let hasNextPage =
     hasNextExplicit != null
       ? Boolean(hasNextExplicit)
       : totalPages != null
         ? currentPage < totalPages
-        : txList.length === PAGE_SIZE
+        : txList.length >= PAGE_SIZE
 
-  return { totalPages, currentPage, hasNextPage }
+  // API ignored limit and dumped the full list — paginate on the client.
+  let pageItems = txList
+  if (!pag && txList.length > PAGE_SIZE) {
+    totalPages = Math.max(1, Math.ceil(txList.length / PAGE_SIZE))
+    const start = (Math.max(1, requestedPage) - 1) * PAGE_SIZE
+    pageItems = txList.slice(start, start + PAGE_SIZE)
+    hasNextPage = requestedPage < totalPages
+  }
+
+  return { totalPages, currentPage: requestedPage, hasNextPage, pageItems }
 }
 
 const Wallet = () => {
@@ -143,15 +153,14 @@ const Wallet = () => {
           : Array.isArray(txData)
             ? txData
             : []
-      const { totalPages: pages, currentPage, hasNextPage: next } = extractPagination(
+      const { totalPages: pages, hasNextPage: next, pageItems } = extractPagination(
         txData,
         txList,
         pageNum,
       )
-      setTransactions(txList)
+      setTransactions(pageItems)
       setTotalPages(pages)
       setHasNextPage(next)
-      if (currentPage !== pageNum) setPage(currentPage)
     } catch (err) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load wallet transactions')
       setTransactions([])
@@ -210,7 +219,7 @@ const Wallet = () => {
   }, [totalPages, page])
 
   const showPagination =
-    !transactionsLoading && (totalPages != null ? totalPages > 1 : page > 1 || hasNextPage)
+    !transactionsLoading && (transactions.length > 0 || page > 1)
 
   const handleAddBalance = async () => {
     const manualAmount = String(inputAmount || '').trim()

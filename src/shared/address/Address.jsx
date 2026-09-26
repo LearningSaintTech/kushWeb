@@ -63,6 +63,8 @@ export default function Address() {
 
   const [addresses, setAddresses] = useState([]);
   const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [totalPages, setTotalPages] = useState(null);
   const [defaultAddressId, setDefaultAddressId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -97,6 +99,8 @@ export default function Address() {
   const lastPinAutofetchRef = useRef(null)
 
 
+  const ADDRESS_PAGE_SIZE = 5;
+
   const loadAddresses = useCallback(async () => {
     if (!authChecked) return;
     if (!isAuthenticated) {
@@ -108,12 +112,12 @@ export default function Address() {
     try {
       const [defaultRes, allRes] = await Promise.all([
         addressService.getDefaultAddress().catch(() => null),
-        addressService.getAll({ page, limit: 5 }),
+        addressService.getAll({ page, limit: ADDRESS_PAGE_SIZE }),
       ]);
 
       const defaultData = defaultRes?.data?.data ?? defaultRes?.data ?? null;
       const allData = allRes?.data?.data ?? allRes?.data;
-      const arr = Array.isArray(allData)
+      let arr = Array.isArray(allData)
         ? allData
         : Array.isArray(allData?.addresses)
           ? allData.addresses
@@ -121,7 +125,51 @@ export default function Address() {
             ? allData.data
             : [];
 
+      const pag =
+        (allData?.pagination && typeof allData.pagination === 'object'
+          ? allData.pagination
+          : null) ||
+        (allData?.meta && typeof allData.meta === 'object' ? allData.meta : null) ||
+        null;
+
+      let pages = Number(pag?.totalPages ?? pag?.pages ?? pag?.total_pages);
+      if (!Number.isFinite(pages) || pages < 1) {
+        const total = Number(
+          pag?.total ?? pag?.totalCount ?? pag?.totalItems ?? allData?.total ?? allData?.totalCount,
+        );
+        pages = Number.isFinite(total) && total >= 0
+          ? Math.max(1, Math.ceil(total / ADDRESS_PAGE_SIZE))
+          : null;
+      }
+
+      // API returned full list ignoring limit — slice on the client.
+      if (!pag && arr.length > ADDRESS_PAGE_SIZE) {
+        pages = Math.max(1, Math.ceil(arr.length / ADDRESS_PAGE_SIZE));
+        const start = (Math.max(1, page) - 1) * ADDRESS_PAGE_SIZE;
+        arr = arr.slice(start, start + ADDRESS_PAGE_SIZE);
+      }
+
+      const hasNextExplicit = pag?.hasNextPage ?? pag?.hasNext ?? pag?.has_next ?? null;
+      const next =
+        hasNextExplicit != null
+          ? Boolean(hasNextExplicit)
+          : pages != null
+            ? page < pages
+            : arr.length >= ADDRESS_PAGE_SIZE;
+
+      // Empty page beyond 1 — jump back so Prev/Next don't stick on a blank page.
+      if (arr.length === 0 && page > 1) {
+        setPage(1);
+        setHasNextPage(false);
+        setTotalPages(null);
+        setAddresses([]);
+        setDefaultAddressId(defaultData?._id ?? null);
+        return;
+      }
+
       setAddresses(arr);
+      setHasNextPage(next);
+      setTotalPages(pages);
       setDefaultAddressId(defaultData?._id ?? null);
     } catch (err) {
       const status = err?.response?.status;
@@ -136,6 +184,8 @@ export default function Address() {
         setError(msg || 'Failed to load addresses');
       }
       setAddresses([]);
+      setHasNextPage(false);
+      setTotalPages(null);
       setDefaultAddressId(null);
     } finally {
       setLoading(false);
@@ -667,25 +717,33 @@ export default function Address() {
         )}
       </div>
 
-      {/* Pagination */}
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-8 lg:px-10 flex justify-center items-center gap-4 mt-6">
-        <button
-          onClick={() => setPage((p) => Math.max(p - 1, 1))}
-          disabled={page === 1}
-          className="px-4 py-2 border text-sm disabled:opacity-40 rounded-lg hover:bg-gray-50"
-        >
-          Prev
-        </button>
+      {/* Pagination — hide when there are no addresses on page 1 */}
+      {!loading && (addresses.length > 0 || page > 1) ? (
+        <div className="mx-auto mt-6 flex w-full max-w-6xl items-center justify-center gap-4 px-4 sm:px-6 md:px-8 lg:px-10">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(p - 1, 1))}
+            disabled={page === 1}
+            className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40"
+          >
+            Prev
+          </button>
 
-        <span className="text-sm font-medium">Page {page}</span>
+          <span className="text-sm font-medium">
+            Page {page}
+            {totalPages != null ? ` of ${totalPages}` : ''}
+          </span>
 
-        <button
-          onClick={() => setPage((p) => p + 1)}
-          className="px-4 py-2 border text-sm rounded-lg hover:bg-gray-50"
-        >
-          Next
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={totalPages != null ? page >= totalPages : !hasNextPage}
+            className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
 
       {/* Add / Edit address modal */}
       {modalOpen && (
