@@ -149,8 +149,12 @@ function ProductPage() {
           let firstAvailableSize = null;
           for (const v of item.variants) {
             const firstInStock = v.sizes?.find((s) => {
-              const qty = Number(s.availableQuantity ?? s.stock ?? 0);
-              return s.inStock === true || (s.inStock !== false && qty > 0);
+              if (typeof s.inStock === "boolean") return s.inStock;
+              const hasBrowseQty = s.availableQuantity != null;
+              const qty = hasBrowseQty
+                ? Number(s.availableQuantity) || 0
+                : Number(s.stock ?? 0);
+              return qty > 0;
             });
             if (firstInStock) {
               firstAvailableColor = v.color?.name ?? null;
@@ -272,8 +276,14 @@ function ProductPage() {
   const sizes = useMemo(() => {
     if (!selectedVariant?.sizes?.length) return [];
     return selectedVariant.sizes.map((s) => {
-      const qty = Number(s.availableQuantity ?? s.stock ?? 0);
-      const inStock = s.inStock === true || (s.inStock !== false && qty > 0);
+      // Prefer API inStock / availableQuantity. Do not treat leftover size.stock
+      // as sellable when availableQuantity was provided (including 0).
+      const hasBrowseQty = s.availableQuantity != null;
+      const qty = hasBrowseQty
+        ? Number(s.availableQuantity) || 0
+        : Number(s.stock ?? 0);
+      const inStock =
+        typeof s.inStock === "boolean" ? s.inStock : qty > 0;
       return {
         size: s.size,
         sku: s.sku,
