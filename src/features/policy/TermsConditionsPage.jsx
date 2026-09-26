@@ -37,7 +37,7 @@ export default function TermsConditionsPage() {
       </section> */}
 
       <section className="mt-6 space-y-2">
-        <h2 className="text-lg font-semibold text-black">3. Products &amp; Pricing</h2>
+        <h2 className="text-lg font-semibold text-black">2. Products &amp; Pricing</h2>
         <p>
           We strive to ensure that all product details, images, descriptions, and prices
           are accurate. However:
@@ -50,7 +50,7 @@ export default function TermsConditionsPage() {
       </section>
 
       <section className="mt-6 space-y-2">
-        <h2 className="text-lg font-semibold text-black">4. Orders &amp; Payments</h2>
+        <h2 className="text-lg font-semibold text-black">3. Orders &amp; Payments</h2>
         <ul className="list-disc ml-5 space-y-1">
           <li>All orders are subject to availability and confirmation</li>
           <li>We reserve the right to cancel or refuse any order</li>
@@ -60,7 +60,7 @@ export default function TermsConditionsPage() {
       </section>
 
       <section className="mt-6 space-y-2">
-        <h2 className="text-lg font-semibold text-black">5. Shipping &amp; Delivery</h2>
+        <h2 className="text-lg font-semibold text-black">4. Shipping &amp; Delivery</h2>
         <p>
           Delivery timelines are estimated and may vary depending on location and courier
           services. We are not responsible for delays caused by:
@@ -73,7 +73,7 @@ export default function TermsConditionsPage() {
       </section>
 
       <section className="mt-6 space-y-2">
-        <h2 className="text-lg font-semibold text-black">6. Returns &amp; Refunds</h2>
+        <h2 className="text-lg font-semibold text-black">5. Returns &amp; Refunds</h2>
         <p>
           Customers may request returns or refunds according to our Return Policy. Items may
           not be eligible for return if:
@@ -87,7 +87,7 @@ export default function TermsConditionsPage() {
       </section>
 
       <section className="mt-6 space-y-2">
-        <h2 className="text-lg font-semibold text-black">7. User Accounts</h2>
+        <h2 className="text-lg font-semibold text-black">6. User Accounts</h2>
         <p>
           You are responsible for maintaining the confidentiality of your account
           credentials. We reserve the right to suspend or terminate accounts involved in:
@@ -100,14 +100,14 @@ export default function TermsConditionsPage() {
       </section>
 
       <section className="mt-6 space-y-2">
-        <h2 className="text-lg font-semibold text-black">8. Intellectual Property</h2>
+        <h2 className="text-lg font-semibold text-black">7. Intellectual Property</h2>
         <p>All content on the platform including:
         All content on the platform including: Logos, Images, Graphics, Product designs, Text and UI elements are the property of Khush and may not be copied or used without permission.
         </p>
       </section>
 
       <section className="mt-6 space-y-2">
-        <h2 className="text-lg font-semibold text-black">9. AI-Generated Images</h2>
+        <h2 className="text-lg font-semibold text-black">8. AI-Generated Images</h2>
         <p>
           Some images displayed on the Khush website may be generated or enhanced using
           artificial intelligence (AI). While these images are intended to represent

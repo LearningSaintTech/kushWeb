@@ -1159,7 +1159,12 @@ function CartPage() {
   }
 
   const items = lineItems
-  const hasOutOfStockItem = items.some((row) => row.outOfStock === true || (row.availableQuantity != null && Number(row.availableQuantity) === 0))
+  const hasOutOfStockItem = items.some((row) => row.outOfStock === true || row.inStock === false || (row.availableQuantity != null && Number(row.availableQuantity) === 0))
+
+  const isRowOutOfStock = (row) =>
+    row?.outOfStock === true ||
+    row?.inStock === false ||
+    (row?.availableQuantity != null && Number(row.availableQuantity) === 0)
   const deliveryOptions = deliveryOptionsFromPincode.length > 0 ? deliveryOptionsFromPincode : (cartData?.deliveryOptions ?? [])
 
   const handleProceedToCheckout = () => {
@@ -1223,9 +1228,15 @@ function CartPage() {
                 const productId = item?._id
                 const productPath = productId ? getProductPath(productId, name, shortDesc) : null
                 const lineBindOffer = row.bindOffer ?? null
+                const isOutOfStock = isRowOutOfStock(row)
 
                 return (
-                  <div key={row._id ?? sku} className="border border-gray-200 p-3 bg-white">
+                  <div
+                    key={row._id ?? sku}
+                    className={`border p-3 bg-white ${
+                      isOutOfStock ? 'border-red-400 ring-1 ring-red-200' : 'border-gray-200'
+                    }`}
+                  >
                     <div className="flex items-start gap-3">
                       <div className="w-[72px] h-[96px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
                         {productPath ? (
@@ -1243,6 +1254,11 @@ function CartPage() {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
+                        {isOutOfStock ? (
+                          <p className="mb-1 inline-flex rounded bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                            Out of stock
+                          </p>
+                        ) : null}
                         {productPath ? (
                           <Link to={productPath} className="block hover:underline">
                             <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>
@@ -1371,9 +1387,15 @@ function CartPage() {
                     const productId = item?._id
                     const productPath = productId ? getProductPath(productId, name, shortDesc) : null
                     const lineBindOffer = row.bindOffer ?? null
+                    const isOutOfStock = isRowOutOfStock(row)
 
                     return (
-                      <tr key={row._id ?? sku} className="align-middle border-b border-gray-200">
+                      <tr
+                        key={row._id ?? sku}
+                        className={`align-middle border-b ${
+                          isOutOfStock ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                        }`}
+                      >
                         <td className="pr-4 py-4">
                           <div className="flex gap-3">
                             <div className="w-[70px] h-[95px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
@@ -1392,6 +1414,11 @@ function CartPage() {
                               )}
                             </div>
                             <div className="min-w-0">
+                              {isOutOfStock ? (
+                                <p className="mb-1 inline-flex rounded bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                                  Out of stock
+                                </p>
+                              ) : null}
                               {productPath ? (
                                 <Link to={productPath} className="block hover:underline">
                                   <p className="font-bold text-black uppercase tracking-wide text-sm">{name}</p>

@@ -85,6 +85,126 @@ function formatAddress(addr) {
   return parts.join(", ");
 }
 
+/** Cart line is unavailable — flags from cart API or insufficient qty. */
+function isCartRowOutOfStock(row) {
+  if (!row || typeof row !== "object") return false;
+  if (row.outOfStock === true || row.inStock === false) return true;
+  if (row.isAvailable === false || row.available === false) return true;
+  if (row.variant?.inStock === false || row.variant?.outOfStock === true) return true;
+  const available = Number(
+    row.availableQuantity ??
+      row.variant?.availableQuantity ??
+      row.stock ??
+      row.variant?.stock,
+  );
+  if (Number.isFinite(available) && available <= 0) return true;
+  const qty = Number(row.quantity);
+  if (Number.isFinite(available) && Number.isFinite(qty) && qty > available) {
+    return true;
+  }
+  return false;
+}
+
+function cartRowStockKey(row) {
+  return String(
+    row?.variant?.sku ?? row?.sku ?? row?._id ?? row?.itemId?._id ?? row?.itemId ?? "",
+  );
+}
+
+function cartRowDisplayName(row) {
+  const name = row?.itemId?.name ?? row?.name ?? "Product";
+  const size = row?.variant?.size ?? row?.variant?.sizeLabel ?? "";
+  const color = row?.variant?.color ?? "";
+  const bits = [name];
+  if (color) bits.push(color);
+  if (size) bits.push(`Size ${size}`);
+  return bits.join(" · ");
+}
+
+/**
+ * Pull SKU / item ids / names from place-order (or payment create) errors
+ * so we can highlight the exact cart lines.
+ */
+function extractStockIssueFromError(err, cartItems = []) {
+  const body = err?.response?.data ?? {};
+  const data = body?.data ?? body;
+  const message = String(body?.message ?? err?.message ?? "");
+  const isStockError =
+    /out\s*of\s*stock|insufficient\s*stock|not\s*enough\s*stock|stock\s*unavailable|unavailable.*stock|item(?:s)?\s*(?:are|is)\s*unavailable/i.test(
+      message,
+    ) ||
+    Boolean(data?.outOfStock) ||
+    Boolean(data?.isOutOfStock);
+
+  const keys = new Set();
+  const pushKey = (value) => {
+    if (value == null || value === "") return;
+    keys.add(String(value).trim());
+  };
+
+  const buckets = [
+    data?.outOfStockItems,
+    data?.outOfStockSkus,
+    data?.unavailableItems,
+    data?.unavailableSkus,
+    data?.stockIssues,
+    data?.failedItems,
+    Array.isArray(data?.items) && isStockError ? data.items : null,
+  ];
+
+  for (const bucket of buckets) {
+    if (!Array.isArray(bucket)) continue;
+    for (const entry of bucket) {
+      if (typeof entry === "string" || typeof entry === "number") {
+        pushKey(entry);
+        continue;
+      }
+      if (!entry || typeof entry !== "object") continue;
+      pushKey(entry.sku);
+      pushKey(entry.variantSku);
+      pushKey(entry._id);
+      pushKey(entry.itemId?._id ?? entry.itemId);
+      pushKey(entry.productId);
+      pushKey(entry.name);
+      pushKey(entry.productName);
+      pushKey(entry.itemName);
+    }
+  }
+
+  // Match SKU / product name mentioned in the free-text message.
+  for (const row of cartItems) {
+    const sku = row?.variant?.sku ?? row?.sku;
+    const name = row?.itemId?.name;
+    const msgLower = message.toLowerCase();
+    if (sku && msgLower.includes(String(sku).toLowerCase())) {
+      pushKey(cartRowStockKey(row));
+    }
+    if (name && msgLower.includes(String(name).toLowerCase())) {
+      pushKey(cartRowStockKey(row));
+    }
+  }
+
+  // If API only says "out of stock" with no ids, leave keys empty —
+  // UI still uses row.outOfStock / availableQuantity from a cart refresh.
+  return { isStockError, keys: [...keys], message };
+}
+
+function rowMatchesStockKeys(row, keys) {
+  if (!keys?.length) return false;
+  const candidates = [
+    cartRowStockKey(row),
+    row?.variant?.sku,
+    row?.sku,
+    row?._id,
+    row?.itemId?._id,
+    row?.itemId,
+    row?.itemId?.name,
+  ]
+    .filter((v) => v != null && v !== "")
+    .map((v) => String(v).toLowerCase());
+  return keys.some((k) => candidates.includes(String(k).toLowerCase()));
+}
+
 /** Strip duplicate +91 / leading 0 so stored numbers match the 10-digit national format. */
 function normalizeIndianPhoneDigits(
   phoneNumber,
@@ -213,7 +333,7 @@ function isCouponAppliedInSummary(summaryData, expectedCode) {
 function CheckoutPage() {
   const location = useLocation();
   const { isAuthenticated, user } = useAuth();
-  const { refetchCart } = useCartWishlist();
+  const { refetchCart, removeFromCart } = useCartWishlist();
   const cartState = location.state ?? {};
   const couponCodeFromCart = cartState.couponCode ?? null;
   const selectedAddressFromCart = cartState.selectedAddress ?? null;
@@ -244,6 +364,9 @@ function CheckoutPage() {
   const [autoCouponDismissed, setAutoCouponDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  /** SKUs / ids flagged out-of-stock by place-order API (when cart flags are stale). */
+  const [stockIssueKeys, setStockIssueKeys] = useState([]);
+  const [removingStockSku, setRemovingStockSku] = useState(null);
   const [couponError, setCouponError] = useState(null);
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [addressFormLoading, setAddressFormLoading] = useState(false);
@@ -1275,6 +1398,7 @@ function CheckoutPage() {
     });
     setPlaceOrderLoading(true);
     setError(null);
+    setStockIssueKeys([]);
     const addressId = selectedAddress._id;
     const couponCode = appliedCouponCode?.trim() || undefined;
 
@@ -2008,6 +2132,37 @@ function CheckoutPage() {
         "[Checkout] ERR place order:",
         err?.response?.data ?? err?.message,
       );
+      const cartItems = cartData?.items ?? [];
+      const stockIssue = extractStockIssueFromError(err, cartItems);
+      if (stockIssue.isStockError || stockIssue.keys.length > 0) {
+        setStockIssueKeys(stockIssue.keys);
+        // Refresh cart so availableQuantity / outOfStock flags update.
+        try {
+          const params = { limit: 100 };
+          if (selectedAddress?._id) params.addressId = selectedAddress._id;
+          const res = await cartService.my(params);
+          const data = res?.data?.data ?? res?.data;
+          if (data) setCartData(data);
+          refetchCart?.({ addressId: selectedAddress?._id });
+        } catch {
+          /* keep current cart */
+        }
+        const named = cartItems
+          .filter(
+            (row) =>
+              isCartRowOutOfStock(row) ||
+              rowMatchesStockKeys(row, stockIssue.keys),
+          )
+          .map(cartRowDisplayName);
+        const uniqueNames = [...new Set(named)];
+        const detail =
+          uniqueNames.length > 0
+            ? ` Out of stock: ${uniqueNames.join("; ")}. Remove ${uniqueNames.length === 1 ? "it" : "them"} to continue.`
+            : " Remove the out-of-stock item(s) from your order to continue.";
+        setError((stockIssue.message || "Some items are out of stock.") + detail);
+        setPlaceOrderLoading(false);
+        return;
+      }
       if (paymentMode === "RAZORPAY") {
         trackEvent({
           eventType: "payment_failed",
@@ -2207,6 +2362,72 @@ function CheckoutPage() {
     prevPaymentModeRef.current = paymentMode;
   }, [paymentMode]);
 
+  const items = cartData?.items ?? [];
+
+  const isRowStockBlocked = useCallback(
+    (row) =>
+      isCartRowOutOfStock(row) || rowMatchesStockKeys(row, stockIssueKeys),
+    [stockIssueKeys],
+  );
+
+  const outOfStockRows = useMemo(
+    () => items.filter(isRowStockBlocked),
+    [items, isRowStockBlocked],
+  );
+
+  const hasOutOfStockItem = outOfStockRows.length > 0;
+
+  const handleRemoveCartRow = useCallback(
+    async (row) => {
+      const sku = row?.variant?.sku ?? row?.sku;
+      if (!sku) return;
+      setRemovingStockSku(sku);
+      try {
+        await removeFromCart(sku);
+        setStockIssueKeys((prev) =>
+          prev.filter(
+            (k) =>
+              String(k).toLowerCase() !== String(sku).toLowerCase() &&
+              String(k).toLowerCase() !==
+                String(row?.itemId?.name ?? "").toLowerCase(),
+          ),
+        );
+        const params = { limit: 100 };
+        if (selectedAddress?._id) params.addressId = selectedAddress._id;
+        const res = await cartService.my(params);
+        const data = res?.data?.data ?? res?.data;
+        setCartData(data ?? { items: [] });
+        refetchCart?.({ addressId: selectedAddress?._id });
+        if (data?.items?.length) {
+          fetchPriceSummary(appliedCouponCode || null);
+        } else {
+          setPriceSummary(null);
+        }
+        setError(null);
+      } catch (err) {
+        setError(
+          err?.response?.data?.message ??
+            err?.message ??
+            "Failed to remove item from cart.",
+        );
+      } finally {
+        setRemovingStockSku(null);
+      }
+    },
+    [
+      removeFromCart,
+      selectedAddress?._id,
+      refetchCart,
+      fetchPriceSummary,
+      appliedCouponCode,
+    ],
+  );
+
+  const deliveryOptions =
+    deliveryOptionsFromPincode.length > 0
+      ? deliveryOptionsFromPincode
+      : (cartData?.deliveryOptions ?? []);
+
   if (!isAuthenticated) {
     debugLog("[Checkout] render: not authenticated, show sign-in");
     return (
@@ -2235,18 +2456,6 @@ function CheckoutPage() {
       </div>
     );
   }
-
-  const items = cartData?.items ?? [];
-
-  const hasOutOfStockItem = items.some(
-    (row) =>
-      row.outOfStock === true ||
-      (row.availableQuantity != null && Number(row.availableQuantity) === 0),
-  );
-  const deliveryOptions =
-    deliveryOptionsFromPincode.length > 0
-      ? deliveryOptionsFromPincode
-      : (cartData?.deliveryOptions ?? []);
 
   if (items.length === 0 && !error) {
     debugLog("[Checkout] render: cart empty");
@@ -2364,11 +2573,16 @@ function CheckoutPage() {
                 const productPath = productId
                   ? getProductPath(productId, name, shortDesc)
                   : null;
+                const isOutOfStock = isRowStockBlocked(row);
 
                 return (
                   <div
                     key={row._id ?? sku}
-                    className="border border-gray-200 p-3 bg-white"
+                    className={`border p-3 bg-white ${
+                      isOutOfStock
+                        ? "border-red-400 ring-1 ring-red-200"
+                        : "border-gray-200"
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="w-[72px] h-[96px] shrink-0 overflow-hidden bg-gray-100 rounded-sm">
@@ -2402,6 +2616,11 @@ function CheckoutPage() {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
+                        {isOutOfStock ? (
+                          <p className="mb-1 inline-flex rounded bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                            Out of stock
+                          </p>
+                        ) : null}
                         {productPath ? (
                           <Link
                             to={productPath}
@@ -2459,10 +2678,24 @@ function CheckoutPage() {
                       </p>
                     </div>
 
-                    <p className="mt-3 text-xs uppercase tracking-wide text-gray-600">
-                      Delivery:{" "}
-                      <span className="text-gray-800">{deliveryLabel}</span>
-                    </p>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-wide text-gray-600">
+                        Delivery:{" "}
+                        <span className="text-gray-800">{deliveryLabel}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCartRow(row)}
+                        disabled={removingStockSku === sku}
+                        className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 ${
+                          isOutOfStock
+                            ? "border-red-500 bg-red-50 text-red-700 hover:bg-red-100"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {removingStockSku === sku ? "Removing…" : "Remove"}
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -2525,11 +2758,16 @@ function CheckoutPage() {
                     const productPath = productId
                       ? getProductPath(productId, name, shortDesc)
                       : null;
+                    const isOutOfStock = isRowStockBlocked(row);
 
                     return (
                       <tr
                         key={row._id ?? sku}
-                        className="align-middle border-b border-gray-200"
+                        className={`align-middle border-b ${
+                          isOutOfStock
+                            ? "border-red-300 bg-red-50/40"
+                            : "border-gray-200"
+                        }`}
                       >
                         <td className="pr-4 py-4">
                           <div className="flex gap-3">
@@ -2564,6 +2802,11 @@ function CheckoutPage() {
                               )}
                             </div>
                             <div className="min-w-0">
+                              {isOutOfStock ? (
+                                <p className="mb-1 inline-flex rounded bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                                  Out of stock
+                                </p>
+                              ) : null}
                               {productPath ? (
                                 <Link
                                   to={productPath}
@@ -2654,7 +2897,21 @@ function CheckoutPage() {
                         <td className="pl-4 py-4 align-middle text-sm text-gray-700">
                           {deliveryLabel}
                         </td>
-                        <td className="pl-2 py-4 align-middle" />
+                        <td className="pl-2 py-4 align-middle">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCartRow(row)}
+                            disabled={removingStockSku === sku}
+                            className={`rounded-md border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 ${
+                              isOutOfStock
+                                ? "border-red-500 bg-red-50 text-red-700 hover:bg-red-100"
+                                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                            }`}
+                            aria-label={`Remove ${name} from cart`}
+                          >
+                            {removingStockSku === sku ? "…" : "Remove"}
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -3824,10 +4081,34 @@ function CheckoutPage() {
                 </div>
               )}
               {hasOutOfStockItem && (
-                <p className="text-sm text-red-600 font-medium mb-2">
-                  Some items in your cart are out of stock. Remove them to place
-                  your order.
-                </p>
+                <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm font-semibold text-red-700">
+                    {outOfStockRows.length === 1
+                      ? "1 item is out of stock"
+                      : `${outOfStockRows.length} items are out of stock`}
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-700">
+                    {outOfStockRows.map((row) => (
+                      <li key={cartRowStockKey(row) || row._id}>
+                        <span className="font-medium">{cartRowDisplayName(row)}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCartRow(row)}
+                          disabled={
+                            removingStockSku ===
+                            (row?.variant?.sku ?? row?.sku)
+                          }
+                          className="ml-2 underline disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-red-600">
+                    Remove the listed item(s) to place your order.
+                  </p>
+                </div>
               )}
               {addresses.length === 0 && (
                 <p className="text-sm text-red-600 font-medium mb-2">
