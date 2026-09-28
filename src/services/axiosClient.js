@@ -94,6 +94,7 @@ function isAuthRequestUrl(url = '') {
 function isPublicApiUrl(url = '') {
   const u = String(url || '');
   return (
+    /\/terms-and-conditions\//i.test(u) ||
     /\/gift-card\/(rules\/active|buy\/preview)|\/gift-items\/getActive/i.test(u) ||
     /\/items\/(search|single|recommendation-suggestions|getAllVersion2|cross-sell)\b/i.test(
       u,

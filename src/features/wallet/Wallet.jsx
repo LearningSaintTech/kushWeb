@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { walletService } from '../../services/wallet.service.js'
 
-const PAGE_SIZE = 6
+const DEFAULT_PAGE_SIZE = 10
 
 function WalletBadgeIcon() {
   return (
@@ -67,53 +67,86 @@ function getWalletTransactionTitle(source) {
   return map[source] || 'Wallet Transaction'
 }
 
-function extractPagination(txData, txList, requestedPage) {
-  const pag =
-    (txData?.pagination && typeof txData.pagination === 'object' ? txData.pagination : null) ||
-    (txData?.meta && typeof txData.meta === 'object' ? txData.meta : null) ||
-    null
+function extractPagination(txRes, requestedPage, currentLimit) {
+  const root = txRes?.data ?? {}
+  const dataObj = root?.data && typeof root.data === 'object' && !Array.isArray(root.data) ? root.data : {}
+  const rootObj = root && typeof root === 'object' && !Array.isArray(root) ? root : {}
 
-  const totalPagesRaw = pag?.totalPages ?? pag?.pages ?? pag?.total_pages ?? null
-  let totalPages = totalPagesRaw != null ? Number(totalPagesRaw) : null
-  if (!Number.isFinite(totalPages) || totalPages < 1) {
-    const total =
-      pag?.total ??
-      pag?.totalCount ??
-      pag?.totalItems ??
-      txData?.total ??
-      txData?.totalCount ??
-      null
-    if (total != null && Number.isFinite(Number(total))) {
-      totalPages = Math.max(1, Math.ceil(Number(total) / PAGE_SIZE))
-    } else {
-      totalPages = null
-    }
+  let txList = []
+  if (Array.isArray(dataObj?.transactions)) {
+    txList = dataObj.transactions
+  } else if (Array.isArray(rootObj?.transactions)) {
+    txList = rootObj.transactions
+  } else if (Array.isArray(root?.data)) {
+    txList = root.data
+  } else if (Array.isArray(dataObj?.items)) {
+    txList = dataObj.items
+  } else if (Array.isArray(rootObj?.items)) {
+    txList = rootObj.items
+  } else if (Array.isArray(root)) {
+    txList = root
   }
 
-  const pageFromApi = pag?.page ?? pag?.currentPage ?? requestedPage
-  const currentPage = Number.isFinite(Number(pageFromApi)) ? Number(pageFromApi) : requestedPage
+  const pag =
+    (dataObj?.pagination && typeof dataObj.pagination === 'object' ? dataObj.pagination : null) ||
+    (rootObj?.pagination && typeof rootObj.pagination === 'object' ? rootObj.pagination : null) ||
+    (dataObj?.meta && typeof dataObj.meta === 'object' ? dataObj.meta : null) ||
+    (rootObj?.meta && typeof rootObj.meta === 'object' ? rootObj.meta : null) ||
+    null
+
+  const totalRaw =
+    pag?.total ??
+    pag?.totalCount ??
+    pag?.totalItems ??
+    dataObj?.total ??
+    dataObj?.totalCount ??
+    dataObj?.totalTransactions ??
+    dataObj?.count ??
+    rootObj?.total ??
+    rootObj?.count ??
+    null
+
+  const totalCount = totalRaw != null && Number.isFinite(Number(totalRaw)) ? Number(totalRaw) : null
+
+  let totalPages = null
+  const totalPagesRaw = pag?.totalPages ?? pag?.pages ?? pag?.total_pages ?? dataObj?.totalPages ?? rootObj?.totalPages ?? null
+  if (totalPagesRaw != null && Number.isFinite(Number(totalPagesRaw)) && Number(totalPagesRaw) >= 1) {
+    totalPages = Number(totalPagesRaw)
+  } else if (totalCount != null && totalCount >= 0) {
+    totalPages = Math.max(1, Math.ceil(totalCount / currentLimit))
+  }
+
+  const apiPage = pag?.page ?? pag?.currentPage ?? dataObj?.page ?? rootObj?.page ?? requestedPage
+  const currentPage = Number.isFinite(Number(apiPage)) ? Number(apiPage) : requestedPage
 
   const hasNextExplicit =
-    pag?.hasNextPage ?? pag?.hasNext ?? pag?.has_next ?? txData?.hasNextPage ?? null
+    pag?.hasNextPage ?? pag?.hasNext ?? pag?.has_next ?? dataObj?.hasNextPage ?? rootObj?.hasNextPage ?? null
 
-  // Prefer API flags; otherwise a full page means there may be another.
-  let hasNextPage =
-    hasNextExplicit != null
-      ? Boolean(hasNextExplicit)
-      : totalPages != null
-        ? currentPage < totalPages
-        : txList.length >= PAGE_SIZE
+  let hasNextPage = false
+  if (hasNextExplicit != null) {
+    hasNextPage = Boolean(hasNextExplicit)
+  } else if (totalPages != null) {
+    hasNextPage = currentPage < totalPages
+  } else {
+    hasNextPage = txList.length >= currentLimit
+  }
 
-  // API ignored limit and dumped the full list — paginate on the client.
+  // Client-side slice fallback ONLY if server returned all items without server pagination
   let pageItems = txList
-  if (!pag && txList.length > PAGE_SIZE) {
-    totalPages = Math.max(1, Math.ceil(txList.length / PAGE_SIZE))
-    const start = (Math.max(1, requestedPage) - 1) * PAGE_SIZE
-    pageItems = txList.slice(start, start + PAGE_SIZE)
+  if (!pag && totalCount == null && txList.length > currentLimit) {
+    totalPages = Math.max(1, Math.ceil(txList.length / currentLimit))
+    const start = (Math.max(1, requestedPage) - 1) * currentLimit
+    pageItems = txList.slice(start, start + currentLimit)
     hasNextPage = requestedPage < totalPages
   }
 
-  return { totalPages, currentPage: requestedPage, hasNextPage, pageItems }
+  return {
+    totalPages,
+    totalCount: totalCount ?? (txList.length > currentLimit ? txList.length : null),
+    currentPage,
+    hasNextPage,
+    pageItems,
+  }
 }
 
 const Wallet = () => {
@@ -123,8 +156,10 @@ const Wallet = () => {
   const [inputAmount, setInputAmount] = useState('')
   const [walletBalance, setWalletBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(null)
+  const [totalCount, setTotalCount] = useState(null)
   const [hasNextPage, setHasNextPage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [transactionsLoading, setTransactionsLoading] = useState(true)
@@ -140,36 +175,30 @@ const Wallet = () => {
     setWalletBalance(Number(balanceData?.balance || 0))
   }, [])
 
-  const fetchTransactions = useCallback(async (pageNum = 1) => {
+  const fetchTransactions = useCallback(async (pageNum = 1, limitNum = pageSize) => {
     setTransactionsLoading(true)
     setError('')
     try {
-      const txRes = await walletService.getCashTransactions({ page: pageNum, limit: PAGE_SIZE })
-      const txData = txRes?.data?.data ?? {}
-      const txList = Array.isArray(txData?.transactions)
-        ? txData.transactions
-        : Array.isArray(txData?.items)
-          ? txData.items
-          : Array.isArray(txData)
-            ? txData
-            : []
-      const { totalPages: pages, hasNextPage: next, pageItems } = extractPagination(
-        txData,
-        txList,
+      const txRes = await walletService.getCashTransactions({ page: pageNum, limit: limitNum })
+      const { totalPages: pages, totalCount: total, hasNextPage: next, pageItems } = extractPagination(
+        txRes,
         pageNum,
+        limitNum,
       )
       setTransactions(pageItems)
       setTotalPages(pages)
+      setTotalCount(total)
       setHasNextPage(next)
     } catch (err) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load wallet transactions')
       setTransactions([])
       setHasNextPage(false)
       setTotalPages(null)
+      setTotalCount(null)
     } finally {
       setTransactionsLoading(false)
     }
-  }, [])
+  }, [pageSize])
 
   useEffect(() => {
     let cancelled = false
@@ -191,8 +220,8 @@ const Wallet = () => {
   }, [fetchBalance])
 
   useEffect(() => {
-    fetchTransactions(page)
-  }, [page, fetchTransactions])
+    fetchTransactions(page, pageSize)
+  }, [page, pageSize, fetchTransactions])
 
   useEffect(() => {
     if (page > 1 && historyRef.current) {
@@ -211,15 +240,20 @@ const Wallet = () => {
   const canNext = totalPages != null ? page < totalPages : hasNextPage
 
   const pageNumbers = useMemo(() => {
-    if (!totalPages || totalPages < 1) return []
+    if (!totalPages || totalPages < 1) {
+      if (hasNextPage) {
+        return [page, page + 1]
+      }
+      return [page]
+    }
     const start = Math.max(1, page - 2)
     const end = Math.min(totalPages, start + 4)
     const s2 = Math.max(1, end - 4)
     return Array.from({ length: end - s2 + 1 }, (_, i) => s2 + i)
-  }, [totalPages, page])
+  }, [totalPages, page, hasNextPage])
 
   const showPagination =
-    !transactionsLoading && (transactions.length > 0 || page > 1)
+    !transactionsLoading && (totalPages > 1 || hasNextPage || page > 1 || (totalCount != null && totalCount > pageSize))
 
   const handleAddBalance = async () => {
     const manualAmount = String(inputAmount || '').trim()
@@ -367,46 +401,85 @@ const Wallet = () => {
 
         {showPagination ? (
           <nav
-            className="mt-6 flex flex-wrap items-center justify-center gap-2 sm:gap-3"
+            className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#e8e8e8] pt-6"
             aria-label="Wallet transaction pagination"
           >
-            <button
-              type="button"
-              onClick={() => goToPage(page - 1)}
-              disabled={!canPrev}
-              className="min-w-20 rounded-full border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40 sm:min-w-24 sm:px-4 sm:text-sm"
-              aria-label="Previous page"
-            >
-              Prev
-            </button>
+            {/* Info / count */}
+            <div className="text-xs text-gray-500 sm:text-sm order-2 sm:order-1">
+              {totalCount != null ? (
+                <span>
+                  Showing{' '}
+                  <strong className="text-black">
+                    {Math.min((page - 1) * pageSize + 1, totalCount)}–
+                    {Math.min(page * pageSize, totalCount)}
+                  </strong>{' '}
+                  of <strong className="text-black">{totalCount}</strong> transactions
+                </span>
+              ) : (
+                <span>
+                  Page <strong className="text-black">{page}</strong>{' '}
+                  {totalPages ? `of ${totalPages}` : ''}
+                </span>
+              )}
+            </div>
 
-            {pageNumbers.length > 0 ? (
-              pageNumbers.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => goToPage(n)}
-                  className={`h-9 w-9 rounded-full text-xs font-medium sm:h-10 sm:w-10 sm:text-sm ${
-                    n === page ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                  aria-current={n === page ? 'page' : undefined}
-                >
-                  {n}
-                </button>
-              ))
-            ) : (
-              <span className="px-2 text-xs text-gray-500 sm:text-sm">Page {page}</span>
-            )}
+            {/* Pagination Buttons */}
+            <div className="flex items-center gap-1.5 sm:gap-2 order-1 sm:order-2">
+              <button
+                type="button"
+                onClick={() => goToPage(page - 1)}
+                disabled={!canPrev}
+                className="min-w-16 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40 sm:min-w-20 sm:px-4 sm:py-2 sm:text-sm cursor-pointer"
+                aria-label="Previous page"
+              >
+                Prev
+              </button>
 
-            <button
-              type="button"
-              onClick={() => goToPage(page + 1)}
-              disabled={!canNext}
-              className="min-w-20 rounded-full border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40 sm:min-w-24 sm:px-4 sm:text-sm"
-              aria-label="Next page"
-            >
-              Next
-            </button>
+              {pageNumbers.length > 0 &&
+                pageNumbers.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => goToPage(n)}
+                    className={`h-8 w-8 rounded-full text-xs font-medium sm:h-9 sm:w-9 sm:text-sm transition-colors cursor-pointer ${
+                      n === page
+                        ? 'bg-black text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    aria-current={n === page ? 'page' : undefined}
+                  >
+                    {n}
+                  </button>
+                ))}
+
+              <button
+                type="button"
+                onClick={() => goToPage(page + 1)}
+                disabled={!canNext}
+                className="min-w-16 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40 sm:min-w-20 sm:px-4 sm:py-2 sm:text-sm cursor-pointer"
+                aria-label="Next page"
+              >
+                Next
+              </button>
+            </div>
+
+            {/* Rows per page selector */}
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 order-3">
+              <span>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const newLimit = Number(e.target.value)
+                  setPageSize(newLimit)
+                  setPage(1)
+                }}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs sm:text-sm font-medium text-black focus:outline-none focus:border-black cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
           </nav>
         ) : null}
       </section>

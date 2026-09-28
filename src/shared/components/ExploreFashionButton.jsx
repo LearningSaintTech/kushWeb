@@ -61,7 +61,7 @@ export default function ExploreFashionButton({ className = '', floating = false 
         className="pointer-events-none absolute inset-y-0 left-0 w-2/5 bg-gradient-to-r from-transparent via-white/45 to-transparent animate-button-shine"
         aria-hidden
       />
-      <span className="relative z-10">Explore Fashions</span>
+      <span className="relative z-10">Explore Fashion</span>
       <span
         className="relative z-10 text-base font-light leading-none transition-transform duration-300 group-hover:translate-x-0.5"
         aria-hidden

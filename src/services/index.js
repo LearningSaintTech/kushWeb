@@ -54,6 +54,7 @@ export { cancellationService } from './cancellation.service.js';
 export { exchangeService } from './exchange.service.js';
 export { returnService } from './return.service.js';
 export { policyService } from './policy.service.js';
+export { termsService } from './terms.service.js';
 export {
   bannerService,
   featuredImagesService,
