@@ -83,6 +83,9 @@ function getPublicSiteOrigin() {
       ) {
         return "https://khushpehno.com";
       }
+      if (host === "api-staging.khushpehno.com") {
+        return "https://staging.khushpehno.com";
+      }
     }
   } catch {
     /* ignore */
