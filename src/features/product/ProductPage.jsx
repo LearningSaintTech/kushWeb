@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
 import { debugLog, debugError } from '../../utils/debugLog.js';
 import { isLoggingEnabled } from "../../utils/logLevel.js";
 import { useParams, Link, useNavigate } from "react-router-dom";
@@ -12,7 +13,8 @@ import { deliveryService } from "../../services/delivery.service.js";
 import { policyService } from "../../services/policy.service.js";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
-import { ROUTES } from "../../utils/constants";
+import { ROUTES, getProductSharePath } from "../../utils/constants";
+import { getPublicSiteOrigin } from "../../services/config.js";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import WriteReviewModal from "./components/WriteReviewModal";
@@ -750,7 +752,8 @@ function ProductPage() {
 
   const handleShare = async () => {
     if (!item?._id) return;
-    const url = `${window.location.origin}/product/${item._id}`;
+    const origin = getPublicSiteOrigin() || window.location.origin;
+    const url = `${origin}${getProductSharePath(item._id, item.name)}`;
     devLog.click("Share button clicked", {
       url,
       itemId: item._id,
@@ -980,8 +983,19 @@ function ProductPage() {
     );
   }
 
+  const shareOrigin = getPublicSiteOrigin() || (typeof window !== "undefined" ? window.location.origin : "");
+  const shareUrl = `${shareOrigin}${getProductSharePath(item._id, item.name)}`;
+
   return (
     <div className="mt-8 min-h-dvh bg-gray-100 pt-24 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] font-inter sm:pt-28 sm:pb-[max(3rem,env(safe-area-inset-bottom,0px))] md:pt-32 md:pb-[max(3.5rem,env(safe-area-inset-bottom,0px))] lg:pt-36 lg:pb-[max(4rem,env(safe-area-inset-bottom,0px))]">
+      <Helmet>
+        <title>{`${item.name || "Product"} | Khush`}</title>
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={item.name || "Khush"} />
+        <meta property="og:description" content={item.shortDescription || item.name || "Khush"} />
+        <meta property="og:url" content={shareUrl} />
+        {firstImageUrl ? <meta property="og:image" content={firstImageUrl} /> : null}
+      </Helmet>
       <div className="px-4 sm:px-6 md:px-8 lg:px-[6vw]">
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8  lg:gap-6  xl:gap-8">
           {/* LEFT SIDE - Gallery */}

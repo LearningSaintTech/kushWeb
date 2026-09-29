@@ -85,6 +85,20 @@ export function getProductPath(id, name = '', shortDescription = '') {
   return `/product/${slug}/${idStr}`
 }
 
+/**
+ * One share link for every device. The product name is in the path.
+ * iPhone opens the App Store, Android opens the Play Store, a computer opens the product page.
+ * - getProductSharePath('123', 'Pink Floral Cotton Kurti')
+ *   => '/go/pink-floral-cotton-kurti/123'
+ */
+export function getProductSharePath(id, name = '') {
+  const idStr = id != null ? String(id) : ''
+  if (!idStr) return '/go'
+  const slug = slugifyPart(name)
+  if (!slug) return `/go/${idStr}`
+  return `/go/${slug}/${idStr}`
+}
+
 /** Build search URL with ids + optional SEO slugs for category/subcategory. */
 export function getSearchPath({
   sectionId,

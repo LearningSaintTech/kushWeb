@@ -43,6 +43,7 @@ import Address from '../../shared/address/Address'
 import ProfileUpdatePage from '../../features/account/ProfileUpdatePage'
 import AccountPage from '../../features/account/AccountPage'
 import AppDownloadRedirectPage from '../../shared/components/AppDownloadRedirectPage'
+import ProductShareLinkPage from '../../shared/components/ProductShareLinkPage'
 
 const router = createBrowserRouter([
   {
@@ -90,6 +91,8 @@ const router = createBrowserRouter([
   },
   { path: 'auth', element: <AuthPage /> },
   { path: 'app-download', element: <AppDownloadRedirectPage /> },
+  { path: 'go/:slug/:id', element: <ProductShareLinkPage /> },
+  { path: 'go/:id', element: <ProductShareLinkPage /> },
 ])
 
 export default function Routes() {
