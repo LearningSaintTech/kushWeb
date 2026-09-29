@@ -99,6 +99,15 @@ export function getProductSharePath(id, name = '') {
   return `/go/${slug}/${idStr}`
 }
 
+/** Public share URL. Product name is in the path, like a Myntra link. */
+export function getProductShareUrl(origin, id, name = '') {
+  let base = String(origin || 'https://www.khushpehno.com').replace(/\/$/, '')
+  if (base === 'https://khushpehno.com' || base === 'http://khushpehno.com') {
+    base = 'https://www.khushpehno.com'
+  }
+  return `${base}${getProductSharePath(id, name)}`
+}
+
 /** Build search URL with ids + optional SEO slugs for category/subcategory. */
 export function getSearchPath({
   sectionId,

@@ -13,7 +13,7 @@ import { deliveryService } from "../../services/delivery.service.js";
 import { policyService } from "../../services/policy.service.js";
 import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
-import { ROUTES, getProductSharePath } from "../../utils/constants";
+import { ROUTES, getProductShareUrl } from "../../utils/constants";
 import { getPublicSiteOrigin } from "../../services/config.js";
 import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
@@ -753,7 +753,7 @@ function ProductPage() {
   const handleShare = async () => {
     if (!item?._id) return;
     const origin = getPublicSiteOrigin() || window.location.origin;
-    const url = `${origin}${getProductSharePath(item._id, item.name)}`;
+    const url = getProductShareUrl(origin, item._id, item.name);
     devLog.click("Share button clicked", {
       url,
       itemId: item._id,
@@ -984,7 +984,7 @@ function ProductPage() {
   }
 
   const shareOrigin = getPublicSiteOrigin() || (typeof window !== "undefined" ? window.location.origin : "");
-  const shareUrl = `${shareOrigin}${getProductSharePath(item._id, item.name)}`;
+  const shareUrl = getProductShareUrl(shareOrigin, item._id, item.name);
 
   return (
     <div className="mt-8 min-h-dvh bg-gray-100 pt-24 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] font-inter sm:pt-28 sm:pb-[max(3rem,env(safe-area-inset-bottom,0px))] md:pt-32 md:pb-[max(3.5rem,env(safe-area-inset-bottom,0px))] lg:pt-36 lg:pb-[max(4rem,env(safe-area-inset-bottom,0px))]">
