@@ -78,6 +78,8 @@ function buildBasePayload() {
     utmSource: utm.utmSource,
     utmMedium: utm.utmMedium,
     utmCampaign: utm.utmCampaign,
+    utmContent: utm.utmContent,
+    utmTerm: utm.utmTerm,
     meta: utm.meta,
   };
 }
