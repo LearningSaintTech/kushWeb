@@ -266,8 +266,8 @@ export default function CommunityFeedHome() {
             <PostCard
               key={post.id}
               post={post}
+              showSource={false}
               onProfileClick={() => handleProfileClick(post.author)}
-              onOpenPost={() => handleOpenPost(post)}
               onFollow={() => handleFollow(post)}
               onLike={() => handleLike(post)}
               onSave={() => handleSave(post)}

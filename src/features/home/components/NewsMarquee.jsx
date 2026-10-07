@@ -103,11 +103,11 @@ function NewsLogoItem({ item }) {
         </div>
       )}
 
-      {item.name ? (
+      {/* {item.name ? (
         <span className="pointer-events-none absolute -bottom-2.5 left-1/2 z-20 -translate-x-1/2 scale-0 whitespace-nowrap rounded bg-black/90 px-2 py-0.5 font-inter text-[10px] font-medium text-white opacity-0 shadow-sm transition-all duration-200 group-hover/item:scale-100 group-hover/item:opacity-100 xl:text-xs">
           {item.name}
         </span>
-      ) : null}
+      ) : null} */}
     </div>
   )
 

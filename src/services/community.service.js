@@ -111,6 +111,58 @@ export const communityService = {
       body,
     ),
 
+  // ——— Sources ———
+
+  /**
+   * GET /community/sources
+   * Admin-managed sources (e.g. Myntra, Instagram, Street style).
+   * @param {{ page?: number, limit?: number, q?: string }} [params]
+   */
+  getSources: (params = {}) =>
+    wrapCommunity(
+      'GET',
+      `${BASE}/sources`,
+      client.get(`${BASE}/sources`, {
+        params: qs({
+          page: params.page ?? 1,
+          limit: Math.min(params.limit ?? 20, 100),
+          q: params.q,
+          ...params,
+        }),
+      }),
+      params,
+    ),
+
+  /**
+   * PATCH /community/content/:id/source
+   * Change or clear source for own post or reel.
+   * @param {string} id
+   * @param {{ sourceId: string | null }} body
+   */
+  updateContentSource: (id, body = {}) =>
+    wrapCommunity(
+      'PATCH',
+      `${BASE}/content/${id}/source`,
+      client.patch(`${BASE}/content/${id}/source`, {
+        sourceId: body?.sourceId !== undefined ? body.sourceId : null,
+      }),
+      { id, ...body },
+    ),
+
+  /**
+   * PATCH /community/posts/:id
+   * Edit post caption and/or source.
+   * @param {string} id
+   * @param {{ caption?: string, sourceId?: string | null }} body
+   */
+  updatePost: (id, body = {}) =>
+    wrapCommunity(
+      'PATCH',
+      `${BASE}/posts/${id}`,
+      client.patch(`${BASE}/posts/${id}`, body),
+      { id, ...body },
+    ),
+
   // ——— Content ———
 
   /**
@@ -550,6 +602,7 @@ export { getCommunityErrorMessage, isCommunityAuthError, isDesignerNotVerifiedEr
 export {
   mapContentToPost,
   mapContentToReel,
+  mapCatalogItemToPickerItem,
   mapPurchasedItem,
   mapSaveItem,
   extractSavesList,

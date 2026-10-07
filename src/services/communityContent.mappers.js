@@ -365,6 +365,15 @@ export function mapContentToPost(rawContent) {
     status: content.status,
     type: content.type === 'reel' ? 'reel' : 'post',
     itemId: content.itemId,
+    sourceId: content.sourceId || content.source?.id || content.source?._id || null,
+    source:
+      content.source && typeof content.source === 'object'
+        ? {
+            id: content.source.id || content.source._id || content.sourceId,
+            name: content.source.name || '',
+            slug: content.source.slug || '',
+          }
+        : null,
     commentList: [],
     raw: content,
   };
@@ -390,7 +399,39 @@ export function mapContentToReel(rawContent) {
   };
 }
 
-/** purchased-items row → composer product chip */
+/**
+ * Catalog item (GET /items/search) → composer product chip.
+ * Tag any catalog item (purchase no longer required).
+ */
+export function mapCatalogItemToPickerItem(item) {
+  if (!item) return null;
+  const id = item._id || item.id || item.itemId;
+  if (!id) return null;
+
+  const image =
+    item.imageUrl ||
+    (Array.isArray(item.images) && item.images[0]?.url
+      ? item.images[0].url
+      : Array.isArray(item.images) && typeof item.images[0] === 'string'
+        ? item.images[0]
+        : item.image || item.thumb || '');
+
+  return {
+    id: String(id),
+    itemId: String(id),
+    name: item.name || item.title || 'Product',
+    thumb: getPublicImageUrl(image),
+    price: formatPrice(item) || (item.price != null ? `₹${Number(item.price).toLocaleString('en-IN')}` : ''),
+    originalPrice: item.originalPrice,
+    discountedPrice: item.discountedPrice,
+    color: item.color || null,
+    size: item.size || null,
+    designedBy: item.designedBy || null,
+    raw: item,
+  };
+}
+
+/** purchased-items row → composer product chip (legacy) */
 export function mapPurchasedItem(item) {
   if (!item) return null;
   return {

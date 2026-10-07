@@ -73,4 +73,41 @@ export const cartService = {
     }),
 
   getPriceSummaryPost: () => client.post(`${BASE}/price-summary`),
+
+  overrideContentId: (body) => {
+    if (import.meta.env.DEV) {
+      console.log('🔥 [DEV] [POST /api/cart/override-content-id] Calling with body:', body);
+    }
+    return client.post(`${BASE}/override-content-id`, body).then(
+      (res) => {
+        if (import.meta.env.DEV) {
+          console.log('🔥 [DEV] [POST /api/cart/override-content-id] Success response:', res?.data);
+        }
+        return res;
+      },
+      (err) => {
+        if (import.meta.env.DEV) {
+          console.error(
+            '🔥 [DEV] [POST /api/cart/override-content-id] Error:',
+            err?.response?.data ?? err?.message,
+            'status:',
+            err?.response?.status
+          );
+        }
+        // Fallback to PATCH if 405 Method Not Allowed
+        if (err?.response?.status === 405) {
+          if (import.meta.env.DEV) {
+            console.log('🔥 [DEV] [PATCH /api/cart/override-content-id] Retrying with PATCH...');
+          }
+          return client.patch(`${BASE}/override-content-id`, body).then((res) => {
+            if (import.meta.env.DEV) {
+              console.log('🔥 [DEV] [PATCH /api/cart/override-content-id] Success response:', res?.data);
+            }
+            return res;
+          });
+        }
+        throw err;
+      }
+    );
+  },
 };

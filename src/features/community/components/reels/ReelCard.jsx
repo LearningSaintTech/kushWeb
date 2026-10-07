@@ -82,7 +82,7 @@ export default function ReelCard({
             showFollow={!isOwnReel}
             taggedProducts={reel.taggedProducts}
             designedBy={reel.designedBy}
-            contentId={reel.id}
+            contentId={reel.id || reel._id || reel.contentId || null}
             onFollow={onFollow}
             onProfileClick={() => onProfileClick?.(reel.author)}
           />

@@ -30,6 +30,7 @@ function renderCaption(caption = '', hashtags = []) {
 
 function PostCard({
   post,
+  showSource = false,
   onProfileClick,
   onOpenPost,
   onFollow,
@@ -149,24 +150,40 @@ function PostCard({
       </header>
 
       <div className="relative mt-4 overflow-hidden rounded-lg bg-neutral-900">
-        <button
-          type="button"
-          onClick={onOpenPost}
-          className="block w-full cursor-pointer text-left transition hover:opacity-95"
-          aria-label="Open post"
-        >
-          {activeImage ? (
-            <img
-              src={activeImage}
-              alt=""
-              className="aspect-[4/5] w-full object-cover"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : (
-            <div className="aspect-[4/5] w-full bg-neutral-800" />
-          )}
-        </button>
+        {onOpenPost ? (
+          <button
+            type="button"
+            onClick={onOpenPost}
+            className="block w-full cursor-pointer text-left transition hover:opacity-95"
+            aria-label="Open post"
+          >
+            {activeImage ? (
+              <img
+                src={activeImage}
+                alt=""
+                className="aspect-[4/5] w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <div className="aspect-[4/5] w-full bg-neutral-800" />
+            )}
+          </button>
+        ) : (
+          <div className="block w-full">
+            {activeImage ? (
+              <img
+                src={activeImage}
+                alt=""
+                className="aspect-[4/5] w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <div className="aspect-[4/5] w-full bg-neutral-800" />
+            )}
+          </div>
+        )}
 
         {gallery.length > 1 ? (
           <>
@@ -239,16 +256,25 @@ function PostCard({
           </svg>
           <span className="font-inter text-sm font-medium">{likes}</span>
         </button>
-        <button
-          type="button"
-          onClick={onOpenPost}
-          className="inline-flex cursor-pointer items-center gap-1.5 text-black transition hover:opacity-70"
-        >
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 01-.923 1.785A5.969 5.969 0 006 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337z" />
-          </svg>
-          <span className="font-inter text-sm font-medium">{comments}</span>
-        </button>
+        {onOpenPost ? (
+          <button
+            type="button"
+            onClick={onOpenPost}
+            className="inline-flex cursor-pointer items-center gap-1.5 text-black transition hover:opacity-70"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 01-.923 1.785A5.969 5.969 0 006 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337z" />
+            </svg>
+            <span className="font-inter text-sm font-medium">{comments}</span>
+          </button>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 text-black">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 01-.923 1.785A5.969 5.969 0 006 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337z" />
+            </svg>
+            <span className="font-inter text-sm font-medium">{comments}</span>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => onShare?.(post)}
@@ -308,13 +334,22 @@ function PostCard({
             ))}
           </p>
         ) : null}
-        <button
-          type="button"
-          onClick={onOpenPost}
-          className="mt-1.5 block cursor-pointer font-inter text-sm text-neutral-400 transition hover:text-neutral-600"
-        >
-          View all {comments} comments
-        </button>
+        {onOpenPost && comments > 0 ? (
+          <button
+            type="button"
+            onClick={onOpenPost}
+            className="mt-1.5 block cursor-pointer font-inter text-sm text-neutral-400 transition hover:text-neutral-600"
+          >
+            View all {comments} comments
+          </button>
+        ) : null}
+        {showSource && post?.source?.name ? (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 font-inter text-[11px] font-medium text-neutral-600">
+              Source: {post.source.name}
+            </span>
+          </div>
+        ) : null}
         {date ? (
           <p className="mt-1 font-inter text-[10px] font-medium uppercase tracking-[0.12em] text-neutral-400">
             {date}
@@ -325,7 +360,7 @@ function PostCard({
       <TaggedProductsCarousel
         products={taggedProducts}
         designedBy={designedBy}
-        contentId={post?.id || null}
+        contentId={post?.id || post?._id || post?.contentId || null}
       />
     </article>
   )

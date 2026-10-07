@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../../../app/context/AuthContext'
 import { useCartWishlist } from '../../../../app/context/CartWishlistContext'
+import { itemsService } from '../../../../services/items.service.js'
 import { ROUTES } from '../../../../utils/constants'
 import { navigateApp } from '../../../../app/navigateApp.js'
 import { debugError } from '../../../../utils/debugLog.js'
@@ -20,7 +21,7 @@ export default function TaggedProductsCarousel({
 }) {
   const trackRef = useRef(null)
   const { isAuthenticated, openAuthModal } = useAuth()
-  const { addToCart, cart } = useCartWishlist()
+  const { addToCart, cart, overrideContentId } = useCartWishlist()
   const [activeIndex, setActiveIndex] = useState(0)
   const [busyId, setBusyId] = useState(null)
   const [errorById, setErrorById] = useState({})
@@ -126,6 +127,57 @@ export default function TaggedProductsCarousel({
     }
   }
 
+  const handleGoToCart = async (product) => {
+    const pId = product?.id || product?.itemId || product?.raw?._id || product?.raw?.itemId
+    const currentContentId = contentId || product?.contentId || product?.raw?.contentId || null
+
+    // Look up matching item in cart to find existing SKU
+    const cartItem = cart?.find(
+      (c) =>
+        (pId && String(c?.id) === String(pId)) ||
+        (product?.sku && String(c?.sku) === String(product.sku)) ||
+        (c?.sku && product?.raw?.sku && String(c.sku) === String(product.raw.sku))
+    )
+    let sku = cartItem?.sku || product?.sku || product?.raw?.sku || null
+
+    if (import.meta.env.DEV) {
+      console.log('🔥 [DEV] [Community] "Go to cart" clicked on product:', {
+        itemId: pId,
+        contentId: currentContentId,
+        sku,
+        cartItem,
+        product,
+      })
+    }
+
+    if (currentContentId && pId && isAuthenticated) {
+      setBusyId(pId)
+      try {
+        if (!sku) {
+          try {
+            const res = await itemsService.getById(pId)
+            const d = res?.data?.data ?? res?.data
+            const it = d?.item ?? d
+            sku = it?.variants?.[0]?.sizes?.[0]?.sku || null
+          } catch (_) {}
+        }
+        await overrideContentId({
+          itemId: pId,
+          contentId: currentContentId,
+          sku,
+        })
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.warn('🔥 [DEV] overrideContentId error in handleGoToCart:', err)
+        }
+      } finally {
+        setBusyId(null)
+      }
+    }
+
+    navigateApp(ROUTES.CART)
+  }
+
   if (!products.length) return null
 
   return (
@@ -188,10 +240,10 @@ export default function TaggedProductsCarousel({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => (added ? navigateApp(ROUTES.CART) : openPicker(product))}
+                  onClick={() => (added ? handleGoToCart(product) : openPicker(product))}
                   className="mt-2 w-full cursor-pointer rounded-lg bg-black py-2 font-inter text-[10px] font-bold uppercase tracking-[0.08em] text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60"
                 >
-                  {busy ? 'Adding…' : added ? 'Added to cart' : 'Add to Cart'}
+                  {busy ? (added ? 'Please wait…' : 'Adding…') : added ? 'Go to cart' : 'Add to Cart'}
                 </button>
                 {err ? (
                   <p className="mt-1 font-inter text-[10px] leading-snug text-red-600">{err}</p>

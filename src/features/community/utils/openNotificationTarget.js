@@ -138,6 +138,14 @@ export async function openCommunityNotification({
   if (!item || !navigate) return false
   const target = resolveCommunityNotificationTarget(item)
 
+  // Moderation: removed content returns 404, tapping notification should not open content
+  if (
+    target.templateKey === 'COMMUNITY_CONTENT_REMOVED' ||
+    String(item.templateKey || '').toUpperCase() === 'COMMUNITY_CONTENT_REMOVED'
+  ) {
+    return false
+  }
+
   const path = communityPathFromUrl(target.path)
   if (path) {
     syncNavFromPath(path)
