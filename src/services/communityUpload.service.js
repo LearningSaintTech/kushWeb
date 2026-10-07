@@ -390,11 +390,12 @@ function normalizeItemIds(itemId, itemIds) {
 
 /**
  * Full fast create post flow — FAST_UPLOAD_E2E Steps A–E.
- * @param {{ itemId?: string, itemIds?: string[], caption?: string, hashtags?: string[], imageFiles: File[], onProgress?: (pct: number, phase: string) => void }} opts
+ * @param {{ itemId?: string, itemIds?: string[], sourceId?: string, caption?: string, hashtags?: string[], imageFiles: File[], onProgress?: (pct: number, phase: string) => void }} opts
  */
 export async function createPostFast({
   itemId,
   itemIds,
+  sourceId,
   caption = '',
   hashtags = [],
   imageFiles = [],
@@ -406,13 +407,16 @@ export async function createPostFast({
   logUpload('createPostFast start', {
     itemId: primaryId,
     itemIds: ids,
+    sourceId,
     captionLen: caption?.length,
     hashtags,
     files: imageFiles?.length,
     devS3Proxy: useDevS3Proxy(),
   });
 
-  if (!primaryId) throw new Error('Pick a purchased product before posting');
+  if (!ids.length) {
+    throw new Error('itemId or itemIds is required — select product(s) from the Khush catalog');
+  }
   if (!imageFiles?.length) throw new Error('Add at least one image');
 
   const media = [];
@@ -432,11 +436,13 @@ export async function createPostFast({
   logUpload('POST /posts/publish', {
     itemId: primaryId,
     itemIds: ids,
+    sourceId: sourceId || undefined,
     mediaKeys: media.map((m) => m.key),
   });
   const created = await communityService.publishPost({
-    itemId: primaryId,
-    ...(ids.length > 1 ? { itemIds: ids } : {}),
+    itemIds: ids,
+    ...(primaryId ? { itemId: primaryId } : {}),
+    ...(sourceId ? { sourceId } : {}),
     caption,
     hashtags,
     media,
@@ -465,11 +471,12 @@ export async function createPostFast({
 
 /**
  * Full fast create reel flow (FAST_UPLOAD_E2E §4).
- * @param {{ itemId?: string, itemIds?: string[], caption?: string, hashtags?: string[], videoFile: File, thumbnailFile?: File, onProgress?: Function }} opts
+ * @param {{ itemId?: string, itemIds?: string[], sourceId?: string, caption?: string, hashtags?: string[], videoFile: File, thumbnailFile?: File, onProgress?: Function }} opts
  */
 export async function createReelFast({
   itemId,
   itemIds,
+  sourceId,
   caption = '',
   hashtags = [],
   videoFile,
@@ -482,6 +489,7 @@ export async function createReelFast({
   logUpload('createReelFast start', {
     itemId: primaryId,
     itemIds: ids,
+    sourceId,
     captionLen: caption?.length,
     hashtags,
     video: videoFile?.name,
@@ -489,7 +497,9 @@ export async function createReelFast({
     devS3Proxy: useDevS3Proxy(),
   });
 
-  if (!primaryId) throw new Error('Pick a purchased product before posting');
+  if (!ids.length) {
+    throw new Error('itemId or itemIds is required — select product(s) from the Khush catalog');
+  }
   if (!videoFile) throw new Error('Add a video');
   if (!String(videoFile.type || '').startsWith('video/')) {
     throw new Error('Please upload a video type');
@@ -515,8 +525,9 @@ export async function createReelFast({
 
   onProgress?.(90, 'publish');
   const body = {
-    itemId: primaryId,
-    ...(ids.length > 1 ? { itemIds: ids } : {}),
+    itemIds: ids,
+    ...(primaryId ? { itemId: primaryId } : {}),
+    ...(sourceId ? { sourceId } : {}),
     caption,
     hashtags,
     video: { key: video.key, mimeType: video.mimeType },
@@ -527,6 +538,7 @@ export async function createReelFast({
   logUpload('POST /reels/publish', {
     itemId: primaryId,
     itemIds: ids,
+    sourceId: sourceId || undefined,
     videoKey: video.key,
     hasThumb: Boolean(thumbnail),
   });

@@ -9,16 +9,16 @@ import {
   createPostFast,
   createReelFast,
 } from '../../../../services/communityUpload.service.js'
+import { itemsService } from '../../../../services/items.service.js'
 import { logCommunity } from '../../../../services/communityApi.js'
 import {
   extractHashtagsFromCaption,
-  mapPurchasedItem,
+  mapCatalogItemToPickerItem,
 } from '../../../../services/communityContent.mappers.js'
 import topSvg from '../../../../assets/images/community/top.svg'
 
 const SUGGESTED_TAGS = ['#Minimalist', '#LinenLove', '#SummerLook', '#KhushStyle']
-const PURCHASED_PAGE_SIZE = 6
-const PURCHASED_FETCH_LIMIT = 50
+const CATALOG_PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 const MAX_POST_IMAGES = 10
 const MAX_TAGGED_PRODUCTS = 10
@@ -38,39 +38,6 @@ function normalizeIncomingMedia(mediaFile) {
   return [mediaFile]
 }
 
-function mergePurchased(prev, next) {
-  const seen = new Set(prev.map((item) => String(item.id)))
-  const extra = next.filter((item) => !seen.has(String(item.id)))
-  return extra.length ? [...prev, ...extra] : prev
-}
-
-function extractPurchasedPage(data, requestedPage) {
-  const raw = Array.isArray(data?.items)
-    ? data.items
-    : Array.isArray(data)
-      ? data
-      : []
-  const mapped = raw.map(mapPurchasedItem).filter(Boolean)
-  const pagination = data?.pagination || {}
-  const nextCursor = data?.nextCursor ?? pagination.nextCursor ?? null
-  const page = Number(pagination.page || data?.page || requestedPage || 1)
-  const totalPages = Number(
-    pagination.totalPages || data?.totalPages || 0,
-  )
-  const hasMore =
-    Boolean(data?.hasMore) ||
-    Boolean(nextCursor) ||
-    (totalPages > 0 ? page < totalPages : mapped.length >= PURCHASED_PAGE_SIZE)
-
-  return {
-    mapped,
-    nextCursor,
-    page,
-    totalPages: totalPages > 0 ? totalPages : hasMore ? page + 1 : page,
-    hasMore,
-  }
-}
-
 function CloseIcon({ className = 'h-3 w-3' }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.75" aria-hidden>
@@ -80,7 +47,7 @@ function CloseIcon({ className = 'h-3 w-3' }) {
 }
 
 /**
- * Create Post / Reel composer — multi-image posts, page-paginated product tag, clear close.
+ * Create Post / Reel composer — multi-image posts, catalog product tag, source selector, fast upload.
  */
 export default function CreatePostComposer({
   open,
@@ -100,7 +67,20 @@ export default function CreatePostComposer({
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [catalogError, setCatalogError] = useState(null)
   const [catalogPage, setCatalogPage] = useState(1)
+  const [catalogTotalPages, setCatalogTotalPages] = useState(1)
   const [tagged, setTagged] = useState([])
+
+  // Sources state (e.g. Myntra, Instagram, Street style, etc.)
+  const [sources, setSources] = useState([])
+  const [sourcesLoading, setSourcesLoading] = useState(false)
+  const [sourcesError, setSourcesError] = useState(null)
+  const [sourcesPage, setSourcesPage] = useState(1)
+  const [sourcesHasMore, setSourcesHasMore] = useState(false)
+  const [sourcesQuery, setSourcesQuery] = useState('')
+  const [debouncedSourcesQuery, setDebouncedSourcesQuery] = useState('')
+  const [selectedSourceId, setSelectedSourceId] = useState('')
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false)
+
   const [previewUrls, setPreviewUrls] = useState([])
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
   const [durationLabel, setDurationLabel] = useState('0:30')
@@ -114,7 +94,6 @@ export default function CreatePostComposer({
   const [mediaReady, setMediaReady] = useState(false)
 
   const mediaFiles = mediaReady ? localFiles : normalizeIncomingMedia(mediaFile)
-
   const activeFile = mediaFiles[activeMediaIndex] || mediaFiles[0] || null
   const isVideo = Boolean(
     kind === 'reel' || activeFile?.type?.startsWith('video/'),
@@ -126,65 +105,56 @@ export default function CreatePostComposer({
     selectedItem?.raw?.item?.designedBy ||
     tagged.map((t) => t?.raw?.designedBy || t?.raw?.item?.designedBy).find(Boolean) ||
     null
-  const taggedIds = new Set(tagged.map((t) => String(t.id)))
-  const suggestions = catalog.filter((p) => !taggedIds.has(String(p.id)))
-  const canTagMore = tagged.length < MAX_TAGGED_PRODUCTS
-  const catalogTotalPages = Math.max(
-    1,
-    Math.ceil(suggestions.length / PURCHASED_PAGE_SIZE) || 1,
-  )
-  const safePage = Math.min(catalogPage, catalogTotalPages)
-  const pageItems = suggestions.slice(
-    (safePage - 1) * PURCHASED_PAGE_SIZE,
-    safePage * PURCHASED_PAGE_SIZE,
-  )
 
-  const loadPurchasedItems = useCallback(
-    async ({ q = '' } = {}) => {
+  const taggedIds = new Set(tagged.map((t) => String(t.id)))
+  const canTagMore = tagged.length < MAX_TAGGED_PRODUCTS
+
+  const selectedSource = sources.find((s) => String(s.id) === String(selectedSourceId)) || null
+
+  // Fetch catalog items via GET /api/items/search?keyword=<text>&page=1&limit=20
+  const loadCatalogItems = useCallback(
+    async ({ q = '', page = 1 } = {}) => {
       const reqId = ++searchReqId.current
       setCatalogLoading(true)
       setCatalogError(null)
 
-      logCommunity('CreatePostComposer purchased-items', { q })
+      logCommunity('CreatePostComposer search catalog items', { q, page })
       try {
-        let page = 1
-        let collected = []
-        let keepFetching = true
+        const res = await itemsService.search({
+          keyword: q || undefined,
+          page,
+          limit: CATALOG_PAGE_SIZE,
+        })
+        if (reqId !== searchReqId.current) return
 
-        while (keepFetching && page <= 20) {
-          const data = await communityService.getPurchasedItems({
-            limit: PURCHASED_FETCH_LIMIT,
-            page,
-            ...(q ? { q } : {}),
-          })
-          if (reqId !== searchReqId.current) return
+        const data = res?.data?.data ?? res?.data
+        const rawItems = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data)
+            ? data
+            : []
+        const mapped = rawItems.map(mapCatalogItemToPickerItem).filter(Boolean)
+        const pag = data?.pagination ?? null
+        const total = pag?.total ?? data?.total ?? mapped.length
+        const totalPages = Math.max(
+          1,
+          pag?.totalPages ?? Math.ceil(total / CATALOG_PAGE_SIZE) ?? 1,
+        )
 
-          const { mapped, hasMore } = extractPurchasedPage(data, page)
-          const before = collected.length
-          collected = mergePurchased(collected, mapped)
-          keepFetching =
-            Boolean(hasMore) &&
-            mapped.length > 0 &&
-            collected.length > before
-          page += 1
-          if (mapped.length < PURCHASED_FETCH_LIMIT) keepFetching = false
-        }
+        setCatalog(mapped)
+        setCatalogTotalPages(totalPages)
+        setCatalogPage(page)
 
-        setCatalog(collected)
-        setCatalogPage(1)
-
-        logCommunity('CreatePostComposer purchased-items ok', {
-          count: collected.length,
+        logCommunity('CreatePostComposer catalog items search ok', {
+          count: mapped.length,
+          page,
+          totalPages,
           q,
         })
-
-        if (!q && collected.length === 1) {
-          setTagged([collected[0]])
-        }
       } catch (err) {
         if (reqId !== searchReqId.current) return
-        const message = getCommunityErrorMessage(err, 'Could not load purchased products')
-        debugError('[Community] purchased-items failed', message)
+        const message = getCommunityErrorMessage(err, 'Could not load catalog products')
+        debugError('[Community] catalog items search failed', message)
         setCatalogError(message)
         setCatalog([])
       } finally {
@@ -194,12 +164,45 @@ export default function CreatePostComposer({
     [],
   )
 
+  // Fetch sources via GET /api/community/sources?page=1&limit=20&q=<search>
+  const loadSources = useCallback(
+    async ({ page = 1, q = '', reset = false } = {}) => {
+      setSourcesLoading(true)
+      setSourcesError(null)
+      try {
+        const res = await communityService.getSources({
+          page,
+          limit: 20,
+          q: q.trim() || undefined,
+        })
+        const data = res?.data?.items ? res.data : res?.items ? res : res?.data || {}
+        const items = Array.isArray(data?.items) ? data.items : []
+        const hasMore = Boolean(data?.hasMore ?? (data?.page < data?.totalPages))
+
+        setSources((prev) => (reset || page === 1 ? items : [...prev, ...items]))
+        setSourcesPage(page)
+        setSourcesHasMore(hasMore)
+      } catch (err) {
+        const msg = getCommunityErrorMessage(err, 'Could not load sources')
+        setSourcesError(msg)
+      } finally {
+        setSourcesLoading(false)
+      }
+    },
+    [],
+  )
+
+  // Reset & load initial data on modal open
   useEffect(() => {
     if (!open) return undefined
     setCaption('')
     setProductQuery('')
     setDebouncedQuery('')
     setTagged([])
+    setSelectedSourceId('')
+    setSourcesQuery('')
+    setDebouncedSourcesQuery('')
+    setSourcePickerOpen(false)
     setMusicOn(false)
     setPosting(false)
     setUploadPct(0)
@@ -212,9 +215,13 @@ export default function CreatePostComposer({
     setCatalogError(null)
     setCatalog([])
     setCatalogPage(1)
+    setCatalogTotalPages(1)
     setPickerOpen(true)
+
+    loadCatalogItems({ q: '', page: 1 })
+    loadSources({ page: 1, reset: true })
     return undefined
-  }, [open])
+  }, [open, loadCatalogItems, loadSources])
 
   useEffect(() => {
     if (!open || mediaReady) return
@@ -222,16 +229,30 @@ export default function CreatePostComposer({
     setMediaReady(true)
   }, [open, mediaFile, mediaReady])
 
+  // Debounced search for catalog products
   useEffect(() => {
     if (!open) return undefined
     const delay = productQuery.trim() ? SEARCH_DEBOUNCE_MS : 0
     const t = window.setTimeout(() => {
       const q = productQuery.trim()
       setDebouncedQuery(q)
-      loadPurchasedItems({ q })
+      setCatalogPage(1)
+      loadCatalogItems({ q, page: 1 })
     }, delay)
     return () => window.clearTimeout(t)
-  }, [open, productQuery, loadPurchasedItems])
+  }, [open, productQuery, loadCatalogItems])
+
+  // Debounced search for sources
+  useEffect(() => {
+    if (!open) return undefined
+    const delay = sourcesQuery.trim() ? SEARCH_DEBOUNCE_MS : 0
+    const t = window.setTimeout(() => {
+      const q = sourcesQuery.trim()
+      setDebouncedSourcesQuery(q)
+      loadSources({ page: 1, q, reset: true })
+    }, delay)
+    return () => window.clearTimeout(t)
+  }, [open, sourcesQuery, loadSources])
 
   useEffect(() => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
@@ -259,14 +280,10 @@ export default function CreatePostComposer({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  useEffect(() => {
-    if (catalogPage > catalogTotalPages) setCatalogPage(catalogTotalPages)
-  }, [catalogPage, catalogTotalPages])
-
   const goToProductPage = (nextPage) => {
     if (catalogLoading) return
     if (nextPage < 1 || nextPage > catalogTotalPages) return
-    setCatalogPage(nextPage)
+    loadCatalogItems({ q: debouncedQuery, page: nextPage })
   }
 
   const appendHashtag = (tag) => {
@@ -283,7 +300,6 @@ export default function CreatePostComposer({
       if (prev.length >= MAX_TAGGED_PRODUCTS) return prev
       return [...prev, product]
     })
-    setProductQuery('')
     setPickerOpen(true)
     logCommunity('CreatePostComposer product selected', {
       itemId: product.itemId || product.id,
@@ -350,12 +366,9 @@ export default function CreatePostComposer({
       .map((p) => p.itemId || p.id)
       .filter(Boolean)
       .map(String)
+
     if (!itemIds.length) {
-      setPostError(
-        !catalogLoading && catalog.length === 0 && !debouncedQuery
-          ? 'Buy & receive a product first — no delivered items to tag'
-          : 'Select at least one purchased product to tag',
-      )
+      setPostError('itemId or itemIds is required — select product(s) from the Khush catalog')
       setPickerOpen(true)
       return
     }
@@ -370,6 +383,7 @@ export default function CreatePostComposer({
     debugLog('[Community] Post to Community (fast upload)', {
       kind,
       itemIds,
+      sourceId: selectedSourceId || null,
       caption: captionText,
       hashtags,
       fileCount: mediaFiles.length,
@@ -391,6 +405,7 @@ export default function CreatePostComposer({
         result = await createReelFast({
           itemId: itemIds[0],
           itemIds,
+          sourceId: selectedSourceId || undefined,
           caption: captionText,
           hashtags,
           videoFile: primary,
@@ -400,6 +415,7 @@ export default function CreatePostComposer({
         result = await createPostFast({
           itemId: itemIds[0],
           itemIds,
+          sourceId: selectedSourceId || undefined,
           caption: captionText,
           hashtags,
           imageFiles: mediaFiles.filter((f) => f?.type?.startsWith('image/')),
@@ -411,17 +427,54 @@ export default function CreatePostComposer({
         id: result?._id,
         status: result?.status,
         type: result?.type,
+        source: result?.source,
       })
       setPosting(false)
       onPosted?.({
         kind,
         itemId: itemIds[0],
         itemIds,
+        sourceId: selectedSourceId || null,
         caption: captionText,
         hashtags,
         content: result,
       })
     } catch (err) {
+      // 1. Handle ITEM_NOT_TAGGABLE: Some items deactivated or deleted
+      const errErrors = err?.response?.data?.errors
+      const errCode = errErrors?.code || err?.response?.data?.code
+
+      if (errCode === 'ITEM_NOT_TAGGABLE') {
+        const untaggable = Array.isArray(errErrors?.itemIds) ? errErrors.itemIds.map(String) : []
+        if (untaggable.length) {
+          setTagged((prev) =>
+            prev.filter(
+              (p) => !untaggable.includes(String(p.itemId || p.id)),
+            ),
+          )
+        }
+        setPostError('Some items are no longer available in the Khush catalog and have been unselected. Please retry.')
+        setPosting(false)
+        return
+      }
+
+      // 2. Handle SOURCE_NOT_AVAILABLE: Source disabled by admin or deleted
+      if (errCode === 'SOURCE_NOT_AVAILABLE') {
+        setSelectedSourceId('')
+        loadSources({ page: 1, reset: true })
+        setPostError('The selected source is no longer available. Please select another source or publish without one.')
+        setPosting(false)
+        return
+      }
+
+      // 3. Handle SOURCE_INVALID
+      if (errCode === 'SOURCE_INVALID') {
+        setSelectedSourceId('')
+        setPostError('Invalid source selected. Please pick a valid source or publish without one.')
+        setPosting(false)
+        return
+      }
+
       const raw = isDesignerNotVerifiedError(err)
         ? 'Designer account must be verified before creating posts'
         : getCommunityErrorMessage(err, 'Failed to publish')
@@ -448,12 +501,12 @@ export default function CreatePostComposer({
           : 'Posting…'
 
   const previewUrl = previewUrls[activeMediaIndex] || previewUrls[0] || ''
-  const canGoPrevPage = safePage > 1 && !catalogLoading
-  const canGoNextPage = safePage < catalogTotalPages && !catalogLoading
+  const canGoPrevPage = catalogPage > 1 && !catalogLoading
+  const canGoNextPage = catalogPage < catalogTotalPages && !catalogLoading
   const pageLabel =
     catalogTotalPages > 1
-      ? `${safePage} / ${catalogTotalPages}`
-      : `Page ${safePage}`
+      ? `${catalogPage} / ${catalogTotalPages}`
+      : `Page ${catalogPage}`
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-black/50 px-3 py-6 sm:px-8 sm:py-10 lg:px-12 lg:py-12">
@@ -488,20 +541,21 @@ export default function CreatePostComposer({
               Create {kind === 'reel' ? 'Reel' : 'Post'}
             </h2>
 
+            {/* Caption */}
             <label className="mt-7 block">
               <span className="mb-2 block font-inter text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400">
                 Caption
               </span>
               <textarea
-                rows={3}
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
-                maxLength={2200}
+                rows={3}
                 placeholder="Write something about your style..."
                 className="w-full resize-none rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 font-inter text-sm leading-relaxed text-black outline-none transition placeholder:text-neutral-400 focus:border-neutral-400"
               />
             </label>
 
+            {/* Suggested tags */}
             <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
               {SUGGESTED_TAGS.map((tag) => (
                 <button
@@ -515,17 +569,160 @@ export default function CreatePostComposer({
               ))}
             </div>
 
-            {/* Tag products — multi-select with pagination */}
+            {/* Source picker (Optional) */}
+            <div className="mt-6 border-b border-neutral-100 pb-5">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-inter text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400">
+                    Source (Optional)
+                  </span>
+                  <p className="font-inter text-xs text-neutral-500">
+                    Where was this look found? (e.g. Myntra, Instagram, Street style)
+                  </p>
+                </div>
+                {selectedSource ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSourceId('')}
+                    className="cursor-pointer font-inter text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400 transition hover:text-black"
+                  >
+                    Clear source
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Selected source badge */}
+              {selectedSource ? (
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-neutral-900 px-3 py-1 font-inter text-xs font-semibold text-white shadow-sm">
+                    <span>Source: {selectedSource.name}</span>
+                    <button
+                      type="button"
+                      aria-label="Remove source"
+                      onClick={() => setSelectedSourceId('')}
+                      className="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/40"
+                    >
+                      <CloseIcon className="h-2 w-2" />
+                    </button>
+                  </span>
+                </div>
+              ) : null}
+
+              {/* Quick source pills */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {sources.slice(0, 6).map((src) => {
+                  const isSelected = String(src.id) === String(selectedSourceId)
+                  return (
+                    <button
+                      key={src.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSourceId(isSelected ? '' : src.id)
+                      }}
+                      className={`cursor-pointer rounded-full border px-3 py-1 font-inter text-xs transition ${
+                        isSelected
+                          ? 'border-black bg-black font-semibold text-white shadow-sm'
+                          : 'border-neutral-200 bg-neutral-50 font-medium text-neutral-700 hover:border-neutral-300 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {src.name}
+                    </button>
+                  )
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => setSourcePickerOpen((v) => !v)}
+                  className="cursor-pointer rounded-full border border-dashed border-neutral-300 px-2.5 py-1 font-inter text-xs font-medium text-neutral-500 transition hover:border-neutral-500 hover:text-black"
+                >
+                  {sourcePickerOpen ? 'Hide sources' : 'More sources…'}
+                </button>
+              </div>
+
+              {/* Expandable full source picker with search & load more */}
+              {sourcePickerOpen ? (
+                <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-3 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      value={sourcesQuery}
+                      onChange={(e) => setSourcesQuery(e.target.value)}
+                      placeholder="Search sources (e.g. Myntra, Instagram)..."
+                      className="w-full rounded-full border border-neutral-200 bg-[#f7f7f7] py-1.5 pl-3 pr-3 font-inter text-xs text-black outline-none transition placeholder:text-neutral-400 focus:border-black focus:bg-white"
+                    />
+                  </div>
+
+                  {sourcesLoading && sources.length === 0 ? (
+                    <p className="py-4 text-center font-inter text-xs text-neutral-400">Loading sources…</p>
+                  ) : sources.length === 0 ? (
+                    <p className="py-4 text-center font-inter text-xs text-neutral-400">No matching sources found</p>
+                  ) : (
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {sources.map((src) => {
+                        const isSelected = String(src.id) === String(selectedSourceId)
+                        return (
+                          <button
+                            key={src.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSourceId(isSelected ? '' : src.id)
+                            }}
+                            className={`flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-inter text-xs transition ${
+                              isSelected
+                                ? 'bg-neutral-900 font-semibold text-white'
+                                : 'text-neutral-800 hover:bg-neutral-50'
+                            }`}
+                          >
+                            <span>{src.name}</span>
+                            {isSelected ? (
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                                Selected
+                              </span>
+                            ) : src.description ? (
+                              <span className="max-w-[140px] truncate text-[10px] text-neutral-400">
+                                {src.description}
+                              </span>
+                            ) : null}
+                          </button>
+                        )
+                      })}
+
+                      {sourcesHasMore ? (
+                        <div className="pt-2 text-center">
+                          <button
+                            type="button"
+                            disabled={sourcesLoading}
+                            onClick={() =>
+                              loadSources({ page: sourcesPage + 1, q: debouncedSourcesQuery })
+                            }
+                            className="cursor-pointer font-inter text-xs font-medium text-[#2563EB] hover:underline disabled:opacity-50"
+                          >
+                            {sourcesLoading ? 'Loading more…' : 'Load more sources'}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {sourcesError ? (
+                    <p className="mt-1 font-inter text-xs text-red-500">{sourcesError}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Tag products — multi-select catalog search (up to 10 items) */}
             <div className="mt-6">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <span className="font-inter text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400">
-                  Tag Products (required)
+                  Tag Products (Catalog)
                 </span>
                 <span className="font-inter text-[11px] font-medium text-neutral-400">
                   {tagged.length}/{MAX_TAGGED_PRODUCTS}
                 </span>
               </div>
 
+              {/* Tagged product chips */}
               {tagged.length > 0 ? (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {tagged.map((item) => (
@@ -566,7 +763,7 @@ export default function CreatePostComposer({
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="font-inter text-xs text-neutral-500">
                   {canTagMore
-                    ? 'Tap products to add — you can tag more than one'
+                    ? 'Tag any item from the Khush catalog (up to 10 products)'
                     : 'Maximum products tagged'}
                 </p>
                 <button
@@ -574,7 +771,7 @@ export default function CreatePostComposer({
                   onClick={() => setPickerOpen((v) => !v)}
                   className="cursor-pointer font-inter text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500 transition hover:text-black"
                 >
-                  {pickerOpen ? 'Hide list' : 'Add products'}
+                  {pickerOpen ? 'Hide catalog' : 'Tag products'}
                 </button>
               </div>
 
@@ -598,7 +795,7 @@ export default function CreatePostComposer({
                     <input
                       value={productQuery}
                       onChange={(e) => setProductQuery(e.target.value)}
-                      placeholder="Search your purchased products..."
+                      placeholder="Search Khush catalog products by name..."
                       className="w-full rounded-full border-0 bg-[#f2f2f2] py-2.5 pl-10 pr-4 font-inter text-sm text-black outline-none transition placeholder:text-neutral-400 focus:ring-2 focus:ring-black/10"
                     />
                   </div>
@@ -606,45 +803,63 @@ export default function CreatePostComposer({
                   <div className="min-h-[168px]">
                     {catalogLoading ? (
                       <p className="px-4 py-8 text-center font-inter text-xs text-neutral-400">
-                        Loading products…
+                        Searching Khush catalog…
                       </p>
-                    ) : pageItems.length === 0 ? (
+                    ) : catalog.length === 0 ? (
                       <p className="px-4 py-8 text-center font-inter text-xs text-neutral-400">
                         {debouncedQuery
-                          ? 'No purchased products match your search.'
-                          : tagged.length
-                            ? 'All products on this page are already tagged.'
-                            : 'No delivered products yet.'}
+                          ? 'No products match your search in the Khush catalog.'
+                          : 'No catalog products found.'}
                       </p>
                     ) : (
                       <ul className="divide-y divide-neutral-100">
-                        {pageItems.map((item) => (
-                          <li key={item.id}>
-                            <button
-                              type="button"
-                              disabled={!canTagMore}
-                              onClick={() => addProduct(item)}
-                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <img
-                                src={item.thumb || topSvg}
-                                alt=""
-                                className="h-10 w-10 rounded-lg object-cover"
-                              />
-                              <span className="min-w-0 flex-1 truncate font-inter text-sm font-medium text-black">
-                                {item.name}
-                              </span>
-                              {item.price ? (
-                                <span className="shrink-0 font-inter text-xs text-neutral-500">
-                                  {item.price}
+                        {catalog.map((item) => {
+                          const isAlreadyTagged = tagged.some(
+                            (t) => String(t.id) === String(item.id),
+                          )
+                          return (
+                            <li key={item.id}>
+                              <button
+                                type="button"
+                                disabled={!canTagMore || isAlreadyTagged}
+                                onClick={() => addProduct(item)}
+                                className={`flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-neutral-50 disabled:cursor-not-allowed ${
+                                  isAlreadyTagged ? 'bg-neutral-50/80 opacity-60' : ''
+                                }`}
+                              >
+                                <img
+                                  src={item.thumb || topSvg}
+                                  alt=""
+                                  className="h-10 w-10 rounded-lg object-cover"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-inter text-sm font-medium text-black">
+                                    {item.name}
+                                  </p>
+                                  {item.designedBy ? (
+                                    <p className="truncate font-inter text-[10px] text-neutral-400">
+                                      By {item.designedBy}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                {item.price ? (
+                                  <span className="shrink-0 font-inter text-xs text-neutral-600">
+                                    {item.price}
+                                  </span>
+                                ) : null}
+                                <span
+                                  className={`shrink-0 rounded-full px-2.5 py-0.5 font-inter text-[10px] font-semibold uppercase tracking-wide ${
+                                    isAlreadyTagged
+                                      ? 'bg-neutral-200 text-neutral-600'
+                                      : 'bg-black text-white'
+                                  }`}
+                                >
+                                  {isAlreadyTagged ? 'Tagged' : 'Add'}
                                 </span>
-                              ) : null}
-                              <span className="shrink-0 rounded-full bg-black px-2 py-0.5 font-inter text-[10px] font-semibold uppercase tracking-wide text-white">
-                                Add
-                              </span>
-                            </button>
-                          </li>
-                        ))}
+                              </button>
+                            </li>
+                          )
+                        })}
                       </ul>
                     )}
                   </div>
@@ -652,7 +867,7 @@ export default function CreatePostComposer({
                   <div className="flex items-center justify-between gap-3 border-t border-neutral-100 px-3 py-2.5">
                     <button
                       type="button"
-                      onClick={() => goToProductPage(safePage - 1)}
+                      onClick={() => goToProductPage(catalogPage - 1)}
                       disabled={!canGoPrevPage}
                       className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-neutral-200 text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="Previous products page"
@@ -666,7 +881,7 @@ export default function CreatePostComposer({
                     </span>
                     <button
                       type="button"
-                      onClick={() => goToProductPage(safePage + 1)}
+                      onClick={() => goToProductPage(catalogPage + 1)}
                       disabled={!canGoNextPage}
                       className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-neutral-200 text-black transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="Next products page"
@@ -716,8 +931,8 @@ export default function CreatePostComposer({
           </div>
 
           {/* Media preview + multi strip */}
-          <div className="flex flex-col items-center justify-center gap-3 lg:items-end lg:justify-end lg:pb-1">
-            <div className="relative flex items-end gap-3">
+          <div className="flex flex-col items-center justify-start gap-3 lg:sticky lg:top-10 lg:items-end lg:justify-start lg:self-start">
+            <div className="relative flex items-start gap-3">
               <div className="relative h-[min(48vh,400px)] w-[min(calc(48vh*9/16),220px)] overflow-hidden rounded-[22px] bg-[#ececec] sm:h-[420px] sm:w-[236px]">
                 {previewUrl ? (
                   isVideo ? (
@@ -805,26 +1020,6 @@ export default function CreatePostComposer({
                   </>
                 ) : null}
               </div>
-
-              {/* <button
-                type="button"
-                onClick={() => setMusicOn((v) => !v)}
-                aria-pressed={musicOn}
-                aria-label={musicOn ? 'Music on' : 'Add music'}
-                className={`mb-1 flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border shadow-sm transition ${
-                  musicOn
-                    ? 'border-black bg-black text-white'
-                    : 'border-neutral-200 bg-white text-black hover:bg-neutral-50'
-                }`}
-              >
-                <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-              </button> */}
             </div>
 
             {/* Thumbnail strip + add more (posts) */}

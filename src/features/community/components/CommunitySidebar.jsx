@@ -178,7 +178,7 @@ export default function CommunitySidebar({
         <button
           type="button"
           onClick={() => navigateApp(ROUTES.HOME)}
-          className="inline-flex items-center gap-2 px-2 font-inter text-base font-medium text-black transition hover:opacity-70"
+          className="inline-flex items-center gap-2 px-2 font-inter text-sm font-medium text-black transition hover:opacity-70"
         >
           <svg
             className="h-4 w-4"

@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { walletService } from '../../services/wallet.service.js'
 
-const DEFAULT_PAGE_SIZE = 10
-
 function WalletBadgeIcon() {
   return (
     <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-black text-white text-xs">
@@ -149,6 +147,8 @@ function extractPagination(txRes, requestedPage, currentLimit) {
   }
 }
 
+const PAGE_SIZE = 10
+
 const Wallet = () => {
   const [showAddBalanceModal, setShowAddBalanceModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -156,7 +156,6 @@ const Wallet = () => {
   const [inputAmount, setInputAmount] = useState('')
   const [walletBalance, setWalletBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(null)
   const [totalCount, setTotalCount] = useState(null)
@@ -175,15 +174,15 @@ const Wallet = () => {
     setWalletBalance(Number(balanceData?.balance || 0))
   }, [])
 
-  const fetchTransactions = useCallback(async (pageNum = 1, limitNum = pageSize) => {
+  const fetchTransactions = useCallback(async (pageNum = 1) => {
     setTransactionsLoading(true)
     setError('')
     try {
-      const txRes = await walletService.getCashTransactions({ page: pageNum, limit: limitNum })
+      const txRes = await walletService.getCashTransactions({ page: pageNum, limit: PAGE_SIZE })
       const { totalPages: pages, totalCount: total, hasNextPage: next, pageItems } = extractPagination(
         txRes,
         pageNum,
-        limitNum,
+        PAGE_SIZE,
       )
       setTransactions(pageItems)
       setTotalPages(pages)
@@ -198,7 +197,7 @@ const Wallet = () => {
     } finally {
       setTransactionsLoading(false)
     }
-  }, [pageSize])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -220,8 +219,8 @@ const Wallet = () => {
   }, [fetchBalance])
 
   useEffect(() => {
-    fetchTransactions(page, pageSize)
-  }, [page, pageSize, fetchTransactions])
+    fetchTransactions(page)
+  }, [page, fetchTransactions])
 
   useEffect(() => {
     if (page > 1 && historyRef.current) {
@@ -253,7 +252,7 @@ const Wallet = () => {
   }, [totalPages, page, hasNextPage])
 
   const showPagination =
-    !transactionsLoading && (totalPages > 1 || hasNextPage || page > 1 || (totalCount != null && totalCount > pageSize))
+    !transactionsLoading && (totalPages > 1 || hasNextPage || page > 1 || (totalCount != null && totalCount > PAGE_SIZE))
 
   const handleAddBalance = async () => {
     const manualAmount = String(inputAmount || '').trim()
@@ -410,8 +409,8 @@ const Wallet = () => {
                 <span>
                   Showing{' '}
                   <strong className="text-black">
-                    {Math.min((page - 1) * pageSize + 1, totalCount)}–
-                    {Math.min(page * pageSize, totalCount)}
+                    {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
+                    {Math.min(page * PAGE_SIZE, totalCount)}
                   </strong>{' '}
                   of <strong className="text-black">{totalCount}</strong> transactions
                 </span>
@@ -461,24 +460,6 @@ const Wallet = () => {
               >
                 Next
               </button>
-            </div>
-
-            {/* Rows per page selector */}
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 order-3">
-              <span>Rows per page:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  const newLimit = Number(e.target.value)
-                  setPageSize(newLimit)
-                  setPage(1)
-                }}
-                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs sm:text-sm font-medium text-black focus:outline-none focus:border-black cursor-pointer"
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
             </div>
           </nav>
         ) : null}

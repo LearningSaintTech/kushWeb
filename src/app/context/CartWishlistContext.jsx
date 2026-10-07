@@ -498,6 +498,63 @@ export function CartWishlistProvider({ children }) {
     [isAuthenticated, pincode, buildCartPayload, refetchCart]
   )
 
+  const overrideContentId = useCallback(
+    async ({ itemId, contentId, sku }) => {
+      if (!isAuthenticated) {
+        if (import.meta.env.DEV) {
+          console.log('🔥 [DEV] overrideContentId skipped (user not authenticated):', {
+            itemId,
+            contentId,
+            sku,
+          })
+        }
+        return { success: false, message: 'User not authenticated' }
+      }
+      if (!itemId || !contentId) {
+        if (import.meta.env.DEV) {
+          console.warn('🔥 [DEV] overrideContentId missing itemId or contentId:', {
+            itemId,
+            contentId,
+            sku,
+          })
+        }
+        return { success: false, message: 'Missing itemId or contentId' }
+      }
+
+      const body = {
+        itemId: String(itemId),
+        contentId: String(contentId),
+        ...(sku ? { sku: String(sku) } : {}),
+      }
+
+      if (import.meta.env.DEV) {
+        console.log('🔥 [DEV] [Community cart/override-content-id] Calling with body:', body)
+      }
+
+      try {
+        const res = await cartService.overrideContentId(body)
+        const data = res?.data?.data ?? res?.data
+        if (import.meta.env.DEV) {
+          console.log('🔥 [DEV] [Community cart/override-content-id] Success:', data)
+        }
+        refetchCart().catch(() => {})
+        return { success: true, data }
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error(
+            '🔥 [DEV] [Community cart/override-content-id] Failed:',
+            err?.response?.data || err?.message
+          )
+        }
+        return {
+          success: false,
+          message: err?.response?.data?.message || err?.message || 'Could not override content id',
+        }
+      }
+    },
+    [isAuthenticated, refetchCart]
+  )
+
   const removeFromCart = useCallback(
     async (productIdOrSku) => {
       if (isAuthenticated) {
@@ -683,6 +740,7 @@ export function CartWishlistProvider({ children }) {
       clearWishlist,
       isInWishlist,
       refetchCart,
+      overrideContentId,
     }),
     [
       cart,
@@ -702,6 +760,7 @@ export function CartWishlistProvider({ children }) {
       clearWishlist,
       isInWishlist,
       refetchCart,
+      overrideContentId,
     ]
   )
 

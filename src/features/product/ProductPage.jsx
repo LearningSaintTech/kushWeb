@@ -330,8 +330,8 @@ function ProductPage() {
         });
         setError(
           err?.response?.data?.message ||
-            err?.message ||
-            "Failed to load product",
+          err?.message ||
+          "Failed to load product",
         );
         setItemData(null);
       })
@@ -548,8 +548,8 @@ function ProductPage() {
 
   const originalPriceDisplay =
     item?.discountedPrice != null &&
-    item?.price != null &&
-    Number(item.price) > Number(item.discountedPrice)
+      item?.price != null &&
+      Number(item.price) > Number(item.discountedPrice)
       ? `₹${Number(item.price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
       : null;
 
@@ -596,10 +596,10 @@ function ProductPage() {
     sizes,
     selectedSizeObj: selectedSizeObj
       ? {
-          size: selectedSizeObj.size,
-          sku: selectedSizeObj.sku,
-          inStock: selectedSizeObj.inStock,
-        }
+        size: selectedSizeObj.size,
+        sku: selectedSizeObj.sku,
+        inStock: selectedSizeObj.inStock,
+      }
       : null,
     productForCart: productForCart
       ? { id: productForCart.id, sku: productForCart.sku }
@@ -644,10 +644,10 @@ function ProductPage() {
       selectedSize,
       selectedSizeObj: selectedSizeObj
         ? {
-            size: selectedSizeObj.size,
-            sku: selectedSizeObj.sku,
-            inStock: selectedSizeObj.inStock,
-          }
+          size: selectedSizeObj.size,
+          sku: selectedSizeObj.sku,
+          inStock: selectedSizeObj.inStock,
+        }
         : null,
       isVariantInStock: !!selectedSizeObj?.inStock,
       productForCart,
@@ -1076,11 +1076,10 @@ function ProductPage() {
                           setSelectedImageIndex(idx);
                           pauseGalleryAuto();
                         }}
-                        className={`pointer-events-auto h-1.5 rounded-full transition-all ${
-                          imageSlideIndex === idx
-                            ? "w-5 bg-black"
-                            : "w-1.5 bg-black/35"
-                        }`}
+                        className={`pointer-events-auto h-1.5 rounded-full transition-all ${imageSlideIndex === idx
+                          ? "w-5 bg-black"
+                          : "w-1.5 bg-black/35"
+                          }`}
                         aria-label={`View image ${idx + 1} of ${images.length}`}
                       />
                     ))}
@@ -1192,9 +1191,8 @@ function ProductPage() {
                 <div className="mt-1 sm:mt-1.5 min-w-0">
                   <p
                     ref={shortDescRef}
-                    className={`font-inter font-normal capitalize text-gray-500 wrap-break-word text-xs sm:text-sm md:text-sm lg:text-sm xl:text-lg ${
-                      !shortDescExpanded ? "product-desc-clamp-short" : ""
-                    }`}
+                    className={`font-inter font-normal capitalize text-gray-500 wrap-break-word text-xs sm:text-sm md:text-sm lg:text-sm xl:text-lg ${!shortDescExpanded ? "product-desc-clamp-short" : ""
+                      }`}
                   >
                     {shortDescText}
                   </p>
@@ -1379,11 +1377,10 @@ function ProductPage() {
                           }}
                           disabled={!s.inStock}
                           className={`flex h-7 w-7 items-center justify-center rounded-full border text-[11px]
-        ${
-          selectedSize === s.size
-            ? "border-black bg-black text-white"
-            : "border-gray-400 bg-white text-gray-700"
-        }
+        ${selectedSize === s.size
+                              ? "border-black bg-black text-white"
+                              : "border-gray-400 bg-white text-gray-700"
+                            }
         ${!s.inStock ? "opacity-40 line-through cursor-not-allowed" : ""}`}
                         >
                           {s.size}
@@ -1460,7 +1457,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("details")}
               >
-                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px]">
+                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-sm xl:text-[14px] xl:tracking-[3px]">
                   <RiFileList2Line className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Details</span>
                 </span>
@@ -1484,11 +1481,10 @@ function ProductPage() {
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
                     <p
-                      className={`font-inter font-normal wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base ${
-                        longDescNeedsMore && !longDescExpanded
-                          ? "product-desc-clamp-long whitespace-normal"
-                          : "whitespace-pre-wrap"
-                      }`}
+                      className={`font-inter font-normal wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base ${longDescNeedsMore && !longDescExpanded
+                        ? "product-desc-clamp-long whitespace-normal"
+                        : "whitespace-pre-wrap"
+                        }`}
                     >
                       {longDescText}
                     </p>
@@ -1518,7 +1514,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("care")}
               >
-                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px]">
+                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-sm xl:text-[14px] xl:tracking-[3px]">
                   <RiTShirtAirLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Care</span>
                 </span>
@@ -1562,7 +1558,7 @@ function ProductPage() {
             </div>
 
             {/* POLICY */}
-{/* <div className="border-b border-gray-300">
+            {/* <div className="border-b border-gray-300">
   <button
     type="button"
     className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px]"
@@ -1590,7 +1586,7 @@ function ProductPage() {
       <div className="pb-4 text-sm text-gray-600 space-y-3">
 
         {/* SHIPPING */}
-        {/* {item?.shipping && (
+            {/* {item?.shipping && (
           <div>
             <p className="font-medium text-black">Shipping</p>
             <p>{item.shipping?.title || "Standard shipping available"}</p>
@@ -1600,26 +1596,26 @@ function ProductPage() {
           </div>
         )} */}
 
-        {/* COD */}
-        {/* {item?.codPolicy?.text && (
+            {/* COD */}
+            {/* {item?.codPolicy?.text && (
           <div>
             <p className="font-medium text-black">Cash on Delivery</p>
             <p>{item.codPolicy.text}</p>
           </div>
         )} */}
 
-        {/* RETURN */}
-        {/* {item?.returnPolicy?.text && (
+            {/* RETURN */}
+            {/* {item?.returnPolicy?.text && (
           <div>
             <p className="font-medium text-black">Returns</p>
             <p>{item.returnPolicy.text}</p>
           </div>
         )} */}
 
-      {/* </div> */}
-    {/* </div> */}
-  {/* </div> */}
-{/* </div> */} 
+            {/* </div> */}
+            {/* </div> */}
+            {/* </div> */}
+            {/* </div> */}
 
             {/* COD POLICY */}
             {/* <div className="border-b border-gray-300">
@@ -1666,7 +1662,7 @@ function ProductPage() {
                 className="flex w-full items-center justify-between py-3 text-left sm:py-4 md:py-4 lg:py-6 xl:py-[28px] cursor-pointer touch-manipulation"
                 onClick={() => toggleSection("return")}
               >
-                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-lg xl:text-[20px] xl:tracking-[3px]">
+                <span className="flex min-w-0 items-center gap-1.5 font-[Raleway] text-xs font-medium uppercase tracking-wider sm:gap-2 sm:text-sm md:text-sm lg:text-sm xl:text-[14px] xl:tracking-[3px]">
                   <RiRefreshLine className="h-3 w-3 shrink-0 text-gray-500 sm:h-4 sm:w-4 md:h-4 md:w-4 lg:h-5 lg:w-5" />
                   <span className="truncate">Return Policy</span>
                 </span>
@@ -1692,8 +1688,8 @@ function ProductPage() {
                     <ul className="list-disc space-y-1.5 pl-4 font-inter font-normal text-xs leading-relaxed text-gray-700 wrap-break-word sm:pl-5 sm:text-sm md:text-sm lg:text-base">
                       {splitReturnPolicyBullets(
                         returnPolicyDescription ||
-                          item.returnPolicy?.text ||
-                          DEFAULT_RETURN_POLICY_DESCRIPTION,
+                        item.returnPolicy?.text ||
+                        DEFAULT_RETURN_POLICY_DESCRIPTION,
                       ).map((bullet) => (
                         <li key={bullet}>{bullet}</li>
                       ))}
@@ -1701,7 +1697,7 @@ function ProductPage() {
                   </div>
                 </div>
               </div>
-            </div> 
+            </div>
 
             {item._id ? (
               <PairItWithProducts itemId={item._id} limit={8} compact />
@@ -1810,23 +1806,20 @@ function ProductPage() {
 
         {/* 🔥 SIZE CHART SLIDER */}
         <div
-          className={`fixed inset-0 z-50 ${
-            showSizeChart ? "visible" : "invisible"
-          }`}
+          className={`fixed inset-0 z-50 ${showSizeChart ? "visible" : "invisible"
+            }`}
         >
           {/* BACKDROP */}
           <div
             onClick={() => setShowSizeChart(false)}
-            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
-              showSizeChart ? "opacity-100" : "opacity-0"
-            }`}
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${showSizeChart ? "opacity-100" : "opacity-0"
+              }`}
           />
 
           {/* RIGHT SLIDER */}
           <div
-            className={`absolute right-0 top-0 h-full w-[94%] sm:w-[min(720px,94vw)] lg:w-[min(820px,95vw)] xl:w-[min(920px,96vw)] bg-white shadow-xl transform transition-transform duration-300 ${
-              showSizeChart ? "translate-x-0" : "translate-x-full"
-            }`}
+            className={`absolute right-0 top-0 h-full w-[94%] sm:w-[min(720px,94vw)] lg:w-[min(820px,95vw)] xl:w-[min(920px,96vw)] bg-white shadow-xl transform transition-transform duration-300 ${showSizeChart ? "translate-x-0" : "translate-x-full"
+              }`}
           >
             {/* HEADER — main title is inside SizeChart */}
             <div className="flex justify-end items-center px-3 py-2 border-b border-neutral-200">

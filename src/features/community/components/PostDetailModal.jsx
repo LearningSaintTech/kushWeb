@@ -181,6 +181,7 @@ export default function PostDetailModal({
   const [reportTarget, setReportTarget] = useState(null) // { type: 'content'|'comment', id }
   const [reportSubmitting, setReportSubmitting] = useState(false)
   const [reportError, setReportError] = useState('')
+  const [isUnavailable, setIsUnavailable] = useState(false)
   const menuRef = useRef(null)
 
   const post = detailPost
@@ -198,6 +199,7 @@ export default function PostDetailModal({
 
   useEffect(() => {
     setDetailPost(normalizeDetail(rawPost))
+    setIsUnavailable(false)
     setImageIndex(0)
     setDraft('')
     setCommentError('')
@@ -249,6 +251,10 @@ export default function PostDetailModal({
       })
       .catch((err) => {
         if (cancelled) return
+        if (err?.response?.status === 404) {
+          setIsUnavailable(true)
+          onDeleted?.(id)
+        }
         debugError('[Community] getContent failed', err?.message)
       })
       .finally(() => {
@@ -257,7 +263,7 @@ export default function PostDetailModal({
     return () => {
       cancelled = true
     }
-  }, [rawPost?.id, rawPost?._id])
+  }, [rawPost?.id, rawPost?._id, onDeleted])
 
   useEffect(() => {
     if (!post) return undefined
@@ -588,6 +594,41 @@ export default function PostDetailModal({
     }
   }
 
+  if (isUnavailable) {
+    return (
+      <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-3.5 top-3.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 className="font-inter text-base font-bold text-black">This post isn't available</h3>
+          <p className="mt-1 font-inter text-xs leading-relaxed text-neutral-500">
+            This content may have been removed by moderation or deleted.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-5 cursor-pointer rounded-xl bg-black px-5 py-2 font-inter text-xs font-semibold text-white transition hover:bg-neutral-800"
+          >
+            Back to Community
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!post) return null
 
   const images = post.images?.length ? post.images : post.image ? [post.image] : []
@@ -838,6 +879,14 @@ export default function PostDetailModal({
                   className="font-inter text-sm leading-relaxed text-neutral-800"
                   collapsedClassName="line-clamp-4"
                 />
+              ) : null}
+
+              {post.source?.name ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 font-inter text-xs font-medium text-neutral-700">
+                    Source: {post.source.name}
+                  </span>
+                </div>
               ) : null}
 
               {products.length ? (

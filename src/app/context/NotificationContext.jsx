@@ -323,10 +323,18 @@ export function useNotificationSocket(token) {
       refreshUnreadCount().catch(() => {});
     };
 
+    const handleCleared = (payload) => {
+      // payload: { "scope": "community", "unreadCount": 3 }
+      debugLog('[Notifications] notification:cleared received', payload);
+      refreshUnreadCount().catch(() => {});
+      refreshList(1, LIST_PAGE_SIZE).catch(() => {});
+    };
+
     socket.on('notification:new', handleIncoming);
     socket.on('notification', handleIncoming);
     socket.on('new_notification', handleIncoming);
     socket.on('notification_received', handleIncoming);
+    socket.on('notification:cleared', handleCleared);
 
     socket.on('connect_error', (err) => {
       if (import.meta.env.DEV) {
@@ -345,7 +353,19 @@ export function useNotificationSocket(token) {
       refreshUnreadCount().catch(() => {});
     }, 12000);
 
+    const onProfileDeleted = () => {
+      debugLog('[Notifications] community profile deleted, refreshing notifications');
+      refreshUnreadCount().catch(() => {});
+      refreshList(1, LIST_PAGE_SIZE).catch(() => {});
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('khush:community-profile-deleted', onProfileDeleted);
+    }
+
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('khush:community-profile-deleted', onProfileDeleted);
+      }
       clearInterval(pollTimer);
       socket.disconnect();
       socketRef.current = null;
