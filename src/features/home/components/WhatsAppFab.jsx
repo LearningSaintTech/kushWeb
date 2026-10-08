@@ -1,6 +1,8 @@
 import { FaWhatsapp } from 'react-icons/fa'
 
-const WHATSAPP_NUMBER = String(import.meta.env.VITE_WHATSAPP_SUPPORT_NUMBER || '').replace(/\D/g, '')
+const RAW_WHATSAPP_NUMBER = String(import.meta.env.VITE_WHATSAPP_SUPPORT_NUMBER || '').replace(/\D/g, '')
+// wa.me needs the country code; a bare 10-digit number is an Indian mobile.
+const WHATSAPP_NUMBER = RAW_WHATSAPP_NUMBER.length === 10 ? `91${RAW_WHATSAPP_NUMBER}` : RAW_WHATSAPP_NUMBER
 const SUPPORT_MESSAGE = 'Hi Khush, I need help with my order.'
 
 export default function WhatsAppFab() {
