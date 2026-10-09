@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import PageTitle from '../../shared/ui/PageTitle'
+import { PAGE_CONTAINER, PAGE_SHELL } from '../../shared/ui/pageLayout'
 import { walletService } from '../../services/wallet.service.js'
 
 function CoinsBadgeIcon() {
@@ -171,8 +172,8 @@ const Coins = () => {
   const renderedHistory = useMemo(() => historyItems.slice(0, 6), [historyItems])
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 mt-20">
-      <PageTitle>Redeem Coins</PageTitle>
+    <div className={`${PAGE_SHELL} ${PAGE_CONTAINER}`}>
+      <PageTitle className="mb-2">Redeem Coins</PageTitle>
 
       <section className="relative mt-4 overflow-hidden rounded-lg border border-[#d6d6d6] bg-white p-5">
         <div className="absolute -left-3 -top-3 h-12 w-12 rounded-full bg-black/5" />

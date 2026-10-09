@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import PageTitle from '../ui/PageTitle'
+import { PAGE_CONTAINER, PAGE_SHELL } from '../ui/pageLayout'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
 import { addressService } from '../../services/address.service.js'
@@ -588,8 +589,8 @@ export default function Address() {
   }
 
   return (
-    <div className="min-h-screen bg-white pt-20 sm:pt-24 pb-12">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-8 lg:px-10">
+    <div className={PAGE_SHELL}>
+      <div className={PAGE_CONTAINER}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <PageTitle>Address book</PageTitle>
           <button

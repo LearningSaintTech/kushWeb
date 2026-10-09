@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import PageTitle from '../../shared/ui/PageTitle'
+import { PAGE_CONTAINER, PAGE_SHELL } from '../../shared/ui/pageLayout'
 import { debugLog } from '../../utils/debugLog.js';
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
@@ -197,8 +198,8 @@ export default function CouponsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white pt-24 pb-12">
-      <div className=" px-4 sm:px-6 md:px-8 max-sm:pt-6">
+    <div className={PAGE_SHELL}>
+      <div className={PAGE_CONTAINER}>
         <PageTitle className="mb-6">Coupons</PageTitle>
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 

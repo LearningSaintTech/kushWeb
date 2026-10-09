@@ -8,6 +8,8 @@ import { Mail, Home } from 'lucide-react'
 import { contactUsService } from '../../services'
 
 import { ROUTES } from '../../utils/constants'
+import PageTitle from '../../shared/ui/PageTitle'
+import { PAGE_CONTAINER, PAGE_SHELL } from '../../shared/ui/pageLayout'
 
 import {
   CONTACT_LIMITS,
@@ -269,15 +271,15 @@ export default function ContactUsPage() {
 
   return (
 
-    <div className="min-h-screen bg-white text-black pt-24 pb-16 font-inter">
+    <div className={`${PAGE_SHELL} font-inter`}>
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-6  lg:px-8">
+      <div className={PAGE_CONTAINER}>
 
         <Link
 
           to={ROUTES.HOME}
 
-          className="mb-8 inline-block text-sm uppercase tracking-wider text-gray-500 hover:text-black "
+          className="mb-6 inline-block text-sm uppercase tracking-wider text-gray-500 hover:text-black"
 
         >
 
@@ -293,11 +295,7 @@ export default function ContactUsPage() {
 
           <div className="space-y-6 lg:space-y-8">
 
-            <h1 className="text-3xl w-[50vh] font-raleway font-bold  uppercase  text-[#000000] sm:text-3xl lg:text-3xl">
-
-              Get in Touch with KHUSH
-
-            </h1>
+            <PageTitle>Get in Touch with KHUSH</PageTitle>
 
 
 
