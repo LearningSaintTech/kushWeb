@@ -43,7 +43,7 @@ export default function AboutUsPage() {
         </h2>
 
         <p>
-          We started with a simple idea: to make great design and comfort accessible.
+          We started with a simple idea to make great design and comfort accessible.
           Today we serve customers across India with a wide range of products and reliable delivery.
         </p>
 
