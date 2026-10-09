@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import PageTitle from '../../shared/ui/PageTitle'
 import { debugLog } from '../../utils/debugLog.js';
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/context/AuthContext'
@@ -182,7 +183,7 @@ export default function CouponsPage() {
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className=" px-4 sm:px-6 py-12 sm:py-16 text-center max-sm:pt-20">
-          <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">Coupons</h1>
+          <PageTitle>Coupons</PageTitle>
           <p className="mt-2 text-sm sm:text-base text-gray-600">Please sign in to view your coupons.</p>
           <Link
             to={ROUTES.AUTH}
@@ -198,7 +199,7 @@ export default function CouponsPage() {
   return (
     <div className="min-h-screen bg-white pt-24 pb-12">
       <div className=" px-4 sm:px-6 md:px-8 max-sm:pt-6">
-        <h1 className="text-lg sm:text-xl font-bold text-black uppercase mb-6">Coupons</h1>
+        <PageTitle className="mb-6">Coupons</PageTitle>
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
         {loading ? (

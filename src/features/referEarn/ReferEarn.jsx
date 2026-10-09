@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import PageTitle from '../../shared/ui/PageTitle'
 import { Link } from 'react-router-dom'
 import { ReferEarnModal } from '../home/components/ReferEarn'
 import { useAuth } from '../../app/context/AuthContext'
@@ -117,9 +118,7 @@ const ReferEarn = () => {
 
   return (
     <div className="mx-auto mt-16 w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 md:mt-20 md:px-6">
-      <h1 className="font-inter text-2xl font-semibold text-black sm:text-3xl">
-        Refer and earn
-      </h1>
+      <PageTitle>Refer and earn</PageTitle>
       {!authChecked && (
         <p className="mt-4 text-sm text-gray-500">Loading…</p>
       )}

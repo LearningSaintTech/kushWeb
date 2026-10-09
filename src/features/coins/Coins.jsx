@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import PageTitle from '../../shared/ui/PageTitle'
 import { walletService } from '../../services/wallet.service.js'
 
 function CoinsBadgeIcon() {
@@ -171,7 +172,7 @@ const Coins = () => {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 mt-20">
-      <h1 className="font-inter text-3xl uppercase font-normal text-black">Redeem Coins</h1>
+      <PageTitle>Redeem Coins</PageTitle>
 
       <section className="relative mt-4 overflow-hidden rounded-lg border border-[#d6d6d6] bg-white p-5">
         <div className="absolute -left-3 -top-3 h-12 w-12 rounded-full bg-black/5" />

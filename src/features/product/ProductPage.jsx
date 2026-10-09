@@ -446,6 +446,25 @@ function ProductPage() {
     });
   }, [selectedVariant]);
 
+  const productOutOfStock = useMemo(() => {
+    const allSizes = (item?.variants || []).flatMap((v) => v.sizes || []);
+    if (!allSizes.length) return false;
+    return allSizes.every((s) => {
+      const qty =
+        s.availableQuantity != null
+          ? Number(s.availableQuantity) || 0
+          : Number(s.stock ?? 0);
+      const inStock = typeof s.inStock === "boolean" ? s.inStock : qty > 0;
+      return !inStock;
+    });
+  }, [item?.variants]);
+
+  const oosImageRibbon = productOutOfStock ? (
+    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 bg-black/80 py-3 text-center text-sm font-semibold uppercase tracking-[0.3em] text-white sm:text-base">
+      Out of stock
+    </div>
+  ) : null;
+
   // When color changes, if current size is unavailable in new variant, select first available size
   useEffect(() => {
     if (!sizes.length) return;
@@ -1066,6 +1085,7 @@ function ProductPage() {
                     </div>
                   ))}
                 </div>
+                {oosImageRibbon}
                 {images.length > 1 && (
                   <div className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 px-3">
                     {images.map((_, idx) => (
@@ -1116,6 +1136,7 @@ function ProductPage() {
                       }}
                     />
                   )}
+                  {oosImageRibbon}
                 </div>
               </div>
             </div>
@@ -1188,6 +1209,21 @@ function ProductPage() {
                 <h1 className="text-base font-medium font-inter uppercase  text-black sm:text-lg sm:tracking-[4px] md:text-lg md:tracking-[4px] lg:text-2xl lg:tracking-[5px] xl:text-2xl xl:tracking-[4px] wrap-break-word">
                   {item.name}
                 </h1>
+                {productOutOfStock ? (
+                  <div
+                    role="status"
+                    className="mt-2 border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-red-700 sm:text-sm"
+                  >
+                    Out of stock — this product is currently unavailable
+                  </div>
+                ) : selectedSizeObj && !selectedSizeObj.inStock ? (
+                  <div
+                    role="status"
+                    className="mt-2 border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium uppercase tracking-wider text-amber-800 sm:text-sm"
+                  >
+                    Selected size is out of stock
+                  </div>
+                ) : null}
                 <div className="mt-1 sm:mt-1.5 min-w-0">
                   <p
                     ref={shortDescRef}
@@ -1734,16 +1770,18 @@ function ProductPage() {
                     disabled={!productForCart || !selectedSizeObj?.inStock}
                     className="h-10 w-full bg-black text-xs font-medium uppercase tracking-wider text-white sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
                   >
-                    Buy It Now
+                    {productOutOfStock ? "Out of Stock" : "Buy It Now"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleAddToCart}
-                    disabled={!productForCart || !selectedSizeObj?.inStock}
-                    className="h-10 w-full border border-black text-xs font-medium uppercase tracking-wider text-black cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px] touch-manipulation"
-                  >
-                    Add To Cart
-                  </button>
+                  {!productOutOfStock && (
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      disabled={!productForCart || !selectedSizeObj?.inStock}
+                      className="h-10 w-full border border-black text-xs font-medium uppercase tracking-wider text-black cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 md:h-11 lg:h-14 xl:h-[64px] sm:text-sm md:text-sm lg:text-[16px] lg:tracking-[2px] touch-manipulation"
+                    >
+                      Add To Cart
+                    </button>
+                  )}
                 </>
               )}
               {cartError && (

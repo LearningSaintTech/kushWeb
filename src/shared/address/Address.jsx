@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import PageTitle from '../ui/PageTitle'
 import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../app/context/AuthContext'
 import { addressService } from '../../services/address.service.js'
@@ -570,9 +571,7 @@ export default function Address() {
     return (
       <div className="min-h-screen bg-gray-50 pt-20 sm:pt-24 pb-12">
         <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 md:px-8 py-12 sm:py-16 text-center">
-          <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">
-            Address 
-          </h1>
+          <PageTitle>Address</PageTitle>
           <p className="mt-2 text-sm sm:text-base text-gray-600">
             Please sign in to manage your addresses.
           </p>
@@ -592,9 +591,7 @@ export default function Address() {
     <div className="min-h-screen bg-white pt-20 sm:pt-24 pb-12">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 md:px-8 lg:px-10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-          <h1 className="text-lg sm:text-xl font-bold text-black uppercase">
-            Address book
-          </h1>
+          <PageTitle>Address book</PageTitle>
           <button
             type="button"
             onClick={openCreateModal}

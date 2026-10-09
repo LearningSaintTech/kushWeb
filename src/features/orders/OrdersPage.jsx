@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import PageTitle from '../../shared/ui/PageTitle'
 import { debugLog } from '../../utils/debugLog.js';
 import { redactForLog } from '../../utils/logRedact.util.js';
 import { Link, useLocation } from 'react-router-dom'
@@ -254,7 +255,7 @@ function OrdersPage() {
     return (
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className=" px-4 sm:px-6 py-12 sm:py-16 text-center ">
-          <h1 className="text-xl sm:text-2xl font-bold text-black uppercase">My orders</h1>
+          <PageTitle>My orders</PageTitle>
           <p className="mt-2 text-sm sm:text-base text-gray-600">Please sign in to view your orders.</p>
           <Link to={ROUTES.AUTH} className="mt-6 inline-block px-6 py-3 bg-black text-white text-sm font-medium uppercase hover:bg-gray-800 transition-colors">
             Sign in
@@ -267,7 +268,7 @@ function OrdersPage() {
   return (
     <div className="min-h-screen bg-white text-black pt-30 pb-12 font-sans">
       <div className=" px-4 sm:px-6 md:px-8 ">
-        <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-wider text-gray-800 mb-6 sm:mb-8">My orders</h1>
+        <PageTitle className="mb-6">My orders</PageTitle>
 
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 

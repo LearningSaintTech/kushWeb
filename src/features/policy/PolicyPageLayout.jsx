@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../utils/constants'
+import PageTitle from '../../shared/ui/PageTitle'
 
 export default function PolicyPageLayout({ title, children }) {
   return (
@@ -8,9 +9,7 @@ export default function PolicyPageLayout({ title, children }) {
         <Link to={ROUTES.HOME} className="mb-6 inline-block text-sm uppercase tracking-wider text-gray-500 hover:text-black">
           ← Back to home
         </Link>
-        <h1 className="mb-8 font-inter text-2xl font-bold uppercase tracking-wider text-black sm:text-3xl xl:text-4xl">
-          {title}
-        </h1>
+        <PageTitle className="mb-8">{title}</PageTitle>
         <div className="max-w-none text-gray-700">
           {children}
         </div>

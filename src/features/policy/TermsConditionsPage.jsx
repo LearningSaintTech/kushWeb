@@ -286,6 +286,12 @@ export default function TermsConditionsPage() {
         </div>
       )}
 
+      {!loading && !error && !activeTerm?.content?.trim() && (
+        <p className="py-12 text-center text-sm text-gray-500">
+          Terms &amp; Conditions are not available right now. Please check back shortly.
+        </p>
+      )}
+
       {/* Dynamic Content Display */}
       {!loading && !error && activeTerm && (
         <div className="space-y-8 font-inter">
