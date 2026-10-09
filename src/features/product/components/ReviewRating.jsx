@@ -407,7 +407,9 @@ export default function ReviewRating({
                   <div className="flex flex-col">
                     <span className="text-3xl font-bold text-gray-900 sm:text-4xl md:text-5xl">{ratingsSummary.avg.toFixed(1)}</span>
                     <StarDisplay avg={ratingsSummary.avg} />
-                    <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">{formatCount(totalReviews)}</p>
+                    <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">
+                      {formatCount(totalReviews)} {totalReviews === 1 ? 'review' : 'reviews'}
+                    </p>
                   </div>
                   <div className="mt-3 sm:mt-0 min-w-0 flex-1 space-y-1.5 sm:space-y-2">
                     {[5, 4, 3, 2, 1].map((star) => {
