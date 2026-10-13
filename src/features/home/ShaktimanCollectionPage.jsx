@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigationType } from 'react-router-dom'
+import { readListingSnapshot, saveListingSnapshot } from '../../shared/utils/listingCache.js'
 import { useSelector } from 'react-redux'
 import { Helmet } from 'react-helmet-async'
 import ProductCard, {
@@ -89,12 +90,19 @@ function sectionProductsToCards(section) {
  */
 export default function ShaktimanCollectionPage() {
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  // Back from a product: reuse the products already loaded ("Load more" pages included).
+  const [restored] = useState(() =>
+    navigationType === 'POP' ? readListingSnapshot(location.key) : null
+  )
+  const skipFirstLoadRef = useRef(Boolean(restored && restored.pincode === pincode))
+  const [products, setProducts] = useState(() => restored?.products ?? [])
+  const [loading, setLoading] = useState(!restored)
   const [error, setError] = useState(null)
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(false)
-  const [sectionMeta, setSectionMeta] = useState(null)
+  const [page, setPage] = useState(() => restored?.page ?? 1)
+  const [hasMore, setHasMore] = useState(() => restored?.hasMore ?? false)
+  const [sectionMeta, setSectionMeta] = useState(() => restored?.sectionMeta ?? null)
 
   const loadProducts = useCallback(
     async (pageNum = 1, append = false) => {
@@ -181,9 +189,18 @@ export default function ShaktimanCollectionPage() {
   )
 
   useEffect(() => {
+    if (skipFirstLoadRef.current) {
+      skipFirstLoadRef.current = false
+      return
+    }
     setPage(1)
     loadProducts(1, false)
   }, [pincode]) // eslint-disable-line react-hooks/exhaustive-deps -- reload on pincode only
+
+  useEffect(() => {
+    if (!products.length) return
+    saveListingSnapshot(location.key, { products, page, hasMore, sectionMeta, pincode })
+  }, [location.key, products, page, hasMore, sectionMeta, pincode])
 
   const handleLoadMore = () => {
     const next = page + 1

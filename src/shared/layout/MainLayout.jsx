@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, ScrollRestoration } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import Header from '../components/Header'
@@ -6,7 +6,6 @@ import Footer from '../components/Footer'
 import ExploreFashionButton from '../components/ExploreFashionButton.jsx'
 import CommunityAppRedirect from '../components/CommunityAppRedirect.jsx'
 import MadeInIndiaMarquee from '../components/MadeInIndiaMarquee'
-import ScrollToTop from '../components/ScrollToTop'
 import FoldScrollSafety from '../components/FoldScrollSafety'
 import AuthModal from '../../features/auth/AuthModal'
 import { trackPageView, trackPixelPageView, trackRouteChange, captureUtmFromUrl } from '../../analytics'
@@ -45,7 +44,8 @@ function MainLayout() {
 
   return (
     <div className="flex min-h-dvh w-full max-w-full min-w-0 flex-col overflow-x-clip">
-      <ScrollToTop />
+      {/* New pages open at the top; Back/Forward return to the previous scroll position. */}
+      <ScrollRestoration getKey={(loc) => loc.key} />
       <FoldScrollSafety />
       {!isCommunityFeed ? <Header /> : null}
       <main className="min-w-0 flex-1 w-full max-w-full">

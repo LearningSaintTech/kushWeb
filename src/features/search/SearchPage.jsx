@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { debugLog, debugError } from '../../utils/debugLog.js';
 import { createPortal } from 'react-dom'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
+import { readListingSnapshot, saveListingSnapshot } from '../../shared/utils/listingCache.js'
 import { IoChevronForwardOutline } from 'react-icons/io5'
 import { useSearchParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
@@ -238,14 +239,21 @@ function SearchPage() {
   const [sectionSubcategories, setSectionSubcategories] = useState([])
   const [filterList, setFilterList] = useState([])
   const [selectedFilters, setSelectedFilters] = useState(filtersFromUrl)
-  const [products, setProducts] = useState([])
-  const [pagination, setPagination] = useState(null)
-  const [listPage, setListPage] = useState(1)
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  // Back from a product: start from the products already loaded for this history entry
+  // (all infinite-scroll pages) so the scroll position can be restored.
+  const [restoredSnapshot] = useState(() =>
+    navigationType === 'POP' ? readListingSnapshot(location.key) : null
+  )
+  const [products, setProducts] = useState(() => restoredSnapshot?.products ?? [])
+  const [pagination, setPagination] = useState(() => restoredSnapshot?.pagination ?? null)
+  const [listPage, setListPage] = useState(() => restoredSnapshot?.listPage ?? 1)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [lastAppendedCount, setLastAppendedCount] = useState(0)
-  const searchKeyRef = useRef('')
-  const loadedPagesRef = useRef(new Set())
+  const searchKeyRef = useRef(restoredSnapshot?.searchKey ?? '')
+  const loadedPagesRef = useRef(new Set(restoredSnapshot?.loadedPages ?? []))
   const inFlightPagesRef = useRef(new Set())
   const loadMoreSentinelRef = useRef(null)
   const paginationRef = useRef(null)
@@ -660,6 +668,17 @@ function SearchPage() {
   useEffect(() => {
     runSearch()
   }, [runSearch])
+
+  useEffect(() => {
+    if (!products.length || !searchKeyRef.current) return
+    saveListingSnapshot(location.key, {
+      products,
+      pagination,
+      listPage,
+      searchKey: searchKeyRef.current,
+      loadedPages: [...loadedPagesRef.current],
+    })
+  }, [location.key, products, pagination, listPage])
 
   useEffect(() => {
     const query = qFromUrl.trim()
