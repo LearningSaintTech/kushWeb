@@ -20,6 +20,7 @@ import { dispatchContentReported,
 import { shareCommunityContent } from '../utils/shareProfile'
 import { useCommunitySocial } from '../context/CommunitySocialContext'
 import ExpandableCaption from './ExpandableCaption'
+import { taggedProductPath } from '../utils/productLink'
 
 const TAGGED_PRODUCTS_LIMIT = 10
 
@@ -120,8 +121,15 @@ function CommentRow({
 }
 
 function ProductCard({ product }) {
+  const href = taggedProductPath(product)
+  const Tag = href ? 'a' : 'div'
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md bg-neutral-100 p-2">
+    <Tag
+      {...(href ? { href, title: product.name } : {})}
+      className={`flex min-w-0 flex-1 items-center gap-2 rounded-md bg-neutral-100 p-2 ${
+        href ? 'cursor-pointer transition hover:bg-neutral-200' : ''
+      }`}
+    >
       <div className="h-10 w-10 shrink-0 overflow-hidden rounded bg-neutral-200">
         {product.image ? (
           <img src={product.image} alt="" className="h-full w-full object-cover" />
@@ -131,7 +139,7 @@ function ProductCard({ product }) {
         <p className="truncate font-inter text-xs font-semibold text-black">{product.name}</p>
         <p className="font-inter text-[10px] text-neutral-500">{product.price}</p>
       </div>
-    </div>
+    </Tag>
   )
 }
 

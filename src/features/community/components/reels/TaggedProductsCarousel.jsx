@@ -6,6 +6,28 @@ import { ROUTES } from '../../../../utils/constants'
 import { navigateApp } from '../../../../app/navigateApp.js'
 import { debugError } from '../../../../utils/debugLog.js'
 import CommunityVariantPickerModal from './CommunityVariantPickerModal'
+import { taggedProductPath } from '../../utils/productLink'
+
+/** Opens the product page; plain block when the product has no id. */
+function ProductLink({ href, className, title, children }) {
+  if (!href) {
+    return (
+      <div className={className} title={title}>
+        {children}
+      </div>
+    )
+  }
+  return (
+    <a
+      href={href}
+      title={title}
+      onClick={(e) => e.stopPropagation()}
+      className={`block cursor-pointer transition hover:opacity-75 ${className}`}
+    >
+      {children}
+    </a>
+  )
+}
 
 /**
  * Tagged products — horizontal carousel matching the design cards
@@ -213,6 +235,7 @@ export default function TaggedProductsCarousel({
           const busy = busyId && String(busyId) === String(itemId)
           const added = isAdded(itemId)
           const err = errorById[itemId]
+          const productPath = taggedProductPath(product)
           return (
             <article
               key={product.id}
@@ -221,7 +244,10 @@ export default function TaggedProductsCarousel({
                 compact ? 'w-[min(100%,15.5rem)]' : 'w-[min(100%,17.5rem)]'
               } ${isDark ? 'bg-white/95' : 'bg-[#f5f5f5]'}`}
             >
-              <div className="aspect-[60/71] w-[3.75rem] shrink-0 overflow-hidden rounded-lg bg-neutral-200">
+              <ProductLink
+                href={productPath}
+                className="aspect-[60/71] w-[3.75rem] shrink-0 overflow-hidden rounded-lg bg-neutral-200"
+              >
                 {product.image ? (
                   <img
                     src={product.image}
@@ -230,12 +256,16 @@ export default function TaggedProductsCarousel({
                     draggable={false}
                   />
                 ) : null}
-              </div>
+              </ProductLink>
 
               <div className="min-w-0 flex-1 py-0.5">
-                <p className="truncate font-inter text-sm font-semibold text-black">
+                <ProductLink
+                  href={productPath}
+                  className="line-clamp-2 break-words font-inter text-sm font-semibold leading-snug text-black"
+                  title={product.name}
+                >
                   {product.name}
-                </p>
+                </ProductLink>
                 <p className="mt-0.5 font-inter text-sm text-black">{product.price}</p>
                 <button
                   type="button"

@@ -588,9 +588,9 @@ export default function Header() {
       ) : null}
       {/* Main */}
       <div
-        className={`px-4 lg:px-[1.56vw] py-2.5 lg:py-2 xl:py-2.5 transition-colors duration-300 min-w-0 ${
-          useWhiteStyle ? "bg-white" : "bg-transparent"
-        }`}
+       className={`px-4 lg:px-[1.56vw] py-1.5 lg:py-1 xl:py-1 transition-colors duration-300 min-w-0 ${
+  useWhiteStyle ? "bg-white" : "bg-transparent"
+}`}
       >
         {/* Phone / fold cover & unfolded < lg: logo left | icons + menu; search + location below */}
         <div className="lg:hidden flex flex-col gap-2.5 min-w-0">

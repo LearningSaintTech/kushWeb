@@ -268,6 +268,7 @@ export default function CommunityFeedHome() {
               post={post}
               showSource={false}
               onProfileClick={() => handleProfileClick(post.author)}
+              onOpenComments={() => handleOpenPost(post)}
               onFollow={() => handleFollow(post)}
               onLike={() => handleLike(post)}
               onSave={() => handleSave(post)}

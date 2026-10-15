@@ -1,15 +1,32 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/context/AuthContext";
 import {
   useNotification,
   isStoreNotification,
-  collectVisibleNotificationPage,
+  collectVisibleNotifications,
 } from "../../app/context/NotificationContext";
 import { ROUTES } from "../../utils/constants";
 import { trackEvent } from "../../analytics";
 import coupon from "../../assets/images/coupon/khushnotifi.svg";
 const PAGE_SIZE = 20;
+/** API pages walked to build the full list (same cap as collectVisibleNotificationPage). */
+const MAX_API_PAGES = 25;
+
+/** Page numbers with "…" gaps, e.g. [1, "…", 4, 5, 6, "…", 12]. */
+function getPageItems(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current - 1, current, current + 1]);
+  if (current <= 3) [2, 3, 4].forEach((p) => pages.add(p));
+  if (current >= total - 2) [total - 3, total - 2, total - 1].forEach((p) => pages.add(p));
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const out = [];
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) out.push(`gap-${p}`);
+    out.push(p);
+  });
+  return out;
+}
 
 function formatNotificationDate(dateVal) {
   if (!dateVal) return "";
@@ -35,59 +52,62 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { markRead, markStoreAllRead, storeUnreadCount } = useNotification();
-  const [list, setList] = useState([]);
+  // Full visible list; pages are sliced locally so the total page count is exact.
+  const [allItems, setAllItems] = useState([]);
   const [page, setPage] = useState(1);
-  const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [fetching, setFetching] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  const loadPage = useCallback(
-    async (pageNum = 1, { showFullPageLoading = false } = {}) => {
-      if (!isAuthenticated) return;
-      if (showFullPageLoading) setLoading(true);
-      else setFetching(true);
-      try {
-        const result = await collectVisibleNotificationPage({
-          predicate: isStoreNotification,
-          page: pageNum,
-          pageSize: PAGE_SIZE,
-        });
-        setList(result.items);
-        setPage(result.page);
-        setHasNext(result.hasNext);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      } catch {
-        if (showFullPageLoading) {
-          setList([]);
-          setHasNext(false);
-        }
-      } finally {
-        setLoading(false);
-        setFetching(false);
-      }
-    },
-    [isAuthenticated],
-  );
+  const loadAll = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setLoading(true);
+    try {
+      const result = await collectVisibleNotifications({
+        predicate: isStoreNotification,
+        want: Number.POSITIVE_INFINITY,
+        maxPages: MAX_API_PAGES,
+      });
+      setAllItems(result.items);
+      setPage(1);
+    } catch {
+      setAllItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       navigate(ROUTES.AUTH, { replace: true });
       return;
     }
-    loadPage(1, { showFullPageLoading: true });
-  }, [isAuthenticated, navigate, loadPage]);
+    loadAll();
+  }, [isAuthenticated, navigate, loadAll]);
+
+  const totalPages = Math.max(1, Math.ceil(allItems.length / PAGE_SIZE));
+  const list = useMemo(
+    () => allItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [allItems, page],
+  );
+  const pageItems = useMemo(() => getPageItems(page, totalPages), [page, totalPages]);
+
+  const goToPage = (next) => {
+    const target = Math.min(Math.max(1, next), totalPages);
+    if (target === page) return;
+    setPage(target);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleMarkRead = async (id) => {
     await markRead(id);
-    setList((prev) =>
+    setAllItems((prev) =>
       prev.map((n) => ((n._id || n.id) === id ? { ...n, read: true } : n)),
     );
   };
 
   const handleMarkAllRead = async () => {
     await markStoreAllRead();
-    setList((prev) => prev.map((n) => ({ ...n, read: true })));
+    setAllItems((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const handleNotificationClick = (n) => {
@@ -133,9 +153,7 @@ export default function NotificationsPage() {
       ) : list.length === 0 ? (
         <p className="text-gray-500 py-8">No notifications yet.</p>
       ) : (
-        <ul
-          className={`space-y-4 ${fetching ? "pointer-events-none opacity-60" : ""}`}
-        >
+        <ul className="space-y-4">
           {list.map((n) => (
             <li key={n._id || n.id}>
               <div
@@ -198,57 +216,80 @@ export default function NotificationsPage() {
         </ul>
       )}
 
-      {!loading && (page > 1 || hasNext) && (
+      {!loading && totalPages > 1 && (
         <nav
-          className="mt-8 flex flex-col items-center gap-3 border-t border-gray-200 pt-6 sm:flex-row sm:justify-center sm:gap-6"
+          className="mt-8 flex flex-col items-center gap-3 border-t border-gray-200 pt-6"
           aria-label="Notifications pagination"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
-              onClick={() => loadPage(page - 1)}
-              disabled={page <= 1 || fetching}
+              onClick={() => goToPage(page - 1)}
+              disabled={page <= 1}
               className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Previous
             </button>
+            {pageItems.map((p) =>
+              typeof p === "number" ? (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => goToPage(p)}
+                  aria-label={`Page ${p}`}
+                  aria-current={p === page ? "page" : undefined}
+                  className={`min-w-[2.5rem] rounded-lg border px-3 py-2 text-sm font-medium cursor-pointer ${
+                    p === page
+                      ? "border-black bg-black text-white"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {p}
+                </button>
+              ) : (
+                <span key={p} className="px-1 text-sm text-gray-400" aria-hidden>
+                  …
+                </span>
+              ),
+            )}
             <button
               type="button"
-              onClick={() => loadPage(page + 1)}
-              disabled={!hasNext || fetching}
+              onClick={() => goToPage(page + 1)}
+              disabled={page >= totalPages}
               className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
             </button>
           </div>
           <p className="text-sm text-gray-600">
-            Page <span className="font-medium text-gray-900">{page}</span>
-            {fetching && <span className="ml-2 text-gray-500">· Loading…</span>}
+            Page <span className="font-medium text-gray-900">{page}</span> of{" "}
+            <span className="font-medium text-gray-900">{totalPages}</span>
           </p>
-          {/* Image Preview Modal */}
-          {selectedImage && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setSelectedImage(null)}
-            >
-              {/* Close Button */}
-              <button
-                className="absolute top-5 right-5 text-white text-4xl font-bold hover:text-gray-300"
-                onClick={() => setSelectedImage(null)}
-              >
-                ×
-              </button>
-
-              {/* Image */}
-              <img
-                src={selectedImage}
-                alt="Notification"
-                className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl cursor-zoom-in"
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          )}
         </nav>
+      )}
+
+      {/* Image Preview Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          {/* Close Button */}
+          <button
+            className="absolute top-5 right-5 text-white text-4xl font-bold hover:text-gray-300"
+            onClick={() => setSelectedImage(null)}
+          >
+            ×
+          </button>
+
+          {/* Image */}
+          <img
+            src={selectedImage}
+            alt="Notification"
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl cursor-zoom-in"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
     </div>
   );

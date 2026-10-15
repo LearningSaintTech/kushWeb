@@ -33,6 +33,7 @@ function PostCard({
   showSource = false,
   onProfileClick,
   onOpenPost,
+  onOpenComments,
   onFollow,
   onLike,
   onSave,
@@ -61,6 +62,8 @@ function PostCard({
   const canNext = imageIndex < gallery.length - 1
   const { user } = useAuth()
   const isOwnPost = isSameCommunityUser(user, author)
+  // Comments can open the post modal even when image click is disabled.
+  const openComments = onOpenComments || onOpenPost
 
   // Record a view after 1.5s of being mostly visible (matches Android PostCard).
   useEffect(() => {
@@ -256,10 +259,11 @@ function PostCard({
           </svg>
           <span className="font-inter text-sm font-medium">{likes}</span>
         </button>
-        {onOpenPost ? (
+        {openComments ? (
           <button
             type="button"
-            onClick={onOpenPost}
+            onClick={openComments}
+            aria-label="Comments"
             className="inline-flex cursor-pointer items-center gap-1.5 text-black transition hover:opacity-70"
           >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" aria-hidden>
@@ -334,10 +338,10 @@ function PostCard({
             ))}
           </p>
         ) : null}
-        {onOpenPost && comments > 0 ? (
+        {openComments && comments > 0 ? (
           <button
             type="button"
-            onClick={onOpenPost}
+            onClick={openComments}
             className="mt-1.5 block cursor-pointer font-inter text-sm text-neutral-400 transition hover:text-neutral-600"
           >
             View all {comments} comments
