@@ -5,6 +5,8 @@ import { authService } from '../../services/auth.service.js'
 import { validatePincode } from '../../services/pincode.service.js'
 import { trackEvent } from '../../analytics'
 import { ROUTES } from '../../utils/constants'
+import PageTitle from '../../shared/ui/PageTitle'
+import { PAGE_CONTAINER, PAGE_SHELL } from '../../shared/ui/pageLayout'
 
 const LETTERS_ONLY = /^[A-Za-z\s]+$/
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
@@ -194,17 +196,16 @@ export default function ProfileUpdatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black pt-30 pb-16">
-      <div className="max-w-xl mx-auto px-4 sm:px-6">
+    <div className={PAGE_SHELL}>
+      <div className={PAGE_CONTAINER}>
+        <div className="max-w-xl">
         <Link
           to={ROUTES.HOME}
           className="font-inter text-sm text-gray-500 hover:text-black uppercase tracking-wider mb-6 inline-block"
         >
           ← Back
         </Link>
-        <h1 className="font-inter text-2xl sm:text-3xl font-bold uppercase tracking-wider text-black mb-2">
-          Update Profile
-        </h1>
+        <PageTitle className="mb-2">Update Profile</PageTitle>
         <p className="font-inter text-gray-600 text-sm mb-8">
           Edit your name, email, address and profile photo.
         </p>
@@ -372,6 +373,7 @@ export default function ProfileUpdatePage() {
             </Link>
           </div>
         </form>
+        </div>
       </div>
     </div>
   )

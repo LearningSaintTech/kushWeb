@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import PageTitle from '../../shared/ui/PageTitle'
+import { PAGE_CONTAINER, PAGE_SHELL } from '../../shared/ui/pageLayout'
 import { debugLog } from '../../utils/debugLog.js';
 import { redactForLog } from '../../utils/logRedact.util.js';
 import { Link, useLocation } from 'react-router-dom'
@@ -266,8 +267,8 @@ function OrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black pt-30 pb-12 font-sans">
-      <div className=" px-4 sm:px-6 md:px-8 ">
+    <div className={`${PAGE_SHELL} font-sans`}>
+      <div className={PAGE_CONTAINER}>
         <PageTitle className="mb-6">My orders</PageTitle>
 
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}

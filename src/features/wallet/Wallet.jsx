@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageTitle from '../../shared/ui/PageTitle'
+import { PAGE_CONTAINER, PAGE_SHELL } from '../../shared/ui/pageLayout'
 import { walletService } from '../../services/wallet.service.js'
 
 function WalletBadgeIcon() {
@@ -314,8 +315,8 @@ const Wallet = () => {
   }
 
   return (
-    <div className="mx-auto mt-16 w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6 md:mt-20 md:px-6">
-      <PageTitle>Wallet</PageTitle>
+    <div className={`${PAGE_SHELL} ${PAGE_CONTAINER}`}>
+      <PageTitle className="mb-2">Wallet</PageTitle>
       <section className="relative mt-4 overflow-hidden rounded-lg border border-[#d6d6d6] bg-white p-5">
         <div className="absolute -left-3 -top-3 h-12 w-12 rounded-full bg-black/5" />
         <div className="absolute -bottom-8 right-10 h-24 w-24 rounded-full bg-black/5" />

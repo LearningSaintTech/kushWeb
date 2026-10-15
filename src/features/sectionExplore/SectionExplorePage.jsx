@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { debugLog, debugError } from '../../utils/debugLog.js'
 import { trackEvent } from '../../analytics';
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation, useNavigationType } from 'react-router-dom'
+import { readListingSnapshot, saveListingSnapshot } from '../../shared/utils/listingCache.js'
 import { useSelector } from 'react-redux'
 import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/components/ProductCard'
 import { sectionsService } from '../../services/content.service.js'
@@ -80,17 +81,40 @@ function isOurCategorySection(section) {
 export function SectionExplorePage() {
   const { sectionId } = useParams()
   const pincode = useSelector((s) => s?.location?.pincode) ?? null
-  const [section, setSection] = useState(null)
-  const [categories, setCategories] = useState([])
-  const [subcategories, setSubcategories] = useState([])
-  const [products, setProducts] = useState([])
-  const [pagination, setPagination] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  // Back from a product: restore page, tab and products so the scroll position is kept.
+  const [restored] = useState(() => {
+    if (navigationType !== 'POP') return null
+    const snap = readListingSnapshot(location.key)
+    return snap && snap.sectionId === sectionId ? snap : null
+  })
+  const [section, setSection] = useState(() => restored?.section ?? null)
+  const [categories, setCategories] = useState(() => restored?.categories ?? [])
+  const [subcategories, setSubcategories] = useState(() => restored?.subcategories ?? [])
+  const [products, setProducts] = useState(() => restored?.products ?? [])
+  const [pagination, setPagination] = useState(() => restored?.pagination ?? null)
+  const [loading, setLoading] = useState(!restored)
   const [error, setError] = useState(null)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => restored?.page ?? 1)
   /** For Our Product: selected category id. For Our Category: { type: 'category'|'subcategory', id } */
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
-  const [selectedFilter, setSelectedFilter] = useState(null) // { type: 'category'|'subcategory', id }
+  const [selectedCategoryId, setSelectedCategoryId] = useState(() => restored?.selectedCategoryId ?? null)
+  const [selectedFilter, setSelectedFilter] = useState(() => restored?.selectedFilter ?? null) // { type: 'category'|'subcategory', id }
+
+  useEffect(() => {
+    if (!products.length) return
+    saveListingSnapshot(location.key, {
+      sectionId,
+      section,
+      categories,
+      subcategories,
+      products,
+      pagination,
+      page,
+      selectedCategoryId,
+      selectedFilter,
+    })
+  }, [location.key, sectionId, section, categories, subcategories, products, pagination, page, selectedCategoryId, selectedFilter])
 
   const loadSection = useCallback(async () => {
     if (!sectionId) return
@@ -307,7 +331,7 @@ export function SectionExplorePage() {
         <div className="py-12 text-center text-gray-500">Loading...</div>
       )}
 
-      {!loading && products.length > 0 && (
+      {products.length > 0 && (
         <>
           <div className="grid grid-cols-2 gap-x-1.5 gap-y-2.5 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
             {products.map((item, idx) => (
