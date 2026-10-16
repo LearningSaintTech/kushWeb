@@ -84,6 +84,10 @@ export const STEPS = [
   },
 ]
 
+function filled(value) {
+  return Boolean(String(value ?? '').trim())
+}
+
 export function validateStep(step, data) {
   switch (step) {
     case 1: {
@@ -100,6 +104,47 @@ export function validateStep(step, data) {
       if (!/^[a-z][a-z0-9_]{2,19}$/.test(username)) {
         return 'Username must be 3–20 chars, start with a letter, and use only a–z, 0–9, _.'
       }
+      return null
+    }
+    case 2:
+      if (!(data.profilePhoto instanceof File) && !data.profilePreview) {
+        return 'Please add a profile photo.'
+      }
+      return null
+    case 3: {
+      const skills = (data.skills || []).filter((s) => filled(s?.name))
+      if (!skills.length) return 'Add at least one skill.'
+      return null
+    }
+    case 4: {
+      const rows = (data.experience || []).filter(
+        (r) => filled(r?.jobTitle) || filled(r?.company) || filled(r?.description),
+      )
+      if (!rows.length) return 'Add your work experience (job title and company).'
+      if (rows.some((r) => !filled(r?.jobTitle))) return 'Job title is required.'
+      if (rows.some((r) => !filled(r?.company))) return 'Company is required.'
+      return null
+    }
+    case 5: {
+      const rows = (data.education || []).filter(
+        (e) => filled(e?.degree) || filled(e?.institution) || filled(e?.field),
+      )
+      if (!rows.length) return 'Add your education (degree and institution).'
+      if (rows.some((e) => !filled(e?.degree))) return 'Degree / qualification is required.'
+      if (rows.some((e) => !filled(e?.institution))) return 'Institution is required.'
+      return null
+    }
+    case 6:
+      if (!filled(data.bio)) return 'Bio is required.'
+      return null
+    case 7: {
+      const hubs = Object.values(data.hubs || {})
+      if (hubs.some((h) => h?.enabled && !filled(h?.url))) {
+        return 'Add a link for each turned-on hub, or turn it off.'
+      }
+      const hasHub = hubs.some((h) => h?.enabled && filled(h?.url))
+      const hasCustom = (data.customLinks || []).some((l) => filled(l?.url))
+      if (!hasHub && !hasCustom) return 'Add at least one link to your work.'
       return null
     }
     case 8:

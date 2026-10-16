@@ -69,6 +69,8 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [bootstrapped, setBootstrapped] = useState(false)
+  // Step the user has typed on — validation hint shows only after input.
+  const [touchedStep, setTouchedStep] = useState(null)
   const completedRef = useRef(null)
 
   const reset = useCallback(() => {
@@ -77,6 +79,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
     setError(null)
     setSaving(false)
     setBootstrapped(false)
+    setTouchedStep(null)
   }, [])
 
   const handleClose = useCallback(() => {
@@ -200,6 +203,7 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
   const patchForm = (slice) => {
     setFormData((prev) => ({ ...prev, ...slice }))
     setError(null)
+    setTouchedStep(step)
   }
 
   const saveCurrentStep = async () => {
@@ -352,6 +356,10 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
   }
 
   const StepComponent = STEP_COMPONENTS[step]
+  // Continue stays disabled until the step's required fields are valid.
+  const stepInvalidMessage = validateStep(step, formData)
+  const visibleError =
+    error || (touchedStep === step ? stepInvalidMessage : null)
 
   return createPortal(
     <div className="fixed inset-0 z-[310] flex items-center justify-center p-4 sm:p-6">
@@ -371,9 +379,9 @@ export default function RegistrationWizard({ open, onClose, forceFresh = false }
           continueLabel={
             saving ? 'Saving…' : step === TOTAL_STEPS ? 'Got it' : 'Continue'
           }
-          continueDisabled={saving}
+          continueDisabled={saving || Boolean(stepInvalidMessage)}
           skipDisabled={saving}
-          error={error}
+          error={visibleError}
         >
           <StepComponent data={formData} onChange={patchForm} />
         </WizardShell>

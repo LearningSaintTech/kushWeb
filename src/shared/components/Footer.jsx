@@ -413,7 +413,8 @@ function Footer() {
                       </Link>
                     </li>
                     <li>
-                      <Link to={ROUTES.DELETE_ACCOUNT}>Delete Account</Link>
+                      <Link to={ROUTES.DELETE_ACCOUNT}
+                      className="hover:text-white transition-colors">Delete Account</Link>
                     </li>
                   </ul>
                 </div>

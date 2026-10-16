@@ -38,7 +38,12 @@ export default function CommunityProfilePage() {
 
     const designerIncomplete = isDesignerOnboardingIncomplete(profile)
 
-    if (designerIncomplete && !designerReady) {
+    // Moved on to designer (even before the first designer step is saved) →
+    // resume designer forms, never the old unfinished creator wizard.
+    const designerChosen = profile.isDesigner === true
+    const designerSubmitted = profile.designerProfileCompleted === true
+
+    if ((designerIncomplete || (designerChosen && !designerSubmitted)) && !designerReady) {
       debugLog('[CommunityProfile] resume designer onboarding', {
         step: profile.designerOnboardingStep,
         status: profile.designerVerificationStatus,
@@ -48,7 +53,7 @@ export default function CommunityProfilePage() {
       return
     }
 
-    if (creatorIncomplete && !creatorReady) {
+    if (creatorIncomplete && !creatorReady && !designerChosen) {
       debugLog('[CommunityProfile] resume creator onboarding', {
         step: profile.creatorOnboardingStep,
       })

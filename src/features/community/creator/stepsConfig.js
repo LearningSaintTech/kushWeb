@@ -43,6 +43,9 @@ export function validateStep(step, data) {
       }
       return null
     }
+    case 3:
+      if (!String(data.bio || '').trim()) return 'Bio is required.'
+      return null
     case 4: {
       const email = String(data.email || '').trim()
       if (!email) return 'Email is required.'

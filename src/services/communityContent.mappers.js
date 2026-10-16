@@ -399,6 +399,19 @@ export function mapContentToReel(rawContent) {
   };
 }
 
+/** GET /items/search keeps photos on variants[].images[] ({ url, order }). */
+function firstVariantImageUrl(item) {
+  const variants = Array.isArray(item?.variants) ? item.variants : [];
+  for (const variant of variants) {
+    const images = Array.isArray(variant?.images) ? variant.images : [];
+    const sorted = [...images].sort((a, b) => (a?.order ?? 0) - (b?.order ?? 0));
+    const first = sorted.find((img) => (typeof img === 'string' ? img : img?.url));
+    if (first) return typeof first === 'string' ? first : first.url;
+    if (variant?.imageUrl) return variant.imageUrl;
+  }
+  return '';
+}
+
 /**
  * Catalog item (GET /items/search) → composer product chip.
  * Tag any catalog item (purchase no longer required).
@@ -414,7 +427,10 @@ export function mapCatalogItemToPickerItem(item) {
       ? item.images[0].url
       : Array.isArray(item.images) && typeof item.images[0] === 'string'
         ? item.images[0]
-        : item.image || item.thumb || '');
+        : item.image || item.thumb || '') ||
+    firstVariantImageUrl(item) ||
+    item.thumbnail ||
+    '';
 
   return {
     id: String(id),

@@ -1,6 +1,7 @@
-import Field, { TextInput, SelectInput } from '../ui/Field'
+import Field, { TextInput } from '../ui/Field'
 
-const LOCATIONS = [
+/** Suggestions only — designers can type any location. */
+const LOCATION_SUGGESTIONS = [
   'San Francisco, CA',
   'New York, NY',
   'Los Angeles, CA',
@@ -8,8 +9,9 @@ const LOCATIONS = [
   'Mumbai, India',
   'Delhi, India',
   'Bengaluru, India',
-  'Other',
 ]
+
+const LOCATION_MAX = 80
 
 const USERNAME_MAX = 20
 
@@ -60,19 +62,19 @@ export default function StepEssentials({ data, onChange }) {
       </Field>
 
       <Field label="Location">
-        <SelectInput
+        <TextInput
           value={data.location || ''}
-          onChange={(e) => onChange({ location: e.target.value })}
-        >
-          <option value="" disabled>
-            Select location
-          </option>
-          {LOCATIONS.map((loc) => (
-            <option key={loc} value={loc}>
-              {loc}
-            </option>
+          onChange={(e) => onChange({ location: e.target.value.slice(0, LOCATION_MAX) })}
+          placeholder="City, Country"
+          autoComplete="address-level2"
+          maxLength={LOCATION_MAX}
+          list="designer-location-suggestions"
+        />
+        <datalist id="designer-location-suggestions">
+          {LOCATION_SUGGESTIONS.map((loc) => (
+            <option key={loc} value={loc} />
           ))}
-        </SelectInput>
+        </datalist>
       </Field>
     </div>
   )

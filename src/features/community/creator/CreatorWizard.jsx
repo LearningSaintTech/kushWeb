@@ -45,6 +45,8 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [bootstrapped, setBootstrapped] = useState(false)
+  // Step the user has typed on — validation hint shows only after input.
+  const [touchedStep, setTouchedStep] = useState(null)
 
   const reset = useCallback(() => {
     setStep(1)
@@ -52,6 +54,7 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
     setError(null)
     setSaving(false)
     setBootstrapped(false)
+    setTouchedStep(null)
   }, [])
 
   const goToExploreFeed = useCallback(() => {
@@ -158,6 +161,7 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
   const patchForm = (slice) => {
     setFormData((previous) => ({ ...previous, ...slice }))
     setError(null)
+    setTouchedStep(step)
   }
 
   const saveCurrentStep = async () => {
@@ -261,6 +265,10 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
   }
 
   const StepComponent = STEP_COMPONENTS[step]
+  // Continue stays disabled until the step's required fields are valid.
+  const stepInvalidMessage = validateStep(step, formData)
+  const visibleError =
+    error || (touchedStep === step ? stepInvalidMessage : null)
   const isSuccess = step === SUCCESS_STEP
   const canSkip = !isSuccess
 
@@ -286,10 +294,10 @@ export default function CreatorWizard({ open, onClose, forceFresh = false }) {
                 ? 'Explore Feed'
                 : STEPS[step - 1].continueLabel
           }
-          continueDisabled={saving}
+          continueDisabled={saving || Boolean(stepInvalidMessage)}
           skipDisabled={saving}
           showSkip={canSkip}
-          error={error}
+          error={visibleError}
           footerExtra={null}
         >
           <StepComponent data={formData} onChange={patchForm} />
