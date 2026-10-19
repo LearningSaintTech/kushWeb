@@ -2234,8 +2234,10 @@ function CheckoutPage() {
       : appliedCouponMeta?.discountValue != null
         ? formatRs(Number(appliedCouponMeta.discountValue))
         : null;
-  const appliedCouponDisplayText =
-    codCouponDiscountValue > 0
+  const couponGift = coupon?.gift || null;
+  const appliedCouponDisplayText = couponGift
+    ? `Free gift: ${couponGift.name}`
+    : codCouponDiscountValue > 0
       ? `Discount: -${formatRs(codCouponDiscountValue)}`
       : codCouponOfferLabel
         ? `Offer: ${codCouponOfferLabel}`
@@ -3371,6 +3373,11 @@ function CheckoutPage() {
                         {appliedCouponDisplayText}
                       </p>
                     )}
+                    {couponGift && (
+                      <p className="text-xs text-green-700 mt-0.5 normal-case">
+                        {couponGift.note || "The gift item is delivered along with the item(s) you ordered."}
+                      </p>
+                    )}
                     {autoCouponReconciling && (
                       <p className="text-xs text-green-700 mt-0.5 normal-case">
                         Updating coupon...
@@ -3474,10 +3481,13 @@ function CheckoutPage() {
                         {availableCoupons.map((c) => {
                           const code = (c.code ?? "").trim();
                           const desc = c.description ?? "";
+                          const rawType = (c.discountType || "").toUpperCase();
                           const type =
-                            (c.discountType || "").toUpperCase() === "PERCENT"
+                            rawType === "PERCENT"
                               ? "PERCENT"
-                              : "FLAT";
+                              : rawType === "GIFT"
+                                ? "GIFT"
+                                : "FLAT";
                           const value = c.discountValue ?? 0;
                           const maxDiscount =
                             c.maxDiscountAmount ?? c.maxDiscount;
@@ -3486,9 +3496,11 @@ function CheckoutPage() {
                           const perUserLimit = c.perUserUsageLimit ?? 0;
                           const expiryDate = formatCouponDate(c.expiryDate);
                           const discountLabel =
-                            type === "PERCENT"
-                              ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString("en-IN")})` : ""}`
-                              : `Rs ${Number(value).toLocaleString("en-IN")} off`;
+                            type === "GIFT"
+                              ? `Free gift${c.giftItemId?.name ? `: ${c.giftItemId.name}` : ""}`
+                              : type === "PERCENT"
+                                ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString("en-IN")})` : ""}`
+                                : `Rs ${Number(value).toLocaleString("en-IN")} off`;
                           const isApplied =
                             appliedCouponCode &&
                             String(appliedCouponCode).toUpperCase() ===
@@ -3598,10 +3610,30 @@ function CheckoutPage() {
               </div>
             )}
 
-            <FreeGiftPicker
-              selectedGift={selectedGift}
-              onChange={setSelectedGift}
-            />
+            {couponGift ? (
+              <div className="border border-green-600 bg-green-50/80 rounded-sm p-3.5 sm:p-4 flex items-start gap-3">
+                {couponGift.image ? (
+                  <img
+                    src={couponGift.image}
+                    alt=""
+                    className="h-12 w-12 rounded object-cover shrink-0"
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-green-800">
+                    Free gift with your coupon: {couponGift.name}
+                  </p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    {couponGift.note || "The gift item is delivered along with the item(s) you ordered."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <FreeGiftPicker
+                selectedGift={selectedGift}
+                onChange={setSelectedGift}
+              />
+            )}
 
             {/* Donation */}
             <DonationPicker

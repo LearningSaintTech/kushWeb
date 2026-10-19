@@ -38,6 +38,8 @@ function CouponCard({
   const minCart = coupon?.minCartValue ?? coupon?.minOrderValue ?? coupon?.minOrder ?? 0
   const expiry = formatExpiry(coupon?.expiryDate ?? coupon?.expiresAt ?? coupon?.expiry)
   const isActive = coupon?.isActive ?? coupon?.active ?? true
+  const isGift = String(coupon?.discountType || '').toUpperCase() === 'GIFT'
+  const giftName = coupon?.giftItemId?.name
 
   return (
     <div className="bg-white border border-gray-100 shadow-sm rounded-xl overflow-hidden">
@@ -49,6 +51,11 @@ function CouponCard({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs sm:text-sm font-bold uppercase tracking-wide text-gray-900 truncate">{title}</p>
+            {isGift && (
+              <p className="mt-0.5 text-[11px] sm:text-xs text-green-700 break-words">
+                Free gift{giftName ? `: ${giftName}` : ''}. The gift item is delivered along with the item(s) you ordered.
+              </p>
+            )}
             <p className="mt-0.5 text-[11px] sm:text-xs uppercase text-gray-700 break-words">
               MIN. ORDER OF ₹{Number(minCart || 0).toLocaleString('en-IN')} TO REDEEM,
             </p>

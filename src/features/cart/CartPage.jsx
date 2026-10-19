@@ -1880,7 +1880,17 @@ function CartPage() {
                 </div>
                 {appliedCouponCode ? (
                   <div className="flex items-center justify-between gap-2 p-3 border border-green-600 bg-green-50/80">
-                    <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-green-800 uppercase">{appliedCouponCode}</span>
+                      {summary?.coupon?.gift && (
+                        <>
+                          <p className="text-xs text-green-700 mt-0.5 normal-case">Free gift: {summary.coupon.gift.name}</p>
+                          <p className="text-xs text-green-700 mt-0.5 normal-case">
+                            {summary.coupon.gift.note || "The gift item is delivered along with the item(s) you ordered."}
+                          </p>
+                        </>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={handleRemoveCoupon}
@@ -1938,16 +1948,19 @@ function CartPage() {
                         {availableCoupons.map((c) => {
                           const code = (c.code ?? '').trim()
                           const desc = (c.description ?? '')
-                          const type = (c.discountType || '').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'FLAT'
+                          const rawType = (c.discountType || '').toUpperCase()
+                          const type = rawType === 'PERCENT' ? 'PERCENT' : rawType === 'GIFT' ? 'GIFT' : 'FLAT'
                           const value = c.discountValue ?? 0
                           const maxDiscount = c.maxDiscountAmount ?? c.maxDiscount
                           const minCart = c.minCartValue ?? 0
                           const maxCart = c.maxCartValue
                           const perUserLimit = c.perUserUsageLimit ?? 0
                           const expiryDate = formatCouponDate(c.expiryDate)
-                          const discountLabel = type === 'PERCENT'
-                            ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString('en-IN')})` : ''}`
-                            : `Rs ${Number(value).toLocaleString('en-IN')} off`
+                          const discountLabel = type === 'GIFT'
+                            ? `Free gift${c.giftItemId?.name ? `: ${c.giftItemId.name}` : ''}`
+                            : type === 'PERCENT'
+                              ? `${value}% off${maxDiscount ? ` (max Rs ${Number(maxDiscount).toLocaleString('en-IN')})` : ''}`
+                              : `Rs ${Number(value).toLocaleString('en-IN')} off`
                           const isApplied = appliedCouponCode && String(appliedCouponCode).toUpperCase() === String(code).toUpperCase()
                           const applicable = isCouponApplicable(c, subTotal)
                           return (
