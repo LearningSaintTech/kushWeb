@@ -720,6 +720,9 @@ function CartPage() {
           if (minCart > 0 && Number(cartSubTotalForCoupon) < minCart) {
             validateError = `Minimum cart value of Rs. ${minCart} required for this coupon`
           }
+          if (couponData.isAvailable === false) {
+            validateError = couponData.message || 'Invalid coupon code'
+          }
         }
       } catch (valErr) {
         validateError = valErr?.response?.data?.message || 'Invalid coupon code'
@@ -750,7 +753,7 @@ function CartPage() {
         })
       } else {
         setAppliedCouponCode(null)
-        setCouponError('Invalid coupon or coupon expired')
+        setCouponError(summary?.couponError || 'Invalid coupon or coupon expired')
         await fetchPriceSummary(null)
       }
     } catch (err) {
@@ -782,7 +785,7 @@ function CartPage() {
     setAvailableCoupons([])
     fetchAvailableCoupons()
       .then((res) => {
-        const normalCoupons = res.filter((c) => !c?.isInfluencer)
+        const normalCoupons = res.filter((c) => !c?.isInfluencer && c?.isVisible !== false)
         setAvailableCoupons(normalCoupons)
       })
       .catch(() => setAvailableCoupons([]))
@@ -820,7 +823,7 @@ function CartPage() {
         })
       } else {
         setAppliedCouponCode(null)
-        setCouponError('Invalid coupon or coupon expired')
+        setCouponError(summary?.couponError || 'Invalid coupon or coupon expired')
         await fetchPriceSummary(null)
       }
     } catch (err) {

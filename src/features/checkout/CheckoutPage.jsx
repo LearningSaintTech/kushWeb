@@ -917,6 +917,7 @@ function CheckoutPage() {
       .then((list) => {
         const normalCoupons = (Array.isArray(list) ? list : []).filter((c) => {
           if (c?.isInfluencer) return false;
+          if (c?.isVisible === false) return false;
           if (paymentMode === "COD" && c?.isAutoIncluded === true) return false;
           return true;
         });
@@ -993,6 +994,9 @@ function CheckoutPage() {
           if (minCart > 0 && cartSubTotal < minCart) {
             validateError = `Minimum cart value of Rs. ${minCart} required for this coupon`;
           }
+          if (couponData.isAvailable === false) {
+            validateError = couponData.message || "Invalid coupon code";
+          }
         }
       } catch (valErr) {
         validateError = valErr?.response?.data?.message || "Invalid coupon code";
@@ -1016,9 +1020,13 @@ function CheckoutPage() {
         setAppliedCouponMeta(selected ?? null);
         setCouponError(null);
       } else {
+        const summaryForError =
+          summaryRes?.cartSummary?.summary ?? summaryRes?.summary ?? {};
         setAppliedCouponCode(null);
         setAppliedCouponMeta(null);
-        setCouponError("Invalid coupon or coupon expired");
+        setCouponError(
+          summaryForError?.couponError || "Invalid coupon or coupon expired",
+        );
         await fetchPriceSummary(null, paymentMode);
       }
     } catch (err) {
@@ -1065,6 +1073,7 @@ function CheckoutPage() {
       .then((list) => {
         const normalCoupons = list.filter((c) => {
           if (c?.isInfluencer) return false;
+          if (c?.isVisible === false) return false;
           if (paymentMode === "COD" && c?.isAutoIncluded === true) return false;
           return true;
         });
@@ -1101,9 +1110,13 @@ function CheckoutPage() {
         setAppliedCouponMeta(selected ?? null);
         setCouponError(null);
       } else {
+        const summaryForError =
+          summaryRes?.cartSummary?.summary ?? summaryRes?.summary ?? {};
         setAppliedCouponCode(null);
         setAppliedCouponMeta(null);
-        setCouponError("Invalid coupon or coupon expired");
+        setCouponError(
+          summaryForError?.couponError || "Invalid coupon or coupon expired",
+        );
         await fetchPriceSummary(null, paymentMode);
       }
     } catch (err) {
