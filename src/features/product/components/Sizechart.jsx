@@ -54,8 +54,10 @@ function normalizeSizeChartData(item) {
   const sc = item.sizeCharts;
   const inChart = sc?.in;
   const cmChart = sc?.cm;
-  const inReady = inChart && (inChart.headers?.length > 0 || inChart.rows?.length > 0);
-  const cmReady = cmChart && (cmChart.headers?.length > 0 || cmChart.rows?.length > 0);
+  // A unit only counts as a table when it has headers AND rows (template headers alone are not a table),
+  // otherwise e.g. IN with empty headers would hide a complete CM table.
+  const inReady = inChart && inChart.headers?.length > 0 && inChart.rows?.length > 0;
+  const cmReady = cmChart && cmChart.headers?.length > 0 && cmChart.rows?.length > 0;
 
   const measureImage = collectMeasureImages([
     inChart?.measureImage,
@@ -152,7 +154,7 @@ function SizeChart({ item, data: legacyData }) {
 
   if (!data) return null;
 
-  const { dual, measureImage, hasTable } = data;
+  const { dual, measureImage } = data;
   const active = dual ? dual[dualUnit] || dual.in : null;
   const headers = active?.headers ?? data.headers;
   const rows = active?.rows ?? data.rows;
@@ -163,6 +165,10 @@ function SizeChart({ item, data: legacyData }) {
     (dual.in.rows?.length ?? 0) > 0 &&
     (dual.cm.headers?.length ?? 0) > 0 &&
     (dual.cm.rows?.length ?? 0) > 0;
+  // A size chart is a table, an image, or both — tabs only make sense when there are both.
+  const tableExists = (headers?.length ?? 0) > 0 && (rows?.length ?? 0) > 0;
+  const showTabs = tableExists && measureImage.length > 0;
+  const tab = showTabs ? activeTab : "chart";
 
   return (
     <div className="bg-white">
@@ -172,6 +178,7 @@ function SizeChart({ item, data: legacyData }) {
         </h2>
       </div>
 
+      {showTabs && (
       <div className="px-4 sm:px-6">
         <div className="border-b border-neutral-300">
           <div className="flex">
@@ -200,9 +207,10 @@ function SizeChart({ item, data: legacyData }) {
           </div>
         </div>
       </div>
+      )}
 
       <div className="p-5 sm:p-6">
-        {activeTab === "chart" && (
+        {tab === "chart" && (
           <>
             {showUnitToggle && (
               <div className="mb-4 flex justify-center gap-2">
@@ -230,7 +238,7 @@ function SizeChart({ item, data: legacyData }) {
                 </button>
               </div>
             )}
-            {hasTable && (
+            {tableExists && (
               <div className="mb-6 overflow-x-auto">
                 <table className="w-full border-collapse text-center text-xs sm:text-sm">
                   <thead>
@@ -282,13 +290,13 @@ function SizeChart({ item, data: legacyData }) {
               </div>
             )}
 
-            {!hasTable && measureImage.length === 0 && (
+            {!tableExists && measureImage.length === 0 && (
               <p className="text-center text-sm text-neutral-500">Size chart not available</p>
             )}
           </>
         )}
 
-        {activeTab === "measure" && (
+        {tab === "measure" && (
           <div className="flex flex-col items-center gap-4">
             {measureImage.length > 0 ? (
               measureImage.map((src, i) => (
