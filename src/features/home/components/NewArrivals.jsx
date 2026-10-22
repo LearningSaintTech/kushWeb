@@ -146,7 +146,8 @@ function NewArrivals({ section }) {
       const seen = new Set()
 
       for (let page = 1; page <= MAX_FETCH_PAGES; page += 1) {
-        const params = { sectionId: section._id, page, limit: SECTION_PAGE_SIZE }
+        // New Arrival = latest products that are in stock
+        const params = { sectionId: section._id, page, limit: SECTION_PAGE_SIZE, sort: 'newest', inStock: 1 }
         if (pincode) params.pinCode = String(pincode)
         const res = await itemsService.search(params)
         const data = res?.data?.data ?? res?.data
