@@ -34,6 +34,7 @@ import {
   ProductImageZoomLightbox,
 } from "../../shared/components/ZoomImage.jsx";
 import { getProductCardOfferBadge, getOfferHint } from "../../utils/bindOffer.js";
+import { parseProductDescription } from "../../utils/productDescription.js";
 import {
   formatLaunchDate,
   isItemComingSoon,
@@ -904,6 +905,7 @@ function ProductPage() {
   const shortDescText = (item?.shortDescription ?? "").trim();
   const longDescText = (item?.longDescription ?? "").trim();
   const longDescNeedsMore = longDescText.length > LONG_DESC_COLLAPSE_THRESHOLD;
+  const longDescBlocks = useMemo(() => parseProductDescription(longDescText), [longDescText]);
 
   const careBulletPoints = useMemo(() => {
     const raw = item?.care?.description ?? "";
@@ -1516,14 +1518,32 @@ function ProductPage() {
               >
                 <div className="overflow-hidden">
                   <div className="px-0 pb-3 pt-0 sm:pb-4 md:pb-3 lg:pb-4">
-                    <p
+                    <div
                       className={`font-inter font-normal wrap-break-word text-xs leading-relaxed text-gray-700 sm:text-sm md:text-sm lg:text-base ${longDescNeedsMore && !longDescExpanded
-                        ? "product-desc-clamp-long whitespace-normal"
-                        : "whitespace-pre-wrap"
+                        ? "max-h-[9.5em] overflow-hidden [mask-image:linear-gradient(to_bottom,black_65%,transparent)]"
+                        : ""
                         }`}
                     >
-                      {longDescText}
-                    </p>
+                      {longDescBlocks.map((block, i) =>
+                        block.type === "heading" ? (
+                          <h3
+                            key={i}
+                            className={`font-semibold text-gray-900 text-[0.95em] ${i === 0 ? "mt-0" : "mt-4"} mb-1`}
+                          >
+                            {block.text}
+                          </h3>
+                        ) : block.type === "field" ? (
+                          <p key={i} className="mt-1">
+                            <span className="font-semibold text-gray-900">{block.label}:</span>{" "}
+                            {block.value}
+                          </p>
+                        ) : (
+                          <p key={i} className={i === 0 ? "mt-0" : "mt-2"}>
+                            {block.text}
+                          </p>
+                        )
+                      )}
+                    </div>
                     {longDescNeedsMore && (
                       <button
                         type="button"
