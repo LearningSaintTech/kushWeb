@@ -13,9 +13,9 @@ export const categoriesService = {
 
   getById: (id) => client.get(`${CATEGORIES}/getbyId/${id}`),
 
-  /** Categories with isNavbar=true for header menu (only active in navbar). */
+  /** Categories shown in the website header (isWebNavbar; unset falls back to the app's isNavbar on the API). */
   getNavbar: (params = {}) =>
-    client.get(`${CATEGORIES}/getAll`, { params: { isNavbar: 'true', limit: 50, ...params } }),
+    client.get(`${CATEGORIES}/getAll`, { params: { isWebNavbar: 'true', limit: 50, ...params } }),
 
   /** Categories with isFooter=true for footer menu. */
   getFooter: (params = {}) =>
