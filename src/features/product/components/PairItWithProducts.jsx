@@ -6,6 +6,7 @@ import {
   isHomeVisibleProduct,
 } from '../../../utils/productLaunch.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
+import { isListingItemOutOfStock } from '../../../utils/productStock.js'
 import { trackEvent } from '../../../analytics'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 import productImage from '../../../assets/temporary/productimage.png'
@@ -70,10 +71,7 @@ function mapCrossSellToCard(item) {
     delivery: undefined,
     rating: undefined,
 
-    outOfStock:
-      item.totalStock != null
-        ? Number(item.totalStock) <= 0
-        : item.inStock === false,
+    outOfStock: isListingItemOutOfStock(item),
 
     sectionSale: item.sectionSale ?? null,
 

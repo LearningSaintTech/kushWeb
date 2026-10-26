@@ -10,7 +10,7 @@ import { itemsService } from '../../services/items.service.js'
 import { sectionsService } from '../../services/content.service.js'
 import { getPublicImageUrl } from '../../services/config.js'
 import { ROUTES } from '../../utils/constants'
-import { getItemStockTotal } from '../../utils/productStock.js'
+import { getItemStockTotal, isListingItemOutOfStock } from '../../utils/productStock.js'
 import { listingBindOfferProps } from '../../utils/bindOffer.js'
 import { debugLog, debugError } from '../../utils/debugLog.js'
 import {
@@ -55,9 +55,7 @@ function itemToCardProps(item, section = null) {
           : '—'
   const offerProps = listingBindOfferProps(item, section)
   const stockTotal = getItemStockTotal(item)
-  const outOfStock =
-    item.inStock === false ||
-    (stockTotal != null && stockTotal <= 0)
+  const outOfStock = isListingItemOutOfStock(item)
   return {
     id,
     image: imageUrl

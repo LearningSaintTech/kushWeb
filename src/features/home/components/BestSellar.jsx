@@ -5,7 +5,7 @@ import productImage from '../../../assets/temporary/productimage.png'
 import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
-import { getItemStockTotal } from '../../../utils/productStock.js'
+import { getItemStockTotal, isListingItemOutOfStock } from '../../../utils/productStock.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from '../../../utils/productLaunch.js'
 
@@ -54,7 +54,7 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
     originalPrice,
     delivery,
     rating: item.avgRating ?? 4.5,
-    outOfStock: item.inStock === false,
+    outOfStock: isListingItemOutOfStock(item),
     ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),
   }
@@ -82,7 +82,7 @@ function BestSellar({ section }) {
         originalPrice,
         delivery: section.deliveryType === '90_MIN' ? '90 min' : section.deliveryType === 'ONE_DAY' ? '1 day' : section.deliveryType ? `GET IN ${section.deliveryType}` : '',
         rating: item.avgRating ?? 4.5,
-        outOfStock: p.inStock === false,
+        outOfStock: isListingItemOutOfStock(p),
         ...itemLaunchCardProps(item),
         ...listingBindOfferProps(item, section),
       }

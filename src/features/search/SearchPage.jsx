@@ -11,7 +11,7 @@ import { addRecentKeyword } from '../../app/store/slices/searchSlice.js'
 import collectionBanner from '../../assets/temporary/websitebanner.svg'
 import { ROUTES, getProductPath } from '../../utils/constants'
 import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from '../../shared/components/ProductCard'
-import { getItemStockTotal } from '../../utils/productStock.js'
+import { getItemStockTotal, isListingItemOutOfStock } from '../../utils/productStock.js'
 import { itemsService } from '../../services/items.service.js'
 import { categoriesService, subcategoriesService } from '../../services/categories.service.js'
 import { sectionsService } from '../../services/content.service.js'
@@ -82,21 +82,6 @@ function parsePriceRangeBucketValue(raw) {
   const m = s.match(/^(\d+)-(\d+)$/)
   if (!m) return null
   return { min: Number(m[1]), max: Number(m[2]) }
-}
-
-/** True if item has at least one variant/size with available stock */
-function hasAnyStock(item) {
-  if (item.inStock === true) return true
-  if (item.inStock === false) return false
-  const variants = item.variants ?? []
-  for (const v of variants) {
-    const sizes = v.sizes ?? []
-    for (const s of sizes) {
-      const qty = Number(s.availableQuantity ?? s.stock ?? 0)
-      if (s.inStock === true || (s.inStock !== false && qty > 0)) return true
-    }
-  }
-  return false
 }
 
 /** Map backend item to ProductCard props */
@@ -189,7 +174,7 @@ function itemToCardProps(item, { preferredColors = [], colorOptions = [] } = {})
         : '—'
   const rawRating = item.rating ?? item.averageRating
   const rating = rawRating != null && rawRating !== '' && Number(rawRating) > 0 ? Number(rawRating) : undefined
-  const outOfStock = item.inStock === false || !hasAnyStock(item)
+  const outOfStock = isListingItemOutOfStock(item)
   const offerProps = listingBindOfferProps(item)
   return {
     id,

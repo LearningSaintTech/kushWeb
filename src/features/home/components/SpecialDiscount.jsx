@@ -9,7 +9,7 @@ import { itemsService } from '../../../services/items.service.js'
 import ProductCard, {
   PRODUCT_CARD_COMPACT_GRID_PROPS,
 } from '../../../shared/components/ProductCard'
-import { getItemStockTotal } from '../../../utils/productStock.js'
+import { getItemStockTotal, isListingItemOutOfStock } from '../../../utils/productStock.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from '../../../utils/productLaunch.js'
 import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
@@ -62,7 +62,7 @@ function itemToCardProps(item, index, section = null) {
     originalPrice,
     delivery,
     rating: item.avgRating ?? 4.5,
-    outOfStock: item.inStock === false,
+    outOfStock: isListingItemOutOfStock(item),
     ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),
   }

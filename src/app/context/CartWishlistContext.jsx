@@ -484,14 +484,15 @@ export function CartWishlistProvider({ children }) {
           return { success: false, message }
         }
       }
+      const qty = Math.max(1, Number(product?.quantity) || 1)
       setCart((prev) => {
         const existing = prev.find((item) => item.id === id)
         if (existing) {
           return prev.map((item) =>
-            item.id === id ? { ...item, quantity: (item.quantity || 1) + 1 } : item
+            item.id === id ? { ...item, quantity: (item.quantity || 1) + qty } : item
           )
         }
-        return [...prev, { id, title, price, image, delivery, rating, quantity: 1 }]
+        return [...prev, { id, title, price, image, delivery, rating, quantity: qty }]
       })
       return { success: true }
     },

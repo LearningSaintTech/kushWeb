@@ -5,6 +5,7 @@ import ProductCard, {
 } from '../../../shared/components/ProductCard'
 import { itemLaunchCardProps } from '../../../utils/productLaunch.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
+import { isListingItemOutOfStock } from '../../../utils/productStock.js'
 import { trackEvent } from '../../../analytics'
 import { useAuth } from '../../../app/context/AuthContext'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
@@ -45,7 +46,7 @@ function mapSuggestionToCard(item) {
     originalPrice,
     delivery: '—',
     rating: item.avgRating ?? 0,
-    outOfStock: item.totalStock != null ? Number(item.totalStock) <= 0 : false,
+    outOfStock: isListingItemOutOfStock(item),
     sectionSale: item.sectionSale ?? null,
     ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, null),

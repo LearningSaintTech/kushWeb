@@ -47,10 +47,12 @@ export function useNavbarMenu() {
         const res = await categoriesService.getNavbar();
         const data = res?.data?.data ?? res?.data;
         const list = data?.categories ?? [];
-        // Header shows exactly the categories admin marks "show in navbar" (isNavbar),
-        // in admin sortOrder — no fixed count.
+        // Header shows exactly the categories admin marks "show in web navbar" (isWebNavbar),
+        // in admin sortOrder — no fixed count. Categories without the web flag fall back to isNavbar.
         const categoryList = (Array.isArray(list) ? list : [])
-          .filter((c) => c?.isNavbar === true)
+          .filter((c) =>
+            typeof c?.isWebNavbar === 'boolean' ? c.isWebNavbar : c?.isNavbar === true
+          )
           .sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0));
         if (!cancelled) setCategories(categoryList);
       } catch (err) {

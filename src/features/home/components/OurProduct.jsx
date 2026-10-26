@@ -7,7 +7,7 @@ import productImage from "../../../assets/temporary/productimage.png";
 import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
 import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
-import { getItemStockTotal } from "../../../utils/productStock.js";
+import { getItemStockTotal, isListingItemOutOfStock } from "../../../utils/productStock.js";
 import { listingBindOfferProps } from "../../../utils/bindOffer.js";
 import { itemLaunchCardProps, filterHomeVisibleProducts } from "../../../utils/productLaunch.js";
 
@@ -55,7 +55,7 @@ function itemToCardProps(item, index, section = null) {
     originalPrice,
     delivery,
     rating: item.avgRating ?? 4.5,
-    outOfStock: item.inStock === false,
+    outOfStock: isListingItemOutOfStock(item),
     ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),
   };

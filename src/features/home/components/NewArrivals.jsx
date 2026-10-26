@@ -7,6 +7,7 @@ import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
+import { isListingItemOutOfStock } from '../../../utils/productStock.js'
 import {
   formatLaunchDate,
   isItemComingSoon,
@@ -59,7 +60,7 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
     originalPrice,
     delivery,
     rating: item.avgRating ?? 0,
-    outOfStock: item.inStock === false,
+    outOfStock: isListingItemOutOfStock(item),
     ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),
   }
@@ -115,7 +116,7 @@ function NewArrivals({ section }) {
                   ? `GET IN ${section.deliveryType}`
                   : '',
           rating: item.avgRating ?? 0,
-          outOfStock: p.inStock === false,
+          outOfStock: isListingItemOutOfStock(p),
           ...itemLaunchCardProps(item),
           ...listingBindOfferProps(item, section),
         }

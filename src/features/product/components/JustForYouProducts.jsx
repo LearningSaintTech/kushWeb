@@ -6,6 +6,7 @@ import ProductCard, {
 } from '../../../shared/components/ProductCard'
 import { itemLaunchCardProps } from '../../../utils/productLaunch.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
+import { isListingItemOutOfStock } from '../../../utils/productStock.js'
 import { trackEvent } from '../../../analytics'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
 import productImage from '../../../assets/temporary/productimage.png'
@@ -49,7 +50,7 @@ function mapSectionProduct(row, section) {
     originalPrice,
     delivery,
     rating: item.avgRating ?? 0,
-    outOfStock: row.inStock === false,
+    outOfStock: isListingItemOutOfStock(row),
     sectionSale: row.sectionSale ?? item.sectionSale ?? null,
     ...itemLaunchCardProps(item),
     ...listingBindOfferProps(item, section),

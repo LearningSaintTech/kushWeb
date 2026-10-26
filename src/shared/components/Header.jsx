@@ -1070,10 +1070,11 @@ export default function Header() {
                             categoryId: hoveredCategoryId,
                             categoryName,
                           })}
-                          className="font-inter text-sm font-medium text-black/90 hover:text-black"
+                          className="font-inter inline-block rounded-md px-1.5 py-0.5 -mx-1.5 text-sm font-semibold text-black/90 hover:bg-black/5 hover:text-black uppercase tracking-wide transition-colors"
                           onClick={() => setHoveredCategoryId(null)}
+                          role="menuitem"
                         >
-                          View all {categoryName}
+                          VIEW ALL {categoryName}
                         </NavLink>
                       ) : (
                         <div className="space-y-5">
@@ -1121,7 +1122,7 @@ export default function Header() {
                             onClick={() => setHoveredCategoryId(null)}
                             role="menuitem"
                           >
-                            View all {categoryName}
+                            VIEW ALL {categoryName}
                           </NavLink>
                         </div>
                       )}
