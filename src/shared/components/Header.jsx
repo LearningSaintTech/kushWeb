@@ -244,8 +244,16 @@ const navIconSize = "h-[22px] w-[22px] shrink-0";
 const mobileIconBtn = navIconBtn;
 const desktopNavIconBtn = navIconBtn;
 
-/** Max categories shown in the desktop center nav — keeps layout stable if more are added later */
-const NAVBAR_VISIBLE_CATEGORIES = 3;
+/**
+ * Desktop nav shows this many categories inline (fewer on narrower laptops so the
+ * links never run into the centered logo). Any extra navbar categories from admin
+ * are listed under a "More" dropdown, so there is no hard limit.
+ */
+const NAVBAR_VISIBLE_CATEGORIES_LG = 3;
+const NAVBAR_VISIBLE_CATEGORIES_XL = 5;
+const NAVBAR_XL_QUERY = "(min-width: 1280px)";
+/** hoveredCategoryId value for the "More" dropdown (not a real category id) */
+const NAVBAR_MORE_ID = "__more__";
 
 /** Build search URL for menu links; SearchPage reads categoryId + subcategoryId (or category/subcategory) */
 function getSearchUrl({
@@ -314,10 +322,24 @@ export default function Header() {
     subcategoriesLoading,
   } = useNavbarMenu();
 
-  const desktopNavCategories = (navbarCategories ?? []).slice(
-    0,
-    NAVBAR_VISIBLE_CATEGORIES,
+  const [isXlNav, setIsXlNav] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      Boolean(window.matchMedia?.(NAVBAR_XL_QUERY).matches),
   );
+  useEffect(() => {
+    const mq = window.matchMedia?.(NAVBAR_XL_QUERY);
+    if (!mq) return undefined;
+    const sync = () => setIsXlNav(mq.matches);
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
+  const visibleNavCount = isXlNav
+    ? NAVBAR_VISIBLE_CATEGORIES_XL
+    : NAVBAR_VISIBLE_CATEGORIES_LG;
+  const desktopNavCategories = (navbarCategories ?? []).slice(0, visibleNavCount);
+  const overflowNavCategories = (navbarCategories ?? []).slice(visibleNavCount);
 
   // Expand first category by default so subcategories are visible when menu opens
   const firstCategoryId =
@@ -497,9 +519,9 @@ export default function Header() {
     }
   }, [menuOpen, effectiveActiveCategory, loadSubcategoriesForCategory]);
 
-  // Prefetch subcategories for the 3 desktop nav categories so hover menus feel instant
+  // Prefetch subcategories for the inline desktop nav categories so hover menus feel instant
   useEffect(() => {
-    (navbarCategories ?? []).slice(0, NAVBAR_VISIBLE_CATEGORIES).forEach((cat) => {
+    (navbarCategories ?? []).slice(0, NAVBAR_VISIBLE_CATEGORIES_XL).forEach((cat) => {
       const id = cat._id ?? cat.id;
       if (id) loadSubcategoriesForCategory(id);
     });
@@ -516,7 +538,9 @@ export default function Header() {
     (categoryId) => {
       clearHoverCloseTimer();
       setHoveredCategoryId(categoryId);
-      if (categoryId) loadSubcategoriesForCategory(categoryId);
+      if (categoryId && categoryId !== NAVBAR_MORE_ID) {
+        loadSubcategoriesForCategory(categoryId);
+      }
     },
     [clearHoverCloseTimer, loadSubcategoriesForCategory],
   );
@@ -715,7 +739,7 @@ export default function Header() {
                 aria-label="Product categories"
               >
                 {menuLoading && desktopNavCategories.length === 0
-                  ? Array.from({ length: NAVBAR_VISIBLE_CATEGORIES }).map((_, i) => (
+                  ? Array.from({ length: NAVBAR_VISIBLE_CATEGORIES_LG }).map((_, i) => (
                       <span
                         key={`cat-slot-${i}`}
                         className="inline-block min-w-[3.5vw] h-[0.75vw] rounded bg-transparent"
@@ -754,6 +778,33 @@ export default function Header() {
                         </div>
                       );
                     })}
+                {overflowNavCategories.length > 0 ? (
+                  <div
+                    className="relative"
+                    onMouseEnter={() => openCategoryHover(NAVBAR_MORE_ID)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        hoveredCategoryId === NAVBAR_MORE_ID
+                          ? setHoveredCategoryId(null)
+                          : openCategoryHover(NAVBAR_MORE_ID)
+                      }
+                      className={`cursor-pointer font-inter text-[0.8vw] font-medium tracking-[0.06em] uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center gap-0.5 py-1.5 ${
+                        useWhiteStyle ? "text-black" : "text-white"
+                      }`}
+                      aria-expanded={hoveredCategoryId === NAVBAR_MORE_ID}
+                      aria-haspopup="true"
+                    >
+                      More
+                      <ChevronDownIcon
+                        className={`h-3 w-3 shrink-0 ${
+                          useWhiteStyle ? "text-black" : "text-white"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                ) : null}
               </nav>
             </div>
 
@@ -953,7 +1004,43 @@ export default function Header() {
           {hoveredCategoryId &&
             createPortal(
               (() => {
-                const hoveredCat = desktopNavCategories.find(
+                if (hoveredCategoryId === NAVBAR_MORE_ID) {
+                  return (
+                    <div
+                      className="nav-glass-panel fixed left-1/2 z-[60] w-[min(72rem,calc(100%-1.5rem))] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-hidden rounded-2xl"
+                      style={{ top: megaMenuTop + 4 }}
+                      onMouseEnter={() => openCategoryHover(NAVBAR_MORE_ID)}
+                      onMouseLeave={scheduleCategoryHoverClose}
+                      role="menu"
+                      aria-label="More categories"
+                    >
+                      <div className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 animate-nav-mega-panel">
+                        <ul className="grid grid-cols-3 gap-x-16 gap-y-3">
+                          {overflowNavCategories.map((cat, idx) => {
+                            const categoryId = cat._id ?? cat.id;
+                            const categoryName = cat.name ?? "Category";
+                            return (
+                              <li
+                                key={categoryId ?? `more-${idx}`}
+                                className="animate-nav-mega-item"
+                                style={{ animationDelay: `${40 + idx * 35}ms` }}
+                              >
+                                <NavLink
+                                  to={getSearchUrl({ categoryId, categoryName })}
+                                  className="font-inter text-sm font-medium uppercase tracking-[0.06em] text-black/90 hover:text-black"
+                                  onClick={() => setHoveredCategoryId(null)}
+                                >
+                                  {categoryName}
+                                </NavLink>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  );
+                }
+                const hoveredCat = (navbarCategories ?? []).find(
                   (c) => (c._id ?? c.id) === hoveredCategoryId,
                 );
                 const categoryName = hoveredCat?.name ?? "Category";

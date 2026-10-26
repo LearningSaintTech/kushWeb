@@ -47,7 +47,11 @@ export function useNavbarMenu() {
         const res = await categoriesService.getNavbar();
         const data = res?.data?.data ?? res?.data;
         const list = data?.categories ?? [];
-        const categoryList = Array.isArray(list) ? list : [];
+        // Header shows exactly the categories admin marks "show in navbar" (isNavbar),
+        // in admin sortOrder — no fixed count.
+        const categoryList = (Array.isArray(list) ? list : [])
+          .filter((c) => c?.isNavbar === true)
+          .sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0));
         if (!cancelled) setCategories(categoryList);
       } catch (err) {
         if (!cancelled) setError(err?.message ?? 'Failed to load menu');
