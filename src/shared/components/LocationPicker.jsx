@@ -162,8 +162,8 @@ export default function LocationPicker({ scrolled, className = '', compact = fal
         className={
           iconOnly
             ? `flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full ${isLight ? 'bg-[#F2F2F2]' : 'bg-white/20'} ${error ? 'ring-1 ring-amber-400/80' : ''}`
-            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 lg:gap-1.5 lg:px-3 lg:py-2 ${bgClass} ${
-                compact ? 'w-full lg:w-auto lg:max-w-[12vw]' : ''
+            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 lg:gap-1.5 lg:px-3 lg:py-1.5 ${bgClass} ${
+                compact ? 'w-full lg:w-auto lg:max-w-[8.5vw]' : ''
               } ${error ? 'ring-1 ring-amber-400/80' : ''}`
         }
         onClick={() => setOpen((o) => !o)}

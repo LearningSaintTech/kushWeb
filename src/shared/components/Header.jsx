@@ -18,7 +18,7 @@ import { useNotification } from "../../app/context/NotificationContext";
 // Location picker in header: no map – shows delivery location as text (current location / search / pincode).
 import LocationPicker from "./LocationPicker";
 import ProfileModal from "./ProfileModal";
-import logoImg from "../../assets/images/navBar/Khush1.png";
+import logoImg from "../../assets/images/navBar/HindiKhushlogo.svg";
 import { lockBodyScroll, unlockBodyScroll } from "../../utils/bodyScrollLock.js";
 
 function ChevronDownIcon({ className }) {
@@ -321,6 +321,14 @@ export default function Header() {
     loading: menuLoading,
     subcategoriesLoading,
   } = useNavbarMenu();
+  // Hamburger drawer lists categories/subcategories flagged isSidebar (separate from the web navbar)
+  const {
+    categories: sidebarCategories,
+    subcategoriesByCategoryId: sidebarSubcategoriesByCategoryId,
+    loadSubcategoriesForCategory: loadSidebarSubcategories,
+    loading: sidebarLoading,
+    subcategoriesLoading: sidebarSubcategoriesLoading,
+  } = useNavbarMenu({ sidebar: true });
 
   const [isXlNav, setIsXlNav] = useState(
     () =>
@@ -343,14 +351,14 @@ export default function Header() {
 
   // Expand first category by default so subcategories are visible when menu opens
   const firstCategoryId =
-    navbarCategories?.length > 0
-      ? (navbarCategories[0]._id ?? navbarCategories[0].id)
+    sidebarCategories?.length > 0
+      ? (sidebarCategories[0]._id ?? sidebarCategories[0].id)
       : null;
   const effectiveActiveCategory =
     activeMobileCategory ??
-    (firstCategoryId && !menuLoading ? firstCategoryId : null);
+    (firstCategoryId && !sidebarLoading ? firstCategoryId : null);
   const activeCategoryNameForMenu =
-    navbarCategories.find(
+    sidebarCategories.find(
       (c) => (c._id ?? c.id) === effectiveActiveCategory,
     )?.name ?? "";
 
@@ -515,9 +523,9 @@ export default function Header() {
         "[Header] menu open, loading subcategories for effectiveActiveCategory",
         { effectiveActiveCategory, menuOpen },
       );
-      loadSubcategoriesForCategory(effectiveActiveCategory);
+      loadSidebarSubcategories(effectiveActiveCategory);
     }
-  }, [menuOpen, effectiveActiveCategory, loadSubcategoriesForCategory]);
+  }, [menuOpen, effectiveActiveCategory, loadSidebarSubcategories]);
 
   // Prefetch subcategories for the inline desktop nav categories so hover menus feel instant
   useEffect(() => {
@@ -612,7 +620,7 @@ export default function Header() {
       ) : null}
       {/* Main */}
       <div
-       className={`px-4 lg:px-[1.56vw] py-1.5 lg:py-1 xl:py-1 transition-colors duration-300 min-w-0 ${
+       className={`px-4 lg:px-[1.56vw] py-1.5 lg:py-0.5 transition-colors duration-300 min-w-0 ${
   useWhiteStyle ? "bg-white" : "bg-transparent"
 }`}
       >
@@ -731,11 +739,11 @@ export default function Header() {
         >
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 lg:gap-3">
             {/* Left: Location + Category links */}
-            <div className="flex min-w-0 items-center gap-6 lg:gap-8 xl:gap-10 z-10">
-              <LocationPicker scrolled={useWhiteStyle} compact className="max-w-[12vw] shrink" />
+            <div className="flex min-w-0 items-center gap-4 xl:gap-5 z-10">
+              <LocationPicker scrolled={useWhiteStyle} compact className="max-w-[8.5vw] shrink-0" />
 
               <nav
-                className="flex min-w-0 items-center gap-2.5 lg:gap-3.5"
+                className="flex min-w-0 items-center gap-2.5 lg:gap-[1.25vw] xl:gap-[1.4vw]"
                 aria-label="Product categories"
               >
                 {menuLoading && desktopNavCategories.length === 0
@@ -762,7 +770,7 @@ export default function Header() {
                               categoryId,
                               categoryName,
                             })}
-                            className={`cursor-pointer font-inter text-[0.8vw] font-medium tracking-[0.06em] uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center gap-0.5 py-1.5 ${
+                            className={`cursor-pointer font-inter text-[0.72vw] font-normal tracking-[0.06em] uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center gap-0.5 py-1 ${
                               useWhiteStyle ? "text-black" : "text-white"
                             } ${isHovered ? "opacity-100" : ""}`}
                             aria-expanded={isHovered}
@@ -790,7 +798,7 @@ export default function Header() {
                           ? setHoveredCategoryId(null)
                           : openCategoryHover(NAVBAR_MORE_ID)
                       }
-                      className={`cursor-pointer font-inter text-[0.8vw] font-medium tracking-[0.06em] uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center gap-0.5 py-1.5 ${
+                      className={`cursor-pointer font-inter text-[0.72vw] font-normal tracking-[0.06em] uppercase whitespace-nowrap transition-opacity hover:opacity-70 inline-flex items-center gap-0.5 py-1 ${
                         useWhiteStyle ? "text-black" : "text-white"
                       }`}
                       aria-expanded={hoveredCategoryId === NAVBAR_MORE_ID}
@@ -818,9 +826,9 @@ export default function Header() {
               <img
                 src={logoImg}
                 alt="KHUSH"
-                className="h-9 lg:h-14 w-auto object-contain"
-                // TEMP: keep colored logo on home hero (was: brightness-0 invert when transparent)
-                // className={`h-9 lg:h-14 w-auto object-contain ${useWhiteStyle ? "" : "brightness-0 invert"}`}
+                className={`h-9 lg:h-12 w-auto object-contain transition-[filter] duration-300 ${
+                  useWhiteStyle ? "" : "brightness-0 invert"
+                }`}
               />
             </NavLink>
 
@@ -1332,7 +1340,7 @@ export default function Header() {
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 <div className="flex w-max gap-6 md:gap-10 px-4 pb-3">
-                  {navbarCategories.map((cat) => {
+                  {sidebarCategories.map((cat) => {
                     const categoryId = cat._id ?? cat.id;
                     const categoryName = (cat.name ?? "").toUpperCase();
                     const isActive = effectiveActiveCategory === categoryId;
@@ -1343,7 +1351,7 @@ export default function Header() {
                         type="button"
                         onClick={() => {
                           setActiveMobileCategory(categoryId);
-                          loadSubcategoriesForCategory(categoryId);
+                          loadSidebarSubcategories(categoryId);
                         }}
                         className="cursor-pointer relative shrink-0 font-inter text-sm md:text-base font-medium tracking-wide pb-2 transition-colors"
                       >
@@ -1369,7 +1377,7 @@ export default function Header() {
                     );
                   })}
 
-                  {!menuLoading && navbarCategories.length === 0 && (
+                  {!sidebarLoading && sidebarCategories.length === 0 && (
                     <span className="font-inter text-sm text-gray-400 shrink-0">
                       No categories
                     </span>
@@ -1382,19 +1390,19 @@ export default function Header() {
               {/* ========================= */}
 
               <nav className="flex-1 overflow-y-auto">
-                {menuLoading ? (
+                {sidebarLoading ? (
                   <div className="px-4 py-6 font-inter text-sm text-gray-500">
                     Loading menu…
                   </div>
                 ) : effectiveActiveCategory ? (
-                  subcategoriesLoading?.[effectiveActiveCategory] ? (
+                  sidebarSubcategoriesLoading?.[effectiveActiveCategory] ? (
                     <div className="px-4 py-6 font-inter text-sm text-gray-500">
                       Loading…
                     </div>
                   ) : (
                     <ul className="py-2">
                       {(
-                        subcategoriesByCategoryId[effectiveActiveCategory] ?? []
+                        sidebarSubcategoriesByCategoryId[effectiveActiveCategory] ?? []
                       ).map((sub, subIdx) => {
                         const subId = sub._id ?? sub.id ?? `sub-${subIdx}`;
                         const subName = sub.name ?? sub.label ?? "Subcategory";

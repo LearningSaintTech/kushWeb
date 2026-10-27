@@ -20,6 +20,10 @@ export const categoriesService = {
   /** Categories with isFooter=true for footer menu. */
   getFooter: (params = {}) =>
     client.get(`${CATEGORIES}/getAll`, { params: { isFooter: 'true', limit: 50, ...params } }),
+
+  /** Categories with isSidebar=true for the hamburger (sidebar) menu. */
+  getSidebar: (params = {}) =>
+    client.get(`${CATEGORIES}/getAll`, { params: { isSidebar: 'true', limit: 50, ...params } }),
 };
 
 export const subcategoriesService = {
@@ -37,4 +41,8 @@ export const subcategoriesService = {
   /** Subcategories with isFooter=true for a category (footer menu). */
   getFooterByCategoryId: (categoryId, params = {}) =>
     client.get(`${SUBCATEGORIES}/getAll/${categoryId}`, { params: { isFooter: 'true', limit: 50, ...params } }),
+
+  /** Subcategories with isSidebar=true for a category (hamburger menu). */
+  getSidebarByCategoryId: (categoryId) =>
+    client.get(`${SUBCATEGORIES}/getAll/${categoryId}`, { params: { isSidebar: 'true', limit: 50 } }),
 };
