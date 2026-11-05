@@ -22,6 +22,7 @@ import { WalletPage } from '../../features/wallet'
 import { ReferEarnPage } from '../../features/referEarn'
 import { CoinsPage } from '../../features/coins'
 import { GiftCardPage } from '../../features/giftcard'
+import { BlogPage, BlogDetailPage } from '../../features/blog'
 import {
   CommunityPage,
   CommunityEnterPage,
@@ -83,6 +84,8 @@ const router = createBrowserRouter([
       { path: 'refer-earn', element: <ReferEarnPage /> },
       { path: 'redeem-coins', element: <CoinsPage /> },
       { path: 'giftcard', element: <GiftCardPage /> },
+      { path: 'blog', element: <BlogPage /> },
+      { path: 'blog/:slug', element: <BlogDetailPage /> },
       { path: 'community', element: <CommunityPage /> },
       { path: 'community/enter', element: <CommunityEnterPage /> },
       { path: 'community/feed/:page?', element: <CommunityFeedLayout /> },

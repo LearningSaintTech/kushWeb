@@ -1,8 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import ProductCard from '../../../shared/components/ProductCard'
-import productImage from '../../../assets/temporary/productimage.png'
-import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { getItemStockTotal, isListingItemOutOfStock } from '../../../utils/productStock.js'
@@ -11,16 +9,6 @@ import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } 
 
 const GAP = 24
 const SECTION_PAGE_SIZE = 10
-
-const BEST_SELLER_PRODUCTS = Array.from({ length: 20 }, (_, i) => ({
-  id: i + 1,
-  image: productImage,
-  hoverImage: hoverProductImage,
-  title: 'DENIM JACKET',
-  price: '₹1500.00',
-  delivery: 'GET IN 6-7 days',
-  rating: 4.5,
-}))
 
 function mapItemToCard(item, deliveryTypeFallback, section = null) {
   const id = item._id ?? item.id
@@ -45,8 +33,8 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
     : undefined
   return {
     id,
-    image: imageUrl || productImage,
-    hoverImage: hoverUrl || hoverProductImage,
+    image: imageUrl,
+    hoverImage: hoverUrl,
     title: item.name ?? '',
     shortDescription: item.shortDescription ?? '',
     stock: getItemStockTotal(item),
@@ -73,8 +61,8 @@ function BestSellar({ section }) {
         : undefined
       return {
         id: item._id,
-        image: item.thumbnail || productImage,
-        hoverImage: item.thumbnail || hoverProductImage,
+        image: item.thumbnail || '',
+        hoverImage: item.thumbnail || '',
         title: item.name || '',
         shortDescription: item.shortDescription || '',
         stock: getItemStockTotal(item),
@@ -96,7 +84,7 @@ function BestSellar({ section }) {
 
   const products = section?._id
     ? (sectionList.length > 0 ? sectionList : listFromSection)
-    : (listFromSection.length > 0 ? listFromSection : BEST_SELLER_PRODUCTS)
+    : listFromSection
 
   const [slideIndex, setSlideIndex] = useState(0)
   const [dragOffset, setDragOffset] = useState(0)

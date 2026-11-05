@@ -3,8 +3,6 @@ import { debugLog } from '../../../utils/debugLog.js';
 import { useSelector } from "react-redux";
 import { IoChevronForward } from "react-icons/io5";
 import ProductCard, { PRODUCT_CARD_COMPACT_GRID_PROPS } from "../../../shared/components/ProductCard";
-import productImage from "../../../assets/temporary/productimage.png";
-import hoverProductImage from "../../../assets/temporary/hoverProductImage.png";
 import { itemsService } from "../../../services/items.service.js";
 import { categoriesService } from "../../../services/categories.service.js";
 import { getItemStockTotal, isListingItemOutOfStock } from "../../../utils/productStock.js";
@@ -24,8 +22,8 @@ function itemToCardProps(item, index, section = null) {
   const firstVariant = variants[0];
   const images = firstVariant?.images ?? [];
   const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const imageUrl = sorted[0]?.url ?? item.thumbnail ?? productImage;
-  const hoverUrl = sorted[1]?.url ?? imageUrl ?? hoverProductImage;
+  const imageUrl = sorted[0]?.url ?? item.thumbnail ?? "";
+  const hoverUrl = sorted[1]?.url ?? imageUrl;
   const price =
     item.discountedPrice != null
       ? `₹${Number(item.discountedPrice).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`

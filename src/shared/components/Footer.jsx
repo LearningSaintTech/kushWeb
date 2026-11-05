@@ -435,6 +435,14 @@ function Footer() {
                     </li>
                     <li>
                       <Link
+                        to={ROUTES.BLOG}
+                        className="hover:text-white transition-colors"
+                      >
+                        Blog
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
                         to={ROUTES.CONTACT_US}
                         className="hover:text-white transition-colors"
                       >

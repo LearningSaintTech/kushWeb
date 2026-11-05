@@ -16,7 +16,6 @@ import { useAuth } from "../../app/context/AuthContext";
 import { useCartWishlist } from "../../app/context/CartWishlistContext";
 import { ROUTES, getProductShareUrl } from "../../utils/constants";
 import { getPublicSiteOrigin } from "../../services/config.js";
-import productImage from "../../assets/temporary/productimage.png";
 import ReviewRating from "./components/ReviewRating";
 import WriteReviewModal from "./components/WriteReviewModal";
 import RelatedProducts from "./components/RelatedProducts";
@@ -401,7 +400,7 @@ function ProductPage() {
           },
         ];
       }
-      return [{ url: productImage, type: "image" }];
+      return [];
     }
     const sorted = [...selectedVariant.images].sort(
       (a, b) => (a.order ?? 0) - (b.order ?? 0),
@@ -685,7 +684,7 @@ function ProductPage() {
       isVariantInStock: !!selectedSizeObj?.inStock,
       productForCart,
       staticFieldsCheck: {
-        isStaticImageFallback: !firstImageUrl || firstImageUrl === productImage,
+        isStaticImageFallback: !firstImageUrl,
         isStaticRatingFallback: item?.avgRating == null,
         isStaticDeliveryFallback: !deliveryOptionsFromPincode.length && !deliveries.length,
       },
@@ -979,7 +978,7 @@ function ProductPage() {
         <div className="mx-auto max-w-xl overflow-hidden bg-white shadow-sm">
           <div className="relative aspect-[4/5] overflow-hidden bg-neutral-200">
             <img
-              src={firstImageUrl || item.thumbnail || productImage}
+              src={firstImageUrl || item.thumbnail || undefined}
               alt=""
               className="h-full w-full scale-105 object-cover object-top blur-[8px]"
               aria-hidden

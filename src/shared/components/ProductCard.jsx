@@ -481,7 +481,7 @@ const ProductCard = React.memo(function ProductCard({
           className={`relative overflow-hidden ${imageRoundedClass}`}
           style={{ ...imageTopStyle, ...imageBottomStyle }}
         >
-          {shouldRenderImage ? (
+          {shouldRenderImage && image ? (
             <img
               src={image}
               alt={title}

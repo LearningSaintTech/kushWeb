@@ -9,7 +9,6 @@ import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import { isListingItemOutOfStock } from '../../../utils/productStock.js'
 import { trackEvent } from '../../../analytics'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
-import productImage from '../../../assets/temporary/productimage.png'
 
 const SECTION_TITLE = 'JUST FOR YOU'
 
@@ -42,8 +41,8 @@ function mapSectionProduct(row, section) {
 
   return {
     id,
-    image: item.thumbnail || productImage,
-    hoverImage: item.thumbnail || productImage,
+    image: item.thumbnail || '',
+    hoverImage: item.thumbnail || '',
     title: item.name ?? '',
     shortDescription: item.shortDescription ?? '',
     price,

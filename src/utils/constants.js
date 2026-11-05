@@ -45,6 +45,13 @@ export const ROUTES = {
   TERMS_CONDITIONS: '/terms-conditions',
   PRIVACY_POLICY: '/privacy-policy',
   DELETE_ACCOUNT: '/delete-account',
+  /** Fashion Stories blog listing; detail at /blog/:slug */
+  BLOG: '/blog',
+  BLOG_DETAIL: '/blog/:slug',
+}
+
+export function getBlogPath(slug) {
+  return slug ? `/blog/${encodeURIComponent(slug)}` : '/blog'
 }
 
 /** Fullscreen reels feed, optionally deep-linked to one reel */
