@@ -17,6 +17,7 @@ import { NotificationsPage } from '../../features/notifications'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
 import ShaktimanCollectionPage from '../../features/home/ShaktimanCollectionPage'
+import { BlogListPage, BlogPostPage } from '../../features/blog'
 import { CouponsPage } from '../../features/coupons'
 import { WalletPage } from '../../features/wallet'
 import { ReferEarnPage } from '../../features/referEarn'
@@ -72,6 +73,8 @@ const router = createBrowserRouter([
       { path: 'payment-policy', element: <PaymentPolicyPage /> },
       { path: 'shipping-delivery-policy', element: <ShippingDeliveryPolicyPage /> },
       { path: 'faqs', element: <FAQsPage /> },
+      { path: 'blog', element: <BlogListPage /> },
+      { path: 'blog/:slug', element: <BlogPostPage /> },
       { path: 'about-us', element: <AboutUsPage /> },
       { path: 'contact-us', element: <ContactUsPage /> },
       { path: 'terms-conditions', element: <TermsConditionsPage /> },

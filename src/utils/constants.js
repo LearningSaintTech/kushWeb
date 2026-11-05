@@ -40,6 +40,7 @@ export const ROUTES = {
   PAYMENT_POLICY: '/payment-policy',
   SHIPPING_DELIVERY_POLICY: '/shipping-delivery-policy',
   FAQS: '/faqs',
+  BLOG: '/blog',
   ABOUT_US: '/about-us',
   CONTACT_US: '/contact-us',
   TERMS_CONDITIONS: '/terms-conditions',

@@ -1308,6 +1308,13 @@ export default function Header() {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <NavLink
+                      to={ROUTES.BLOG}
+                      onClick={closeMenu}
+                      className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 font-inter text-[13px] font-semibold text-black hover:bg-gray-50 transition-colors"
+                    >
+                      Blog
+                    </NavLink>
+                    <NavLink
                       to={ROUTES.FAQS}
                       onClick={closeMenu}
                       className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 font-inter text-[13px] font-semibold text-black hover:bg-gray-50 transition-colors"
