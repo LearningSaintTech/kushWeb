@@ -12,6 +12,7 @@ import NewArrivals from './components/NewArrivals'
 import HomePageLoader from './components/HomePageLoader'
 // import StaticCard from '../staticCards/StaticCard.jsx'
 import DropStory from './components/DropStory'
+import CommunityClubBanner from './components/CommunityClubBanner.jsx'
 import FabricCraft from './components/FabricCraft.jsx'
 import OurStory from './components/OurStory.jsx'
 import NewsMarquee from './components/NewsMarquee.jsx'
@@ -161,7 +162,12 @@ function HomePage() {
                     </>
                   ) : null}
                   <SectionComponent section={section} />
-                  {order === 5 ? <DropStory /> : null}
+                  {order === 5 ? (
+                    <>
+                      <CommunityClubBanner />
+                      <DropStory />
+                    </>
+                  ) : null}
                 </div>
               )
             })}

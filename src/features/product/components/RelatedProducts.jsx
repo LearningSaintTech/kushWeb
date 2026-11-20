@@ -9,7 +9,6 @@ import { isListingItemOutOfStock } from '../../../utils/productStock.js'
 import { trackEvent } from '../../../analytics'
 import { useAuth } from '../../../app/context/AuthContext'
 import { debugError, debugLog } from '../../../utils/debugLog.js'
-import productImage from '../../../assets/temporary/productimage.png'
 
 function formatInr(n) {
   return `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
@@ -38,8 +37,8 @@ function mapSuggestionToCard(item) {
 
   return {
     id,
-    image: item.thumbnail || productImage,
-    hoverImage: item.thumbnail || productImage,
+    image: item.thumbnail || '',
+    hoverImage: item.thumbnail || '',
     title: item.name ?? '',
     shortDescription: item.shortDescription ?? '',
     price,

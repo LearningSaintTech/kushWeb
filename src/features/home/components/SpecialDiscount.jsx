@@ -13,8 +13,6 @@ import { getItemStockTotal, isListingItemOutOfStock } from '../../../utils/produ
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from '../../../utils/productLaunch.js'
 import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
-import productImage from '../../../assets/temporary/productimage.png'
-import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 
 const PRODUCT_CARD_LIMIT = 8
 
@@ -28,8 +26,8 @@ function itemToCardProps(item, index, section = null) {
   const variants = item.variants ?? []
   const images = variants[0]?.images ?? []
   const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-  const imageUrl = sorted[0]?.url ?? item.thumbnail ?? productImage
-  const hoverUrl = sorted[1]?.url ?? imageUrl ?? hoverProductImage
+  const imageUrl = sorted[0]?.url ?? item.thumbnail ?? ''
+  const hoverUrl = sorted[1]?.url ?? imageUrl
   const price =
     item.discountedPrice != null
       ? `₹${Number(item.discountedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`

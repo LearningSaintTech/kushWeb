@@ -3,33 +3,40 @@ import { ROUTES } from '../../utils/constants'
 import { useAuth } from '../../app/context/AuthContext'
 import { debugLog } from '../../utils/debugLog'
 
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.khushpehno.app'
+const APP_STORE_URL = 'https://apps.apple.com/in/app/khush-fashion-shopping-app/id6761365897'
+
+function getUserAgent() {
+  return typeof navigator !== 'undefined'
+    ? navigator.userAgent || navigator.vendor || window.opera || ''
+    : ''
+}
+
+/** Phone/tablet UA or narrow viewport — these users are sent to the Khush app. */
+export function isMobileDevice() {
+  return (
+    /android|iPad|iPhone|iPod|windows phone/i.test(getUserAgent()) ||
+    (typeof window !== 'undefined' && window.innerWidth < 768)
+  )
+}
+
+/** Open the Khush app store listing: App Store on iOS, Play Store otherwise. */
+export function openKhushAppStore() {
+  const userAgent = getUserAgent()
+  window.location.href =
+    /iPad|iPhone|iPod/.test(userAgent) && !/android/i.test(userAgent)
+      ? APP_STORE_URL
+      : PLAY_STORE_URL
+}
+
 export function useExploreFashion() {
   const navigate = useNavigate()
   const { isAuthenticated, authChecked, openAuthModal } = useAuth()
 
   return () => {
     debugLog('[CommunityProfile] Explore Fashion clicked')
-    const userAgent =
-      typeof navigator !== 'undefined'
-        ? navigator.userAgent || navigator.vendor || window.opera || ''
-        : ''
-    const isMobile =
-      /android|iPad|iPhone|iPod|windows phone/i.test(userAgent) ||
-      (typeof window !== 'undefined' && window.innerWidth < 768)
-
-    if (isMobile) {
-      if (/android/i.test(userAgent)) {
-        window.location.href =
-          'https://play.google.com/store/apps/details?id=com.khushpehno.app'
-        return
-      }
-      if (/iPad|iPhone|iPod/.test(userAgent)) {
-        window.location.href =
-          'https://apps.apple.com/in/app/khush-fashion-shopping-app/id6761365897'
-        return
-      }
-      window.location.href =
-        'https://play.google.com/store/apps/details?id=com.khushpehno.app'
+    if (isMobileDevice()) {
+      openKhushAppStore()
       return
     }
 
@@ -61,7 +68,7 @@ export default function ExploreFashionButton({ className = '', floating = false 
         className="pointer-events-none absolute inset-y-0 left-0 w-2/5 bg-gradient-to-r from-transparent via-white/45 to-transparent animate-button-shine"
         aria-hidden
       />
-      <span className="relative z-10">Explore Fashion</span>
+      <span className="relative z-10">Explore Community</span>
       <span
         className="relative z-10 text-base font-light leading-none transition-transform duration-300 group-hover:translate-x-0.5"
         aria-hidden

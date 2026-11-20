@@ -17,12 +17,12 @@ import { NotificationsPage } from '../../features/notifications'
 import { SearchPage } from '../../features/search'
 import { SectionExplorePage } from '../../features/sectionExplore'
 import ShaktimanCollectionPage from '../../features/home/ShaktimanCollectionPage'
-import { BlogListPage, BlogPostPage } from '../../features/blog'
 import { CouponsPage } from '../../features/coupons'
 import { WalletPage } from '../../features/wallet'
 import { ReferEarnPage } from '../../features/referEarn'
 import { CoinsPage } from '../../features/coins'
 import { GiftCardPage } from '../../features/giftcard'
+import { BlogPage, BlogDetailPage } from '../../features/blog'
 import {
   CommunityPage,
   CommunityEnterPage,
@@ -73,8 +73,6 @@ const router = createBrowserRouter([
       { path: 'payment-policy', element: <PaymentPolicyPage /> },
       { path: 'shipping-delivery-policy', element: <ShippingDeliveryPolicyPage /> },
       { path: 'faqs', element: <FAQsPage /> },
-      { path: 'blog', element: <BlogListPage /> },
-      { path: 'blog/:slug', element: <BlogPostPage /> },
       { path: 'about-us', element: <AboutUsPage /> },
       { path: 'contact-us', element: <ContactUsPage /> },
       { path: 'terms-conditions', element: <TermsConditionsPage /> },
@@ -86,6 +84,8 @@ const router = createBrowserRouter([
       { path: 'refer-earn', element: <ReferEarnPage /> },
       { path: 'redeem-coins', element: <CoinsPage /> },
       { path: 'giftcard', element: <GiftCardPage /> },
+      { path: 'blog', element: <BlogPage /> },
+      { path: 'blog/:slug', element: <BlogDetailPage /> },
       { path: 'community', element: <CommunityPage /> },
       { path: 'community/enter', element: <CommunityEnterPage /> },
       { path: 'community/feed/:page?', element: <CommunityFeedLayout /> },

@@ -40,12 +40,18 @@ export const ROUTES = {
   PAYMENT_POLICY: '/payment-policy',
   SHIPPING_DELIVERY_POLICY: '/shipping-delivery-policy',
   FAQS: '/faqs',
-  BLOG: '/blog',
   ABOUT_US: '/about-us',
   CONTACT_US: '/contact-us',
   TERMS_CONDITIONS: '/terms-conditions',
   PRIVACY_POLICY: '/privacy-policy',
   DELETE_ACCOUNT: '/delete-account',
+  /** Fashion Stories blog listing; detail at /blog/:slug */
+  BLOG: '/blog',
+  BLOG_DETAIL: '/blog/:slug',
+}
+
+export function getBlogPath(slug) {
+  return slug ? `/blog/${encodeURIComponent(slug)}` : '/blog'
 }
 
 /** Fullscreen reels feed, optionally deep-linked to one reel */

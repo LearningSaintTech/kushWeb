@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { getProductPath, ROUTES } from '../../../utils/constants'
-import productImage from '../../../assets/temporary/productimage.png'
-import hoverProductImage from '../../../assets/temporary/hoverProductImage.png'
 import { IoChevronForward } from 'react-icons/io5'
 import { itemsService } from '../../../services/items.service.js'
 import { listingBindOfferProps } from '../../../utils/bindOffer.js'
@@ -52,8 +50,8 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
       : undefined
   return {
     id,
-    image: imageUrl || productImage,
-    hoverImage: hoverUrl || hoverProductImage,
+    image: imageUrl,
+    hoverImage: hoverUrl,
     title: item.name ?? '',
     shortDescription: item.shortDescription ?? '',
     price,
@@ -65,14 +63,6 @@ function mapItemToCard(item, deliveryTypeFallback, section = null) {
     ...listingBindOfferProps(item, section),
   }
 }
-
-const NEW_ARRIVALS_DATA = [
-  { id: 1, image: productImage, hoverImage: hoverProductImage, title: 'Casual Dress', price: '₹75.00' },
-  { id: 2, image: hoverProductImage, hoverImage: productImage, title: 'Mens Oversized Pants', price: '₹75.00' },
-  { id: 3, image: productImage, hoverImage: hoverProductImage, title: 'Mens Oversized Tshirt', price: '₹75.00' },
-  { id: 4, image: hoverProductImage, hoverImage: productImage, title: 'Mens Oversized Shirt', price: '₹75.00' },
-  { id: 5, image: productImage, hoverImage: hoverProductImage, title: 'Mens Oversized Tshirt', price: '₹75.00' },
-]
 
 function NewArrivals({ section }) {
   const navigate = useNavigate()
@@ -87,7 +77,7 @@ function NewArrivals({ section }) {
         const firstVariant = variants[0]
         const images = firstVariant?.images ?? []
         const sorted = [...images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        const imageUrl = item.thumbnail || sorted[0]?.url || productImage
+        const imageUrl = item.thumbnail || sorted[0]?.url || ''
         const hoverUrl = sorted[1]?.url || sorted[0]?.url || imageUrl
         const price =
           item.discountedPrice != null
@@ -102,7 +92,7 @@ function NewArrivals({ section }) {
         return {
           id: item._id,
           image: imageUrl,
-          hoverImage: hoverUrl || hoverProductImage,
+          hoverImage: hoverUrl,
           title: item.name || '',
           shortDescription: item.shortDescription || '',
           price,
@@ -131,7 +121,7 @@ function NewArrivals({ section }) {
       : listFromSection
     : listFromSection.length > 0
       ? listFromSection
-      : NEW_ARRIVALS_DATA
+      : []
 
   const displayList = list.slice(0, DISPLAY_COUNT)
   const sectionTitle = section?.title || 'NEW ARRIVAL'
@@ -228,17 +218,19 @@ function NewArrivals({ section }) {
                   }`}
                 >
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-neutral-100">
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-                        !comingSoon && item.hoverImage && item.hoverImage !== item.image
-                          ? 'opacity-100 group-hover:opacity-0'
-                          : 'opacity-100'
-                      } ${comingSoon ? 'scale-110 blur-md sm:blur-lg' : ''}`}
-                      loading={i < 2 ? 'eager' : 'lazy'}
-                      decoding="async"
-                    />
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+                          !comingSoon && item.hoverImage && item.hoverImage !== item.image
+                            ? 'opacity-100 group-hover:opacity-0'
+                            : 'opacity-100'
+                        } ${comingSoon ? 'scale-110 blur-md sm:blur-lg' : ''}`}
+                        loading={i < 2 ? 'eager' : 'lazy'}
+                        decoding="async"
+                      />
+                    ) : null}
                     {!comingSoon && item.hoverImage && item.hoverImage !== item.image ? (
                       <img
                         src={item.hoverImage}
