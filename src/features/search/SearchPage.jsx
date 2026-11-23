@@ -286,11 +286,21 @@ function SearchPage() {
   })
 
   useEffect(() => {
-    if (filterOpen && categoryTriggerRef.current) {
-      setCategoryDropdownRect(categoryTriggerRef.current.getBoundingClientRect())
-    } else {
+    if (!filterOpen || !categoryTriggerRef.current) {
       setCategoryDropdownRect(null)
       setDropdownAnimateOpen(false)
+      return
+    }
+    // Keep the fixed-position menu attached to its trigger on scroll / resize / rotation.
+    const update = () => {
+      if (categoryTriggerRef.current) setCategoryDropdownRect(categoryTriggerRef.current.getBoundingClientRect())
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
     }
   }, [filterOpen])
 
@@ -1060,7 +1070,7 @@ function SearchPage() {
                   </button>
                 </div>
                 {categoryFromUrl && (
-                  <div className="relative min-w-[200px] shrink-0 sm:min-w-[220px]">
+                  <div className="relative min-w-0 flex-1 basis-40 sm:flex-none sm:basis-auto sm:min-w-[220px]">
                     <select
                       value={subcategoryFromUrl}
                       onChange={(e) => handleSubcategorySelect(e.target.value || '')}
@@ -1095,7 +1105,7 @@ function SearchPage() {
                   </button>
                 </div>
                 {categoryFromUrl && (subcategories.length > 0 || subcategoriesLoading) && (
-                  <div className="relative min-w-[200px] shrink-0 sm:min-w-[220px]">
+                  <div className="relative min-w-0 flex-1 basis-40 sm:flex-none sm:basis-auto sm:min-w-[220px]">
                     <select
                       value={subcategoryFromUrl}
                       onChange={(e) => handleSubcategorySelect(e.target.value || '')}
@@ -1159,12 +1169,20 @@ function SearchPage() {
     <>
       <div className="fixed inset-0 z-100" onClick={() => setFilterOpen(false)} aria-hidden />
       <div
-        className={`fixed z-101 w-48 max-h-64 overflow-y-auto py-1 rounded-lg border border-gray-300 bg-white shadow-lg transition-all duration-200 ease-out origin-top-right ${dropdownAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
+        className={`fixed z-101 overflow-y-auto overscroll-contain py-1 rounded-lg border border-gray-300 bg-white shadow-lg transition-all duration-200 ease-out origin-top-left ${dropdownAnimateOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'
           }`}
-        style={{
-          top: categoryDropdownRect.bottom + 4,
-          right: typeof window !== 'undefined' ? window.innerWidth - categoryDropdownRect.right : 0,
-        }}
+        style={(() => {
+          // Align to the trigger's left edge and clamp inside the viewport so it never
+          // gets cut off on narrow (phone) screens.
+          const vw = window.innerWidth
+          const vh = window.innerHeight
+          const gutter = 8
+          const width = Math.min(Math.max(categoryDropdownRect.width, 192), vw - gutter * 2)
+          const left = Math.min(Math.max(categoryDropdownRect.left, gutter), vw - width - gutter)
+          const top = categoryDropdownRect.bottom + 4
+          const maxHeight = Math.max(160, Math.min(256, vh - top - gutter))
+          return { top, left, width, maxHeight }
+        })()}
       >
         {showOurProductDropdown && sectionCategories.map((c) => {
           const cid = c._id ?? c.id
