@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
 Disallow: /search
-Disallow: /product
 
 Sitemap: https://khushpehno.com/sitemap.xml
