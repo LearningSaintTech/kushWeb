@@ -28,7 +28,16 @@ export function useNavbarMenu({ sidebar = false } = {}) {
         ? await subcategoriesService.getSidebarByCategoryId(id)
         : await subcategoriesService.getNavbarByCategoryId(id);
       const list = res?.data?.data?.subcategories ?? res?.data?.subcategories ?? [];
-      const subs = Array.isArray(list) ? list : [];
+      let subs = Array.isArray(list) ? list : [];
+      // Hamburger: if admin hasn't flagged any subcategory "show in sidebar", show all of them
+      // instead of an empty menu with only "View all".
+      if (sidebar && subs.length === 0) {
+        const allRes = await subcategoriesService.getByCategoryId(id, { limit: 50 });
+        const all = allRes?.data?.data?.subcategories ?? allRes?.data?.subcategories ?? [];
+        subs = (Array.isArray(all) ? all : [])
+          .filter((s) => s?.isActive !== false)
+          .sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0));
+      }
       setSubcategoriesByCategoryId((prev) => ({ ...prev, [id]: subs }));
     } catch {
       setSubcategoriesByCategoryId((prev) => ({ ...prev, [id]: [] }));

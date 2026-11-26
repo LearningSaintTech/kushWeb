@@ -14,7 +14,8 @@ import { listingBindOfferProps } from '../../../utils/bindOffer.js'
 import { itemLaunchCardProps, isHomeVisibleProduct, filterHomeVisibleProducts } from '../../../utils/productLaunch.js'
 import bgHero from '../../../assets/images/special-discount/Salesoffer.png'
 
-const PRODUCT_CARD_LIMIT = 8
+// Home shows a 4-product preview; "Explore More" opens the full sale page.
+const PRODUCT_CARD_LIMIT = 4
 
 function resolveBannerSrc(section) {
   const desktopRaw = section?.desktopBanner?.[0]?.imageUrl
@@ -77,7 +78,8 @@ function resolveEmbeddedProducts(section) {
         }
         return itemToCardProps(item, i, section)
       })
-      ?.filter((p) => p.id) ?? []
+      ?.filter((p) => p.id)
+      ?.slice(0, PRODUCT_CARD_LIMIT) ?? []
   )
 }
 
